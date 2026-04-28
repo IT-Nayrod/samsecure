@@ -1,0 +1,33 @@
+:root {
+  /* Colors */
+  --color-sidebar-bg: #0D1117;
+  --color-sidebar-text-inactive: #8B9099;
+  --color-sidebar-active-bg: #1E2028;
+  --color-sidebar-active: #7C6FCD;
+  --color-page-bg: #F8F9FB;
+  --color-card-bg: #FFFFFF;
+  --color-card-border: #EAECF0;
+  --color-primary: #7C6FCD;
+  --color-turquoise: #3FC8B8;
+  --color-red: #E8534A;
+  --color-green: #52C97A;
+  --color-yellow: #F4C842;
+  --color-text-primary: #1A1D23;
+  --color-text-secondary: #8B9099;
+  --color-badge-notif: #FF4757;
+
+  /* Shadows */
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.08);
+
+  /* Border radius */
+  --radius-card: 12px;
+  --radius-button: 6px;
+  --radius-badge: 50%;
+
+  /* Dimensions */
+  --sidebar-width: 180px;
+  --header-height: 56px;
+
+  /* Typography */
+  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
