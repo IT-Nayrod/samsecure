@@ -4,11 +4,15 @@ on:
   push:
     branches:
       - staging
-  workflow_dispatch: {}  # déclenchement manuel possible
+  workflow_dispatch:
 
 jobs:
   deploy-staging:
     runs-on: [self-hosted, samsecure]
+
+    defaults:
+      run:
+        working-directory: ./staging
 
     environment:
       name: staging
@@ -18,29 +22,32 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Optionnel : forcer Node
-      # - name: Setup Node.js
-      #   uses: actions/setup-node@v4
-      #   with:
-      #     node-version: '20'
-      #     cache: 'npm'
+      - name: Show workspace
+        run: |
+          pwd
+          ls -lah
+          find . -maxdepth 2 -type f \( -name "package.json" -o -name "package-lock.json" \)
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: ./staging/package-lock.json
 
       - name: Install dependencies
-        run: |
-          npm ci
+        run: npm ci
 
-      - name: Build Vite app (staging)
-        run: |
-          npm run build
+      - name: Build Vite app
+        run: npm run build
 
       - name: Prepare target directory
-        run: |
-          mkdir -p /var/www/samsecure/staging/dist
+        working-directory: .
+        run: mkdir -p /var/www/samsecure/staging/dist
 
       - name: Deploy build to STAGING
-        run: |
-          rsync -av --delete ./dist/ /var/www/samsecure/staging/dist/
+        run: rsync -rtv --delete ./dist/ /var/www/samsecure/staging/dist/
 
-      - name: Show deployed files (STAGING)
-        run: |
-          ls -lah /var/www/samsecure/staging/dist
+      - name: Show deployed files
+        working-directory: .
+        run: ls -lah /var/www/samsecure/staging/dist
