@@ -1,12 +1,13 @@
-/* Grilles responsive des dashboards SamSecure */
+/* V2 - Grilles responsive des dashboards SamSecure */
 
+/* Grille standard 3 colonnes */
 .dash-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 20px;
 }
 
-/* Sous-grilles 2 colonnes égales */
+/* Sous-grilles 2 colonnes égales dans un parent 3 col */
 .dash-grid-2 {
   grid-column: span 3;
   display: grid;
@@ -14,6 +15,14 @@
   gap: 20px;
 }
 
+/* Grille 12 colonnes pour Manager DSI V2 (Ligne 1 × 4, L2/L3 × 2, L4 × 3) */
+.dash-grid-12 {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 20px;
+}
+
+/* ── Tablette (≤ 1024px) ──────────────────────────────────────────────────── */
 @media (max-width: 1024px) {
   .dash-grid {
     grid-template-columns: repeat(2, 1fr);
@@ -26,8 +35,18 @@
   .dash-grid > .span-2 {
     grid-column: span 2;
   }
+
+  /* Ligne 1 Manager DSI : 4 KPIs → 2 × 6 col (2 par ligne) */
+  .dash-grid-12 > [style*="span 3"] {
+    grid-column: span 6;
+  }
+  /* Lignes 2–3 (span 6) et ligne 4 (span 4) restent lisibles */
+  .dash-grid-12 > [style*="span 4"] {
+    grid-column: span 6;
+  }
 }
 
+/* ── Mobile (≤ 640px) ────────────────────────────────────────────────────── */
 @media (max-width: 640px) {
   .dash-grid {
     grid-template-columns: 1fr;
@@ -41,5 +60,10 @@
   .dash-grid > [style*="span 3"],
   .dash-grid > .span-3 {
     grid-column: span 1;
+  }
+
+  /* Manager DSI : tout en 1 colonne */
+  .dash-grid-12 > * {
+    grid-column: span 12 !important;
   }
 }
