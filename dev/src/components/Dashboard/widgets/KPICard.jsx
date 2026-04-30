@@ -43,7 +43,7 @@ export function RevalidationsWidget({ data }) {
     { label: 'Dépassées',  count: data.expired,  color: THRESHOLD_RED    },
   ];
   return (
-    <WidgetCard title="Revalidations" widgetId="revalidations" freshness={{ type: 'cached', minutesAgo: 15 }}>
+    <WidgetCard title="Revalidations" widgetId="revalidations" freshness={{ type: 'cached', minutesAgo: 30 }}>
       <div onClick={() => console.log('navigate to /revalidations')}
            style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', cursor: 'pointer' }}>
         {items.map(it => (
