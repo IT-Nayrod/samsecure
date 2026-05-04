@@ -1,46 +1,32 @@
-name: Deploy STAGING (self-hosted)
+name: Deploy STAGING
 
 on:
   push:
     branches:
       - staging
-  workflow_dispatch: {}  # déclenchement manuel possible
+  workflow_dispatch:
 
 jobs:
   deploy-staging:
     runs-on: [self-hosted, samsecure]
 
-    environment:
-      name: staging
-      url: https://staging-samsecure.nayrod.fr
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Optionnel : forcer Node
-      # - name: Setup Node.js
-      #   uses: actions/setup-node@v4
-      #   with:
-      #     node-version: '20'
-      #     cache: 'npm'
+      - name: Sync app source to server
+        run: |
+          mkdir -p /var/www/samsecure/app
+          mkdir -p /var/www/samsecure/staging-dist
+          rsync -rt --delete \
+            --exclude ".git" \
+            --exclude "node_modules" \
+            ./ /var/www/samsecure/app/
 
       - name: Install dependencies
-        run: |
-          npm ci
+        working-directory: /var/www/samsecure/app
+        run: npm ci
 
-      - name: Build Vite app (staging)
-        run: |
-          npm run build
-
-      - name: Prepare target directory
-        run: |
-          mkdir -p /var/www/samsecure/staging/dist
-
-      - name: Deploy build to STAGING
-        run: |
-          rsync -av --delete ./dist/ /var/www/samsecure/staging/dist/
-
-      - name: Show deployed files (STAGING)
-        run: |
-          ls -lah /var/www/samsecure/staging/dist
+      - name: Build staging
+        working-directory: /var/www/samsecure/app
+        run: npm run build:staging
