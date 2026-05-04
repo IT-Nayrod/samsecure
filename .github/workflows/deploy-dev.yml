@@ -1,53 +1,37 @@
-name: Deploy DEV (self-hosted)
+name: Deploy DEV
 
 on:
   push:
     branches:
-      - develop
+      - dev
   workflow_dispatch:
 
 jobs:
   deploy-dev:
     runs-on: [self-hosted, samsecure]
 
-    defaults:
-      run:
-        working-directory: ./dev
-
-    environment:
-      name: development
-      url: https://dev-samsecure.nayrod.fr
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Show workspace
+      - name: Sync app source to server
         run: |
-          pwd
-          ls -lah
-          find . -maxdepth 2 -type f \( -name "package.json" -o -name "package-lock.json" \)
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: ./dev/package-lock.json
+          mkdir -p /var/www/samsecure/app
+          rsync -rt --delete \
+            --exclude ".git" \
+            --exclude "node_modules" \
+            ./ /var/www/samsecure/app/
 
       - name: Install dependencies
+        working-directory: /var/www/samsecure/app
         run: npm ci
 
-      - name: Build Vite app
-        run: npm run build
+      - name: Restart PM2 dev server
+        working-directory: /var/www/samsecure/app
+        run: |
+          pm2 describe samsecure-dev > /dev/null 2>&1 \
+            && pm2 restart samsecure-dev \
+            || pm2 start ecosystem.config.cjs
 
-      - name: Prepare target directory
-        working-directory: .
-        run: mkdir -p /var/www/samsecure/dev/dist
-
-      - name: Deploy build to DEV
-        run: rsync -av --delete ./dist/ /var/www/samsecure/dev/dist/
-
-      - name: Show deployed files
-        working-directory: .
-        run: ls -lah /var/www/samsecure/dev/dist
+      - name: Save PM2 process list
+        run: pm2 save
