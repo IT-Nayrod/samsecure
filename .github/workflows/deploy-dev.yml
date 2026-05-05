@@ -16,18 +16,18 @@ jobs:
 
       - name: Sync app source to server
         run: |
-          mkdir -p /var/www/samsecure/app
+          mkdir -p /var/www/samsecure/
           rsync -rt --delete \
             --exclude ".git" \
             --exclude "node_modules" \
-            ./ /var/www/samsecure/app/
+            ./ /var/www/samsecure/
 
       - name: Install dependencies
-        working-directory: /var/www/samsecure/app
+        working-directory: /var/www/samsecure
         run: npm ci
 
       - name: Restart PM2 dev server
-        working-directory: /var/www/samsecure/app
+        working-directory: /var/www/samsecure
         run: |
           pm2 describe samsecure-dev > /dev/null 2>&1 \
             && pm2 restart samsecure-dev \
