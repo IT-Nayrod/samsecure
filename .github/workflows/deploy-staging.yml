@@ -16,17 +16,17 @@ jobs:
 
       - name: Sync app source to server
         run: |
-          mkdir -p /var/www/samsecure/app
+          mkdir -p /var/www/samsecure
           mkdir -p /var/www/samsecure/staging-dist
           rsync -rt --delete \
             --exclude ".git" \
             --exclude "node_modules" \
-            ./ /var/www/samsecure/app/
+            ./ /var/www/samsecure/
 
       - name: Install dependencies
-        working-directory: /var/www/samsecure/app
+        working-directory: /var/www/samsecure
         run: npm ci
 
       - name: Build staging
-        working-directory: /var/www/samsecure/app
+        working-directory: /var/www/samsecure
         run: npm run build:staging
