@@ -22,7 +22,7 @@ export default defineConfig(({ mode }) => {
       }
     },
     build: {
-      outDir: isStaging ? '../staging-dist' : '../dev-dist',
+      outDir: isStaging ? 'staging-dist' : 'dev-dist',
       emptyOutDir: true
     }
   }
