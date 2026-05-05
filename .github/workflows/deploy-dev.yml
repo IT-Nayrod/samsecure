@@ -16,7 +16,7 @@ jobs:
 
       - name: Sync app source to server
         run: |
-          mkdir -p /var/www/samsecure/
+          mkdir -p /var/www/samsecure
           rsync -rt --delete \
             --exclude ".git" \
             --exclude "node_modules" \
