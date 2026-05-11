@@ -2,7 +2,7 @@ module.exports = {
   apps: [
     {
       name: 'samsecure-dev',
-      cwd: '/var/www/samsecure/app',
+      cwd: '/var/www/samsecure',
       script: 'npm',
       args: 'run dev',
       interpreter: 'none',
