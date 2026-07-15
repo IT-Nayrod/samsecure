@@ -1,5 +1,5 @@
 export function timeAgo(dateString) {
-  if (!dateString) return '—';
+  if (!dateString) return '-';
   const diff = Math.floor((Date.now() - new Date(dateString)) / 1000);
   if (diff < 60) return 'à l\'instant';
   if (diff < 3600) return `il y a ${Math.floor(diff / 60)} min`;
@@ -12,11 +12,11 @@ export function timeAgo(dateString) {
 }
 
 export function formatDate(dateString) {
-  if (!dateString) return '—';
+  if (!dateString) return '-';
   return new Date(dateString).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
 export function formatDateTime(dateString) {
-  if (!dateString) return '—';
+  if (!dateString) return '-';
   return new Date(dateString).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }

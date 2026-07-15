@@ -1,5 +1,6 @@
 // UsersPage - Section 3 Specs UX v0.5
 import { useState, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Pencil, UserX, UserCheck, KeyRound, Trash2, UserPlus } from 'lucide-react';
 import { mockUsers as initialUsers } from '../../data/mockUsers';
 import DataTable from '../ui/DataTable';
@@ -17,7 +18,8 @@ export default function UsersPage() {
   const [users, setUsers] = useState(initialUsers);
   const [filterStatut, setFilterStatut] = useState('');
   const [filterProfil, setFilterProfil] = useState('');
-  const [search, setSearch] = useState('');
+  const [searchParams] = useSearchParams();
+  const [search, setSearch] = useState(searchParams.get('q') ?? '');
   const debouncedSearch = useDebounce(search, 300);
   const [formModal, setFormModal] = useState({ open: false, user: null });
   const [confirm, setConfirm] = useState({ open: false, title: '', message: '', action: null, destructive: false });

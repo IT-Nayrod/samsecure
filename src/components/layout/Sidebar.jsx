@@ -1,9 +1,9 @@
 // Sidebar - Section 1.2 Specs UX v0.5
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
-  LayoutDashboard, Building2, Store, Users, Package,
+  LayoutDashboard, Building, Building2, Store, Users, Package,
   FileText, ShoppingCart, Receipt, Shield, Tag, Database,
-  BarChart2, UserCog, Settings, Plug, Settings2,
+  ShieldCheck, TrendingUp, SlidersHorizontal, UserCog, Settings, Plug, Settings2, PiggyBank,
 } from 'lucide-react';
 import useAuth from '../../hooks/useAuth';
 
@@ -17,37 +17,41 @@ const MENU = [
   {
     section: 'RÉFÉRENTIELS',
     items: [
-      { label: 'Editeurs', icon: Building2, path: '/referentiels/editeurs', profiles: ['manager_dsi', 'it_ops'] },
-      { label: 'Revendeurs', icon: Store, path: '/referentiels/revendeurs', profiles: ['manager_dsi', 'it_ops'] },
-      { label: 'Contacts', icon: Users, path: '/referentiels/contacts', profiles: ['manager_dsi', 'it_ops'] },
-      { label: 'Logiciels', icon: Package, path: '/referentiels/logiciels', profiles: ['manager_dsi', 'it_ops'] },
+      { label: 'Editeurs', icon: Building2, path: '/referentiels/editeurs', profiles: ['manager_dsi', 'it_ops', 'financier'] },
+      { label: 'Revendeurs', icon: Store, path: '/referentiels/revendeurs', profiles: ['manager_dsi', 'it_ops', 'financier'] },
+      { label: 'Contacts', icon: Users, path: '/referentiels/contacts', profiles: ['manager_dsi', 'it_ops', 'financier'] },
+      { label: 'Logiciels', icon: Package, path: '/referentiels/logiciels', profiles: ['manager_dsi', 'it_ops', 'financier'] },
     ],
   },
   {
-    section: 'CONTRATS',
+    section: 'DROITS D\'USAGE',
     items: [
-      { label: 'Contrats', icon: FileText, path: '/contrats/liste', profiles: ['manager_dsi', 'it_ops'] },
+      { label: 'Licences', icon: Shield, path: '/conformite/licences', profiles: ['manager_dsi', 'financier', 'it_ops'] },
+      { label: 'Contrat', icon: FileText, path: '/contrats/liste', profiles: ['manager_dsi', 'it_ops'] },
       { label: 'Commandes', icon: ShoppingCart, path: '/contrats/commandes', profiles: ['manager_dsi', 'it_ops'] },
       { label: 'Factures & Preuves', icon: Receipt, path: '/contrats/factures', profiles: ['manager_dsi', 'it_ops'] },
     ],
   },
   {
-    section: 'CONFORMITÉ',
+    section: 'USAGE',
     items: [
-      { label: 'Licences', icon: Shield, path: '/conformite/licences', profiles: ['manager_dsi', 'financier', 'it_ops'] },
       { label: 'Affectations', icon: Tag, path: '/conformite/affectations', profiles: ['manager_dsi', 'financier', 'it_ops'] },
-      { label: 'Inventaire', icon: Database, path: '/conformite/inventaire', profiles: ['manager_dsi', 'it_ops'] },
+      { label: 'Inventaire', icon: Database, path: '/conformite/inventaire', profiles: ['manager_dsi', 'financier', 'it_ops'] },
     ],
   },
   {
     section: 'RAPPORTS',
     items: [
-      { label: 'Rapports', icon: BarChart2, path: '/rapports', profiles: ['manager_dsi', 'financier'] },
+      { label: 'Conformité', icon: ShieldCheck, path: '/rapports/conformite', profiles: ['manager_dsi', 'financier'] },
+      { label: 'Optimisation', icon: TrendingUp, path: '/rapports/optimisation', profiles: ['manager_dsi', 'financier'] },
+      { label: 'Personnalisé', icon: SlidersHorizontal, path: '/rapports/personnalise', profiles: ['manager_dsi', 'financier'] },
     ],
   },
   {
     section: 'ADMINISTRATION',
     items: [
+      { label: 'Organisation', icon: Building, path: '/referentiels/organisation', profiles: ['manager_dsi', 'it_ops', 'financier'] },
+      { label: 'Budget', icon: PiggyBank, path: '/budget', profiles: ['manager_dsi', 'financier', 'it_ops'] },
       { label: 'Utilisateurs', icon: UserCog, path: '/admin/users', profiles: ['manager_dsi'] },
       { label: 'Paramètres', icon: Settings, path: '/admin/settings', profiles: ['manager_dsi'] },
       { label: 'Connecteurs', icon: Plug, path: '/admin/connectors', profiles: ['manager_dsi'] },

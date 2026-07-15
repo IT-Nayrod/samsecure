@@ -1,4 +1,4 @@
-// V2 - Étiquette de fraîcheur des données — Temps réel vs précalculé
+// V2 - Étiquette de fraîcheur des données - Temps réel vs précalculé
 export default function FreshnessBadge({ type, minutesAgo }) {
   if (type === 'realtime') {
     return (

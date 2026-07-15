@@ -13,6 +13,10 @@ export default function DataTable({
   filename = 'export',
   isLoading = false,
   emptyState,
+  viewMode = 'table',
+  renderCard,
+  cardsClassName = 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4',
+  onRowClick,
 }) {
   const [sortKey, setSortKey] = useState(null);
   const [sortDir, setSortDir] = useState('asc');
@@ -23,6 +27,12 @@ export default function DataTable({
   function handleSort(key) {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
     else { setSortKey(key); setSortDir('asc'); }
+    setPage(1);
+  }
+
+  function setSortKeyDirect(key) {
+    setSortKey(key || null);
+    setSortDir('asc');
     setPage(1);
   }
 
@@ -75,7 +85,44 @@ export default function DataTable({
         </div>
       )}
 
-      {/* Table */}
+      {viewMode === 'cards' && renderCard ? (
+        <div className="flex flex-col gap-4">
+          {columns.some(c => c.sortable) && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500">Trier par</span>
+              <select
+                value={sortKey ?? ''}
+                onChange={e => setSortKeyDirect(e.target.value)}
+                className="text-xs border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-1.5 bg-white dark:bg-gray-700 dark:text-white"
+              >
+                <option value="">Par défaut</option>
+                {columns.filter(c => c.sortable).map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
+              </select>
+              {sortKey && (
+                <button onClick={() => setSortDir(d => d === 'asc' ? 'desc' : 'asc')} aria-label="Inverser l'ordre" className="p-1.5 rounded border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-500">
+                  {sortDir === 'asc' ? <ArrowUp size={13} /> : <ArrowDown size={13} />}
+                </button>
+              )}
+            </div>
+          )}
+          {isLoading ? (
+            <div className={cardsClassName}>
+              {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} height="h-32" />)}
+            </div>
+          ) : pageData.length === 0 ? (
+            <EmptyState
+              title={emptyState?.message ?? 'Aucun résultat'}
+              description={emptyState?.description}
+              ctaLabel={emptyState?.ctaLabel}
+              onCta={emptyState?.onCta}
+            />
+          ) : (
+            <div className={cardsClassName}>
+              {pageData.map((row, i) => <div key={row.id ?? i}>{renderCard(row)}</div>)}
+            </div>
+          )}
+        </div>
+      ) : (
       <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 dark:bg-gray-800">
@@ -129,13 +176,19 @@ export default function DataTable({
               : pageData.map((row, i) => {
                   const id = row.id ?? i;
                   return (
-                    <tr key={id} className={`hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors ${selected.has(id) ? 'bg-blue-50/40' : ''}`}>
-                      <td className="px-4 py-3">
+                    <tr
+                      key={id}
+                      onClick={onRowClick ? () => onRowClick(row) : undefined}
+                      onKeyDown={onRowClick ? (e) => { if (e.key === 'Enter') onRowClick(row); } : undefined}
+                      tabIndex={onRowClick ? 0 : undefined}
+                      className={`hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors ${selected.has(id) ? 'bg-blue-50/40' : ''} ${onRowClick ? 'cursor-pointer' : ''}`}
+                    >
+                      <td className="px-4 py-3" onClick={onRowClick ? e => e.stopPropagation() : undefined}>
                         <input type="checkbox" checked={selected.has(id)} onChange={() => toggleRow(id)} className="rounded border-gray-300" />
                       </td>
                       {columns.map(col => (
                         <td key={col.key} className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">
-                          {col.render ? col.render(row) : (row[col.key] ?? '—')}
+                          {col.render ? col.render(row) : (row[col.key] ?? '-')}
                         </td>
                       ))}
                     </tr>
@@ -145,6 +198,7 @@ export default function DataTable({
           </tbody>
         </table>
       </div>
+      )}
 
       {/* Pagination */}
       {!isLoading && sorted.length > 0 && (

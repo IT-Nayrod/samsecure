@@ -1,0 +1,50 @@
+/* print.css - Styles impression pour ReportViewPage - SamSecure v0.5 */
+/* Importe uniquement dans ReportViewPage */
+
+@media print {
+  /* Cacher les elements de navigation */
+  nav, aside, header[role="banner"],
+  .sidebar, .topbar, .no-print {
+    display: none !important;
+  }
+
+  /* Fond blanc, texte noir */
+  body, .print-container {
+    background: white !important;
+    color: black !important;
+    font-size: 11pt;
+  }
+
+  /* Pleine largeur */
+  .print-container {
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Tableaux : eviter la coupure de ligne */
+  table {
+    page-break-inside: avoid;
+  }
+
+  tr {
+    page-break-inside: avoid;
+  }
+
+  /* Sauts de page avant les sections */
+  .page-break-before {
+    page-break-before: always;
+  }
+
+  /* Format A4 */
+  @page {
+    size: A4 portrait;
+    margin: 15mm 12mm;
+  }
+
+  /* Couleurs de fond sur les KPIs */
+  [class*="bg-emerald"], [class*="bg-amber"], [class*="bg-red"], [class*="bg-gray"] {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

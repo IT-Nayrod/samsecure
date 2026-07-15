@@ -16,7 +16,7 @@ const CustomTooltip = ({ active, payload }) => {
       padding: '7px 12px', fontSize: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
     }}>
       <strong>{payload[0].name}</strong>
-      {' — '}
+      {' - '}
       {typeof payload[0].value === 'number' && payload[0].value > 1000
         ? payload[0].value.toLocaleString('fr-FR') + ' €'
         : payload[0].value}
@@ -24,7 +24,7 @@ const CustomTooltip = ({ active, payload }) => {
   );
 };
 
-// ─── W09 — Indice de conformité global (V2 — sous-titre clarifié) ─────────────
+// ─── W09 - Indice de conformité global (V2 - sous-titre clarifié) ─────────────
 export function IndiceConformiteWidget({ data }) {
   return (
     <Card id="indice-conformite" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -83,7 +83,7 @@ export function IndiceConformiteWidget({ data }) {
   );
 }
 
-// ─── W16 — Valorisation des licences non utilisées (V2 — couleur sur % parc) ─
+// ─── W16 - Valorisation des licences non utilisées (V2 - couleur sur % parc) ─
 export function ValorisationLicencesWidget({ data }) {
   const T = THRESHOLDS.valorisation_licences.pct;
   const pct = data.pctNonUtilisees;
