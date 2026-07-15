@@ -1,12 +1,13 @@
 // UserFormModal - Section 3.2 Specs UX v0.5
 import { useState, useEffect } from 'react';
 import { Plus, X } from 'lucide-react';
-import Modal from '../ui/Modal';
+import SlideOver from '../ui/SlideOver';
 import Button from '../ui/Button';
 import FormField from '../ui/FormField';
 import ProfileBadge from './ProfileBadge';
 import { validateEmail, validateRequired } from '../../utils/validation';
-import { mockSocietes } from '../../data/mockSettings';
+import { mockSocietes } from '../../data/mockReferentiels';
+import { loadDraft, saveDraft, clearDraft } from '../../utils/formDraft';
 
 const PROFILS = [
   { value: 'manager_dsi', label: 'Manager DSI' },
@@ -18,25 +19,45 @@ const LANGUES = [{ value: 'fr', label: 'Français' }, { value: 'en', label: 'Eng
 
 const INPUT_CLS = 'w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white';
 
+const EMPTY_FORM = { prenom: '', nom: '', email: '', langue: 'fr', actif: true };
+
 export default function UserFormModal({ isOpen, onClose, onSave, user }) {
   const isEdit = !!user;
-  const [form, setForm] = useState({ prenom: '', nom: '', email: '', langue: 'fr', actif: true });
+  const draftKey = `user:${user?.id ?? 'new'}`;
+  const [form, setForm] = useState(EMPTY_FORM);
   const [habilitations, setHabilitations] = useState([]);
   const [newHab, setNewHab] = useState({ profil: '', societe_id: '' });
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
+  const [draftRestaure, setDraftRestaure] = useState(false);
 
   useEffect(() => {
+    if (!isOpen) return;
+    const draft = loadDraft(draftKey);
+    if (draft) {
+      setForm(draft.form);
+      setHabilitations(draft.habilitations ?? []);
+      setDraftRestaure(true);
+      setErrors({});
+      setNewHab({ profil: '', societe_id: '' });
+      return;
+    }
     if (user) {
       setForm({ prenom: user.prenom, nom: user.nom, email: user.email, langue: user.langue, actif: user.actif });
       setHabilitations(user.habilitations ?? []);
     } else {
-      setForm({ prenom: '', nom: '', email: '', langue: 'fr', actif: true });
+      setForm(EMPTY_FORM);
       setHabilitations([]);
     }
+    setDraftRestaure(false);
     setErrors({});
     setNewHab({ profil: '', societe_id: '' });
-  }, [user, isOpen]);
+  }, [user, isOpen, draftKey]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    saveDraft(draftKey, { form, habilitations });
+  }, [form, habilitations, isOpen, draftKey]);
 
   function validate() {
     const e = {};
@@ -54,6 +75,7 @@ export default function UserFormModal({ isOpen, onClose, onSave, user }) {
     await new Promise(r => setTimeout(r, 600));
     setLoading(false);
     onSave({ ...form, habilitations });
+    clearDraft(draftKey);
     onClose();
   }
 
@@ -76,11 +98,17 @@ export default function UserFormModal({ isOpen, onClose, onSave, user }) {
   const isValid = !Object.values(validate()).some(Boolean);
 
   return (
-    <Modal
+    <SlideOver
       isOpen={isOpen}
       onClose={onClose}
       title={isEdit ? 'Modifier l\'utilisateur' : 'Ajouter un utilisateur'}
       size="md"
+      banner={draftRestaure && (
+        <p className="text-xs text-blue-700 dark:text-blue-300 flex items-center justify-between gap-2">
+          Brouillon restaure depuis votre derniere saisie.
+          <button onClick={() => { clearDraft(draftKey); setForm(user ? form : EMPTY_FORM); setDraftRestaure(false); }} className="underline hover:no-underline flex-shrink-0">Vider le brouillon</button>
+        </p>
+      )}
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>Annuler</Button>
@@ -166,6 +194,6 @@ export default function UserFormModal({ isOpen, onClose, onSave, user }) {
           </div>
         </section>
       </div>
-    </Modal>
+    </SlideOver>
   );
 }

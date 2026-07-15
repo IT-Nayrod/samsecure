@@ -1,4 +1,4 @@
-// V2 - Bandeau d'alertes critiques — s'affiche uniquement si indicateurs en rouge
+// V2 - Bandeau d'alertes critiques - s'affiche uniquement si indicateurs en rouge
 
 export default function AlertBanner({ alerts }) {
   if (!alerts?.length) return null;

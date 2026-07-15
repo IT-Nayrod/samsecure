@@ -1,4 +1,4 @@
-// RoleSelector — onglets Manager DSI | Financier | IT Ops
+// RoleSelector - onglets Manager DSI | Financier | IT Ops
 // Conçu pour fonctionner en mode "all tabs" (3 groupes visibles).
 // À terme : si l'utilisateur n'appartient qu'à 1 groupe → pas d'onglets.
 //            Si 2+ groupes → onglets des groupes concernés uniquement.

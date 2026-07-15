@@ -1,7 +1,7 @@
-// V2 - Mock data centralisé — dashboards SamSecure
+// V2 - Mock data centralisé - dashboards SamSecure
 // ~50 produits · 3 200 licences déployées · 2 326 besoins réels · 5 éditeurs
 
-// ─── CONSTANTES COULEURS (V2 — 4 échelles) ───────────────────────────────────
+// ─── CONSTANTES COULEURS (V2 - 4 échelles) ───────────────────────────────────
 export const THRESHOLD_GREEN    = '#22C55E';  // Conforme
 export const THRESHOLD_YELLOW   = '#EAB308';  // Attention
 export const THRESHOLD_ORANGE   = '#F59E0B';  // Problématique
@@ -53,13 +53,13 @@ export const editeursData = [
   },
 ];
 
-// Coûts annuels agrégés (affectées × prixAnnuel) — total : 4 039 700 €
+// Coûts annuels agrégés (affectées × prixAnnuel) - total : 4 039 700 €
 export const coutParEditeur = editeursData.map(ed => ({
   editeur: ed.name, color: ed.color,
   montant: ed.logiciels.reduce((s, l) => s + l.affectees * l.prixAnnuel, 0),
 }));
 
-// Coûts annuels si toutes détenues facturées — total : 5 730 000 €
+// Coûts annuels si toutes détenues facturées - total : 5 730 000 €
 export const coutParEditeurDetenues = editeursData.map(ed => ({
   editeur: ed.name, color: ed.color,
   montant: ed.logiciels.reduce((s, l) => s + l.detenues * l.prixAnnuel, 0),
@@ -72,7 +72,7 @@ export const revalidationsData = {
   expired: 164,  // délai dépassé
 };
 
-// ─── W03 QUALITÉ SAISIES (V2 — granularité détaillée) ───────────────────────
+// ─── W03 QUALITÉ SAISIES (V2 - granularité détaillée) ───────────────────────
 export const qualiteSaisiesData = {
   anomalies: 6,
   licencesSansContrat: 3,
@@ -80,7 +80,7 @@ export const qualiteSaisiesData = {
   doublonsPotentiels: 1,
 };
 
-// ─── W04 ÉCHÉANCES CONTRATS (12 mois — V2 : 4 couleurs + détail éditeurs) ───
+// ─── W04 ÉCHÉANCES CONTRATS (12 mois - V2 : 4 couleurs + détail éditeurs) ───
 export const echeancesContratsData = [
   { mois: 'Avr', vert: 3, jaune: 1, orange: 0, rouge: 0,
     editeurs: [{ name: 'Oracle', qte: 2, couleur: 'vert', color: '#C74634' }, { name: 'SAP', qte: 1, couleur: 'vert', color: '#0070F2' }, { name: 'Microsoft', qte: 1, couleur: 'jaune', color: '#0078D4' }] },
@@ -108,7 +108,7 @@ export const echeancesContratsData = [
     editeurs: [{ name: 'SAP', qte: 2, couleur: 'vert', color: '#0070F2' }, { name: 'Oracle', qte: 1, couleur: 'vert', color: '#C74634' }, { name: 'Microsoft', qte: 1, couleur: 'vert', color: '#0078D4' }, { name: 'IBM', qte: 1, couleur: 'jaune', color: '#1F70C1' }] },
 ];
 
-// ─── W05 ÉCHÉANCES COMMANDES (12 mois — V2 : 4 couleurs + détail éditeurs) ──
+// ─── W05 ÉCHÉANCES COMMANDES (12 mois - V2 : 4 couleurs + détail éditeurs) ──
 export const echeancesCommandesData = [
   { mois: 'Avr', vert: 2, jaune: 1, orange: 0, rouge: 0,
     editeurs: [{ name: 'Microsoft', qte: 1, couleur: 'vert', color: '#0078D4' }, { name: 'SAP', qte: 1, couleur: 'vert', color: '#0070F2' }, { name: 'Oracle', qte: 1, couleur: 'jaune', color: '#C74634' }] },
@@ -198,7 +198,7 @@ export const previsionBudgetaireData = [
 export const montantsBudgetaireData = {
   engages:       2847320,
   resteAEngager: 1012380,
-  periode: 'Jan 2026 — Déc 2026',
+  periode: 'Jan 2026 - Déc 2026',
 };
 
 // ─── W12 CONFORMITÉ RÉEL VS PRÉVISIONNEL (V2) ────────────────────────────────
@@ -209,7 +209,7 @@ export const reelVsPrevisionnelData = {
   conformitePct: 96.8,   // min(reel,prev) / max(reel,prev) × 100
 };
 
-// ─── W13 ÉCHÉANCES DES CONTRATS (V2 — 4 catégories) ─────────────────────────
+// ─── W13 ÉCHÉANCES DES CONTRATS (V2 - 4 catégories) ─────────────────────────
 export const contratsEnCoursData = {
   ok:       14,  // > 3 mois (vert)
   warning:   4,  // 2-3 mois (jaune)
@@ -247,7 +247,7 @@ export const valorisationLicencesData = {
   ],
 };
 
-// ─── W17 COÛT PAR LOGICIEL (V2 — liste triable, top 10) ─────────────────────
+// ─── W17 COÛT PAR LOGICIEL (V2 - liste triable, top 10) ─────────────────────
 const _totalBudget = 4039700;
 export const coutParLogicielData = [
   { name: 'Oracle Database',    montant: 1000000, color: '#C74634' },

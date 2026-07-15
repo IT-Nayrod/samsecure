@@ -28,7 +28,7 @@ function computeAlerts() {
     const aff = ed.logiciels.reduce((s, l) => s + l.affectees, 0);
     const ecartPct = ((det - aff) / det) * 100;
     if (ecartPct > T.positif[2] || Math.abs(Math.min(ecartPct, 0)) > T.negatif[2]) {
-      alerts.push({ id: 'ecart-usage-droits', label: `Écart usage vs droits — ${ed.name} (${ecartPct > 0 ? '+' : ''}${ecartPct.toFixed(0)}%)` });
+      alerts.push({ id: 'ecart-usage-droits', label: `Écart usage vs droits - ${ed.name} (${ecartPct > 0 ? '+' : ''}${ecartPct.toFixed(0)}%)` });
     }
   }
 

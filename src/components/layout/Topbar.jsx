@@ -18,12 +18,18 @@ const BREADCRUMBS = {
 
 function getBreadcrumb(pathname) {
   if (BREADCRUMBS[pathname]) return BREADCRUMBS[pathname];
-  const prefixes = ['/referentiels', '/contrats', '/conformite', '/rapports'];
-  for (const p of prefixes) {
-    if (pathname.startsWith(p)) {
-      const section = { '/referentiels': 'Référentiels', '/contrats': 'Contrats', '/conformite': 'Conformité', '/rapports': 'Rapports' }[p];
-      return [{ label: section }];
-    }
+  // Prefixes les plus specifiques d'abord : certaines pages ont change de section
+  // dans le menu sans changer d'URL (Organisation -> Administration, Licences -> Droits d'usage).
+  const prefixes = [
+    ['/referentiels/organisation', 'Administration'],
+    ['/referentiels', 'Référentiels'],
+    ['/conformite/licences', 'Droits d\'usage'],
+    ['/contrats', 'Droits d\'usage'],
+    ['/conformite', 'Usage'],
+    ['/rapports', 'Rapports'],
+  ];
+  for (const [p, section] of prefixes) {
+    if (pathname.startsWith(p)) return [{ label: section }];
   }
   return [{ label: 'SamSecure' }];
 }

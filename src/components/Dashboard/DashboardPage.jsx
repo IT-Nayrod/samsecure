@@ -1,4 +1,4 @@
-// DashboardPage — page principale avec sélecteur de rôle
+// DashboardPage - page principale avec sélecteur de rôle
 // Gère le state du rôle actif (dsi | financier | itops)
 import { useState } from 'react';
 import '../../styles/dashboard.css';
@@ -24,7 +24,7 @@ export default function DashboardPage() {
         <RoleSelector activeRole={role} onChange={setRole} />
       </div>
 
-      {/* Dashboard actif — pas de rechargement de page */}
+      {/* Dashboard actif - pas de rechargement de page */}
       <ActiveDashboard />
     </div>
   );

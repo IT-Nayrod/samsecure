@@ -1,4 +1,4 @@
-// V2 - Seuils paramétrables centralisés — lus par tous les widgets
+// V2 - Seuils paramétrables centralisés - lus par tous les widgets
 // Modifier ces valeurs pour ajuster le comportement de colorimétrie
 
 export const THRESHOLDS = {
