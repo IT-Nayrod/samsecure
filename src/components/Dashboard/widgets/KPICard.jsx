@@ -35,7 +35,7 @@ function Dot({ color }) {
   return <span style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: color, display: 'inline-block', flexShrink: 0 }} />;
 }
 
-// ─── W02 — Revalidations ─────────────────────────────────────────────────────
+// ─── W02 - Revalidations ─────────────────────────────────────────────────────
 export function RevalidationsWidget({ data }) {
   const items = [
     { label: '> 30 jours', count: data.ok,      color: THRESHOLD_GREEN  },
@@ -43,7 +43,7 @@ export function RevalidationsWidget({ data }) {
     { label: 'Dépassées',  count: data.expired,  color: THRESHOLD_RED    },
   ];
   return (
-    <WidgetCard title="Revalidations" widgetId="revalidations" freshness={{ type: 'cached', minutesAgo: 30 }}>
+    <WidgetCard title="Revalidations" widgetId="revalidations" freshness={{ type: 'cached', minutesAgo: 15 }}>
       <div onClick={() => console.log('navigate to /revalidations')}
            style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', cursor: 'pointer' }}>
         {items.map(it => (
@@ -62,7 +62,7 @@ export function RevalidationsWidget({ data }) {
   );
 }
 
-// ─── W03 — Qualité des saisies (V2 — détail granulaire) ──────────────────────
+// ─── W03 - Qualité des saisies (V2 - détail granulaire) ──────────────────────
 export function QualiteSaisiesWidget({ data }) {
   const color = data.anomalies === 0 ? THRESHOLD_GREEN : THRESHOLD_RED;
   const details = [
@@ -86,7 +86,7 @@ export function QualiteSaisiesWidget({ data }) {
   );
 }
 
-// ─── W07 — Indice de confiance données (jauge demi-cercle) ───────────────────
+// ─── W07 - Indice de confiance données (jauge demi-cercle) ───────────────────
 export function IndiceConfianceWidget({ data }) {
   const { score } = data;
   const color = score > 70 ? THRESHOLD_GREEN : score >= 40 ? THRESHOLD_YELLOW : THRESHOLD_RED;
@@ -118,7 +118,7 @@ export function IndiceConfianceWidget({ data }) {
   );
 }
 
-// ─── W08 — Validations en attente > 1 jour (V2 — bouton Voir les validations) ─
+// ─── W08 - Validations en attente > 1 jour (V2 - bouton Voir les validations) ─
 export function ValidationsEnAttenteWidget({ data }) {
   const color = data.count > 0 ? THRESHOLD_RED : THRESHOLD_GREEN;
   return (
@@ -143,7 +143,7 @@ export function ValidationsEnAttenteWidget({ data }) {
   );
 }
 
-// ─── W11 — Montants période budgétaire (V2 — période sous le titre) ──────────
+// ─── W11 - Montants période budgétaire (V2 - période sous le titre) ──────────
 export function MontantsBudgetaireWidget({ data }) {
   return (
     <WidgetCard title="Période budgétaire" widgetId="periode-budgetaire" freshness={{ type: 'cached', minutesAgo: 60 }}>
@@ -168,7 +168,7 @@ export function MontantsBudgetaireWidget({ data }) {
   );
 }
 
-// ─── W12 — Conformité réel vs prévisionnel (V2 — affiche conformité %) ────────
+// ─── W12 - Conformité réel vs prévisionnel (V2 - affiche conformité %) ────────
 export function ConformiteReelPrevisionnelWidget({ data }) {
   const T = THRESHOLDS.conformite_reel_previsionnel.pct;
   const pct = data.conformitePct;
@@ -203,7 +203,7 @@ export function ConformiteReelPrevisionnelWidget({ data }) {
 // Alias pour rétrocompatibilité
 export const ReelVsPrevisionnelWidget = ConformiteReelPrevisionnelWidget;
 
-// ─── W13 — Échéances des contrats (V2 — 4 catégories) ────────────────────────
+// ─── W13 - Échéances des contrats (V2 - 4 catégories) ────────────────────────
 export function EcheancesContratsKpiWidget({ data }) {
   const items = [
     { label: '> 3 mois',     count: data.ok,       color: THRESHOLD_GREEN  },
@@ -233,7 +233,7 @@ export function EcheancesContratsKpiWidget({ data }) {
 // Alias rétrocompatibilité
 export const ContratsEnCoursWidget = EcheancesContratsKpiWidget;
 
-// ─── W19 — Balance usages vs droits ──────────────────────────────────────────
+// ─── W19 - Balance usages vs droits ──────────────────────────────────────────
 export function BalanceUsagesDroitsWidget({ data }) {
   const items = [
     { label: 'Dépassement',  count: data.depassement, color: THRESHOLD_DARK_RED },
@@ -261,7 +261,7 @@ export function BalanceUsagesDroitsWidget({ data }) {
   );
 }
 
-// ─── W21 / W22 — Placeholder v2 ──────────────────────────────────────────────
+// ─── W21 / W22 - Placeholder v2 ──────────────────────────────────────────────
 export function PlaceholderV2Widget({ title, icon: Icon }) {
   return (
     <WidgetCard title={title} disabled>

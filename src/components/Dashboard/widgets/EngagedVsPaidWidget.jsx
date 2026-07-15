@@ -83,7 +83,7 @@ export function EngagedVsPaidWidget() {
           <h3 style={{ fontSize: 13, fontWeight: 600, color: '#1A1D23', margin: 0 }}>
             {drillLevel === 'editeur'
               ? 'Montants engagés vs payés'
-              : `${selectedEditeur} — détail produits`}
+              : `${selectedEditeur} - détail produits`}
           </h3>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -105,7 +105,7 @@ export function EngagedVsPaidWidget() {
           </span>
         ))}
         {drillLevel === 'editeur' && (
-          <span style={{ opacity: 0.6 }}>— Cliquez sur un éditeur pour le détail</span>
+          <span style={{ opacity: 0.6 }}>- Cliquez sur un éditeur pour le détail</span>
         )}
       </div>
 

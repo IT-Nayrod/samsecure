@@ -31,7 +31,7 @@ const DarkTooltip = ({ active, payload, label, formatter }) => {
   );
 };
 
-// ─── W04 / W05 — Échéances (V2 : 4 couleurs + tooltip détail éditeurs) ───────
+// ─── W04 / W05 - Échéances (V2 : 4 couleurs + tooltip détail éditeurs) ───────
 const COULEUR_LABEL = {
   vert: { label: 'vert',   color: THRESHOLD_GREEN  },
   jaune:{ label: 'jaune',  color: THRESHOLD_YELLOW },
@@ -117,7 +117,7 @@ export function EcheancesWidget({ title, data, widgetId }) {
   );
 }
 
-// ─── W06 / W14 — Montants totaux / Coûts annuels ────────────────────────────
+// ─── W06 / W14 - Montants totaux / Coûts annuels ────────────────────────────
 const AXES_OPTIONS = ['Par éditeur', 'Par société', 'Par produit'];
 const PERIODS = ['1 an', '3 ans', '5 ans', 'Illimité'];
 
@@ -183,7 +183,7 @@ export function MontantsTotauxWidget({ title = 'Montants totaux', showPeriod = t
   );
 }
 
-// ─── W15 — Échéances de trésorerie (V2 : filtre éditeur + tooltip enrichi) ───
+// ─── W15 - Échéances de trésorerie (V2 : filtre éditeur + tooltip enrichi) ───
 export function EcheancesTresorerieWidget({ data }) {
   const [editeurFilter, setEditeurFilter] = useState('Tous');
   const max = Math.max(...data.map(d => d.montant));
@@ -277,7 +277,7 @@ export function EcheancesTresorerieWidget({ data }) {
   );
 }
 
-// ─── W20 — Usage 12 mois glissants ───────────────────────────────────────────
+// ─── W20 - Usage 12 mois glissants ───────────────────────────────────────────
 export function Usage12MoisWidget() {
   const [produit, setProduit] = useState('Tous');
   const [societe, setSociete] = useState('Toutes');

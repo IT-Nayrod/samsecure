@@ -1,155 +1,132 @@
-import { NavLink, useLocation } from 'react-router-dom';
+// Sidebar - Section 1.2 Specs UX v0.5
+import { NavLink, useNavigate } from 'react-router-dom';
 import {
-  LayoutDashboard,
-  RefreshCw,
-  Package,
-  BarChart2,
-  Users,
-  Settings,
-  Search,
+  LayoutDashboard, Building, Building2, Store, Users, Package,
+  FileText, ShoppingCart, Receipt, Shield, Tag, Database,
+  ShieldCheck, TrendingUp, SlidersHorizontal, UserCog, Settings, Plug, Settings2, PiggyBank,
 } from 'lucide-react';
+import useAuth from '../../hooks/useAuth';
 
-const menuItems = [
-  { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
-  { path: '/renouvellements', icon: RefreshCw, label: 'Renouvellements', badge: 2 },
-  { path: '/parc-licences', icon: Package, label: 'Parc de licences' },
-  { path: '/analyses-usage', icon: BarChart2, label: "Analyses d'usage" },
-  { path: '/equipe', icon: Users, label: 'Equipe et attributions' },
+const MENU = [
+  {
+    section: 'TABLEAU DE BORD',
+    items: [
+      { label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard', profiles: ['manager_dsi', 'financier', 'it_ops'] },
+    ],
+  },
+  {
+    section: 'RÉFÉRENTIELS',
+    items: [
+      { label: 'Editeurs', icon: Building2, path: '/referentiels/editeurs', profiles: ['manager_dsi', 'it_ops', 'financier'] },
+      { label: 'Revendeurs', icon: Store, path: '/referentiels/revendeurs', profiles: ['manager_dsi', 'it_ops', 'financier'] },
+      { label: 'Contacts', icon: Users, path: '/referentiels/contacts', profiles: ['manager_dsi', 'it_ops', 'financier'] },
+      { label: 'Logiciels', icon: Package, path: '/referentiels/logiciels', profiles: ['manager_dsi', 'it_ops', 'financier'] },
+    ],
+  },
+  {
+    section: 'DROITS D\'USAGE',
+    items: [
+      { label: 'Licences', icon: Shield, path: '/conformite/licences', profiles: ['manager_dsi', 'financier', 'it_ops'] },
+      { label: 'Contrat', icon: FileText, path: '/contrats/liste', profiles: ['manager_dsi', 'it_ops'] },
+      { label: 'Commandes', icon: ShoppingCart, path: '/contrats/commandes', profiles: ['manager_dsi', 'it_ops'] },
+      { label: 'Factures & Preuves', icon: Receipt, path: '/contrats/factures', profiles: ['manager_dsi', 'it_ops'] },
+    ],
+  },
+  {
+    section: 'USAGE',
+    items: [
+      { label: 'Affectations', icon: Tag, path: '/conformite/affectations', profiles: ['manager_dsi', 'financier', 'it_ops'] },
+      { label: 'Inventaire', icon: Database, path: '/conformite/inventaire', profiles: ['manager_dsi', 'financier', 'it_ops'] },
+    ],
+  },
+  {
+    section: 'RAPPORTS',
+    items: [
+      { label: 'Conformité', icon: ShieldCheck, path: '/rapports/conformite', profiles: ['manager_dsi', 'financier'] },
+      { label: 'Optimisation', icon: TrendingUp, path: '/rapports/optimisation', profiles: ['manager_dsi', 'financier'] },
+      { label: 'Personnalisé', icon: SlidersHorizontal, path: '/rapports/personnalise', profiles: ['manager_dsi', 'financier'] },
+    ],
+  },
+  {
+    section: 'ADMINISTRATION',
+    items: [
+      { label: 'Organisation', icon: Building, path: '/referentiels/organisation', profiles: ['manager_dsi', 'it_ops', 'financier'] },
+      { label: 'Budget', icon: PiggyBank, path: '/budget', profiles: ['manager_dsi', 'financier', 'it_ops'] },
+      { label: 'Utilisateurs', icon: UserCog, path: '/admin/users', profiles: ['manager_dsi'] },
+      { label: 'Paramètres', icon: Settings, path: '/admin/settings', profiles: ['manager_dsi'] },
+      { label: 'Connecteurs', icon: Plug, path: '/admin/connectors', profiles: ['manager_dsi'] },
+    ],
+  },
 ];
 
-export default function Sidebar() {
-  const location = useLocation();
+function initials(user) {
+  if (!user) return '?';
+  return `${user.prenom?.[0] ?? ''}${user.nom?.[0] ?? ''}`.toUpperCase();
+}
+
+export default function Sidebar({ onClose }) {
+  const { user, profil, navigate: _nav } = useAuth();
+  const navigate = useNavigate();
+
+  const visibleMenu = MENU.map(section => ({
+    ...section,
+    items: section.items.filter(item => item.profiles.includes(profil)),
+  })).filter(section => section.items.length > 0);
 
   return (
-    <aside style={{
-      width: '180px',
-      minWidth: '180px',
-      height: '100vh',
-      backgroundColor: '#0D1117',
-      display: 'flex',
-      flexDirection: 'column',
-      overflow: 'hidden',
-    }}>
+    <aside className="flex flex-col h-full bg-[#0D1117] overflow-hidden">
       {/* Logo */}
-      <div style={{ padding: '20px 16px 16px' }}>
-        <span style={{ fontSize: '18px', fontWeight: '700', color: '#7C6FCD' }}>Sam</span>
-        <span style={{ fontSize: '18px', fontWeight: '700', color: '#FFFFFF' }}>Secure</span>
+      <div className="px-5 py-5 flex-shrink-0">
+        <span className="text-lg font-bold text-blue-400">Sam</span>
+        <span className="text-lg font-bold text-white">Secure</span>
       </div>
 
-      {/* Search */}
-      <div style={{ padding: '0 12px 8px' }}>
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          backgroundColor: '#1E2028',
-          borderRadius: '8px',
-          padding: '8px 10px',
-        }}>
-          <Search size={14} color="#8B9099" />
-          <input
-            type="text"
-            placeholder="Recherche"
-            style={{
-              background: 'none',
-              border: 'none',
-              outline: 'none',
-              color: '#8B9099',
-              fontSize: '12px',
-              width: '100%',
-            }}
-          />
-        </div>
-      </div>
-
-      {/* Menu label */}
-      <div style={{
-        padding: '20px 16px 8px',
-        fontSize: '10px',
-        fontWeight: '600',
-        color: '#8B9099',
-        letterSpacing: '0.08em',
-        textTransform: 'uppercase',
-      }}>
-        Menu
-      </div>
-
-      {/* Nav items */}
-      <nav style={{ flex: 1, padding: '0 8px' }}>
-        {menuItems.map(({ path, icon: Icon, label, badge }) => {
-          const isActive = location.pathname === path;
-          return (
-            <NavLink
-              key={path}
-              to={path}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '10px',
-                padding: '9px 10px',
-                borderRadius: '8px',
-                marginBottom: '2px',
-                color: isActive ? '#7C6FCD' : '#8B9099',
-                backgroundColor: isActive ? '#1E2028' : 'transparent',
-                borderLeft: isActive ? '3px solid #7C6FCD' : '3px solid transparent',
-                fontSize: '12px',
-                fontWeight: isActive ? '600' : '400',
-                position: 'relative',
-                textDecoration: 'none',
-              }}
-              onMouseEnter={(e) => {
-                if (!isActive) e.currentTarget.style.backgroundColor = '#1E2028';
-              }}
-              onMouseLeave={(e) => {
-                if (!isActive) e.currentTarget.style.backgroundColor = 'transparent';
-              }}
-            >
-              <Icon size={15} />
-              <span style={{ flex: 1, lineHeight: '1.3' }}>{label}</span>
-              {badge && (
-                <span style={{
-                  backgroundColor: '#FF4757',
-                  color: 'white',
-                  borderRadius: '50%',
-                  width: '18px',
-                  height: '18px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '10px',
-                  fontWeight: '700',
-                  flexShrink: 0,
-                }}>
-                  {badge}
-                </span>
-              )}
-            </NavLink>
-          );
-        })}
+      {/* Nav */}
+      <nav className="flex-1 overflow-y-auto px-3 pb-3">
+        {visibleMenu.map(({ section, items }) => (
+          <div key={section} className="mb-4">
+            <p className="px-2 mb-1.5 text-[10px] font-semibold tracking-widest text-gray-500 uppercase select-none">
+              {section}
+            </p>
+            {items.map(({ label, icon: Icon, path }) => (
+              <NavLink
+                key={path}
+                to={path}
+                onClick={onClose}
+                className={({ isActive }) =>
+                  `flex items-center gap-2.5 px-3 py-2 rounded-lg mb-0.5 text-sm transition-colors ${
+                    isActive
+                      ? 'bg-[#1F4E79] text-white font-semibold border-l-[3px] border-blue-400 pl-[9px]'
+                      : 'text-gray-400 hover:bg-gray-800 hover:text-gray-100 border-l-[3px] border-transparent pl-[9px]'
+                  }`
+                }
+              >
+                <Icon size={15} className="flex-shrink-0" />
+                <span>{label}</span>
+              </NavLink>
+            ))}
+          </div>
+        ))}
       </nav>
 
-      {/* Parametres button */}
-      <div style={{ padding: '16px 12px' }}>
-        <button style={{
-          width: '100%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: '8px',
-          backgroundColor: '#7C6FCD',
-          color: 'white',
-          borderRadius: '8px',
-          padding: '10px 12px',
-          fontSize: '11px',
-          fontWeight: '700',
-          letterSpacing: '0.06em',
-          textTransform: 'uppercase',
-          cursor: 'pointer',
-          border: 'none',
-        }}>
-          <Settings size={14} />
-          Paramètres
-        </button>
+      {/* User footer */}
+      <div className="flex-shrink-0 border-t border-gray-800 px-3 py-3">
+        <div className="flex items-center gap-2.5 px-2">
+          <div className="w-8 h-8 rounded-full bg-blue-700 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+            {initials(user)}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-white truncate">{user?.prenom} {user?.nom}</p>
+            <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+          </div>
+          <button
+            onClick={() => { navigate('/settings/me'); onClose?.(); }}
+            aria-label="Paramètres utilisateur"
+            className="p-1.5 rounded-lg text-gray-500 hover:text-gray-300 hover:bg-gray-800 transition-colors flex-shrink-0"
+          >
+            <Settings2 size={15} />
+          </button>
+        </div>
       </div>
     </aside>
   );

@@ -1,11 +1,11 @@
-// ListWidget — W10 Prévision budgétaire N+1 | W23 Dernières saisies à valider
+// ListWidget - W10 Prévision budgétaire N+1 | W23 Dernières saisies à valider
 // Ref specs §9.11 §8
 import { useState } from 'react';
 import { MoreVertical } from 'lucide-react';
 import Card from '../../ui/Card';
 import { THRESHOLD_GREEN, THRESHOLD_YELLOW, THRESHOLD_RED } from '../../../data/dashboardMockData';
 
-// ─── W10 — Prévision budgétaire N+1 (tableau triable) ───────────────────────
+// ─── W10 - Prévision budgétaire N+1 (tableau triable) ───────────────────────
 export function PrevisionBudgetaireWidget({ data }) {
   const [sortKey, setSortKey] = useState('coutN');
   const [sortDir, setSortDir] = useState('desc');
@@ -82,7 +82,7 @@ export function PrevisionBudgetaireWidget({ data }) {
   );
 }
 
-// ─── W23 — Dernières saisies à valider (feed scrollable) ────────────────────
+// ─── W23 - Dernières saisies à valider (feed scrollable) ────────────────────
 const STATUT_CONFIG = {
   en_attente: { label: 'En attente', color: THRESHOLD_YELLOW },
   valide:     { label: 'Validé',     color: THRESHOLD_GREEN  },
