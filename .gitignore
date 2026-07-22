@@ -1,0 +1,6 @@
+.env
+staging-dist/
+db/
+node_modules/
+vite.config.js.*
+planning/
