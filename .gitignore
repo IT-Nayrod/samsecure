@@ -4,3 +4,6 @@ db/
 node_modules/
 vite.config.js.*
 planning/
+bdd/
+dist/
+
