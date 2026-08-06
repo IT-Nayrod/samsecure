@@ -1,67 +1,69 @@
-// AuthContext - Section 2 Specs UX v0.5
+// AuthContext - authentification réelle sur l'API (JWT access + refresh).
 import { createContext, useState, useEffect, useCallback } from 'react';
-import { mockUsers } from '../data/mockUsers';
-
-const MOCK_CREDENTIALS = {
-  'admin@demo.fr': { password: 'Admin1234!', userId: '1', profil: 'manager_dsi' },
-  'financier@demo.fr': { password: 'User1234!', userId: '2', profil: 'financier' },
-  'itops@demo.fr': { password: 'User1234!', userId: '3', profil: 'it_ops' },
-};
-
-const SESSION_KEY = 'ss_session';
+import * as authService from '../services/authService';
 
 export const AuthContext = createContext(null);
 
+const EMPTY_STATE = {
+  user: null,
+  permissions: [],
+  isTenantScope: false,
+  isAuthenticated: false,
+  isLoading: true,
+};
+
 export function AuthProvider({ children }) {
-  const [state, setState] = useState({
-    user: null, profil: null, societe: null, isAuthenticated: false, isLoading: true,
-  });
+  const [state, setState] = useState(EMPTY_STATE);
 
   useEffect(() => {
-    const saved = localStorage.getItem(SESSION_KEY);
-    if (saved) {
-      try {
-        setState({ ...JSON.parse(saved), isLoading: false });
-      } catch {
-        setState(s => ({ ...s, isLoading: false }));
+    let cancelled = false;
+    (async () => {
+      const restored = await authService.bootstrapSession();
+      if (cancelled) return;
+      if (restored) {
+        setState({
+          user: restored.user,
+          permissions: restored.droits.permissions,
+          isTenantScope: restored.droits.isTenantScope,
+          isAuthenticated: true,
+          isLoading: false,
+        });
+      } else {
+        setState((s) => ({ ...s, isLoading: false }));
       }
-    } else {
-      setState(s => ({ ...s, isLoading: false }));
-    }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const login = useCallback(async (email, password) => {
-    const cred = MOCK_CREDENTIALS[email.toLowerCase().trim()];
-    if (!cred || cred.password !== password) return { success: false, error: 'Identifiants incorrects.' };
-    const user = mockUsers.find(u => u.id === cred.userId);
-    if (!user || !user.actif) return { success: false, error: 'Compte désactivé.' };
-    const firstHab = user.habilitations[0];
-    const session = {
-      user, profil: firstHab.profil,
-      societe: { id: firstHab.societe_id, raison_sociale: firstHab.societe_label },
-      isAuthenticated: true, isLoading: false,
-    };
-    setState(session);
-    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    const result = await authService.login(email, password);
+    if (!result.success) return result;
+    const [user, droits] = await Promise.all([authService.fetchMe(), authService.fetchMesDroits()]);
+    setState({
+      user,
+      permissions: droits.permissions,
+      isTenantScope: droits.isTenantScope,
+      isAuthenticated: true,
+      isLoading: false,
+    });
     return { success: true };
   }, []);
 
-  const logout = useCallback(() => {
-    localStorage.removeItem(SESSION_KEY);
-    setState({ user: null, profil: null, societe: null, isAuthenticated: false, isLoading: false });
+  const logout = useCallback(async () => {
+    await authService.logout();
+    setState({ ...EMPTY_STATE, isLoading: false });
   }, []);
 
-  const switchProfil = useCallback((profilCode) => {
-    if (!state.user) return;
-    const hab = state.user.habilitations.find(h => h.profil === profilCode);
-    if (!hab) return;
-    const updated = { ...state, profil: profilCode, societe: { id: hab.societe_id, raison_sociale: hab.societe_label } };
-    setState(updated);
-    localStorage.setItem(SESSION_KEY, JSON.stringify(updated));
-  }, [state]);
+  const hasPermission = useCallback((code) => state.permissions.includes(code), [state.permissions]);
+  const hasAnyPermission = useCallback(
+    (codes) => codes.some((c) => state.permissions.includes(c)),
+    [state.permissions]
+  );
 
   return (
-    <AuthContext.Provider value={{ ...state, login, logout, switchProfil }}>
+    <AuthContext.Provider value={{ ...state, login, logout, hasPermission, hasAnyPermission }}>
       {children}
     </AuthContext.Provider>
   );

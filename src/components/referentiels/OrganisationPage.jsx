@@ -1,26 +1,21 @@
-// OrganisationPage - liste des societes de l'organisation (Referentiels), vue arborescente ou liste plate
-import { useState, useMemo } from 'react';
+// OrganisationPage - liste des organisations (donnees reelles), vue arborescente ou liste plate
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, List, GitBranch, ChevronRight, ChevronDown } from 'lucide-react';
-import {
-  mockSocietes as initialSocietes, getFilialesBySociete, getContactsByRattachement,
-} from '../../data/mockReferentiels';
-import { getContratsBySociete } from '../../data/mockContrats';
 import DataTable from '../ui/DataTable';
 import Button from '../ui/Button';
 import Badge from '../ui/Badge';
 import Breadcrumb from '../ui/Breadcrumb';
 import EmptyState from '../ui/EmptyState';
-import StatutValidationBadge from './StatutValidationBadge';
 import OrganisationFormModal from './OrganisationFormModal';
-import useRbac from '../../hooks/useRbac';
 import useDebounce from '../../hooks/useDebounce';
 import { useToast } from '../../hooks/useToast';
-import useAuth from '../../hooks/useAuth';
+import { societesService } from '../../services/adminService';
+import { sortByHierarchy } from '../../utils/societeHierarchy';
 
-function TreeNode({ societe, depth, navigate }) {
+function TreeNode({ organisation, depth, navigate, organisations }) {
   const [open, setOpen] = useState(depth === 0);
-  const filiales = getFilialesBySociete(societe.id);
+  const filiales = organisations.filter(o => o.id_societe_parent === organisation.id);
   const hasFiliales = filiales.length > 0;
 
   return (
@@ -28,18 +23,17 @@ function TreeNode({ societe, depth, navigate }) {
       <div
         className="flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer"
         style={{ paddingLeft: `${depth * 20 + 8}px` }}
-        onClick={() => navigate(`/referentiels/organisation/${societe.id}`)}
+        onClick={() => navigate(`/referentiels/organisation/${organisation.id}`)}
       >
         {hasFiliales
           ? <button onClick={e => { e.stopPropagation(); setOpen(o => !o); }} className="text-gray-400 flex-shrink-0">{open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</button>
           : <span className="w-3.5 flex-shrink-0" />
         }
-        <span className="text-sm text-blue-800 hover:underline">{societe.raison_sociale}</span>
-        <Badge variant={societe.actif ? 'success' : 'neutral'} label={societe.actif ? 'Active' : 'Inactive'} />
-        <StatutValidationBadge statut={societe.statut_validation} />
+        <span className="text-sm text-blue-800 hover:underline">{organisation.raison_sociale}</span>
+        <Badge variant={organisation.actif ? 'success' : 'neutral'} label={organisation.actif ? 'Active' : 'Inactive'} />
       </div>
       {open && hasFiliales && filiales.map(f => (
-        <TreeNode key={f.id} societe={f} depth={depth + 1} navigate={navigate} />
+        <TreeNode key={f.id} organisation={f} depth={depth + 1} navigate={navigate} organisations={organisations} />
       ))}
     </div>
   );
@@ -48,60 +42,71 @@ function TreeNode({ societe, depth, navigate }) {
 export default function OrganisationPage() {
   const navigate = useNavigate();
   const { addToast } = useToast();
-  const { canWrite, submitsForValidation } = useRbac();
-  const { user } = useAuth();
-  const [societes, setSocietes] = useState(initialSocietes);
+  const [organisations, setOrganisations] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [vueArbo, setVueArbo] = useState(true);
   const [filterParent, setFilterParent] = useState('');
   const [searchParams] = useSearchParams();
   const [search, setSearch] = useState(searchParams.get('q') ?? '');
   const debouncedSearch = useDebounce(search, 300);
-  const [formModal, setFormModal] = useState({ open: false, societe: null });
+  const [formModal, setFormModal] = useState({ open: false, organisation: null });
+
+  const load = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const rows = await societesService.list();
+      setOrganisations(rows);
+    } catch (err) {
+      addToast({ type: 'error', message: err.message });
+    } finally {
+      setIsLoading(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  // Ordre hiérarchique (parent avant ses enfants, profondeur pour
+  // l'indentation) calculé sur l'ensemble des organisations, puis filtré en
+  // conservant cet ordre : les filtres/recherche ne doivent pas casser la
+  // lecture de l'arborescence dans la vue liste.
+  const hierarchical = useMemo(() => sortByHierarchy(organisations), [organisations]);
 
   const filtered = useMemo(() => {
-    return societes.filter(s => {
-      if (filterParent && s.societe_parent_id !== filterParent) return false;
+    return hierarchical.filter(o => {
+      if (filterParent && o.id_societe_parent !== filterParent) return false;
       if (debouncedSearch) {
         const q = debouncedSearch.toLowerCase();
-        if (!`${s.raison_sociale} ${s.siret}`.toLowerCase().includes(q)) return false;
+        if (!`${o.raison_sociale} ${o.siret}`.toLowerCase().includes(q)) return false;
       }
       return true;
     });
-  }, [societes, filterParent, debouncedSearch]);
+  }, [hierarchical, filterParent, debouncedSearch]);
 
-  const racinesArbo = useMemo(() => societes.filter(s => !s.societe_parent_id), [societes]);
-  const societesMeres = useMemo(() => societes.filter(s => !s.societe_parent_id), [societes]);
+  const racinesArbo = useMemo(() => organisations.filter(o => !o.id_societe_parent), [organisations]);
+  const organisationsMeres = useMemo(() => organisations.filter(o => !o.id_societe_parent), [organisations]);
 
-  function handleSave(data, existing) {
+  async function handleSubmit(data, existing) {
     if (existing) {
-      const resoumis = submitsForValidation;
-      setSocietes(prev => prev.map(s => s.id === existing.id ? {
-        ...s, ...data,
-        statut_validation: resoumis ? 'en_attente' : 'valide',
-        soumis_par: `${user.prenom} ${user.nom}`,
-      } : s));
-      addToast({ type: 'success', message: resoumis ? 'Modification soumise a validation.' : 'Societe mise a jour.' });
+      await societesService.update(existing.id, data);
+      addToast({ type: 'success', message: 'Organisation mise à jour.' });
     } else {
-      const newSociete = {
-        id: `cl-${Date.now()}`, ...data, actif: true,
-        statut_validation: submitsForValidation ? 'en_attente' : 'valide',
-        soumis_par: `${user.prenom} ${user.nom}`,
-      };
-      setSocietes(prev => [...prev, newSociete]);
-      addToast({ type: 'success', message: submitsForValidation ? 'Societe soumise a validation.' : 'Societe creee.' });
+      await societesService.create(data);
+      addToast({ type: 'success', message: 'Organisation créée.' });
     }
+    await load();
   }
 
   const columns = [
     { key: 'raison_sociale', label: 'Raison sociale', sortable: true, render: r => (
-      <button onClick={() => navigate(`/referentiels/organisation/${r.id}`)} className="font-medium text-blue-800 hover:underline text-left">{r.raison_sociale}</button>
+      <button onClick={() => navigate(`/referentiels/organisation/${r.id}`)} className="font-medium text-blue-800 hover:underline text-left whitespace-pre">
+        {r.depth > 0 ? `${'  '.repeat(r.depth - 1)}|_ ` : ''}{r.raison_sociale}
+      </button>
     ) },
     { key: 'siret', label: 'SIRET', sortable: true },
-    { key: 'societe_parent', label: 'Societe parente', getValue: r => societes.find(s => s.id === r.societe_parent_id)?.raison_sociale ?? '', render: r => societes.find(s => s.id === r.societe_parent_id)?.raison_sociale ?? '-' },
-    { key: 'nb_contacts', label: 'Nb contacts', sortable: true, getValue: r => getContactsByRattachement('client', r.id).length, render: r => getContactsByRattachement('client', r.id).length },
-    { key: 'nb_contrats', label: 'Nb contrats', sortable: true, getValue: r => getContratsBySociete(r.id).length, render: r => getContratsBySociete(r.id).length },
-    { key: 'duree_amortissement', label: 'Duree amort.', sortable: true, render: r => `${r.duree_amortissement} mois` },
-    { key: 'statut_validation', label: 'Statut', sortable: true, render: r => <StatutValidationBadge statut={r.statut_validation} /> },
+    { key: 'organisation_parente', label: 'Organisation parente', getValue: r => organisations.find(o => o.id === r.id_societe_parent)?.raison_sociale ?? '', render: r => organisations.find(o => o.id === r.id_societe_parent)?.raison_sociale ?? '-' },
+    { key: 'duree_amortissement', label: 'Durée amort.', sortable: true, render: r => r.duree_amortissement ? `${r.duree_amortissement} mois` : '-' },
+    { key: 'actif', label: 'Statut', sortable: true, render: r => <Badge variant={r.actif ? 'success' : 'neutral'} label={r.actif ? 'Active' : 'Inactive'} /> },
   ];
 
   return (
@@ -110,7 +115,7 @@ export default function OrganisationPage() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Organisation</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{societes.length} societe{societes.length > 1 ? 's' : ''} au total</p>
+          <p className="text-sm text-gray-500 mt-0.5">{organisations.length} organisation{organisations.length > 1 ? 's' : ''} au total</p>
         </div>
         <div className="flex items-center gap-2">
           <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
@@ -121,18 +126,16 @@ export default function OrganisationPage() {
               <List size={15} />
             </button>
           </div>
-          {canWrite && (
-            <Button variant="primary" onClick={() => setFormModal({ open: true, societe: null })}>
-              <Plus size={15} /> Nouvelle societe
-            </Button>
-          )}
+          <Button variant="primary" onClick={() => setFormModal({ open: true, organisation: null })}>
+            <Plus size={15} /> Nouvelle organisation
+          </Button>
         </div>
       </div>
 
       <div className="flex flex-wrap gap-3 bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
         <select value={filterParent} onChange={e => setFilterParent(e.target.value)} className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-          <option value="">Toutes les societes parentes</option>
-          {societesMeres.map(s => <option key={s.id} value={s.id}>{s.raison_sociale}</option>)}
+          <option value="">Toutes les organisations parentes</option>
+          {organisationsMeres.map(o => <option key={o.id} value={o.id}>{o.raison_sociale}</option>)}
         </select>
         <input
           type="text"
@@ -145,9 +148,11 @@ export default function OrganisationPage() {
 
       {vueArbo ? (
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-          {racinesArbo.length === 0
-            ? <EmptyState title="Aucune societe" description="Aucune societe dans le referentiel." />
-            : racinesArbo.map(s => <TreeNode key={s.id} societe={s} depth={0} navigate={navigate} />)
+          {isLoading
+            ? <p className="text-sm text-gray-400">Chargement…</p>
+            : racinesArbo.length === 0
+            ? <EmptyState title="Aucune organisation" description="Aucune organisation dans le référentiel." ctaLabel="Nouvelle organisation" onCta={() => setFormModal({ open: true, organisation: null })} />
+            : racinesArbo.map(o => <TreeNode key={o.id} organisation={o} depth={0} navigate={navigate} organisations={organisations} />)
           }
         </div>
       ) : (
@@ -155,11 +160,12 @@ export default function OrganisationPage() {
           <DataTable
             columns={columns}
             data={filtered}
-            filename="organisation"
+            filename="organisations"
+            isLoading={isLoading}
             emptyState={{
-              message: 'Aucune societe ne correspond aux filtres.',
-              ctaLabel: canWrite ? 'Nouvelle societe' : undefined,
-              onCta: canWrite ? () => setFormModal({ open: true, societe: null }) : undefined,
+              message: 'Aucune organisation ne correspond aux filtres.',
+              ctaLabel: 'Nouvelle organisation',
+              onCta: () => setFormModal({ open: true, organisation: null }),
             }}
           />
         </div>
@@ -167,10 +173,10 @@ export default function OrganisationPage() {
 
       <OrganisationFormModal
         isOpen={formModal.open}
-        onClose={() => setFormModal({ open: false, societe: null })}
-        onSave={handleSave}
-        societe={formModal.societe}
-        existingSocietes={societes}
+        onClose={() => setFormModal({ open: false, organisation: null })}
+        onSubmit={handleSubmit}
+        organisation={formModal.organisation}
+        existingOrganisations={organisations}
       />
     </div>
   );

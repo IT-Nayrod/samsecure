@@ -1,4 +1,8 @@
 // Sidebar - Section 1.2 Specs UX v0.5
+// Règle d'affichage (itération courante) : aucun bridage par rôle, à
+// l'exception de la section ADMINISTRATION, dont chaque entrée est mappée
+// sur sa permission réelle du catalogue. Une entrée sans `permission` est
+// visible par tout utilisateur connecté.
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Building, Building2, Store, Users, Package,
@@ -6,55 +10,64 @@ import {
   ShieldCheck, TrendingUp, SlidersHorizontal, UserCog, Settings, Plug, Settings2, PiggyBank,
 } from 'lucide-react';
 import useAuth from '../../hooks/useAuth';
+import { ADMIN_PERMISSIONS } from '../../constants/permissions';
 
 const MENU = [
   {
     section: 'TABLEAU DE BORD',
     items: [
-      { label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard', profiles: ['manager_dsi', 'financier', 'it_ops'] },
+      { label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
     ],
   },
   {
     section: 'RÉFÉRENTIELS',
     items: [
-      { label: 'Editeurs', icon: Building2, path: '/referentiels/editeurs', profiles: ['manager_dsi', 'it_ops', 'financier'] },
-      { label: 'Revendeurs', icon: Store, path: '/referentiels/revendeurs', profiles: ['manager_dsi', 'it_ops', 'financier'] },
-      { label: 'Contacts', icon: Users, path: '/referentiels/contacts', profiles: ['manager_dsi', 'it_ops', 'financier'] },
-      { label: 'Logiciels', icon: Package, path: '/referentiels/logiciels', profiles: ['manager_dsi', 'it_ops', 'financier'] },
+      { label: 'Editeurs', icon: Building2, path: '/referentiels/editeurs' },
+      { label: 'Revendeurs', icon: Store, path: '/referentiels/revendeurs' },
+      { label: 'Contacts', icon: Users, path: '/referentiels/contacts' },
+      { label: 'Logiciels', icon: Package, path: '/referentiels/logiciels' },
     ],
   },
   {
     section: 'DROITS D\'USAGE',
     items: [
-      { label: 'Licences', icon: Shield, path: '/conformite/licences', profiles: ['manager_dsi', 'financier', 'it_ops'] },
-      { label: 'Contrat', icon: FileText, path: '/contrats/liste', profiles: ['manager_dsi', 'it_ops'] },
-      { label: 'Commandes', icon: ShoppingCart, path: '/contrats/commandes', profiles: ['manager_dsi', 'it_ops'] },
-      { label: 'Factures & Preuves', icon: Receipt, path: '/contrats/factures', profiles: ['manager_dsi', 'it_ops'] },
+      { label: 'Licences', icon: Shield, path: '/conformite/licences' },
+      { label: 'Contrat', icon: FileText, path: '/contrats/liste' },
+      { label: 'Commandes', icon: ShoppingCart, path: '/contrats/commandes' },
+      { label: 'Factures & Preuves', icon: Receipt, path: '/contrats/factures' },
     ],
   },
   {
     section: 'USAGE',
     items: [
-      { label: 'Affectations', icon: Tag, path: '/conformite/affectations', profiles: ['manager_dsi', 'financier', 'it_ops'] },
-      { label: 'Inventaire', icon: Database, path: '/conformite/inventaire', profiles: ['manager_dsi', 'financier', 'it_ops'] },
+      { label: 'Affectations', icon: Tag, path: '/conformite/affectations' },
+      { label: 'Inventaire', icon: Database, path: '/conformite/inventaire' },
+    ],
+  },
+  {
+    section: 'BUDGET',
+    items: [
+      { label: 'Budget', icon: PiggyBank, path: '/budget' },
     ],
   },
   {
     section: 'RAPPORTS',
     items: [
-      { label: 'Conformité', icon: ShieldCheck, path: '/rapports/conformite', profiles: ['manager_dsi', 'financier'] },
-      { label: 'Optimisation', icon: TrendingUp, path: '/rapports/optimisation', profiles: ['manager_dsi', 'financier'] },
-      { label: 'Personnalisé', icon: SlidersHorizontal, path: '/rapports/personnalise', profiles: ['manager_dsi', 'financier'] },
+      { label: 'Conformité', icon: ShieldCheck, path: '/rapports/conformite' },
+      { label: 'Optimisation', icon: TrendingUp, path: '/rapports/optimisation' },
+      { label: 'Personnalisé', icon: SlidersHorizontal, path: '/rapports/personnalise' },
     ],
   },
   {
     section: 'ADMINISTRATION',
     items: [
-      { label: 'Organisation', icon: Building, path: '/referentiels/organisation', profiles: ['manager_dsi', 'it_ops', 'financier'] },
-      { label: 'Budget', icon: PiggyBank, path: '/budget', profiles: ['manager_dsi', 'financier', 'it_ops'] },
-      { label: 'Utilisateurs', icon: UserCog, path: '/admin/users', profiles: ['manager_dsi'] },
-      { label: 'Paramètres', icon: Settings, path: '/admin/settings', profiles: ['manager_dsi'] },
-      { label: 'Connecteurs', icon: Plug, path: '/admin/connectors', profiles: ['manager_dsi'] },
+      { label: 'Organisation', icon: Building, path: '/referentiels/organisation', permission: ADMIN_PERMISSIONS.SOCIETES },
+      {
+        label: 'Utilisateurs', icon: UserCog, path: '/admin/utilisateurs',
+        permissions: [ADMIN_PERMISSIONS.UTILISATEURS, ADMIN_PERMISSIONS.GROUPES, ADMIN_PERMISSIONS.EXCEPTIONS, ADMIN_PERMISSIONS.JOURNAL],
+      },
+      { label: 'Paramètres', icon: Settings, path: '/admin/settings', permission: ADMIN_PERMISSIONS.UTILISATEURS },
+      { label: 'Connecteurs', icon: Plug, path: '/admin/connectors', permission: ADMIN_PERMISSIONS.CONNECTEURS },
     ],
   },
 ];
@@ -65,12 +78,17 @@ function initials(user) {
 }
 
 export default function Sidebar({ onClose }) {
-  const { user, profil, navigate: _nav } = useAuth();
+  const { user, hasPermission, hasAnyPermission } = useAuth();
   const navigate = useNavigate();
+
+  function isVisible(item) {
+    if (item.permissions) return hasAnyPermission(item.permissions);
+    return !item.permission || hasPermission(item.permission);
+  }
 
   const visibleMenu = MENU.map(section => ({
     ...section,
-    items: section.items.filter(item => item.profiles.includes(profil)),
+    items: section.items.filter(isVisible),
   })).filter(section => section.items.length > 0);
 
   return (

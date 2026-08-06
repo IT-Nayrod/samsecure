@@ -1,9 +1,30 @@
-.env
-staging-dist/
-db/
-node_modules/
-vite.config.js.*
-planning/
-bdd/
-dist/
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 
+node_modules/
+staging-dist*
+dist*
+*.local
+server/.env
+~/.bashrc
+bdd/
+db/
+planning/
+vite.config.js.*
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

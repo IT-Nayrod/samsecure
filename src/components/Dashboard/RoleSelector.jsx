@@ -1,14 +1,6 @@
-// RoleSelector - onglets Manager DSI | Financier | IT Ops
-// Conçu pour fonctionner en mode "all tabs" (3 groupes visibles).
-// À terme : si l'utilisateur n'appartient qu'à 1 groupe → pas d'onglets.
-//            Si 2+ groupes → onglets des groupes concernés uniquement.
-const ROLES = [
-  { id: 'dsi',       label: 'Manager DSI' },
-  { id: 'financier', label: 'Financier'   },
-  { id: 'itops',     label: 'IT Ops'      },
-];
-
-export default function RoleSelector({ activeRole, onChange }) {
+// RoleSelector - onglets de bascule entre les dashboards accessibles à
+// l'utilisateur connecté (1 à 3 selon ses permissions dashboard).
+export default function RoleSelector({ activeRole, onChange, options }) {
   return (
     <div style={{
       display: 'flex',
@@ -18,7 +10,7 @@ export default function RoleSelector({ activeRole, onChange }) {
       borderRadius: 10,
       width: 'fit-content',
     }}>
-      {ROLES.map(role => (
+      {options.map(role => (
         <button
           key={role.id}
           onClick={() => onChange(role.id)}

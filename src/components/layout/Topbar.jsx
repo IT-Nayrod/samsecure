@@ -9,7 +9,7 @@ import GlobalSearch from '../search/GlobalSearch';
 
 const BREADCRUMBS = {
   '/dashboard': [{ label: 'Tableau de bord' }],
-  '/admin/users': [{ label: 'Administration' }, { label: 'Utilisateurs' }],
+  '/admin/utilisateurs': [{ label: 'Administration' }, { label: 'Utilisateurs' }],
   '/admin/settings': [{ label: 'Administration' }, { label: 'Paramètres' }],
   '/admin/connectors': [{ label: 'Administration' }, { label: 'Connecteurs' }],
   '/settings/me': [{ label: 'Paramètres utilisateur' }],
@@ -40,7 +40,7 @@ function initials(user) {
 }
 
 export default function Topbar({ onMenuClick }) {
-  const { user, profil, logout, switchProfil } = useAuth();
+  const { user, logout } = useAuth();
   const { unreadCount } = useNotifications();
   const location = useLocation();
   const navigate = useNavigate();
@@ -49,7 +49,6 @@ export default function Topbar({ onMenuClick }) {
   const avatarRef = useRef(null);
 
   const breadcrumb = getBreadcrumb(location.pathname);
-  const hasMultipleProfils = (user?.habilitations?.length ?? 0) > 1;
 
   useEffect(() => {
     function handleClick(e) {
@@ -58,8 +57,6 @@ export default function Topbar({ onMenuClick }) {
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
-
-  const PROFIL_LABELS = { manager_dsi: 'Manager DSI', financier: 'Financier', it_ops: 'IT Ops' };
 
   return (
     <>
@@ -123,23 +120,6 @@ export default function Topbar({ onMenuClick }) {
               >
                 <User size={15} /> Mon profil
               </button>
-
-              {hasMultipleProfils && (
-                <>
-                  <div className="border-t border-gray-100 dark:border-gray-700 my-1" />
-                  <p className="px-4 py-1 text-[10px] text-gray-400 uppercase tracking-wider">Changer de profil</p>
-                  {user.habilitations.map(hab => (
-                    <button
-                      key={`${hab.profil}-${hab.societe_id}`}
-                      onClick={() => { switchProfil(hab.profil); setAvatarOpen(false); }}
-                      className={`flex items-center gap-2.5 w-full px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 ${hab.profil === profil ? 'text-blue-700 font-medium' : 'text-gray-700 dark:text-gray-200'}`}
-                    >
-                      <span className="w-1.5 h-1.5 rounded-full bg-current flex-shrink-0" />
-                      {PROFIL_LABELS[hab.profil]}
-                    </button>
-                  ))}
-                </>
-              )}
 
               <div className="border-t border-gray-100 dark:border-gray-700 my-1" />
               <button

@@ -25,6 +25,8 @@ jobs:
             --exclude "planning" \
             --exclude "staging-dist" \
             --exclude "vite.config.js." \
+            --exclude "server" \
+            --exclude "simulateurDroits" \
             ./ /var/www/samsecure/
 
       - name: Install dependencies

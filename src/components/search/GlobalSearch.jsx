@@ -12,7 +12,7 @@ const RESULT_LIMIT = 5;
 const MIN_CHARS = 2;
 
 export default function GlobalSearch() {
-  const { profil } = useAuth();
+  const { hasPermission } = useAuth();
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
@@ -24,7 +24,7 @@ export default function GlobalSearch() {
   const trimmed = debouncedQuery.trim();
   const isActive = trimmed.length >= MIN_CHARS;
   const isPending = query.trim().length >= MIN_CHARS && query !== debouncedQuery;
-  const groups = isActive ? runSearch(SEARCH_REGISTRY, trimmed, profil, RESULT_LIMIT) : [];
+  const groups = isActive ? runSearch(SEARCH_REGISTRY, trimmed, hasPermission, RESULT_LIMIT) : [];
   const regex = isActive ? buildSearchRegex(trimmed) : null;
   const flatItems = groups.flatMap(g => g.items.map(item => ({ entry: g.entry, item })));
   const hasResults = flatItems.length > 0;
