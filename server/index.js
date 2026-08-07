@@ -1,6 +1,7 @@
 // server/index.js
 import express from "express";
 import cors from "cors";
+import { APP_ENV } from "./db.js";
 
 import authRouter from "./routes/auth.js";
 import { authMiddleware } from "./middleware/auth.js";
@@ -45,5 +46,8 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
-  console.log(`API SamSecure sur http://localhost:${PORT}`);
+  console.log(
+    `API SamSecure [${APP_ENV}] sur http://localhost:${PORT}` +
+    `-> ${process.env.PGDATABASE_TENANT}`
+  );
 });

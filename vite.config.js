@@ -11,13 +11,16 @@ export default defineConfig(({ mode }) => {
       port: 5173,
       strictPort: true,
       origin: 'https://dev-samsecure.nayrod.fr',
+      proxy: {
+	'/api': { target: 'http://127.0.0.1:3002', changeOrigin: true }
+      },
       watch: {
         usePolling: true,
-	interval: 1000
+	interval: 1000,
+        ignored: ['**/staging-dist/**', '**/staging-dist-*/**', '**/dist/**', '**/planning/**', '**/bdd/**']
       },
       hmr: {
         protocol: 'wss',
-        host: 'dev-samsecure.nayrod.fr',
         clientPort: 443
       }
     },

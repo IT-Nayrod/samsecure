@@ -21,12 +21,9 @@ jobs:
           rsync -rt --delete \
             --exclude ".git" \
             --exclude "node_modules" \
-            --exclude "bdd" \
-            --exclude "db" \
-            --exclude "planning" \
             --exclude "vite.config.js." \
-            --exclude "server" \
-            --exclude "simulateurDroits" \
+            --include "server/.env*.example" \
+            --exclude "server/.env*" \
             ./ /var/www/samsecure/
 
       - name: Install dependencies

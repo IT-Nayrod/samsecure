@@ -11,11 +11,10 @@ node_modules/
 staging-dist*
 dist*
 *.local
-server/.env
+server/.env*
+!server/.env.example
+!server/.env.*.example
 ~/.bashrc
-bdd/
-db/
-planning/
 vite.config.js.*
 
 # Editor directories and files
@@ -28,3 +27,7 @@ vite.config.js.*
 *.njsproj
 *.sln
 *.sw?
+
+# Residus de synchronisation dropbox
+desktop.ini
+*.tmp.*

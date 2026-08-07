@@ -34,7 +34,6 @@ import CommandeDetailPage from '../components/contrats/CommandeDetailPage';
 import FacturesPage from '../components/contrats/FacturesPage';
 import DocumentDetailPage from '../components/contrats/DocumentDetailPage';
 import BudgetPage from '../pages/budget/BudgetPage';
-import OldBudgetPage from '../components/contrats/BudgetPage';
 import ReportsConformitePage from '../pages/rapports/ReportsConformitePage';
 import ReportsOptimisationPage from '../pages/rapports/ReportsOptimisationPage';
 import ReportViewPage from '../pages/rapports/ReportViewPage';
@@ -102,7 +101,6 @@ export default function AppRouter() {
             <Route path="/contrats/commandes/:id" element={<CommandeDetailPage />} />
             <Route path="/contrats/factures" element={<FacturesPage />} />
             <Route path="/contrats/factures/:id" element={<DocumentDetailPage />} />
-            <Route path="/contrats/budget" element={<OldBudgetPage />} />
             <Route path="/budget" element={<BudgetPage />} />
 
             {/* Rapports - accessible à tout utilisateur connecté (aucun bridage) */}

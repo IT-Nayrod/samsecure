@@ -1,110 +1,106 @@
 # SamSecure - Contexte projet pour Claude Code
 
-## REGLE DE PRECEDENCE (a lire en premier)
+**Version 2 - 06/08/2026.** Intègre l'état des lieux d'onboarding du 06/08/2026 (écarts E1 à E12 reportés). Remplace intégralement la version 1.
 
-Ce document a ete redige en amont et peut etre partiellement obsolete.
+## RÈGLE DE PRÉCÉDENCE (à lire en premier)
 
-1. **Le code reel du projet est la source de verite.** Si ce que tu observes dans le repo contredit ce document, c'est le code qui prime.
-2. **Signale systematiquement les ecarts.** Quand tu constates une contradiction entre ce document et le code, mentionne-le explicitement dans ta reponse (section "Ecarts constates") pour que la documentation soit corrigee. Ne suis jamais silencieusement l'un ou l'autre.
-3. Les documents anterieurs a aout 2026 (notamment le Referentiel Technique BDD v3 de mai 2026) decrivent en partie des modeles abandonnes depuis. Les decisions listees ici sous "Doctrine d'architecture" sont les plus recentes connues.
+1. **Le code réel du projet est la source de vérité.** Si ce que tu observes dans le repo contredit ce document, c'est le code qui prime.
+2. **Signale systématiquement les écarts** dans une section "Écarts constatés" de ta réponse, pour mise à jour de ce document. Ne suis jamais silencieusement l'un ou l'autre.
+3. Les documents antérieurs (notamment le Référentiel Technique BDD v3 de mai 2026, modèle default_/tenant_) décrivent des états abandonnés. Ce document, daté du 06/08, fait foi côté documentation.
 
-## TON ROLE SUR CE SERVEUR
+## TON RÔLE SUR CE SERVEUR
 
-- Tu es en **lecture seule stricte** (Plan Mode + regles deny). Tu ne modifies aucun fichier, tu ne lances aucune commande d'ecriture.
-- Ta mission : analyser les bugs du staging, identifier les causes racines, et fournir des corrections precises (diff ou bloc de code complet) que l'equipe appliquera a la main via le workflow git.
-- **Devoir de challenge** : si une demande ou un constat te semble incoherent, risque ou errone, dis-le et propose une alternative argumentee. Va au-dela de la demande litterale.
-- **Aucune invention** : toute affirmation fonctionnelle doit se rattacher au code observe ou a une decision documentee ici. Si tu n'es pas sur, dis-le.
-- Reponds en francais. N'utilise jamais de tiret cadratin, utilise des tirets simples ou des virgules.
+- Tu es en **lecture seule stricte** (Plan Mode + règles deny). Tu ne modifies aucun fichier, tu ne lances aucune commande d'écriture.
+- Ta mission : analyser les bugs, identifier les causes racines, fournir des corrections précises (diff ou bloc de code complet) que l'équipe applique à la main via git.
+- **Devoir de challenge** : si une demande ou un constat te semble incohérent, risqué ou erroné, dis-le et propose une alternative argumentée.
+- **Aucune invention** : toute affirmation fonctionnelle doit se rattacher au code observé ou à une décision documentée ici.
+- Réponds en français. Jamais de tiret cadratin, tirets simples ou virgules.
 
 ## LE PROJET
 
-- **SamSecure** : plateforme B2B SaaS de Software Asset Management (SAM). Gestion des licences logicielles, conformite, budget, rapports pour les clients de SamSecure.
-- **Acteurs** :
-  - Dorian (Nayrod) : pilote du projet, redige les specs et les prompts.
-  - Antonin (Nayrod) : developpeur, ton interlocuteur direct sur ce serveur.
-  - Samuel Aurensan : expert technique cote client, valide les decisions structurantes.
-  - Vincent Douhairie : commercial cote client.
-- **Echeances** : developpement des modules termine fin aout 2026. Septembre 2026 reserve aux corrections, tests et livraison. Livraison finale le 25 septembre 2026.
-- **Serveur actuel** : staging, `staging-samsecure.nayrod.fr`.
+- **SamSecure** : plateforme B2B SaaS de Software Asset Management.
+- **Acteurs** : Dorian (Nayrod, pilote), Antonin (Nayrod, dev, ton interlocuteur), Samuel Aurensan (expert technique client, validateur), Vincent Douhairie (commercial client).
+- **Échéances** : développement terminé fin août 2026, septembre réservé corrections/tests, livraison le 25 septembre 2026.
+- Serveur actuel : staging, `staging-samsecure.nayrod.fr`.
 
-## ETAT ACTUEL : v0.5
+## ÉTAT ACTUEL (constaté le 06/08/2026)
 
-- Front **mono-tenant, donnees mockees**, React + Vite + Tailwind + Chart.js.
-- 3 profils utilisateurs : **Manager DSI, Financier, IT Ops**, chacun avec son dashboard.
-- Tableaux de bord temps reel, masques de saisie.
-- Persistance v0.5 : **localStorage** (notamment les templates de rapports). Pas encore de branchement BDD complet cote front, a verifier dans le code.
-- Logos editeurs : Simple Icons CDN.
-- Recherche insensible aux accents (normalisation cote front).
-- Le front est un artefact vivant, pas un livrable fige.
+Application **2-tiers hybride**, plus un simple front mocké :
 
-## ROADMAP (phasage previsionnel)
+- **Front** : React 18.3.1 + Vite 5.4.10 + Tailwind 3.4.19, react-router-dom 7.14.0, ~20 000 lignes, 36 routes sans lazy loading. Charts : **recharts 3.8.1** (pas Chart.js). Icônes UI : lucide-react.
+- **API** : Express 5.2.1 (`server/`, ~1 350 l.), pg 8.22, jsonwebtoken, bcryptjs. 44 endpoints (5 auth publics + 39 protégés JWT). Port 3001, préfixe `/api`, URL relative côté front, **aucune variable d'environnement front** (pas de bascule dev/staging/prod).
+- **Branché PostgreSQL** : auth, utilisateurs, profils/groupes, permissions, attributions, exceptions, journal, organisation/sociétés.
+- **Encore mocké et non persistant** : dashboards, budget, rapports, contrats/commandes/factures, déploiement, référentiels. Mocks : 13 fichiers dans `src/data/` (~2 076 l.), CRUD en state React.
+- **Persistance navigateur, inventaire exhaustif (5 clés)** : `ss_refresh_token` (localStorage, JWT refresh, access token en mémoire), `ss_report_templates`, `ss_draft_<key>`, `samsecure_photos_contacts`, `ss_custom_report_config` (sessionStorage). Rien d'autre ne persiste.
+- **Dashboards** : 3 permissions cumulables (`acceder_dashboard_manager_dsi`, `_financier`, `_it_ops`), pas 3 personas. Un utilisateur peut en voir 0 à 3, RoleSelector affiché seulement s'il en a plus d'un.
+- **simulateurDroits/index.html** (2 208 l., autonome hors React) : client d'administration **opérationnel** branché sur la vraie API (JWT, POST/PATCH/DELETE sur `/api/utilisateurs/:id/exceptions`, `/profils`, `/societes`), exposé par NGINX sur le staging. Ce n'est pas qu'un front de référence.
+- **Ambiguïté structurante connue** : les sociétés existent en double, schémas divergents (API : `id_societe_parent` via `societeHierarchy.js` ; mock : `societe_parent_id` via `orgUtils.js`), ids non correspondants. Plan de convergence à décider.
+- **useRbac (front) neutralisé** : renvoie des droits permissifs en dur (décision v0.5 assumée, commentaire l. 3-8), consommé par ~21 composants. Rebranchement avant livraison à décider.
+- **API sans contrôle de permission** : les 39 routes protégées ne vérifient que la validité du JWT. Filtrage de périmètre société (`server/utils/scope.js`) appliqué dans 3 routeurs sur 10. Durcissement à planifier.
 
-- v0.5 : front minimum, dashboards, mono-tenant, 3 profils, mono-serveur (pre-release).
-- v1.0 : rapports/livrables via Grafana connecte au SGBD (release).
-- v2.0 : multi-tenancy, SSO, back-office technique, micro-services, une dizaine de profils, connecteurs REST vers outils d'inventaire (LanSweeper, AD, SCCM, Intune, Ivanti).
-- v3.0 : blockchain (tracabilite des droits d'usage) et IA.
+## STACK ET INFRASTRUCTURE (réelle)
 
-## STACK ET INFRASTRUCTURE
+- Ubuntu 24.04, Node v24.14.0, PostgreSQL 16 (127.0.0.1:5432), NGINX, PM2 (sous l'utilisateur `deploy`, `/home/deploy/.pm2`), GitHub Actions, WireGuard.
+- NGINX `staging-samsecure` : statique `staging-dist/`, `/api/` vers 127.0.0.1:3001, alias `/planning` `/bdd` `/simulateurDroits`, filtré VPN 10.8.1.0/24 + auth_basic.
+- NGINX `dev-samsecure` : proxy 127.0.0.1:5173 (Vite).
+- Scripts npm : `dev`, `dev:server`, `dev:front`, `migrate`, `build`, `lint`, `preview`, `build:staging`.
+- **SQL, source réellement exécutée : `server/bdd/`** (12 fichiers + `migrate.js`, ordre lexicographique 001 à 013). `bdd/` : 13 SQL quasi identiques + `000_init_databases.sql` (jamais joué par migrate.js) + index.html (UML). `db/` : vestige de test. **`004_commune_seed.sql` n'existe pas** : l'ancienne séquence documentée (000, 001, 004, 002, 003) est obsolète.
+- Codebase synchronisé Dropbox entre machines + déploiement GitHub Actions. Résidus Dropbox (`*.tmp.*`, `desktop.ini`) non ignorés par git. Conflit de propriétaire `node_modules` entre `deploy` (PM2) et `antonin-hornoy` (installations manuelles).
 
-- Ubuntu 24.04, Node.js 24 LTS, NGINX, PM2, Docker, PostgreSQL 16.
-- CI/CD : GitHub Actions. Supervision : Prometheus + Grafana. Acces admin via VPN WireGuard.
-- pgAdmin 4 : `pgadmin-dev-samsecure.nayrod.fr` et `pgadmin-staging-samsecure.nayrod.fr`.
-- Sequence d'installation SQL : `000_init_databases.sql` puis `001_commune_schema.sql` puis `004_commune_seed.sql` puis `002_tenant_schema.sql` puis `003_tenant_seed.sql`.
-- Le codebase est synchronise par Dropbox entre les machines de dev, et deploye sur le staging. Toute correction doit passer par une branche git, jamais en direct sur le serveur.
+## DOCTRINE BDD (v3) - CONFORME, VÉRIFIÉE LE 06/08
 
-## DOCTRINE D'ARCHITECTURE BDD (v3, decisions de juillet 2026)
+- **59 tables** : 5 en BDD Commune (`produit_referentiel`, `version`, `edition`, `langue`, `traduction`) + 54 en Tenant (`journal_ecriture` ajoutée par la migration 008, après la validation initiale à 58).
+- Zéro `tenant_id`. Table `client` dissoute dans `tenant_config` (migration 006). Copy-on-write `code` / `personnalise` / `valeurs_defaut` sur 9 tables. `profil_societe` et `utilisateur_societe` en UNIQUE NULLS NOT DISTINCT. Aucune trace du modèle `default_`/`tenant_` abandonné.
+- Isolation physique : jointures inter-bases impossibles, l'API fait le pont. `commonPool` présent mais pas encore utilisé hors migrateur. Aucun tenant provisionné à ce jour (`003_tenant_seed.sql` fait un UPDATE de `tenant_config` sans ligne insérée, pas de société initiale).
 
-- **Isolation physique** : 1 BDD Commune + 1 BDD Tenant par client. AUCUN champ `tenant_id` nulle part. Les jointures SQL ne peuvent pas traverser Commune et Tenant : c'est l'API qui fait le pont.
-- **BDD Commune reduite a 5 tables** (arbitrage 29/07) : `produit_referentiel`, `version`, `edition`, `langue`, `traduction`. Les traductions sont un actif SamSecure, non editables par les tenants.
-- **Tous les referentiels** (profil, type_contrat, fonction, etc.) sont en BDD Tenant, peuples par des seeds idempotents.
-- **Copy-on-write** pour les referentiels personnalisables : colonnes `code`, `personnalise` (boolean), `valeurs_defaut` (JSONB snapshot) permettant un "restaurer par defaut" sans lire la BDD Commune a l'execution. Diffusion des defauts a tous les tenants via workers et `tache_asynchrone`.
-- **Table `client` dissoute** : absorbee dans `tenant_config` (raison_sociale, id_abonnement, id_administrateur). Les colonnes `id_client` ont ete supprimees.
-- **Modele fallback `default_`/`tenant_` ABANDONNE** : l'ancien modele a 17 tables partagees avec surcharge creait des FK impossibles entre bases et violait la doctrine d'isolation. Ne jamais le reintroduire. Attention : le document Referentiel Technique BDD v3 (mai 2026) decrit encore ce modele, il est obsolete sur ce point.
-- Schema v3 : 58 tables, validees contre une instance PostgreSQL 16 reelle (delta structurel zero).
+## RBAC ET PORTÉES
 
-## RBAC ET PORTEES (acte le 29/07/2026)
-
-- Deux tables de portee : `profil_societe` (diffusion d'un groupe de droits) et `utilisateur_societe` (rattachement d'un utilisateur). `id_societe NULL` = portee tenant entier.
-- Une attribution n'est valable que sur l'**intersection** rattachement x diffusion, en tout ou rien.
-- Les droits de plusieurs groupes se **cumulent par union**. Le **retrait (exception) est prioritaire** sur l'ajout. Les exceptions sont bornees au rattachement de l'utilisateur.
-- Hors scope v1 : modification retroactive des portees.
-- References : `Nayrod_SamSec_Simulateur_Droits_v3.html` (front de reference faisant autorite) et `Nayrod_SamSec_Spec_Portees_RBAC_v1.md`.
-- Point 7 (catalogue RBAC dynamique module/ressource/action) : **en attente, ne pas planifier ni implementer**.
+- Modèle acté le 29/07 inchangé : attribution valable sur l'intersection rattachement x diffusion (tout ou rien), cumul par union entre groupes, `id_societe NULL` = portée tenant, exceptions bornées au rattachement.
+- **Retrait prioritaire sur ajout : déjà implémenté** dans `server/routes/droitsEffectifs.js:62-92` (tous les accorde traités avant tous les retire, indépendamment de l'ordre SQL). Validation formelle de la règle par Samuel toujours attendue.
+- Le fichier de référence réel est `simulateurDroits/index.html` (non tracké git). `Nayrod_SamSec_Simulateur_Droits_v3.html` n'existe pas sous ce nom dans le repo ; `Nayrod_SamSec_Spec_Portees_RBAC_v1.md` absent du repo.
+- Point 7 (catalogue RBAC dynamique) : toujours en attente, ne pas implémenter.
 
 ## MODULE BUDGET
 
-- L'organisation payeuse est **toujours derivee de la chaine `licence -> commande -> societe`**, jamais stockee sur la ligne budgetaire elle-meme. `commande.id_societe` reste l'organisation payeuse.
-- Des sections budget doivent apparaitre sur les fiches de detail : KPIs agreges sur les fiches contrat, lignes budgetaires brutes sur les fiches licence.
+- Doctrine respectée : organisation payeuse dérivée de la chaîne `licence -> commande -> société`, jamais stockée sur la ligne budgétaire.
+- Dette connue : second module budget legacy `src/components/contrats/BudgetPage.jsx` routé sur `/contrats/budget`, avec `mockBudgets.js` incompatible (mono-montant vs CAPEX/OPEX de `mockBudget.js`). Suppression à décider.
 
 ## MODULE RAPPORTS
 
-- 6 rapports de conformite + 6 rapports d'optimisation.
-- Generateur de rapports sur mesure : 8 sections de configuration, apercu live, templates persistes en localStorage (v0.5).
-- Moteur partage : `reportEngine.js` et `reportsCatalog.js`.
+- Complet : 6 conformité + 6 optimisation, builder 8 sections, aperçu live. Données mock + localStorage. Moteur : `reportEngine.js`, `reportsCatalog.js`.
 
-## BACKLOG BDD ACTIF (points en cours)
+## BACKLOG BDD
 
-- **Point 6** : table `exception_droit` en BDD Tenant, surcharges de droits par utilisateur/societe (type grants/removes, raison, dates, `id_accorde_par`). Retrait prioritaire sur ajout, regle a confirmer avec Samuel.
-- **Point 8** : reintegrer `id_societe` (societe signataire, FK vers societe) sur la table `contrat`. Existait en v2, perdue par regression lors de la consolidation v3. Sans impact sur la logique budget.
-- Points 9 a 21 : backlog etendu issu de l'analyse des transcriptions de sprint (mai-juillet 2026).
+- **Point 6 (exceptions de droits)** : mécanisme implémenté et branché (API + simulateur). Reste la validation Samuel de la règle de retrait.
+- **Point 8 (`contrat.id_societe`) : FAIT** (`server/bdd/002_tenant_schema.sql:317`, index `idx_contrat_societe`). À clôturer dans le suivi.
+- Points 9 à 21 : backlog étendu inchangé.
 
-## QUESTIONS OUVERTES (en attente de Samuel)
+## QUESTIONS OUVERTES
 
-- Confirmation de la regle "retrait toujours prioritaire" pour `exception_droit`.
-- Choix du dashboard quand plusieurs groupes s'appliquent a un utilisateur (pas de profil actif unique).
-- Decision soft delete (D11), urgente avant accumulation de donnees reelles.
+- Samuel : validation formelle du retrait prioritaire (implémentation existante) ; décision soft delete D11, urgente avant données réelles.
+- Dashboard multi-groupes : le code affiche tous les dashboards accessibles avec commutateur ; à confirmer comme réponse définitive.
+
+## CHANTIERS OUVERTS CONNUS (constat du 06/08, section datée, à purger au fil des corrections)
+
+- **Versionnement git incomplet** : `server/`, `bdd/`, `db/`, `simulateurDroits/`, `planning/`, `src/components/admin/`, `src/services/`, `src/constants/` non trackés. Aucune branche ne contient l'API.
+- **Workflows GitHub Actions à réaligner** : le `rsync -rt --delete` du deploy dev n'exclut pas `server/` (le prochain push sur dev efface l'API et `server/.env`) ; le workflow staging appelle `npm run build:staging`, supprimé du package.json.
+- **Sécurité** : alias NGINX `/bdd` expose les SQL en HTTP (hashes bcrypt et mots de passe en clair dans les commentaires, migrations 012/013 avec comptes de test `admin_sam` mot de passe 1234, rejoués en staging) ; épisodes 28P01 sur le rôle `samsecure_app` (désynchronisation `server/.env` vs rôle PG, `CHANGEZ_MOI` dans `000_init_databases.sql:19`) ; `cors()` sans configuration ; 2FA avec code `'123456'` en dur contournant AuthContext ; ForgotPassword/ResetPassword factices (setTimeout, `:token` jamais lu) ; anti-bruteforce en state React réinitialisé par F5 ; aucune route de changement de mot de passe malgré la table `reset_password_token`.
+- **API, traitement d'erreurs** : toutes les erreurs PostgreSQL renvoient un 500 générique "Erreur serveur". Mapper 23505 en 409, 22001 en 400, 23503 en 409. `DELETE /societes/:id` casse sur `profil_societe_id_societe_fkey` (les diffusions de groupes ne sont pas nettoyées) : bug fonctionnel réel. `validateSiret` non appliqué côté serveur.
+- **Front** : code mort intégral `src/components/charts/` (7 composants, dont `GrafanaPanel.jsx` qui pointe sur l'API et non Grafana) ; 5 pages orphelines (Renouvellements, Equipe, AnalysesUsage, ParcLicences, Dashboard) ; `server/routes/droits.js` fichier de 0 octet ; dark mode inatteignable (classe `dark` jamais posée sur html) ; bundle monolithique 1,24 Mo sans React.lazy ; notifications non persistantes (mock figé).
+- **Environnement dev** : Vite mort depuis le 05/08 12:13 (n'écoute plus sur 5173, dev-samsecure en 502) ; 50 801 erreurs "Cannot find module tailwindcss" liées au conflit de propriétaire node_modules ; ESLint quasi inopérant (`ignores: ['dist']` seulement, `globals.browser` sur server/).
+- Trois dossiers SQL concurrents sans synchronisation (`server/bdd/` exécuté, `bdd/`, `db/`), incohérences internes (en-têtes 007/005/008 mal auto-nommés, 004 manquant, repair.sql doublon de 009).
 
 ## CONVENTIONS
 
-- Nommage des documents : `Nayrod_SamSec_[Objet]_v[N].[ext]`.
-- Jamais de tiret cadratin dans les textes generes. Accents francais corrects partout.
+- Nommage documents : `Nayrod_SamSec_[Objet]_v[N].[ext]`.
+- Jamais de tiret cadratin. Accents français corrects.
 - UML : BDD Commune en ambre, BDD Tenant en bleu, dark mode.
 
-## FORMAT DE TES REPONSES DE DEBUG
+## FORMAT DE TES RÉPONSES DE DEBUG
 
-Pour chaque bug analyse, fournis :
+Pour chaque bug analysé, fournis :
 1. La cause racine.
-2. Les fichiers et lignes concernes.
-3. La correction exacte a appliquer a la main (diff ou bloc de code complet).
+2. Les fichiers et lignes concernés.
+3. La correction exacte à appliquer à la main (diff ou bloc de code complet).
 4. Les effets de bord possibles de la correction.
-5. Une section "Ecarts constates" si le code contredit ce document (peut etre vide).
+5. Une section "Écarts constatés" si le code contredit ce document (peut être vide).
