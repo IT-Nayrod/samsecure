@@ -30,4 +30,9 @@ router.get("/revendeurs", (req, res) =>
 router.get("/modes-commande", (req, res) =>
     liste(res, `SELECT id, code, label FROM mode_commande ORDER BY label`, "GET /modes-commande"));
 
+// Type de preuve : referentiel du module documents (#48). Meme copy-on-write
+// que type_contrat, le front filtre donc sur code et affiche label.
+router.get("/types-preuve", (req, res) =>
+    liste(res, `SELECT id, code, label FROM type_preuve ORDER BY label`, "GET /types-preuve"));
+
 export default router;

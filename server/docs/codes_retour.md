@@ -64,3 +64,65 @@ Le 3021 n'est pas un refus : le rattachement est accepté. Il est réservé pour
 Le montant refuse le zero, le negatif et la saisie non numerique sous le meme
 code 3119 : dans les trois cas la valeur n'est pas un montant valide, et
 distinguer n'apporterait rien a l'utilisateur.
+
+## Documents (#48)
+
+Plage documents 3200-3299, decoupee en preuves 3200-3239, factures 3240-3279,
+commun 3280-3299.
+
+### Preuves
+
+| Code | Type | Libelle propose | Route |
+|------|------|-----------------|-------|
+| 3200 | succes | Liste des preuves | GET /api/preuves |
+| 3201 | succes | Detail de la preuve | GET /api/preuves/:id |
+| 3202 | succes | Preuve creee | POST /api/preuves |
+| 3203 | succes | Preuve modifiee | PATCH /api/preuves/:id |
+| 3204 | succes | Preuve supprimee | DELETE /api/preuves/:id |
+| 3210 | erreur | Preuve introuvable | GET/PATCH/DELETE /api/preuves/:id |
+| 3211 | erreur | Le libelle est obligatoire | POST, PATCH /api/preuves |
+| 3212 | erreur | Le type de preuve est obligatoire | POST, PATCH /api/preuves |
+| 3213 | erreur | Type de preuve introuvable | POST, PATCH /api/preuves |
+| 3214 | erreur | Une preuve doit etre rattachee a un contrat, a une commande, ou aux deux | POST, PATCH /api/preuves |
+| 3215 | erreur | Contrat introuvable | POST, PATCH /api/preuves |
+| 3216 | erreur | Commande introuvable | POST, PATCH /api/preuves |
+| 3217 | erreur | Le chemin du fichier est obligatoire | POST, PATCH /api/preuves |
+| 3218 | erreur | L'empreinte SHA-256 doit comporter 64 caracteres hexadecimaux | POST, PATCH /api/preuves |
+| 3219 | erreur | Valeur de filtre invalide | GET /api/preuves |
+| 3230 | erreur | Suppression impossible : preuve rattachee a une facture | DELETE /api/preuves/:id |
+| 3231 | reserve | [ARBITRAGE D27] lien externe GED refuse. Non emis a ce jour | POST, PATCH /api/preuves |
+
+### Factures
+
+| Code | Type | Libelle propose | Route |
+|------|------|-----------------|-------|
+| 3240 | succes | Liste des factures | GET /api/factures |
+| 3241 | succes | Detail de la facture | GET /api/factures/:id |
+| 3242 | succes | Facture creee | POST /api/factures |
+| 3243 | succes | Facture modifiee | PATCH /api/factures/:id |
+| 3244 | succes | Facture supprimee | DELETE /api/factures/:id |
+| 3250 | erreur | Facture introuvable | GET/PATCH/DELETE /api/factures/:id |
+| 3251 | erreur | Le libelle est obligatoire | POST, PATCH /api/factures |
+| 3252 | erreur | La commande est obligatoire | POST, PATCH /api/factures |
+| 3253 | erreur | Commande introuvable | POST, PATCH /api/factures |
+| 3254 | erreur | Preuve introuvable | POST, PATCH /api/factures |
+| 3255 | reserve | [ARBITRAGE flux] la preuve est obligatoire des la creation. Non emis a ce jour | POST /api/factures |
+| 3259 | erreur | Valeur de filtre invalide | GET /api/factures |
+
+### Commun
+
+| Code | Type | Libelle propose | Route |
+|------|------|-----------------|-------|
+| 3299 | erreur | Erreur serveur inattendue (module documents) | toutes |
+
+Deux points restaient en arbitrage au moment de la #48 et ne sont pas codes.
+D27, acceptation d'un lien externe GED a la place d'un fichier : aucun controle
+de format n'est applique sur url_fichier, la chaine est stockee telle quelle,
+et hash_sha256 reste facultatif. Flux de creation de facture : id_preuve suit
+le DDL, il est facultatif, seule son existence est verifiee quand il est
+fourni. Les codes 3231 et 3255 sont reserves pour ces deux regles.
+
+url_fichier est obligatoire des la #48 et non a partir de la #49 : la colonne
+est NOT NULL en base et la decision du 11/08 est de ne pas migrer, les deux
+taches partant ensemble sur staging. En #49 le champ sera renseigne par le
+module de depot au lieu du client, sans changement du contrat d'API.
