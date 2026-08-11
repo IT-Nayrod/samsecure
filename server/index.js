@@ -16,6 +16,7 @@ import utilisateurExceptionsRouter from "./routes/utilisateurExceptions.js";
 import droitsEffectifsRouter from "./routes/droitsEffectifs.js";
 import journalRouter from "./routes/journal.js";
 import contratsRouter from "./routes/contrats.js";
+import commandesRouter from "./routes/commandes.js";
 import referentielsRouter from "./routes/referentiels.js";
 
 const app = express();
@@ -36,6 +37,7 @@ app.use("/api", droitsEffectifsRouter);
 app.use("/api", journalRouter);
 app.use("/api", contratsRouter);
 app.use("/api", referentielsRouter);
+app.use("/api", commandesRouter);
 
 app.use("/api", (req, res) => {
   res.status(404).json({ error: "Ressource introuvable." });
