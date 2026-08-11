@@ -31,8 +31,9 @@ const SELECT_COMMANDE = `
          c.id_societe,       s.raison_sociale AS societe_label,
          c.id_revendeur,     r.raison_sociale AS revendeur_label,
          c.id_mode_commande, mc.code AS mode_code, mc.label AS mode_label,
+	 c.date_commande::text AS date_commande, c.date_fin::text AS date_fin,
          c.montant::float8 AS montant,
-         c.date_commande, c.date_fin, c.a_renouveler,
+         c.a_renouveler,
          c.created_at, c.updated_at
   FROM commande c
   LEFT JOIN contrat       ct ON ct.id = c.id_contrat
@@ -132,6 +133,77 @@ router.get("/commandes", async (req, res) => {
     res.status(500).json({ error: "Erreur serveur" });
   }
 });
+
+// Agregats financiers, lus exclusivement dans precalcul_financier alimente par
+// les triggers. Declaree avant /commandes/:id : sinon Express fait
+// correspondre "agregats" au parametre et repond 404.
+// Axes disponibles : societe et editeur, les seuls portes par le precalcul.
+// Ni contrat ni revendeur, qui n'existent qu'au niveau de la liste (decision
+// Dorian du 10/08).
+router.get("/commandes/agregats", async (req, res) => {
+  try {
+    const annee = req.query.annee ? Number(req.query.annee) : new Date().getFullYear();
+    // code_retour: 3141
+    if (!Number.isInteger(annee) || annee < 1970 || annee > 2999)
+      return res.status(400).json({ error: "L'annee demandee est invalide." });
+
+    const idSociete = req.query.id_societe || null;
+    // code_retour: 3142
+    if (idSociete && !UUID_RE.test(idSociete))
+      return res.status(400).json({ error: "Identifiant de societe invalide." });
+
+    const idEditeur = req.query.id_editeur || null;
+    // code_retour: 3143
+    if (idEditeur && !UUID_RE.test(idEditeur))
+      return res.status(400).json({ error: "Identifiant d'editeur invalide." });
+
+    // Sommes en numeric cote SQL, cast en float8 a la sortie seulement :
+    // additionner des flottants des le depart ferait deriver le centime.
+    const { rows } = await tenantPool.query(
+      `SELECT periode,
+              sum(montant_commande)::float8 AS montant_commande,
+              sum(montant_paye)::float8     AS montant_paye
+         FROM precalcul_financier
+        WHERE periode LIKE $1
+          AND ($2::uuid IS NULL OR id_societe = $2::uuid)
+          AND ($3::uuid IS NULL OR id_editeur = $3::uuid)
+        GROUP BY periode`,
+      [`${annee}-%`, idSociete, idEditeur]);
+
+    const parPeriode = new Map(rows.map((r) => [r.periode, r]));
+
+    // Les 12 mois sont toujours renvoyes, les mois sans commande a 0 : le
+    // consommateur n'a pas a combler les trous d'une serie temporelle.
+    const mois = Array.from({ length: 12 }, (_, i) => {
+      const periode = `${annee}-${String(i + 1).padStart(2, "0")}`;
+      const ligne = parPeriode.get(periode);
+      return {
+        periode,
+        mois: i + 1,
+        montant_commande: ligne ? ligne.montant_commande : 0,
+        montant_paye: ligne ? ligne.montant_paye : 0,
+      };
+    });
+
+    // Totaux derives des 12 mois, jamais requetes separement : ils sont ainsi
+    // egaux a leur somme par construction. L'arrondi au centime absorbe le
+    // residu binaire de l'addition flottante.
+    const somme = (cle) => Math.round(mois.reduce((t, m) => t + m[cle], 0) * 100) / 100;
+
+    // code_retour: 3140
+    res.json({
+      annee,
+      filtres: { id_societe: idSociete, id_editeur: idEditeur },
+      mois,
+      totaux: { montant_commande: somme("montant_commande"), montant_paye: somme("montant_paye") },
+    });
+  } catch (err) {
+    console.error("GET /commandes/agregats error", err);
+    // code_retour: 3199
+    res.status(500).json({ error: "Erreur serveur" });
+  }
+});
+
 
 router.get("/commandes/:id", async (req, res) => {
   const { id } = req.params;
