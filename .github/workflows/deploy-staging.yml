@@ -22,6 +22,7 @@ jobs:
           rsync -rt --delete \
             --exclude ".git" \
             --exclude "node_modules" \
+            --exclude "dev-dist" \
             --exclude "vite.config.js." \
             --include "server/.env*.example" \
             --exclude "server/.env*" \
