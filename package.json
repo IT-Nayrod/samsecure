@@ -13,7 +13,11 @@
     "preview": "vite preview",
     "build:staging": "vite build --mode staging",
     "migrate:dev": "APP_ENV=dev node server/bdd/migrate.js",
-    "migrate:staging": "APP_ENV=staging node server/bdd/migrate.js"
+    "migrate:staging": "APP_ENV=staging node server/bdd/migrate.js",
+    "provision:dev": "APP_ENV=dev node server/bdd/manual/provision-admin.js",
+    "provision:staging": "APP_ENV=staging node server/bdd/manual/provision-admin.js",
+    "seed:referentiels:dev": "APP_ENV=dev node server/bdd/manual/seed-referentiels.js",
+    "seed:referentiels:staging": "APP_ENV=staging node server/bdd/manual/seed-referentiels.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

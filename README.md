@@ -30,6 +30,9 @@ Renseigner chaque `A_RENSEIGNER` :
     npm ci
     APP_ENV=dev     npm run migrate
     APP_ENV=staging npm run migrate
+    npm run provision:dev
+    npm run provision:staging
+
 
 ### 4. Demarrage
 

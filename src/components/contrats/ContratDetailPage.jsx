@@ -1,41 +1,109 @@
-// ContratDetailPage - fiche detail d'un contrat : echeance, hierarchie, commandes, licences, preuves
-import { useState } from 'react';
+// ContratDetailPage - fiche detail d'un contrat : identite, echeance, hierarchie, rattachements.
+// Donnees API. La suppression s'appuie sur le refus du serveur, pas sur un garde-fou local.
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Pencil, Trash2, ChevronDown } from 'lucide-react';
 import BudgetEmbeddedSection from '../budget/BudgetEmbeddedSection';
-import {
-  mockContrats, getSousContrats, getCommandesByContrat, getTousDocumentsContrat, getEcheanceContrat,
-} from '../../data/mockContrats';
-import { mockEditeurs, mockSocietes, mockProduits } from '../../data/mockReferentiels';
-import { getLicencesByContrat } from '../../data/mockDeploiement';
+import { contratsService, referentielsContratsService } from '../../services/contratsService';
+import { societesService } from '../../services/adminService';
 import Breadcrumb from '../ui/Breadcrumb';
 import Button from '../ui/Button';
 import ConfirmModal from '../ui/ConfirmModal';
 import EmptyState from '../ui/EmptyState';
-import StatutValidationBadge from '../referentiels/StatutValidationBadge';
-import ValidationActions from '../referentiels/ValidationActions';
-import LogoEditeur from '../referentiels/LogoEditeur';
+import ErrorState from '../ui/ErrorState';
+import Skeleton from '../ui/Skeleton';
 import StatutEcheanceBadge from './StatutEcheanceBadge';
 import ContratFormModal from './ContratFormModal';
 import useRbac from '../../hooks/useRbac';
 import { useToast } from '../../hooks/useToast';
-import useAuth from '../../hooks/useAuth';
 import { formatDate } from '../../utils/dateUtils';
 
 export default function ContratDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { addToast } = useToast();
-  const { canWrite, canValidate, canDelete, submitsForValidation } = useRbac();
-  const { user } = useAuth();
-  const [contrats, setContrats] = useState(mockContrats);
+  const { canWrite, canDelete } = useRbac();
+
+  const [contrat, setContrat] = useState(null);
+  const [contrats, setContrats] = useState([]);
+  const [typesContrat, setTypesContrat] = useState([]);
+  const [editeurs, setEditeurs] = useState([]);
+  const [societes, setSocietes] = useState([]);
+  const [revendeurs, setRevendeurs] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [introuvable, setIntrouvable] = useState(false);
+
   const [formOpen, setFormOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [budgetOpen, setBudgetOpen] = useState(true);
 
-  const contrat = contrats.find(c => c.id === id);
+  const load = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    setIntrouvable(false);
+    try {
+      const [c, tous, t, e, s, r] = await Promise.all([
+        contratsService.get(id),
+        contratsService.list(),
+        referentielsContratsService.typesContrat(),
+        referentielsContratsService.editeurs(),
+        societesService.list(),
+        referentielsContratsService.revendeurs(),
+      ]);
+      setContrat(c);
+      setContrats(tous);
+      setTypesContrat(t);
+      setEditeurs(e);
+      setSocietes(s);
+      setRevendeurs(r);
+    } catch (err) {
+      // 404 : le contrat n'existe pas ou vient d'etre supprime, ce n'est pas une panne.
+      if (err.status === 404) setIntrouvable(true);
+      else { setError(err.message); addToast({ type: 'error', message: err.message }); }
+    } finally {
+      setIsLoading(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
-  if (!contrat) {
+  useEffect(() => { load(); }, [load]);
+
+  const sousContrats = useMemo(
+    () => contrats.filter(c => c.id_contrat_parent === id),
+    [contrats, id]);
+
+  async function handleDelete() {
+    try {
+      await contratsService.remove(contrat.id);
+      addToast({ type: 'success', message: 'Contrat supprime.' });
+      navigate('/contrats/liste');
+    } catch (err) {
+      // Message du serveur affiche tel quel : "Suppression impossible : ce contrat porte ..."
+      addToast({ type: 'error', message: err.message, persistent: true });
+    }
+  }
+
+  const fil = (
+    <Breadcrumb items={[
+      { label: 'Droits d\'usage', to: '/contrats/liste' },
+      { label: 'Contrat', to: '/contrats/liste' },
+      { label: contrat?.label ?? '...' },
+    ]} />
+  );
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col gap-6">
+        {fil}
+        <Skeleton height="h-16" />
+        <Skeleton height="h-32" />
+        <Skeleton height="h-64" />
+      </div>
+    );
+  }
+
+  if (introuvable) {
     return (
       <div className="flex flex-col gap-6">
         <Breadcrumb items={[{ label: 'Droits d\'usage', to: '/contrats/liste' }, { label: 'Contrat', to: '/contrats/liste' }, { label: 'Introuvable' }]} />
@@ -44,70 +112,33 @@ export default function ContratDetailPage() {
     );
   }
 
-  const editeur = mockEditeurs.find(e => e.id === contrat.id_editeur);
-  const societe = mockSocietes.find(s => s.id === contrat.id_societe);
-  const parent = contrat.id_contrat_parent ? contrats.find(c => c.id === contrat.id_contrat_parent) : null;
-  const sousContrats = getSousContrats(contrat.id);
-  const commandes = getCommandesByContrat(contrat.id);
-  const licences = getLicencesByContrat(contrat.id);
-  const documents = getTousDocumentsContrat(contrat.id);
-  const echeance = getEcheanceContrat(contrat);
-  const produits = [...new Set(licences.map(l => l.id_produit))].map(idP => mockProduits.find(p => p.id === idP)).filter(Boolean);
-  const nbLiens = commandes.length + licences.length + sousContrats.length;
-
-  function handleValidate() {
-    setContrats(prev => prev.map(c => c.id === contrat.id ? { ...c, statut_validation: 'valide', motif_refus: undefined } : c));
-    addToast({ type: 'success', message: 'Contrat valide.' });
-  }
-
-  function handleRefuse(motif) {
-    setContrats(prev => prev.map(c => c.id === contrat.id ? { ...c, statut_validation: 'refuse', motif_refus: motif } : c));
-    addToast({ type: 'info', message: 'Contrat refuse.' });
-  }
-
-  function handleSave(data, existing) {
-    const resoumis = submitsForValidation;
-    setContrats(prev => prev.map(c => c.id === existing.id ? {
-      ...c, ...data,
-      statut_validation: resoumis ? 'en_attente' : 'valide',
-      soumis_par: `${user.prenom} ${user.nom}`,
-    } : c));
-    addToast({ type: 'success', message: resoumis ? 'Modification soumise a validation.' : 'Contrat mis a jour.' });
-  }
-
-  function handleDelete() {
-    setContrats(prev => prev.filter(c => c.id !== contrat.id));
-    addToast({ type: 'success', message: 'Contrat supprime.' });
-    navigate('/contrats/liste');
+  if (error) {
+    return (
+      <div className="flex flex-col gap-6">
+        {fil}
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
+          <ErrorState message={error} onRetry={load} />
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="flex flex-col gap-6">
-      <Breadcrumb items={[
-        { label: 'Droits d\'usage', to: '/contrats/liste' },
-        { label: 'Contrat', to: '/contrats/liste' },
-        { label: contrat.label },
-      ]} />
+      {fil}
 
       <div className="flex items-start justify-between flex-wrap gap-4">
-        <div className="flex items-start gap-3">
-          <LogoEditeur editeur={editeur} size={48} />
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-xl font-semibold text-gray-900 dark:text-white">{contrat.label}</h1>
-              {contrat.type === 'cadre' && <span className="text-xs font-semibold text-blue-700 bg-blue-100 dark:bg-blue-900/30 px-2.5 py-1 rounded-full">Cadre</span>}
-              <StatutEcheanceBadge statut={echeance.statut} />
-              <StatutValidationBadge statut={contrat.statut_validation} />
-            </div>
-            <p className="text-sm text-gray-500 mt-1">{editeur?.raison_sociale}{societe ? ` - ${societe.raison_sociale}` : ''}{contrat.numero ? ` - ${contrat.numero}` : ''}</p>
-            {contrat.statut_validation === 'refuse' && contrat.motif_refus && (
-              <p className="text-sm text-red-600 dark:text-red-400 mt-2">Motif du refus : {contrat.motif_refus}</p>
-            )}
-            <p className="text-xs text-gray-400 mt-1">Soumis par {contrat.soumis_par}</p>
+        <div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h1 className="text-xl font-semibold text-gray-900 dark:text-white">{contrat.label}</h1>
+            {contrat.type_code === 'cadre' && <span className="text-xs font-semibold text-blue-700 bg-blue-100 dark:bg-blue-900/30 px-2.5 py-1 rounded-full">Cadre</span>}
+            <StatutEcheanceBadge statut={contrat.statut_echeance} />
           </div>
+          <p className="text-sm text-gray-500 mt-1">
+            {contrat.type_label ?? '-'}{contrat.editeur_label ? ` - ${contrat.editeur_label}` : ''}
+          </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {canValidate && <ValidationActions statut={contrat.statut_validation} onValidate={handleValidate} onRefuse={handleRefuse} />}
           {canWrite && (
             <Button variant="secondary" size="sm" onClick={() => setFormOpen(true)}>
               <Pencil size={14} /> Editer
@@ -122,11 +153,29 @@ export default function ContratDetailPage() {
       </div>
 
       <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Signataires</h2>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+          <div>
+            <p className="text-xs text-gray-500 mb-1">Societe signataire</p>
+            <p className="text-sm text-gray-800 dark:text-gray-200">{contrat.societe_label ?? '-'}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500 mb-1">Revendeur signataire</p>
+            <p className="text-sm text-gray-800 dark:text-gray-200">{contrat.revendeur_label ?? '-'}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500 mb-1">Editeur</p>
+            <p className="text-sm text-gray-800 dark:text-gray-200">{contrat.editeur_label ?? '-'}</p>
+          </div>
+        </div>
+      </section>
+
+      <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
         <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Echeance et renouvellement</h2>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div>
             <p className="text-xs text-gray-500 mb-1">Date de debut</p>
-            <p className="text-sm text-gray-800 dark:text-gray-200">{formatDate(contrat.date_debut)}</p>
+            <p className="text-sm text-gray-800 dark:text-gray-200">{contrat.date_debut ? formatDate(contrat.date_debut) : '-'}</p>
           </div>
           <div>
             <p className="text-xs text-gray-500 mb-1">Date de fin</p>
@@ -138,12 +187,14 @@ export default function ContratDetailPage() {
           </div>
           <div>
             <p className="text-xs text-gray-500 mb-1">Preavis de resiliation</p>
-            <p className="text-sm text-gray-800 dark:text-gray-200">{contrat.preavis_resiliation_jours ? `${contrat.preavis_resiliation_jours} jours` : '-'}</p>
+            <p className="text-sm text-gray-800 dark:text-gray-200">{contrat.duree_resiliation ? `${contrat.duree_resiliation} jours` : '-'}</p>
           </div>
         </div>
-        {echeance.statut !== 'actif' && echeance.joursRestants !== null && (
-          <p className="text-sm mt-3" style={{ color: echeance.statut === 'expire' ? '#EF4444' : '#F59E0B' }}>
-            {echeance.statut === 'expire' ? `Echu depuis ${-echeance.joursRestants} jours` : `Echeance dans ${echeance.joursRestants} jours`}
+        {(contrat.statut_echeance === 'expire' || contrat.statut_echeance === 'a_renouveler') && contrat.jours_restants !== null && (
+          <p className="text-sm mt-3" style={{ color: contrat.statut_echeance === 'expire' ? '#EF4444' : '#F59E0B' }}>
+            {contrat.statut_echeance === 'expire'
+              ? `Echu depuis ${-contrat.jours_restants} jours`
+              : `Echeance dans ${contrat.jours_restants} jours`}
           </p>
         )}
       </section>
@@ -154,8 +205,8 @@ export default function ContratDetailPage() {
           <div className="flex flex-col gap-3">
             <div>
               <p className="text-xs text-gray-500 mb-1">Contrat cadre parent</p>
-              {parent
-                ? <Link to={`/contrats/liste/${parent.id}`} className="text-sm text-blue-800 hover:underline">{parent.label}</Link>
+              {contrat.id_contrat_parent
+                ? <Link to={`/contrats/liste/${contrat.id_contrat_parent}`} className="text-sm text-blue-800 hover:underline">{contrat.parent_label}</Link>
                 : <p className="text-sm text-gray-500">Aucun</p>
               }
             </div>
@@ -175,58 +226,18 @@ export default function ContratDetailPage() {
         </section>
 
         <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Produits associes ({produits.length})</h2>
-          {produits.length === 0
-            ? <p className="text-sm text-gray-500">Aucun produit associe.</p>
-            : (
-              <ul className="flex flex-col gap-1">
-                {produits.map(p => (
-                  <li key={p.id}><Link to={`/referentiels/logiciels/${p.id}`} className="text-sm text-blue-800 hover:underline">{p.label}</Link></li>
-                ))}
-              </ul>
-            )}
-        </section>
-
-        <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Commandes rattachees ({commandes.length})</h2>
-          {commandes.length === 0
-            ? <p className="text-sm text-gray-500">Aucune commande rattachee.</p>
-            : (
-              <ul className="flex flex-col gap-1">
-                {commandes.map(k => (
-                  <li key={k.id}><Link to={`/contrats/commandes/${k.id}`} className="text-sm text-blue-800 hover:underline">{k.label}</Link></li>
-                ))}
-              </ul>
-            )}
-        </section>
-
-        <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Licences rattachees ({licences.length})</h2>
-          {licences.length === 0
-            ? <p className="text-sm text-gray-500">Aucune licence rattachee.</p>
-            : (
-              <ul className="flex flex-col gap-1">
-                {licences.map(l => {
-                  const produit = mockProduits.find(p => p.id === l.id_produit);
-                  return <li key={l.id}><Link to={`/conformite/licences/${l.id}`} className="text-sm text-blue-800 hover:underline">{produit?.label ?? l.id} ({l.quantite} {l.unite_mesure})</Link></li>;
-                })}
-              </ul>
-            )}
-        </section>
-
-        <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 md:col-span-2">
-          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Preuves rattachees ({documents.length})</h2>
-          {documents.length === 0
-            ? <p className="text-sm text-gray-500">Aucune piece justificative rattachee.</p>
-            : (
-              <div className="flex flex-wrap gap-2">
-                {documents.map(d => (
-                  <Link key={d.id} to={`/contrats/factures/${d.id}`} className="text-xs px-2.5 py-1.5 rounded-lg bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 transition-colors">
-                    {d.type === 'facture' ? 'Facture' : 'Preuve'} - {d.label}
-                  </Link>
-                ))}
-              </div>
-            )}
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Rattachements</h2>
+          <div className="flex flex-col gap-3">
+            <div>
+              <p className="text-xs text-gray-500 mb-1">Commandes rattachees</p>
+              <p className="text-sm text-gray-800 dark:text-gray-200">{contrat.nb_commandes ?? 0}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-500 mb-1">Preuves rattachees</p>
+              <p className="text-sm text-gray-800 dark:text-gray-200">{contrat.nb_preuves ?? 0}</p>
+            </div>
+            <p className="text-xs text-gray-400">Le detail des commandes et des preuves sera liste au branchement de ces modules.</p>
+            </div>
         </section>
       </div>
 
@@ -246,20 +257,26 @@ export default function ContratDetailPage() {
         )}
       </section>
 
-      <ContratFormModal isOpen={formOpen} onClose={() => setFormOpen(false)} onSave={handleSave} contrat={contrat} existingContrats={contrats} />
+      <ContratFormModal
+        isOpen={formOpen}
+        onClose={() => setFormOpen(false)}
+        onSaved={load}
+        contrat={contrat}
+        contrats={contrats}
+        typesContrat={typesContrat}
+        editeurs={editeurs}
+        societes={societes}
+        revendeurs={revendeurs}
+      />
 
       <ConfirmModal
         isOpen={deleteOpen}
         onClose={() => setDeleteOpen(false)}
-        onConfirm={nbLiens > 0 ? () => setDeleteOpen(false) : handleDelete}
+        onConfirm={handleDelete}
         title="Supprimer le contrat"
-        isDestructive={nbLiens === 0}
-        confirmLabel={nbLiens > 0 ? 'Compris' : 'Supprimer'}
-        message={
-          nbLiens > 0
-            ? `Suppression impossible : ${contrat.label} est rattache a ${commandes.length} commande${commandes.length > 1 ? 's' : ''}, ${licences.length} licence${licences.length > 1 ? 's' : ''} et ${sousContrats.length} sous-contrat${sousContrats.length > 1 ? 's' : ''}. Detachez ou supprimez d'abord ces elements.`
-            : `Supprimer definitivement ${contrat.label} ? Cette action est irreversible.`
-        }
+        isDestructive
+        confirmLabel="Supprimer"
+        message={`Supprimer definitivement ${contrat.label} ? Cette action est irreversible.`}
       />
     </div>
   );

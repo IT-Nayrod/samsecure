@@ -18,7 +18,7 @@
 
 <div id="uml-root">
 <div id="toolbar">
-  <span class="ttl">SamSecure UML v3</span>
+  <span class="ttl">SamSecure UML v4</span>
   <button onclick="zoomIn()">+ Zoom</button>
   <button onclick="zoomOut()">- Zoom</button>
   <button onclick="resetView()">R&eacute;initialiser</button>
@@ -26,12 +26,12 @@
   <button onclick="setFilter('commune',this)">BDD Commune</button>
   <button onclick="setFilter('tenant',this)">BDD Tenant</button>
   <div style="display:flex;gap:12px;align-items:center;margin-left:16px">
-    <div class="leg"><div class="leg-dot" style="background:#C9971C"></div><span>BDD Commune (5 tables)</span></div>
+    <div class="leg"><div class="leg-dot" style="background:#C9971C"></div><span>BDD Commune (16 tables)</span></div>
     <div class="leg"><div class="leg-dot" style="background:#1B5E8A"></div><span>BDD Tenant (1 base par client)</span></div>
     <div class="leg"><span style="border-bottom:2px dashed #8a8a86;display:inline-block;width:20px;height:0;vertical-align:middle;margin-right:5px"></span><span>Lien inter-bases (r&eacute;solu par l'API)</span></div>
   </div>
   <span id="hint">Molette = zoom - Glisser = d&eacute;placer</span>
-  <span id="maj">Derni&egrave;re mise &agrave; jour : 29/07/2026</span>
+  <span id="maj">Derni&egrave;re mise &agrave; jour : 05/08/2026</span>
 </div>
 <div id="cwrap">
   <svg id="uml-svg" xmlns="http://www.w3.org/2000/svg"></svg>
@@ -57,10 +57,21 @@ const ROW_H=21, HDR_H=30, TW=275, PAD=8;
 /*DATA-START*/
 // s : 'commune' ou 'tenant'. nv : 'new' (nouvelle table) ou 'maj' (colonnes modifiees en v3).
 const tables={
-  // ===== BDD COMMUNE (3 tables, lecture seule) =====
+  // ===== BDD COMMUNE (16 tables, lecture seule) =====
   produit_referentiel:{s:'commune',nv:'maj',c:[{n:'id',t:'UUID',k:'PK'},{n:'label',t:'VARCHAR(255)',k:''},{n:'id_editeur',t:'UUID',k:'FK'},{n:'sku',t:'VARCHAR(100)',k:''},{n:'id_produit_parent',t:'UUID',k:'FK'},{n:'created_at',t:'TIMESTAMP',k:''}]},
   version:{s:'commune',c:[{n:'id',t:'UUID',k:'PK'},{n:'id_produit',t:'UUID',k:'FK'},{n:'label',t:'VARCHAR(100)',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
   edition:{s:'commune',c:[{n:'id',t:'UUID',k:'PK'},{n:'id_produit',t:'UUID',k:'FK'},{n:'label',t:'VARCHAR(100)',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  default_profil:{s:'commune',nv:'new',c:[{n:'id',t:'UUID',k:'PK'},{n:'code',t:'VARCHAR(50)',k:'UNIQUE'},{n:'label',t:'VARCHAR(100)',k:''},{n:'description',t:'TEXT',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  default_permission:{s:'commune',nv:'new',c:[{n:'id',t:'UUID',k:'PK'},{n:'code',t:'VARCHAR(100)',k:'UNIQUE'},{n:'label',t:'VARCHAR(255)',k:''},{n:'module',t:'VARCHAR(100)',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  default_profil_permission:{s:'commune',nv:'new',c:[{n:'id',t:'UUID',k:'PK'},{n:'id_profil',t:'UUID',k:'FK'},{n:'id_permission',t:'UUID',k:'FK'},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  default_profil_widget:{s:'commune',nv:'new',c:[{n:'id',t:'UUID',k:'PK'},{n:'id_profil',t:'UUID',k:'FK'},{n:'widget_code',t:'VARCHAR(50)',k:''},{n:'visible_defaut',t:'BOOLEAN',k:''},{n:'acces_autorise',t:'BOOLEAN',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  default_seuil_dashboard:{s:'commune',nv:'new',c:[{n:'id',t:'UUID',k:'PK'},{n:'widget_code',t:'VARCHAR(50)',k:''},{n:'echelle',t:'INTEGER',k:''},{n:'valeur',t:'DECIMAL(12,2)',k:''},{n:'unite',t:'VARCHAR(20)',k:''},{n:'direction',t:'VARCHAR(10)',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  default_fonction:{s:'commune',nv:'new',c:[{n:'id',t:'UUID',k:'PK'},{n:'code',t:'VARCHAR(50)',k:'UNIQUE'},{n:'label',t:'VARCHAR(100)',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  default_type_contrat:{s:'commune',nv:'new',c:[{n:'id',t:'UUID',k:'PK'},{n:'code',t:'VARCHAR(50)',k:'UNIQUE'},{n:'label',t:'VARCHAR(100)',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  default_type_preuve:{s:'commune',nv:'new',c:[{n:'id',t:'UUID',k:'PK'},{n:'code',t:'VARCHAR(50)',k:'UNIQUE'},{n:'label',t:'VARCHAR(100)',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  default_mode_commande:{s:'commune',nv:'new',c:[{n:'id',t:'UUID',k:'PK'},{n:'code',t:'VARCHAR(50)',k:'UNIQUE'},{n:'label',t:'VARCHAR(100)',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  default_unite_mesure:{s:'commune',nv:'new',c:[{n:'id',t:'UUID',k:'PK'},{n:'code',t:'VARCHAR(50)',k:'UNIQUE'},{n:'label',t:'VARCHAR(100)',k:''},{n:'description',t:'TEXT',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  code_retour:{s:'commune',nv:'new',c:[{n:'id',t:'UUID',k:'PK'},{n:'code',t:'INTEGER',k:'UNIQUE'},{n:'type',t:'ENUM',k:''},{n:'libelle',t:'VARCHAR(255)',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
 
   // ===== BDD TENANT - organisation =====
   societe:{s:'tenant',nv:'maj',c:[{n:'id',t:'UUID',k:'PK'},{n:'id_societe_parent',t:'UUID',k:'FK'},{n:'raison_sociale',t:'VARCHAR(255)',k:''},{n:'siret',t:'VARCHAR(14)',k:''},{n:'email',t:'VARCHAR(255)',k:''},{n:'telephone',t:'VARCHAR(20)',k:''},{n:'duree_amortissement',t:'INTEGER',k:''},{n:'revalorisation_annuelle',t:'DECIMAL(5,2)',k:''},{n:'delai_revalidation',t:'INTEGER',k:''},{n:'debut_exercice_fiscal',t:'DATE',k:''},{n:'actif',t:'BOOLEAN',k:''},{n:'date_fin_activite',t:'DATE',k:''},{n:'created_at',t:'TIMESTAMP',k:''},{n:'updated_at',t:'TIMESTAMP',k:''}]},
@@ -97,13 +108,13 @@ const tables={
   pre_parametre_licence:{s:'tenant',c:[{n:'id',t:'UUID',k:'PK'},{n:'id_produit',t:'UUID',k:'FK'},{n:'mode_decompte',t:'ENUM',k:''},{n:'id_unite_mesure',t:'UUID',k:'FK'},{n:'created_at',t:'TIMESTAMP',k:''}]},
 
   // ===== BDD TENANT - contractuel =====
-  contrat:{s:'tenant',nv:'maj',c:[{n:'id',t:'UUID',k:'PK'},{n:'label',t:'VARCHAR(255)',k:''},{n:'id_type_contrat',t:'UUID',k:'FK'},{n:'id_editeur',t:'UUID',k:'FK'},{n:'id_societe',t:'UUID',k:'FK'},{n:'id_contrat_parent',t:'UUID',k:'FK'},{n:'date_debut',t:'DATE',k:''},{n:'date_fin',t:'DATE',k:''},{n:'a_renouveler',t:'BOOLEAN',k:''},{n:'duree_resiliation',t:'INTEGER',k:''},{n:'created_at',t:'TIMESTAMP',k:''},{n:'updated_at',t:'TIMESTAMP',k:''}]},
+  contrat:{s:'tenant',nv:'maj',c:[{n:'id',t:'UUID',k:'PK'},{n:'label',t:'VARCHAR(255)',k:''},{n:'id_type_contrat',t:'UUID',k:'FK'},{n:'id_editeur',t:'UUID',k:'FK'},{n:'id_societe',t:'UUID',k:'FK'},{n:'id_revendeur',t:'UUID',k:'FK'},{n:'id_contrat_parent',t:'UUID',k:'FK'},{n:'date_debut',t:'DATE',k:''},{n:'date_fin',t:'DATE',k:''},{n:'a_renouveler',t:'BOOLEAN',k:''},{n:'duree_resiliation',t:'INTEGER',k:''},{n:'created_at',t:'TIMESTAMP',k:''},{n:'updated_at',t:'TIMESTAMP',k:''}]},
   commande:{s:'tenant',c:[{n:'id',t:'UUID',k:'PK'},{n:'label',t:'VARCHAR(255)',k:''},{n:'id_contrat',t:'UUID',k:'FK'},{n:'id_societe',t:'UUID',k:'FK'},{n:'id_revendeur',t:'UUID',k:'FK'},{n:'id_mode_commande',t:'UUID',k:'FK'},{n:'numero_devis',t:'VARCHAR(100)',k:''},{n:'montant',t:'DECIMAL(12,2)',k:''},{n:'date_fin',t:'DATE',k:''},{n:'a_renouveler',t:'BOOLEAN',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
   facture:{s:'tenant',nv:'maj',c:[{n:'id',t:'UUID',k:'PK'},{n:'label',t:'VARCHAR(255)',k:''},{n:'id_commande',t:'UUID',k:'FK'},{n:'id_preuve',t:'UUID',k:'FK'},{n:'created_at',t:'TIMESTAMP',k:''}]},
   preuve:{s:'tenant',nv:'maj',c:[{n:'id',t:'UUID',k:'PK'},{n:'label',t:'VARCHAR(255)',k:''},{n:'id_type_preuve',t:'UUID',k:'FK'},{n:'id_contrat',t:'UUID',k:'FK'},{n:'id_commande',t:'UUID',k:'FK'},{n:'url_fichier',t:'VARCHAR(500)',k:''},{n:'hash_sha256',t:'VARCHAR(64)',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
 
   // ===== BDD TENANT - licences et budget =====
-  licence:{s:'tenant',c:[{n:'id',t:'UUID',k:'PK'},{n:'label',t:'VARCHAR(255)',k:''},{n:'id_contrat',t:'UUID',k:'FK'},{n:'id_commande',t:'UUID',k:'FK'},{n:'id_produit',t:'UUID',k:'FK'},{n:'id_edition',t:'UUID',k:'FK'},{n:'id_version',t:'UUID',k:'FK'},{n:'id_revendeur',t:'UUID',k:'FK'},{n:'id_unite_mesure',t:'UUID',k:'FK'},{n:'quantite',t:'INTEGER',k:''},{n:'type',t:'ENUM',k:''},{n:'cout_licence',t:'DECIMAL(12,2)',k:''},{n:'date_fin_souscription',t:'DATE',k:''},{n:'a_maintenance',t:'BOOLEAN',k:''},{n:'version_figee_id',t:'UUID',k:'FK'},{n:'date_arret_maintenance',t:'DATE',k:''},{n:'id_mainteneur',t:'UUID',k:'FK'},{n:'date_fin_maintenance',t:'DATE',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  licence:{s:'tenant',nv:'maj',c:[{n:'id',t:'UUID',k:'PK'},{n:'label',t:'VARCHAR(255)',k:''},{n:'id_commande',t:'UUID',k:'FK'},{n:'id_produit',t:'UUID',k:'FK'},{n:'id_edition',t:'UUID',k:'FK'},{n:'id_version',t:'UUID',k:'FK'},{n:'id_revendeur',t:'UUID',k:'FK'},{n:'id_unite_mesure',t:'UUID',k:'FK'},{n:'quantite',t:'INTEGER',k:''},{n:'type',t:'ENUM',k:''},{n:'cout_licence',t:'DECIMAL(12,2)',k:''},{n:'date_fin_souscription',t:'DATE',k:''},{n:'a_maintenance',t:'BOOLEAN',k:''},{n:'version_figee_id',t:'UUID',k:'FK'},{n:'date_arret_maintenance',t:'DATE',k:''},{n:'id_mainteneur',t:'UUID',k:'FK'},{n:'date_fin_maintenance',t:'DATE',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
   maintenance_historique:{s:'tenant',c:[{n:'id',t:'UUID',k:'PK'},{n:'id_licence',t:'UUID',k:'FK'},{n:'id_mainteneur',t:'UUID',k:'FK'},{n:'id_revendeur',t:'UUID',k:'FK'},{n:'date_debut',t:'DATE',k:''},{n:'date_fin',t:'DATE',k:''},{n:'cout',t:'DECIMAL(12,2)',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
   budget:{s:'tenant',nv:'new',c:[{n:'id',t:'UUID',k:'PK'},{n:'id_licence',t:'UUID',k:'FK'},{n:'type',t:'ENUM',k:''},{n:'montant_CAPEX',t:'DECIMAL(12,2)',k:''},{n:'quantite_CAPEX',t:'DECIMAL(12,2)',k:''},{n:'date_CAPEX',t:'DATE',k:''},{n:'montant_OPEX',t:'DECIMAL(12,2)',k:''},{n:'quantite_OPEX',t:'DECIMAL(12,2)',k:''},{n:'date_debut',t:'DATE',k:''},{n:'date_fin',t:'DATE',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
 
@@ -145,6 +156,14 @@ const tables={
 const relations=[
   // Commune interne
   ['produit_referentiel','version'],['produit_referentiel','edition'],
+  ['default_profil','default_profil_permission'],['default_permission','default_profil_permission'],
+  ['default_profil','default_profil_widget'],
+  // Diffusion des defauts (rapprochement par code, D7 du 29/07)
+  ['default_profil','profil'],['default_permission','permission'],
+  ['default_profil_permission','profil_permission'],['default_profil_widget','profil_widget'],
+  ['default_seuil_dashboard','seuil_dashboard'],['default_fonction','fonction'],
+  ['default_type_contrat','type_contrat'],['default_type_preuve','type_preuve'],
+  ['default_mode_commande','mode_commande'],['default_unite_mesure','unite_mesure'],
   // Liens inter-bases (logiques, resolus par l'API, pas de FK SQL)
   ['editeur','produit_referentiel'],
   ['produit_referentiel','produit_client'],
@@ -162,11 +181,11 @@ const relations=[
   // Tiers
   ['editeur','contrat'],['editeur','produit_client'],
   ['editeur','precalcul_conformite'],['editeur','precalcul_financier'],
-  ['revendeur','commande'],['revendeur','licence'],['revendeur','maintenance_historique'],
+  ['revendeur','commande'],['revendeur','licence'],['revendeur','contrat'],['revendeur','maintenance_historique'],
   ['mainteneur','licence'],['mainteneur','maintenance_historique'],
   ['fonction','contact'],
   // Contractuel
-  ['type_contrat','contrat'],['contrat','commande'],['contrat','licence'],['contrat','preuve'],
+  ['type_contrat','contrat'],['contrat','commande'],['contrat','preuve'],
   ['mode_commande','commande'],['commande','facture'],['commande','preuve'],['commande','licence'],
   ['type_preuve','preuve'],['preuve','facture'],
   // Licences et budget
@@ -195,7 +214,9 @@ const relations=[
 
 const layout=[
   // Colonne 0 : BDD Commune
-  ['produit_referentiel','version','edition','langue','traduction'],
+  ['produit_referentiel','version','edition','langue','traduction','code_retour'],
+  ['default_profil','default_permission','default_profil_permission','default_profil_widget','default_seuil_dashboard'],
+  ['default_fonction','default_type_contrat','default_type_preuve','default_mode_commande','default_unite_mesure'],
   // Colonnes 1+ : BDD Tenant
   ['tenant_config','societe','abonnement_samsecure'],
   ['editeur','revendeur','mainteneur','contact','fonction'],
@@ -215,6 +236,17 @@ const descs={
   produit_referentiel:"Catalogue global des produits, maintenu par SamSecure. Modif 12 : a_maintenir retir\u00e9, la maintenance est un choix client port\u00e9 par la licence.",
   version:"Versions successives d'un produit du catalogue global.",
   edition:"D\u00e9clinaisons commerciales d'un produit (Standard, Pro, Enterprise).",
+  default_profil:"R\u00e9int\u00e9gr\u00e9e (D7 du 29/07). D\u00e9fauts SamSecure des groupes, correspondance un pour un avec profil, rapprochement par code.",
+  default_permission:"R\u00e9int\u00e9gr\u00e9e (D7). D\u00e9fauts des permissions, rapprochement par code.",
+  default_profil_permission:"R\u00e9int\u00e9gr\u00e9e (D7). Matrice de droits par d\u00e9faut, FK internes \u00e0 la Commune.",
+  default_profil_widget:"R\u00e9int\u00e9gr\u00e9e (D7). Visibilit\u00e9 des widgets par d\u00e9faut par groupe.",
+  default_seuil_dashboard:"R\u00e9int\u00e9gr\u00e9e (D7). Seuils par d\u00e9faut par widget et \u00e9chelle, modifiables par le client c\u00f4t\u00e9 tenant (D10).",
+  default_fonction:"R\u00e9int\u00e9gr\u00e9e (D7). Fonctions des contacts par d\u00e9faut, rapprochement par code.",
+  default_type_contrat:"R\u00e9int\u00e9gr\u00e9e (D7). Types contractuels par d\u00e9faut, rapprochement par code.",
+  default_type_preuve:"R\u00e9int\u00e9gr\u00e9e (D7). Types de preuve par d\u00e9faut, rapprochement par code.",
+  default_mode_commande:"R\u00e9int\u00e9gr\u00e9e (D7). Modes de commande par d\u00e9faut, rapprochement par code.",
+  default_unite_mesure:"R\u00e9int\u00e9gr\u00e9e (D7). Unit\u00e9s de mesure par d\u00e9faut, rapprochement par code.",
+  code_retour:"Nouvelle table (V4, 05/08). Catalogue des codes num\u00e9riques de retour API, enveloppe JSON unique. Plages : 1000-1499 succ\u00e8s transverses, 1500-1999 erreurs transverses, 2000-2999 module 1, 3000-3999 module 2, 4000+ modules 3 et 4, sans chevauchement avec les statuts HTTP (100-599) g\u00e9r\u00e9s route par route c\u00f4t\u00e9 serveur. R\u00e9f\u00e9rentiel technique applicatif, 6e table de la BDD Commune ; doctrine : Commune = r\u00e9f\u00e9rentiels techniques de l'application, identiques pour tous les clients ; Tenant = r\u00e9f\u00e9rentiels m\u00e9tier personnalisables. \u00c0 terme, traduction via la cl\u00e9 api.&lt;code&gt; qui primera sur libelle.",
   societe:"Entit\u00e9 juridique du groupe, racine : id_societe_parent NULL. Modifs 13 et 14 : cycle de vie actif/inactif sans suppression physique, d\u00e9but d'exercice fiscal (d\u00e9faut 01/01).",
   abonnement_samsecure:"Niveaux de service (Base, Silver, Gold). R\u00e9f\u00e9rentiel seed\u00e9 en Tenant.",
   tenant_config:"Identit\u00e9 et configuration du tenant, ligne unique : propri\u00e9taire, abonnement, administrateur et d\u00e9fauts (modifs 14, 15, 22). Absorbe l'ex-table client (29/07), l'isolation physique par base rendant sa FK inutile.",
@@ -238,11 +270,11 @@ const descs={
   profil_widget:"Visibilit\u00e9 des widgets par profil. Modif 22 : personnalise et valeurs_defaut, cl\u00e9 naturelle id_profil + widget_code.",
   produit_client:"Produits propres au client, absents du catalogue global.",
   pre_parametre_licence:"Mode de d\u00e9compte par produit (user ou device).",
-  contrat:"Document juridique accordant des droits d'usage. Modif 8 : id_societe r\u00e9int\u00e9gr\u00e9, la soci\u00e9t\u00e9 signataire redevient explicite.",
+  contrat:"Document juridique accordant des droits d'usage. Bi-parti (09/08) : id_societe signataire c\u00f4t\u00e9 client, id_revendeur signataire fournisseur optionnel, id_editeur reste l'ayant droit. Hi\u00e9rarchie (09/08) : parent de tout type accept\u00e9 ; si le parent n'est pas cadre (test sur type_contrat.code = 'cadre', jamais le label), anomalie_qualite incoherence de gravit\u00e9 attention au lieu d'un blocage ; cycles refus\u00e9s. Suppression bloqu\u00e9e par 3 FK entrantes : commande, preuve, sous-contrats ; licences prot\u00e9g\u00e9es transitivement via les commandes. Statut d'\u00e9ch\u00e9ance calcul\u00e9 par l'API, jamais stock\u00e9 : expir\u00e9 si date_fin d\u00e9pass\u00e9e, \u00e0 renouveler si a_renouveler ou date_fin \u00e0 moins de 90 jours, perp\u00e9tuel sans date_fin, actif sinon.",
   commande:"Acte formel d'achat. Porte la soci\u00e9t\u00e9 payeuse, base de la cha\u00eene budget.",
   facture:"Document commercial d'une commande. Modif 11 : le fichier vit dans preuve via id_preuve.",
   preuve:"Table unique de stockage des fichiers. Modifs 10 et 11 : hash SHA-256 d'int\u00e9grit\u00e9, centralisation des documents.",
-  licence:"Droits d'usage, c\u0153ur du SAM. Version fig\u00e9e \u00e0 l'arr\u00eat de la maintenance.",
+  licence:"Droits d'usage, c\u0153ur du SAM. Version fig\u00e9e \u00e0 l'arr\u00eat de la maintenance. Le contrat se d\u00e9duit exclusivement via la commande (id_commande vers commande.id_contrat) : id_contrat supprim\u00e9 le 09/08 pour \u00e9viter le double chemin contradictoire (anti-hyperstatisme).",
   maintenance_historique:"P\u00e9riodes de maintenance et droits aux mont\u00e9es de version.",
   budget:"Nouvelle table (Samuel, juillet). Ligne budg\u00e9taire par licence et p\u00e9riode : pr\u00e9visionnel/allou\u00e9, CAPEX/OPEX. L'organisation payeuse se d\u00e9duit de licence, commande, soci\u00e9t\u00e9, jamais stock\u00e9e ici.",
   affectation:"Usage d\u00e9clar\u00e9 d'une licence, cycle de revalidation 30 jours.",
@@ -260,7 +292,7 @@ const descs={
   audit_log:"Journal des actions utilisateur, archivage 6 mois.",
   historique_declaration:"Historique illimit\u00e9 des d\u00e9clarations.",
   log_import:"Trace des imports CSV.",
-  anomalie_qualite:"Anomalies de saisie avec validation Manager DSI.",
+  anomalie_qualite:"Anomalies de saisie avec validation Manager DSI. Cas d'usage : contrat rattach\u00e9 \u00e0 un parent non cadre (type_anomalie incoherence, gravite attention), g\u00e9n\u00e9r\u00e9 automatiquement par l'API contrats.",
   connecteur:"Configuration des outils d'inventaire tiers (v2).",
   connecteur_mapping:"Correspondance sch\u00e9ma outil tiers vers SamSecure.",
   inventaire_raw:"Pointeur vers le fichier brut collect\u00e9, pas de blob en base.",
@@ -273,7 +305,7 @@ const descs={
 };
 /*DATA-END*/
 
-const COMMUNE_COLS=1, SEPARATOR_W=80;
+const COMMUNE_COLS=3, SEPARATOR_W=80;
 const positions={};
 const GAP_X=36, GAP_Y=24;
 let cx=40;
@@ -352,7 +384,7 @@ function buildSVG(f){
     labelC.setAttribute('x','44');labelC.setAttribute('y','50');
     labelC.setAttribute('font-size','13');labelC.setAttribute('font-weight','bold');
     labelC.setAttribute('fill',COLOR.communeTitle);labelC.setAttribute('font-family','system-ui,sans-serif');
-    labelC.textContent='BDD Commune (lecture seule - 5 tables)';
+    labelC.textContent='BDD Commune (lecture seule - 16 tables)';
     svg.appendChild(labelC);
   }
   if(filter!=='commune'){

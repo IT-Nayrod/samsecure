@@ -15,6 +15,8 @@ import utilisateurProfilsRouter from "./routes/utilisateurProfils.js";
 import utilisateurExceptionsRouter from "./routes/utilisateurExceptions.js";
 import droitsEffectifsRouter from "./routes/droitsEffectifs.js";
 import journalRouter from "./routes/journal.js";
+import contratsRouter from "./routes/contrats.js";
+import referentielsRouter from "./routes/referentiels.js";
 
 const app = express();
 app.use(cors());
@@ -32,6 +34,8 @@ app.use("/api", utilisateurProfilsRouter);
 app.use("/api", utilisateurExceptionsRouter);
 app.use("/api", droitsEffectifsRouter);
 app.use("/api", journalRouter);
+app.use("/api", contratsRouter);
+app.use("/api", referentielsRouter);
 
 app.use("/api", (req, res) => {
   res.status(404).json({ error: "Ressource introuvable." });

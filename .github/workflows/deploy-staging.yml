@@ -16,6 +16,7 @@ jobs:
 
       - name: Sync app source to server
         run: |
+          umask 022
           mkdir -p /var/www/samsecure
           mkdir -p /var/www/samsecure/staging-dist
           rsync -rt --delete \
@@ -33,3 +34,14 @@ jobs:
       - name: Build staging
         working-directory: /var/www/samsecure
         run: npm run build:staging
+
+      - name: Reload staging API
+        working-directory: /var/www/samsecure
+        run: |
+          pm2 reload samsecure-api-staging --update-env
+          pm2 save
+
+      - name: Fix permissions for NGINX
+        run: |
+          chmod o+x /var/www/samsecure
+          chmod -R o+rX /var/www/samsecure/staging-dist

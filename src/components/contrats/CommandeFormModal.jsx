@@ -4,9 +4,10 @@ import SlideOver from '../ui/SlideOver';
 import Button from '../ui/Button';
 import FormField from '../ui/FormField';
 import { validateRequired } from '../../utils/validation';
-import { mockContrats, mockModesCommande } from '../../data/mockContrats';
+import { mockModesCommande } from '../../data/mockContrats';
 import { mockSocietes, mockRevendeurs } from '../../data/mockReferentiels';
 import { loadDraft, saveDraft, clearDraft } from '../../utils/formDraft';
+import useContratsRef from '../../hooks/useContratsRef';
 
 const INPUT_CLS = 'w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white';
 
@@ -22,6 +23,7 @@ export default function CommandeFormModal({ isOpen, onClose, onSave, commande })
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [draftRestaure, setDraftRestaure] = useState(false);
+  const { contrats } = useContratsRef();
 
   useEffect(() => {
     if (!isOpen) return;
@@ -107,7 +109,7 @@ export default function CommandeFormModal({ isOpen, onClose, onSave, commande })
         <FormField label="Contrat" required error={errors.id_contrat}>
           <select className={INPUT_CLS} value={form.id_contrat} onChange={e => { setForm(v => ({ ...v, id_contrat: e.target.value })); setErrors(v => ({ ...v, id_contrat: null })); }}>
             <option value="">Choisir...</option>
-            {mockContrats.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+            {contrats.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
           </select>
         </FormField>
         <div className="grid grid-cols-2 gap-4">

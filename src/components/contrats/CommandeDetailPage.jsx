@@ -3,8 +3,9 @@ import { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Pencil, Trash2 } from 'lucide-react';
 import {
-  mockCommandes, getContrat, getDocumentsByCommande, getEcheanceCommande,
+  mockCommandes, getDocumentsByCommande, getEcheanceCommande,
 } from '../../data/mockContrats';
+import useContratsRef from '../../hooks/useContratsRef';
 import { mockSocietes, mockRevendeurs, mockProduits } from '../../data/mockReferentiels';
 import { getLicencesByCommande } from '../../data/mockDeploiement';
 import Breadcrumb from '../ui/Breadcrumb';
@@ -40,7 +41,7 @@ export default function CommandeDetailPage() {
       </div>
     );
   }
-
+  const { getContrat } = useContratsRef();
   const contrat = getContrat(commande.id_contrat);
   const societe = mockSocietes.find(s => s.id === commande.id_societe);
   const revendeur = commande.id_revendeur ? mockRevendeurs.find(r => r.id === commande.id_revendeur) : null;

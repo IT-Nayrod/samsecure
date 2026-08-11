@@ -9,6 +9,7 @@ lerna-debug.log*
 
 node_modules/
 staging-dist*
+dev-dist*
 dist*
 *.local
 server/.env*

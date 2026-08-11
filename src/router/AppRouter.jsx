@@ -9,7 +9,6 @@ import TwoFactorPage from '../components/auth/TwoFactorPage';
 import DashboardPage from '../components/Dashboard/DashboardPage';
 import TenantSettingsPage from '../components/settings/TenantSettingsPage';
 import UserSettingsPage from '../components/settings/UserSettingsPage';
-import ComingSoonPage from '../pages/ComingSoonPage';
 import UnauthorizedPage from '../pages/UnauthorizedPage';
 import OrganisationPage from '../components/referentiels/OrganisationPage';
 import OrganisationDetailPage from '../components/referentiels/OrganisationDetailPage';
