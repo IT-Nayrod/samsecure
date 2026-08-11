@@ -1,5 +1,8 @@
 import express from "express";
 import { tenantPool } from "../db.js";
+import {
+  recevoirUnFichier, erreurReception, validerFichier, ecrireFichier, supprimerFichier,
+} from "../utils/stockagePreuves.js";
 
 const router = express.Router();
 
@@ -127,6 +130,136 @@ router.get("/factures", async (req, res) => {
     res.status(500).json({ error: "Erreur serveur" });
   }
 });
+// ---------------------------------------------------------------------------
+// Depot combine facture plus preuve, en une transaction (#49, arbitrage rendu)
+// ---------------------------------------------------------------------------
+// Arbitrage du flux tranche le 11/08 : une facture ne se saisit pas sans son
+// justificatif. Le fichier, la preuve et la facture naissent donc ensemble ou
+// pas du tout. C'est la raison d'etre de cet endpoint : trois appels enchainés
+// depuis le navigateur laisseraient une preuve orpheline si le dernier echoue.
+//
+// La preuve creee est rattachee a la commande, jamais au seul contrat : c'est
+// ce rattachement direct que la detection des manques de la #50 exige pour
+// considerer la commande complete.
+const recevoirFichier = recevoirUnFichier("fichier");
+
+// Trace probante, distincte du journal fonctionnel. Comme dans preuves.js elle
+// n'avale pas ses erreurs : une trace manquante doit faire echouer le depot.
+async function audit(client, req, action, entiteType, entiteId, apres) {
+  await client.query(
+    `INSERT INTO audit_log (id_utilisateur, action, entite_type, entite_id,
+                            valeur_avant, valeur_apres, ip_address)
+     VALUES ($1, $2, $3, $4, NULL, $5, $6)`,
+    [req.user?.id || null, action, entiteType, entiteId,
+     JSON.stringify(apres), (req.ip || "").slice(0, 45)]
+  );
+}
+
+async function deposerFacture(req, res) {
+  // code_retour: 3256
+  if (!req.file)
+    return res.status(400).json({ error: "Le fichier justificatif est obligatoire." });
+
+  // code_retour: 3221
+  // code_retour: 3223
+  const invalideFichier = validerFichier(req.file);
+  if (invalideFichier) return res.status(invalideFichier.status).json({ error: invalideFichier.error });
+
+  const vide = (v) => (v === "" || v === undefined ? null : v);
+  const label = (req.body?.label ?? "").trim();
+  const idCommande = vide(req.body?.id_commande);
+  const idTypePreuve = vide(req.body?.id_type_preuve);
+  // Le libelle de la preuve retombe sur celui de la facture quand le formulaire
+  // ne le distingue pas : un seul champ a saisir pour un seul geste metier.
+  const labelPreuve = (vide(req.body?.label_preuve) ?? label).trim();
+
+  const client = await tenantPool.connect();
+  let ecrit = null;
+  try {
+    await client.query("BEGIN");
+
+    // code_retour: 3251
+    if (!label) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ error: "Le libelle est obligatoire." });
+    }
+    // code_retour: 3252
+    if (!idCommande) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ error: "La commande est obligatoire." });
+    }
+    // code_retour: 3253
+    if (!(await existe(client, "commande", idCommande))) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ error: "Commande introuvable." });
+    }
+    // code_retour: 3212
+    if (!idTypePreuve) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ error: "Le type de preuve est obligatoire." });
+    }
+    // code_retour: 3213
+    if (!(await existe(client, "type_preuve", idTypePreuve))) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ error: "Type de preuve introuvable." });
+    }
+
+    ecrit = await ecrireFichier(req.file);
+
+    const { rows: [preuve] } = await client.query(
+      `INSERT INTO preuve (label, id_type_preuve, id_commande, url_fichier, hash_sha256, nom_origine)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+      [labelPreuve, idTypePreuve, idCommande, ecrit.nomPhysique, ecrit.hash, ecrit.nomOrigine]);
+
+    const { rows: [facture] } = await client.query(
+      `INSERT INTO facture (label, id_commande, id_preuve) VALUES ($1, $2, $3) RETURNING id`,
+      [label, idCommande, preuve.id]);
+
+    await audit(client, req, "DEPOT_FICHIER", "preuve", preuve.id,
+      { url_fichier: ecrit.nomPhysique, hash_sha256: ecrit.hash, nom_origine: ecrit.nomOrigine,
+        taille: req.file.size, id_facture: facture.id });
+    await audit(client, req, "CREATE", "facture", facture.id,
+      { label, id_commande: idCommande, id_preuve: preuve.id, hash_sha256: ecrit.hash });
+
+    await log(client, "CREATE", "preuve", preuve.id,
+      `Creation de la preuve "${labelPreuve}" au depot de la facture "${label}"`,
+      { nom_origine: ecrit.nomOrigine, hash_sha256: ecrit.hash });
+    await log(client, "CREATE", "facture", facture.id,
+      `Creation de la facture "${label}" avec son justificatif`, { id_preuve: preuve.id });
+
+    await client.query("COMMIT");
+
+    const { rows } = await tenantPool.query(`${SELECT_FACTURE} WHERE f.id = $1`, [facture.id]);
+    // code_retour: 3245
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => {});
+    // Tout ou rien jusqu'au disque : le fichier ecrit avant l'echec ne doit pas
+    // survivre a une transaction annulee.
+    if (ecrit) await supprimerFichier(ecrit.nomPhysique);
+    console.error("POST /factures/depot error", err);
+    // code_retour: 3299
+    res.status(500).json({ error: "Erreur serveur" });
+  } finally {
+    client.release();
+  }
+}
+
+// Declaree avant /factures/:id, sinon Express fait correspondre "depot" au
+// parametre et repond 404.
+router.post("/factures/depot", (req, res) => {
+  recevoirFichier(req, res, (err) => {
+    if (err) {
+      const connue = erreurReception(err);
+      if (connue) return res.status(connue.status).json({ error: connue.error });
+      console.error("POST /factures/depot multipart error", err);
+      // code_retour: 3256
+      return res.status(400).json({ error: "Le fichier justificatif est obligatoire." });
+    }
+    deposerFacture(req, res);
+  });
+});
+
 
 router.get("/factures/:id", async (req, res) => {
   const { id } = req.params;

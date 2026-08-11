@@ -142,7 +142,8 @@ module de depot au lieu du client, sans changement du contrat d'API.
 | 3226 | erreur | Chemin de stockage invalide, traversee refusee | GET /api/preuves/:id/fichier |
 | 3227 | erreur | Un seul fichier peut etre depose, dans le champ fichier | POST /api/preuves/:id/fichier |
 | 3232 | reserve | [ARBITRAGE D27] redirection vers un lien GED externe. Non emis a ce jour | GET /api/preuves/:id/fichier |
-| 3256 | reserve | [ARBITRAGE flux] depot combine preuve et facture en une transaction. Non emis a ce jour | POST /api/factures/depot |
+| 3245 | succes | Facture et preuve creees en une transaction | POST /api/factures/depot |
+| 3256 | erreur | Le fichier justificatif est obligatoire, depot combine | POST /api/factures/depot |
 
 Le 3222 est le seul 413 du projet. Les autres refus de validation restent en
 400 : ici le refus ne porte pas sur la forme de la donnee mais sur la taille de
@@ -178,3 +179,16 @@ aucune preuve rattachee par preuve.id_commande. Les deux conditions sont
 testees independamment : depuis la resolution E3, la preuve pointee par
 facture.id_preuve n'est pas necessairement rattachee a la commande, et passer
 par elle produirait un faux complet.
+
+### Arbitrage du flux facture, rendu le 11/08
+
+Le depot combine POST /api/factures/depot est desormais implemente : fichier,
+preuve et facture naissent dans une seule transaction, ou pas du tout. Le
+fichier ecrit avant un echec est supprime, aucune preuve orpheline ne subsiste.
+La preuve creee est rattachee a la commande et jamais au seul contrat, ce
+rattachement direct etant celui que la detection des manques exige.
+
+Le code 3255 reste reserve : POST /api/factures accepte toujours une facture
+sans preuve. Durcir cette route interdirait toute saisie de facture hors depot
+de fichier, y compris une reprise de donnees, ce qui n'a pas ete demande. A
+trancher separement.

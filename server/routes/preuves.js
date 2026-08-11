@@ -1,10 +1,11 @@
 import express from "express";
 import { tenantPool } from "../db.js";
-import multer from "multer";
-import crypto from "node:crypto";
 import fs from "node:fs";
-import fsp from "node:fs/promises";
 import path from "node:path";
+import {
+  PREUVES_DIR, TYPES_ADMIS, NOM_PHYSIQUE_RE,
+  recevoirUnFichier, erreurReception, validerFichier, ecrireFichier, supprimerFichier,
+} from "../utils/stockagePreuves.js";
 
 const router = express.Router();
 
@@ -342,63 +343,12 @@ router.delete("/preuves/:id", async (req, res) => {
 
 // ---------------------------------------------------------------------------
 // Depot et telechargement du fichier de preuve (#49)
+// Les regles de stockage vivent dans utils/stockagePreuves.js, partagees avec
+// le depot combine de /api/factures/depot : une liste d'extensions qui
+// divergerait entre les deux points d'entree ouvrirait un contournement.
 // ---------------------------------------------------------------------------
 
-// Repertoire de stockage. Il doit rester hors de l'arborescence servie par
-// NGINX et hors du repertoire synchronise par le rsync --delete des workflows :
-// un fichier depose sous /var/www/samsecure serait efface au prochain
-// deploiement, ou expose en HTTP par un alias. Configurable pour que le poste
-// de developpement et le staging ne partagent pas le meme stockage.
-const PREUVES_DIR = process.env.PREUVES_DIR || "/var/lib/samsecure/preuves";
-
-// Extensions admises et type MIME de sortie. La table sert dans les deux sens :
-// filtrage a l'entree, en-tete Content-Type au telechargement.
-const TYPES_ADMIS = {
-  ".pdf": "application/pdf",
-  ".png": "image/png",
-  ".jpg": "image/jpeg",
-  ".jpeg": "image/jpeg",
-};
-
-const TAILLE_MAX = 20 * 1024 * 1024;
-
-// Signature binaire attendue en tete de fichier. Le filtrage par extension seul
-// se contourne en renommant un .exe en .pdf : on verifie donc que le contenu
-// est bien du type annonce. Ce n'est pas un antivirus, explicitement hors
-// perimetre de la tache.
-const SIGNATURES = {
-  ".pdf": [0x25, 0x50, 0x44, 0x46],
-  ".png": [0x89, 0x50, 0x4e, 0x47],
-  ".jpg": [0xff, 0xd8, 0xff],
-  ".jpeg": [0xff, 0xd8, 0xff],
-};
-
-function signatureValide(buffer, extension) {
-  const attendue = SIGNATURES[extension];
-  if (!attendue || buffer.length < attendue.length) return false;
-  return attendue.every((octet, i) => buffer[i] === octet);
-}
-
-// Nom physique neutre et unique : jamais le nom d'origine, qui porterait des
-// collisions, des accents, des espaces et d'eventuelles sequences de traversee
-// de chemin. Le nom d'origine est conserve en base dans preuve.nom_origine
-// (migration 019). Ce motif sert aussi de garde-fou en lecture : il distingue
-// un fichier reellement depose d'une valeur d'url_fichier saisie librement par
-// le POST /preuves de la #48.
-const NOM_PHYSIQUE_RE = /^[0-9a-f-]{36}\.(pdf|png|jpe?g)$/i;
-
-// multer en memoire : le fichier n'atteint le disque qu'une fois toutes les
-// validations passees, ce qui evite les fichiers orphelins quand un controle
-// echoue. La limite de taille est appliquee par multer avant meme que le corps
-// soit entierement lu.
-const recevoirFichier = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: TAILLE_MAX, files: 1 },
-  // Sans cela multer decode le nom du fichier en latin1, defaut de busboy : un
-  // nom accentue arriverait en mojibake et serait stocke tel quel en base puis
-  // renvoye au telechargement.
-  defParamCharset: "utf8",
-}).single("fichier");
+const recevoirFichier = recevoirUnFichier("fichier");
 
 // Trace probante, distincte du journal fonctionnel : audit_log porte
 // l'utilisateur, l'adresse IP et les valeurs avant et apres, que
@@ -417,17 +367,6 @@ async function audit(client, req, action, entiteId, avant, apres) {
   );
 }
 
-// Suppression toleree : un fichier deja absent ne doit pas faire echouer
-// l'operation metier, la base restant la reference.
-async function supprimerFichier(nomPhysique) {
-  if (!NOM_PHYSIQUE_RE.test(nomPhysique || "")) return;
-  try {
-    await fsp.unlink(path.join(PREUVES_DIR, nomPhysique));
-  } catch (e) {
-    if (e.code !== "ENOENT") console.error("[stockage] suppression impossible:", e.message);
-  }
-}
-
 async function deposerFichier(req, res) {
   const { id } = req.params;
   // code_retour: 3210
@@ -435,22 +374,13 @@ async function deposerFichier(req, res) {
   // code_retour: 3220
   if (!req.file) return res.status(400).json({ error: "Aucun fichier n'a ete transmis." });
 
-  const extension = path.extname(req.file.originalname || "").toLowerCase();
   // code_retour: 3221
-  if (!TYPES_ADMIS[extension])
-    return res.status(400).json({ error: "Extension non admise. Formats acceptes : pdf, png, jpg, jpeg." });
   // code_retour: 3223
-  if (!signatureValide(req.file.buffer, extension))
-    return res.status(400).json({ error: "Le contenu du fichier ne correspond pas a son extension." });
-
-  // Hash calcule sur le contenu recu, avant toute ecriture : c'est la valeur
-  // probante d'audit du schema, elle doit correspondre au fichier servi.
-  const hash = crypto.createHash("sha256").update(req.file.buffer).digest("hex");
-  const nomPhysique = `${crypto.randomUUID()}${extension}`;
-  const nomOrigine = (req.file.originalname || "").slice(0, 255);
+  const invalideFichier = validerFichier(req.file);
+  if (invalideFichier) return res.status(invalideFichier.status).json({ error: invalideFichier.error });
 
   const client = await tenantPool.connect();
-  let ecritSurDisque = false;
+  let ecrit = null;
   try {
     await client.query("BEGIN");
 
@@ -464,29 +394,27 @@ async function deposerFichier(req, res) {
     const avant = existant[0];
     const remplacement = NOM_PHYSIQUE_RE.test(avant.url_fichier || "");
 
-    await fsp.mkdir(PREUVES_DIR, { recursive: true });
-    await fsp.writeFile(path.join(PREUVES_DIR, nomPhysique), req.file.buffer, { mode: 0o640 });
-    ecritSurDisque = true;
+    ecrit = await ecrireFichier(req.file);
 
     await client.query(
       `UPDATE preuve SET url_fichier = $1, hash_sha256 = $2, nom_origine = $3 WHERE id = $4`,
-      [nomPhysique, hash, nomOrigine, id]);
+      [ecrit.nomPhysique, ecrit.hash, ecrit.nomOrigine, id]);
 
     await audit(client, req, remplacement ? "REMPLACEMENT_FICHIER" : "DEPOT_FICHIER", id,
       remplacement
         ? { url_fichier: avant.url_fichier, hash_sha256: avant.hash_sha256, nom_origine: avant.nom_origine }
         : null,
-      { url_fichier: nomPhysique, hash_sha256: hash, nom_origine: nomOrigine, taille: req.file.size });
+      { url_fichier: ecrit.nomPhysique, hash_sha256: ecrit.hash, nom_origine: ecrit.nomOrigine, taille: req.file.size });
 
     await log(client, "UPDATE", "preuve", id,
       `${remplacement ? "Remplacement" : "Depot"} du fichier de la preuve "${avant.label}"`,
-      { nom_origine: nomOrigine, hash_sha256: hash });
+      { nom_origine: ecrit.nomOrigine, hash_sha256: ecrit.hash });
 
     await client.query("COMMIT");
 
     // L'ancien fichier n'est supprime qu'apres le COMMIT : le supprimer avant
     // le ferait perdre si la transaction echouait.
-    if (remplacement && avant.url_fichier !== nomPhysique) await supprimerFichier(avant.url_fichier);
+    if (remplacement && avant.url_fichier !== ecrit.nomPhysique) await supprimerFichier(avant.url_fichier);
 
     const { rows } = await tenantPool.query(`${SELECT_PREUVE} WHERE p.id = $1`, [id]);
     // code_retour: 3205
@@ -494,7 +422,7 @@ async function deposerFichier(req, res) {
   } catch (err) {
     await client.query("ROLLBACK").catch(() => {});
     // Le fichier ecrit avant l'echec ne doit pas rester orphelin sur le disque.
-    if (ecritSurDisque) await supprimerFichier(nomPhysique);
+    if (ecrit) await supprimerFichier(ecrit.nomPhysique);
     console.error("POST /preuves/:id/fichier error", err);
     // code_retour: 3299
     res.status(500).json({ error: "Erreur serveur" });
@@ -509,12 +437,8 @@ async function deposerFichier(req, res) {
 router.post("/preuves/:id/fichier", (req, res) => {
   recevoirFichier(req, res, (err) => {
     if (err) {
-      // code_retour: 3222
-      if (err.code === "LIMIT_FILE_SIZE")
-        return res.status(413).json({ error: "Le fichier depasse la taille maximale de 20 Mo." });
-      // code_retour: 3227
-      if (err.code === "LIMIT_FILE_COUNT" || err.code === "LIMIT_UNEXPECTED_FILE")
-        return res.status(400).json({ error: "Un seul fichier peut etre depose, dans le champ fichier." });
+      const connue = erreurReception(err);
+      if (connue) return res.status(connue.status).json({ error: connue.error });
       console.error("POST /preuves/:id/fichier multipart error", err);
       // code_retour: 3220
       return res.status(400).json({ error: "Aucun fichier n'a ete transmis." });
