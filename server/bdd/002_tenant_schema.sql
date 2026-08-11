@@ -72,7 +72,7 @@ CREATE TABLE type_preuve (
   valeurs_defaut JSONB,                           -- modif 22 : copie locale du defaut, sert au bouton retablir
   created_at     TIMESTAMP NOT NULL DEFAULT now()
 );
-COMMENT ON TABLE type_preuve IS 'Catégories de preuves (PDF signé, certificat, journal d''audit). Seedé.';
+COMMENT ON TABLE type_preuve IS 'Nature de la pièce justificative (bon de livraison, capture portail, attestation, contrat scanné, autre). Seedé, personnalisable par le client.';
 
 CREATE TABLE mode_commande (
   id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -82,7 +82,7 @@ CREATE TABLE mode_commande (
   valeurs_defaut JSONB,                           -- modif 22 : copie locale du defaut, sert au bouton retablir
   created_at     TIMESTAMP NOT NULL DEFAULT now()
 );
-COMMENT ON TABLE mode_commande IS 'Modes de déclenchement d''une commande (automatisé, semi-automatique, manuel). Seedé.';
+COMMENT ON TABLE mode_commande IS 'Nature du document d''achat sur lequel repose la commande (bon de commande, devis signé, EDI, verbal). Seedé, personnalisable par le client.';
 
 CREATE TABLE validation_status (
   id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
