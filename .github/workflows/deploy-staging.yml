@@ -19,7 +19,7 @@ jobs:
           umask 022
           mkdir -p /var/www/samsecure
           mkdir -p /var/www/samsecure/staging-dist
-          rsync -rt --delete \
+          rsync -rt --omit-dir-times --delete \
             --exclude ".git" \
             --exclude "node_modules" \
             --exclude "dev-dist" \
