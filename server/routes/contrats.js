@@ -43,7 +43,8 @@ const SELECT_CONTRAT = `
          c.id_societe,   s.raison_sociale AS societe_label,
          c.id_revendeur, r.raison_sociale AS revendeur_label,
          c.id_contrat_parent, p.label AS parent_label,
-         c.date_debut, c.date_fin, c.a_renouveler, c.duree_resiliation,
+         c.date_debut::text AS date_debut, c.date_fin::text AS date_fin,
+          c.a_renouveler, c.duree_resiliation,
          c.created_at, c.updated_at,
          ${STATUT_ECHEANCE},
          CASE WHEN c.date_fin IS NULL THEN NULL

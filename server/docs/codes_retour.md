@@ -31,3 +31,36 @@ validation 3300-3399
 | 3099 | erreur | Erreur serveur inattendue (module contrats) | toutes |
 
 Le 3021 n'est pas un refus : le rattachement est accepté. Il est réservé pour que la #68 puisse, si Dorian le décide, remonter l'avertissement au front. Signalez-lui ce cas, la consigne ne prévoit de code que pour les refus.
+
+## Commandes (#44)
+
+| Code | Type | Libelle propose | Route |
+|------|------|-----------------|-------|
+| 3100 | succes | Liste des commandes | GET /api/commandes |
+| 3101 | succes | Detail de la commande | GET /api/commandes/:id |
+| 3102 | succes | Commande creee | POST /api/commandes |
+| 3103 | succes | Commande modifiee | PATCH /api/commandes/:id |
+| 3104 | succes | Commande supprimee | DELETE /api/commandes/:id |
+| 3110 | erreur | Commande introuvable | GET/PATCH/DELETE /api/commandes/:id |
+| 3111 | erreur | Le libelle est obligatoire | POST, PATCH /api/commandes |
+| 3112 | erreur | Le contrat est obligatoire | POST, PATCH /api/commandes |
+| 3113 | erreur | Contrat introuvable | POST, PATCH /api/commandes |
+| 3114 | erreur | La societe acheteuse est obligatoire | POST, PATCH /api/commandes |
+| 3115 | erreur | Societe acheteuse introuvable | POST, PATCH /api/commandes |
+| 3116 | erreur | Revendeur introuvable | POST, PATCH /api/commandes |
+| 3117 | erreur | Mode de commande introuvable | POST, PATCH /api/commandes |
+| 3118 | erreur | Le montant est obligatoire | POST, PATCH /api/commandes |
+| 3119 | erreur | Le montant doit etre strictement positif | POST, PATCH /api/commandes |
+| 3120 | erreur | La date de commande est obligatoire | POST, PATCH /api/commandes |
+| 3121 | erreur | La date de fin doit etre posterieure a la date de commande | POST, PATCH /api/commandes |
+| 3130 | erreur | Suppression impossible : elements lies | DELETE /api/commandes/:id |
+| 3140 | succes | Agregats financiers | GET /api/commandes/agregats |
+| 3141 | erreur | L'endpoint accepte soit annee, soit le couple date_debut / date_fin. Le precalcul etant mensuel, une plage au jour pres est servie au mois pres et les bornes appliquees sont renvoyees dans periode_debut et periode_fin. | GET /api/commandes/agregats |
+| 3142 | erreur | Identifiant de societe invalide | GET /api/commandes/agregats |
+| 3143 | erreur | Identifiant d'editeur invalide | GET /api/commandes/agregats |
+| 3144 | erreur | La periode demandee est invalide | GET /api/commandes/agregats |
+| 3199 | erreur | Erreur serveur inattendue (module commandes) | toutes |
+
+Le montant refuse le zero, le negatif et la saisie non numerique sous le meme
+code 3119 : dans les trois cas la valeur n'est pas un montant valide, et
+distinguer n'apporterait rien a l'utilisateur.

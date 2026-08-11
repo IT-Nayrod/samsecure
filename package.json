@@ -17,7 +17,9 @@
     "provision:dev": "APP_ENV=dev node server/bdd/manual/provision-admin.js",
     "provision:staging": "APP_ENV=staging node server/bdd/manual/provision-admin.js",
     "seed:referentiels:dev": "APP_ENV=dev node server/bdd/manual/seed-referentiels.js",
-    "seed:referentiels:staging": "APP_ENV=staging node server/bdd/manual/seed-referentiels.js"
+    "seed:referentiels:staging": "APP_ENV=staging node server/bdd/manual/seed-referentiels.js",
+    "precalcul:dev": "APP_ENV=dev node server/bdd/manual/amorcer-precalcul.js",
+    "precalcul:staging": "APP_ENV=staging node server/bdd/manual/amorcer-precalcul.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

@@ -71,9 +71,10 @@ ON CONFLICT (code) DO UPDATE SET
 -- Modes de commande (motif protégé)
 -- ----------------------------------------------------------------------------
 INSERT INTO mode_commande (code, label, valeurs_defaut) VALUES
-  ('automatise',       'Automatisé',       '{"label": "Automatisé"}'),
-  ('semi_automatique', 'Semi-automatique', '{"label": "Semi-automatique"}'),
-  ('manuel',           'Manuel',           '{"label": "Manuel"}')
+  ('bon_commande',     'Bon de commande',            '{"label": "Bon de commande"}'),
+  ('devis_signe',      'Devis signé',                '{"label": "Devis signé"}'),
+  ('bon_commande_edi', 'Bon de commande EDI',        '{"label": "Bon de commande EDI"}'),
+  ('verbal_email',     'Verbal confirmé par email',  '{"label": "Verbal confirmé par email"}')
 ON CONFLICT (code) DO UPDATE SET
   label          = CASE WHEN mode_commande.personnalise THEN mode_commande.label ELSE EXCLUDED.label END,
   valeurs_defaut = EXCLUDED.valeurs_defaut;
@@ -82,9 +83,11 @@ ON CONFLICT (code) DO UPDATE SET
 -- Types de preuve (motif protégé)
 -- ----------------------------------------------------------------------------
 INSERT INTO type_preuve (code, label, valeurs_defaut) VALUES
-  ('pdf_signe',     'PDF signé',        '{"label": "PDF signé"}'),
-  ('certificat',    'Certificat',       '{"label": "Certificat"}'),
-  ('journal_audit', 'Journal d''audit', '{"label": "Journal d''audit"}')
+  ('bon_livraison',       'Bon de livraison',              '{"label": "Bon de livraison"}'),
+  ('capture_portail',     'Capture écran portail éditeur', '{"label": "Capture écran portail éditeur"}'),
+  ('attestation_editeur', 'Attestation éditeur',           '{"label": "Attestation éditeur"}'),
+  ('contrat_scanne',      'Contrat signé scanné',          '{"label": "Contrat signé scanné"}'),
+  ('autre',               'Autre',                         '{"label": "Autre"}')
 ON CONFLICT (code) DO UPDATE SET
   label          = CASE WHEN type_preuve.personnalise THEN type_preuve.label ELSE EXCLUDED.label END,
   valeurs_defaut = EXCLUDED.valeurs_defaut;

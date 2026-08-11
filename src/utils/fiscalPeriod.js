@@ -17,13 +17,25 @@ function lastDayOfMonth(year, monthIndex) {
   return new Date(year, monthIndex + 1, 0);
 }
 
-// Resout le debut d'exercice fiscal applicable : societe unique > defaut tenant
-export function getDebutExerciceFiscal(societeId) {
+// Resout le debut d'exercice fiscal applicable.
+// debutExercice fourni par l'appelant prime : c'est la voie des ecrans branches
+// sur l'API. Le repli sur les mocks reste en place pour budget et dashboard,
+// qui ne sont pas encore branches (module 4).
+export function getDebutExerciceFiscal(societeId, debutExercice = null) {
+  if (debutExercice) return debutExercice;
   if (societeId) {
     const societe = mockSocietes.find(s => s.id === societeId);
     if (societe?.debut_exercice_fiscal) return societe.debut_exercice_fiscal;
   }
   return mockTenant.debut_exercice_fiscal ?? { jour: 1, mois: 1 };
+}
+
+// societe.debut_exercice_fiscal est une colonne DATE cote base : seuls le jour
+// et le mois portent du sens, l'annee est arbitraire.
+export function debutExerciceDepuisDate(dateIso) {
+  if (!dateIso) return null;
+  const [, mois, jour] = dateIso.slice(0, 10).split('-').map(Number);
+  return { jour, mois };
 }
 
 // Plage [debut, fin] de l'exercice fiscal contenant `reference`, decale de `yearOffset` exercices
@@ -41,14 +53,14 @@ function fiscalYearRange(reference, debutExercice, yearOffset = 0) {
 
 // Resout une periode nommee en plage de dates concretes
 // societeId : si fourni, utilise l'exercice fiscal de cette societe ; sinon le defaut tenant (vues agregees)
-export function resolveFiscalPeriod(periodeKey, { societeId = null, customDebut = null, customFin = null, now = new Date() } = {}) {
-  const debutExercice = getDebutExerciceFiscal(societeId);
+export function resolveFiscalPeriod(periodeKey, { societeId = null, debutExercice = null, customDebut = null, customFin = null, now = new Date() } = {}) {
+  const debut = getDebutExerciceFiscal(societeId, debutExercice);
 
   switch (periodeKey) {
     case 'fiscale_courante':
-      return fiscalYearRange(now, debutExercice, 0);
+      return fiscalYearRange(now, debut, 0);
     case 'fiscale_precedente':
-      return fiscalYearRange(now, debutExercice, -1);
+      return fiscalYearRange(now, debut, -1);
     case 'civile_courante':
       return { debut: new Date(now.getFullYear(), 0, 1), fin: new Date(now.getFullYear(), 11, 31) };
     case 'civile_precedente':
@@ -69,7 +81,7 @@ export function resolveFiscalPeriod(periodeKey, { societeId = null, customDebut 
         fin: customFin ? new Date(customFin) : null,
       };
     default:
-      return fiscalYearRange(now, debutExercice, 0);
+      return fiscalYearRange(now, debut, 0);
   }
 }
 
@@ -99,4 +111,11 @@ export function formatPeriodeLabel(range) {
   if (!range?.debut || !range?.fin) return '-';
   const fmt = d => d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
   return `${fmt(range.debut)} au ${fmt(range.fin)}`;
+}
+
+// Bornes en YYYY-MM-DD, sans passer par toISOString qui bascule en UTC et
+// pourrait reculer d'un jour selon le fuseau.
+export function toIsoDate(d) {
+  if (!d) return null;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
