@@ -101,3 +101,71 @@ export const http = {
   patch: (path, body) => request(path, { method: 'PATCH', body }),
   delete: (path) => request(path, { method: 'DELETE' }),
 };
+
+// Envoi multipart. Le Content-Type n'est deliberement pas pose : le navigateur
+// doit le calculer lui-meme pour y joindre la frontiere du FormData. Le corps
+// n'est pas serialise en JSON, d'ou une fonction distincte de request().
+// Le refresh sur 401 est rejoue une fois, comme ailleurs, mais le FormData est
+// reutilisable tel quel puisqu'il n'a pas ete consomme par un premier envoi
+// abouti.
+async function requestForm(path, formData, { retry = true } = {}) {
+  const headers = {};
+  if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+
+  const res = await fetch(`/api${path}`, { method: 'POST', headers, body: formData });
+
+  if (res.status === 401 && retry) {
+    try {
+      if (!refreshPromise) {
+        refreshPromise = refreshAccessToken().finally(() => { refreshPromise = null; });
+      }
+      await refreshPromise;
+    } catch {
+      throw new SessionExpiredError();
+    }
+    return requestForm(path, formData, { retry: false });
+  }
+
+  let data = null;
+  try {
+    data = await res.json();
+  } catch {
+    // pas de corps JSON
+  }
+  if (!res.ok) throw new ApiError(data?.error || 'Une erreur est survenue.', res.status);
+  return data;
+}
+
+// Recuperation d'un fichier protege. Un lien <a href> ne conviendrait pas : le
+// navigateur n'y joint pas l'en-tete Authorization et l'API repondrait 401.
+// On telecharge donc avec le jeton, puis on expose un objet URL local que le
+// lecteur natif du navigateur sait ouvrir. L'appelant doit liberer cette URL
+// avec URL.revokeObjectURL quand il a fini.
+async function requestBlob(path, { retry = true } = {}) {
+  const headers = {};
+  if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+
+  const res = await fetch(`/api${path}`, { headers });
+
+  if (res.status === 401 && retry) {
+    try {
+      if (!refreshPromise) {
+        refreshPromise = refreshAccessToken().finally(() => { refreshPromise = null; });
+      }
+      await refreshPromise;
+    } catch {
+      throw new SessionExpiredError();
+    }
+    return requestBlob(path, { retry: false });
+  }
+
+  if (!res.ok) {
+    let data = null;
+    try { data = await res.json(); } catch { /* corps non JSON */ }
+    throw new ApiError(data?.error || 'Une erreur est survenue.', res.status);
+  }
+  return res.blob();
+}
+
+http.postForm = (path, formData) => requestForm(path, formData);
+http.getBlob = (path) => requestBlob(path);

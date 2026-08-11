@@ -18,6 +18,8 @@ import journalRouter from "./routes/journal.js";
 import contratsRouter from "./routes/contrats.js";
 import commandesRouter from "./routes/commandes.js";
 import referentielsRouter from "./routes/referentiels.js";
+import preuvesRouter from "./routes/preuves.js";
+import facturesRouter from "./routes/factures.js";
 
 const app = express();
 app.use(cors());
@@ -38,6 +40,8 @@ app.use("/api", journalRouter);
 app.use("/api", contratsRouter);
 app.use("/api", referentielsRouter);
 app.use("/api", commandesRouter);
+app.use("/api", preuvesRouter);
+app.use("/api", facturesRouter);
 
 app.use("/api", (req, res) => {
   res.status(404).json({ error: "Ressource introuvable." });
