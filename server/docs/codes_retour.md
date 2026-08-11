@@ -55,9 +55,10 @@ Le 3021 n'est pas un refus : le rattachement est accepté. Il est réservé pour
 | 3121 | erreur | La date de fin doit etre posterieure a la date de commande | POST, PATCH /api/commandes |
 | 3130 | erreur | Suppression impossible : elements lies | DELETE /api/commandes/:id |
 | 3140 | succes | Agregats financiers | GET /api/commandes/agregats |
-| 3141 | erreur | L'annee demandee est invalide | GET /api/commandes/agregats |
+| 3141 | erreur | L'endpoint accepte soit annee, soit le couple date_debut / date_fin. Le precalcul etant mensuel, une plage au jour pres est servie au mois pres et les bornes appliquees sont renvoyees dans periode_debut et periode_fin. | GET /api/commandes/agregats |
 | 3142 | erreur | Identifiant de societe invalide | GET /api/commandes/agregats |
 | 3143 | erreur | Identifiant d'editeur invalide | GET /api/commandes/agregats |
+| 3144 | erreur | La periode demandee est invalide | GET /api/commandes/agregats |
 | 3199 | erreur | Erreur serveur inattendue (module commandes) | toutes |
 
 Le montant refuse le zero, le negatif et la saisie non numerique sous le meme

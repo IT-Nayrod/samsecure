@@ -3,9 +3,10 @@ import { useState, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Receipt, FileCheck, AlertTriangle, X } from 'lucide-react';
 import {
-  mockDocuments as initialDocuments, mockCommandes, mockTypesPreuve, getCommande, getManquesAudit,
+  mockDocuments as initialDocuments, mockTypesPreuve, getManquesAudit,
 } from '../../data/mockContrats';
 import useContratsRef from '../../hooks/useContratsRef';
+import useCommandesRef from '../../hooks/useCommandesRef';
 import DataTable from '../ui/DataTable';
 import Button from '../ui/Button';
 import Breadcrumb from '../ui/Breadcrumb';
@@ -36,6 +37,7 @@ export default function FacturesPage() {
   const [formModal, setFormModal] = useState({ open: false, doc: null });
   const manquesRef = useRef(null);
   const { contrats, getContrat } = useContratsRef();
+  const { commandes } = useCommandesRef();
 
   const manques = useMemo(() => getManquesAudit(documents), [documents]);
 
@@ -174,7 +176,7 @@ export default function FacturesPage() {
         </select>
         <select value={filterCommande} onChange={e => setFilterCommande(e.target.value)} className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="">Toutes les commandes</option>
-          {mockCommandes.map(k => <option key={k.id} value={k.id}>{k.label}</option>)}
+          {commandes.map(k => <option key={k.id} value={k.id}>{k.label}</option>)}
         </select>
         <select value={filterStatut} onChange={e => setFilterStatut(e.target.value)} className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="">Tous les statuts</option>

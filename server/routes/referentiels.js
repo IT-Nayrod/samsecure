@@ -27,4 +27,7 @@ router.get("/editeurs", (req, res) =>
 router.get("/revendeurs", (req, res) =>
   liste(res, `SELECT id, raison_sociale FROM revendeur ORDER BY raison_sociale`, "GET /revendeurs"));
 
+router.get("/modes-commande", (req, res) =>
+    liste(res, `SELECT id, code, label FROM mode_commande ORDER BY label`, "GET /modes-commande"));
+
 export default router;
