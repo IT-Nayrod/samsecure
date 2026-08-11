@@ -126,3 +126,34 @@ url_fichier est obligatoire des la #48 et non a partir de la #49 : la colonne
 est NOT NULL en base et la decision du 11/08 est de ne pas migrer, les deux
 taches partant ensemble sur staging. En #49 le champ sera renseigne par le
 module de depot au lieu du client, sans changement du contrat d'API.
+
+### Preuves, depot et telechargement du fichier (#49)
+
+| Code | Type | Libelle propose | Route |
+|------|------|-----------------|-------|
+| 3205 | succes | Fichier depose | POST /api/preuves/:id/fichier |
+| 3206 | succes | Fichier servi | GET /api/preuves/:id/fichier |
+| 3220 | erreur | Aucun fichier n'a ete transmis | POST /api/preuves/:id/fichier |
+| 3221 | erreur | Extension non admise, formats acceptes pdf png jpg jpeg | POST /api/preuves/:id/fichier |
+| 3222 | erreur | Le fichier depasse la taille maximale de 20 Mo (413) | POST /api/preuves/:id/fichier |
+| 3223 | erreur | Le contenu du fichier ne correspond pas a son extension | POST /api/preuves/:id/fichier |
+| 3224 | erreur | Aucun fichier n'a ete depose pour cette preuve | GET /api/preuves/:id/fichier |
+| 3225 | erreur | Le fichier est introuvable dans le stockage | GET /api/preuves/:id/fichier |
+| 3226 | erreur | Chemin de stockage invalide, traversee refusee | GET /api/preuves/:id/fichier |
+| 3227 | erreur | Un seul fichier peut etre depose, dans le champ fichier | POST /api/preuves/:id/fichier |
+| 3232 | reserve | [ARBITRAGE D27] redirection vers un lien GED externe. Non emis a ce jour | GET /api/preuves/:id/fichier |
+| 3256 | reserve | [ARBITRAGE flux] depot combine preuve et facture en une transaction. Non emis a ce jour | POST /api/factures/depot |
+
+Le 3222 est le seul 413 du projet. Les autres refus de validation restent en
+400 : ici le refus ne porte pas sur la forme de la donnee mais sur la taille de
+la requete, et le front doit pouvoir le distinguer pour afficher la limite.
+
+Le 3223 verifie la signature binaire du contenu (%PDF, PNG, JPEG) et non le
+type MIME annonce par le client, qui n'engage personne : sans lui, le filtre
+par extension se contournerait en renommant un executable en .pdf. Ce n'est
+pas un antivirus, explicitement hors perimetre de la #49.
+
+Les codes 3224, 3225 et 3226 sont trois causes distinctes cote serveur mais
+deux messages seulement : une url_fichier non conforme et une traversee de
+chemin refusee renvoient le meme message qu'une preuve sans fichier, pour ne
+rien divulguer de l'organisation du stockage. Le detail part dans les logs.
