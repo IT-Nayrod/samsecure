@@ -15,7 +15,7 @@ async function log(client, action, entite_type, entite_id, description, payload)
 const SELECT_FIELDS = `
   id, raison_sociale AS raisonsociale, siret, email, id_societe_parent AS idsocieteparent,
   duree_amortissement AS dureeamortissement, revalorisation_annuelle AS revalorisationannuelle,
-  delai_revalidation AS delairevalidation, debut_exercice_fiscal AS debutexercicefiscal, actif
+  delai_revalidation AS delairevalidation, debut_exercice_fiscal::text AS debutexercicefiscal, actif
 `;
 
 router.get("/societes", async (req, res) => {

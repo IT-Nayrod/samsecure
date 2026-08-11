@@ -20,20 +20,31 @@ async function log(client, action, entite_type, entite_id, description, payload)
 // la ou la commande est simplement introuvable.
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-// Projection identique en liste et en detail : garantit qu'aucun champ
-// n'apparaisse dans un ecran et pas dans l'autre.
-// montant est cast en float8 : pg renvoie les numeric en chaine, ce qui casse
-// les tris et les sommes cote consommateur. La plage DECIMAL(12,2) tient
-// largement dans un double, aucune perte de precision possible ici.
+// Statut d'echeance : source unique de verite, jamais recalcule cote front.
+// Meme vocabulaire et meme ordre de priorite que le statut des contrats, pour
+// que StatutEcheanceBadge serve les deux ecrans sans adaptation.
+const STATUT_ECHEANCE = `
+  CASE
+    WHEN c.date_fin IS NULL                              THEN 'perpetuel'
+    WHEN c.date_fin < CURRENT_DATE                       THEN 'expire'
+    WHEN c.a_renouveler                                  THEN 'a_renouveler'
+    WHEN c.date_fin <= CURRENT_DATE + INTERVAL '90 days' THEN 'a_renouveler'
+    ELSE 'actif'
+  END AS statut_echeance`;
+
 const SELECT_COMMANDE = `
-  SELECT c.id, c.label, c.numero_devis,
+  SELECT c.id, c.label, c.numero_devis, c.reference_interne,
          c.id_contrat,       ct.label         AS contrat_label,
          c.id_societe,       s.raison_sociale AS societe_label,
          c.id_revendeur,     r.raison_sociale AS revendeur_label,
          c.id_mode_commande, mc.code AS mode_code, mc.label AS mode_label,
-	 c.date_commande::text AS date_commande, c.date_fin::text AS date_fin,
          c.montant::float8 AS montant,
+         c.date_commande::text AS date_commande,
+         c.date_fin::text      AS date_fin,
          c.a_renouveler,
+         ${STATUT_ECHEANCE},
+         CASE WHEN c.date_fin IS NULL THEN NULL
+              ELSE (c.date_fin - CURRENT_DATE) END AS jours_restants,
          c.created_at, c.updated_at
   FROM commande c
   LEFT JOIN contrat       ct ON ct.id = c.id_contrat
@@ -41,10 +52,10 @@ const SELECT_COMMANDE = `
   LEFT JOIN revendeur     r  ON r.id  = c.id_revendeur
   LEFT JOIN mode_commande mc ON mc.id = c.id_mode_commande`;
 
-// Colonnes metier ecrivables, dans l'ordre des parametres d'INSERT et d'UPDATE.
 const CHAMPS = [
-  "label", "numero_devis", "id_contrat", "id_societe", "id_revendeur",
-  "id_mode_commande", "montant", "date_commande", "date_fin", "a_renouveler",
+  "label", "numero_devis", "reference_interne", "id_contrat", "id_societe",
+  "id_revendeur", "id_mode_commande", "montant", "date_commande", "date_fin",
+  "a_renouveler",
 ];
 
 // Verifie l'existence d'une reference. Evite qu'un UUID inconnu remonte en
@@ -65,6 +76,7 @@ function normaliserCorps(body = {}) {
   return {
     label: body.label ?? "",
     numero_devis: vide(body.numero_devis),
+    reference_interne: vide(body.reference_interne),
     id_contrat: vide(body.id_contrat),
     id_societe: vide(body.id_societe),
     id_revendeur: vide(body.id_revendeur),
@@ -122,6 +134,24 @@ async function validerCommande(client, body) {
   return null;
 }
 
+// Bornes mensuelles d'une plage. Le precalcul etant mensuel, une plage au jour
+// pres est servie au mois pres : les bornes reellement appliquees sont
+// renvoyees dans la reponse, et le front filtre sa liste sur ces memes bornes.
+// C'est ce qui garantit que liste, timeline et KPI ne peuvent pas diverger.
+function moisEntre(debut, fin) {
+  const out = [];
+  let [a, m] = debut.split("-").map(Number);
+  const [af, mf] = fin.split("-").map(Number);
+  while (a < af || (a === af && m <= mf)) {
+    out.push(`${a}-${String(m).padStart(2, "0")}`);
+    if (++m > 12) { m = 1; a++; }
+  }
+  return out;
+}
+
+const MOIS_RE = /^\d{4}-\d{2}$/;
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
 router.get("/commandes", async (req, res) => {
   try {
     const { rows } = await tenantPool.query(`${SELECT_COMMANDE} ORDER BY c.date_commande DESC NULLS LAST, c.label`);
@@ -137,65 +167,85 @@ router.get("/commandes", async (req, res) => {
 // Agregats financiers, lus exclusivement dans precalcul_financier alimente par
 // les triggers. Declaree avant /commandes/:id : sinon Express fait
 // correspondre "agregats" au parametre et repond 404.
-// Axes disponibles : societe et editeur, les seuls portes par le precalcul.
-// Ni contrat ni revendeur, qui n'existent qu'au niveau de la liste (decision
-// Dorian du 10/08).
+// Deux modes : annee civile, ou plage date_debut/date_fin pour les exercices
+// fiscaux decales et les periodes glissantes du selecteur.
+// Axes de filtrage : societe et editeur, les seuls portes par le precalcul.
+// Ni contrat ni revendeur, qui n'existent qu'au niveau de la liste.
 router.get("/commandes/agregats", async (req, res) => {
   try {
-    const annee = req.query.annee ? Number(req.query.annee) : new Date().getFullYear();
-    // code_retour: 3141
-    if (!Number.isInteger(annee) || annee < 1970 || annee > 2999)
-      return res.status(400).json({ error: "L'annee demandee est invalide." });
+    const { annee, date_debut, date_fin, id_societe, id_editeur } = req.query;
 
-    const idSociete = req.query.id_societe || null;
+    let moisDebut, moisFin;
+    if (date_debut || date_fin) {
+      // code_retour: 3144
+      if (!DATE_RE.test(date_debut || "") || !DATE_RE.test(date_fin || ""))
+        return res.status(400).json({ error: "La periode demandee est invalide." });
+      moisDebut = date_debut.slice(0, 7);
+      moisFin = date_fin.slice(0, 7);
+      // code_retour: 3144
+      if (moisFin < moisDebut)
+        return res.status(400).json({ error: "La periode demandee est invalide." });
+    } else {
+      const an = annee ? Number(annee) : new Date().getFullYear();
+      // code_retour: 3141
+      if (!Number.isInteger(an) || an < 1970 || an > 2999)
+        return res.status(400).json({ error: "L'annee demandee est invalide." });
+      moisDebut = `${an}-01`;
+      moisFin = `${an}-12`;
+    }
+
+    const societe = id_societe || null;
     // code_retour: 3142
-    if (idSociete && !UUID_RE.test(idSociete))
+    if (societe && !UUID_RE.test(societe))
       return res.status(400).json({ error: "Identifiant de societe invalide." });
 
-    const idEditeur = req.query.id_editeur || null;
+    const editeur = id_editeur || null;
     // code_retour: 3143
-    if (idEditeur && !UUID_RE.test(idEditeur))
+    if (editeur && !UUID_RE.test(editeur))
       return res.status(400).json({ error: "Identifiant d'editeur invalide." });
 
     // Sommes en numeric cote SQL, cast en float8 a la sortie seulement :
     // additionner des flottants des le depart ferait deriver le centime.
     const { rows } = await tenantPool.query(
       `SELECT periode,
-              sum(montant_commande)::float8 AS montant_commande,
-              sum(montant_paye)::float8     AS montant_paye
+              sum(montant_commande)::float8     AS montant_commande,
+              sum(montant_a_renouveler)::float8 AS montant_a_renouveler,
+              sum(montant_paye)::float8         AS montant_paye,
+              sum(nb_commandes)::int            AS nb_commandes,
+              sum(nb_a_renouveler)::int         AS nb_a_renouveler
          FROM precalcul_financier
-        WHERE periode LIKE $1
-          AND ($2::uuid IS NULL OR id_societe = $2::uuid)
-          AND ($3::uuid IS NULL OR id_editeur = $3::uuid)
+        WHERE periode BETWEEN $1 AND $2
+          AND ($3::uuid IS NULL OR id_societe = $3::uuid)
+          AND ($4::uuid IS NULL OR id_editeur = $4::uuid)
         GROUP BY periode`,
-      [`${annee}-%`, idSociete, idEditeur]);
+      [moisDebut, moisFin, societe, editeur]);
 
     const parPeriode = new Map(rows.map((r) => [r.periode, r]));
+    const CLES = ["montant_commande", "montant_a_renouveler", "montant_paye",
+                  "nb_commandes", "nb_a_renouveler"];
 
-    // Les 12 mois sont toujours renvoyes, les mois sans commande a 0 : le
-    // consommateur n'a pas a combler les trous d'une serie temporelle.
-    const mois = Array.from({ length: 12 }, (_, i) => {
-      const periode = `${annee}-${String(i + 1).padStart(2, "0")}`;
-      const ligne = parPeriode.get(periode);
-      return {
-        periode,
-        mois: i + 1,
-        montant_commande: ligne ? ligne.montant_commande : 0,
-        montant_paye: ligne ? ligne.montant_paye : 0,
-      };
+    // Tous les mois de la plage sont renvoyes, les mois sans commande a 0 :
+    // le consommateur n'a pas a combler les trous d'une serie temporelle.
+    const mois = moisEntre(moisDebut, moisFin).map((periode) => {
+      const l = parPeriode.get(periode);
+      const sortie = { periode, mois: Number(periode.slice(5)) };
+      for (const c of CLES) sortie[c] = l ? l[c] : 0;
+      return sortie;
     });
 
-    // Totaux derives des 12 mois, jamais requetes separement : ils sont ainsi
+    // Totaux derives des mois, jamais requetes separement : ils sont ainsi
     // egaux a leur somme par construction. L'arrondi au centime absorbe le
     // residu binaire de l'addition flottante.
-    const somme = (cle) => Math.round(mois.reduce((t, m) => t + m[cle], 0) * 100) / 100;
+    const totaux = {};
+    for (const c of CLES) totaux[c] = Math.round(mois.reduce((t, m) => t + m[c], 0) * 100) / 100;
 
     // code_retour: 3140
     res.json({
-      annee,
-      filtres: { id_societe: idSociete, id_editeur: idEditeur },
+      periode_debut: moisDebut,
+      periode_fin: moisFin,
+      filtres: { id_societe: societe, id_editeur: editeur },
       mois,
-      totaux: { montant_commande: somme("montant_commande"), montant_paye: somme("montant_paye") },
+      totaux,
     });
   } catch (err) {
     console.error("GET /commandes/agregats error", err);
@@ -247,11 +297,11 @@ router.post("/commandes", async (req, res) => {
     const label = corps.label.trim();
     const { rows: [creee] } = await client.query(
       `INSERT INTO commande (${CHAMPS.join(", ")})
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        RETURNING id`,
-      [label, corps.numero_devis, corps.id_contrat, corps.id_societe, corps.id_revendeur,
-       corps.id_mode_commande, corps.montant, corps.date_commande, corps.date_fin,
-       corps.a_renouveler]
+      [label, corps.numero_devis, corps.reference_interne, corps.id_contrat,
+       corps.id_societe, corps.id_revendeur, corps.id_mode_commande, corps.montant,
+       corps.date_commande, corps.date_fin, corps.a_renouveler]
     );
 
     await log(client, "CREATE", "commande", creee.id, `Creation de la commande "${label}"`, corps);
@@ -287,7 +337,7 @@ router.patch("/commandes/:id", async (req, res) => {
     // Montant lu en float8 pour la meme raison, Number.isFinite refuserait une chaine.
     const { rows: existant } = await client.query(
       `SELECT label, numero_devis, id_contrat, id_societe, id_revendeur, id_mode_commande,
-              montant::float8 AS montant,
+              montant::float8 AS montant, reference_interne,
               date_commande::text AS date_commande, date_fin::text AS date_fin,
               a_renouveler
        FROM commande WHERE id = $1`, [id]);
@@ -314,13 +364,13 @@ router.patch("/commandes/:id", async (req, res) => {
     const label = corps.label.trim();
     await client.query(
       `UPDATE commande
-          SET label = $1, numero_devis = $2, id_contrat = $3, id_societe = $4,
-              id_revendeur = $5, id_mode_commande = $6, montant = $7,
-              date_commande = $8, date_fin = $9, a_renouveler = $10, updated_at = now()
-        WHERE id = $11`,
-      [label, corps.numero_devis, corps.id_contrat, corps.id_societe, corps.id_revendeur,
-       corps.id_mode_commande, corps.montant, corps.date_commande, corps.date_fin,
-       corps.a_renouveler, id]
+          SET label = $1, numero_devis = $2, reference_interne = $3, id_contrat = $4,
+              id_societe = $5, id_revendeur = $6, id_mode_commande = $7, montant = $8,
+              date_commande = $9, date_fin = $10, a_renouveler = $11, updated_at = now()
+        WHERE id = $12`,
+      [label, corps.numero_devis, corps.reference_interne, corps.id_contrat,
+       corps.id_societe, corps.id_revendeur, corps.id_mode_commande, corps.montant,
+       corps.date_commande, corps.date_fin, corps.a_renouveler, id]
     );
 
     await log(client, "UPDATE", "commande", id, `Modification de la commande "${label}"`, patch);
