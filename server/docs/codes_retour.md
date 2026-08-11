@@ -157,3 +157,24 @@ Les codes 3224, 3225 et 3226 sont trois causes distinctes cote serveur mais
 deux messages seulement : une url_fichier non conforme et une traversee de
 chemin refusee renvoient le meme message qu'une preuve sans fichier, pour ne
 rien divulguer de l'organisation du stockage. Le detail part dans les logs.
+
+### Detection des manques documentaires (#50)
+
+Plage commune 3280-3289. La ressource est la commande, mais la fonctionnalite
+appartient au module documents : les codes restent donc dans la plage 3200-3299
+et non dans celle des commandes.
+
+| Code | Type | Libelle propose | Route |
+|------|------|-----------------|-------|
+| 3280 | succes | Liste des commandes en manque documentaire | GET /api/commandes/manques |
+| 3281 | erreur | Identifiant de societe invalide | GET /api/commandes/manques |
+| 3282 | erreur | Identifiant de contrat invalide | GET /api/commandes/manques |
+| 3283 | erreur | L'annee demandee est invalide | GET /api/commandes/manques |
+
+Endpoint de lecture seule : aucune ligne n'est ecrite dans anomalie_qualite, la
+detection est une vue temps reel et non un stock d'anomalies. Une commande est
+en manque si elle n'a aucune facture rattachee par facture.id_commande, ou
+aucune preuve rattachee par preuve.id_commande. Les deux conditions sont
+testees independamment : depuis la resolution E3, la preuve pointee par
+facture.id_preuve n'est pas necessairement rattachee a la commande, et passer
+par elle produirait un faux complet.
