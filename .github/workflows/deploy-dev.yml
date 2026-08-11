@@ -16,22 +16,24 @@ jobs:
 
       - name: Sync app source to server
         run: |
+          umask 022
           mkdir -p /var/www/samsecure
           rsync -rt --delete \
             --exclude ".git" \
             --exclude "node_modules" \
+            --exclude "staging-dist" \
+            --exclude "dev-dist" \
+            --exclude "vite.config.js." \
+            --include "server/.env*.example" \
+            --exclude "server/.env*" \
             ./ /var/www/samsecure/
 
       - name: Install dependencies
         working-directory: /var/www/samsecure
         run: npm ci
 
-      - name: Restart PM2 dev server
+      - name: Restart PM2
         working-directory: /var/www/samsecure
         run: |
-          pm2 describe samsecure-dev > /dev/null 2>&1 \
-            && pm2 restart samsecure-dev \
-            || pm2 start ecosystem.config.cjs
-
-      - name: Save PM2 process list
-        run: pm2 save
+          pm2 startOrReload ecosystem.config.cjs --update-env
+          pm2 save

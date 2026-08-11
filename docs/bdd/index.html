@@ -1,0 +1,644 @@
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+#uml-root{font-family:system-ui,sans-serif;background:transparent;display:flex;flex-direction:column;height:100vh}
+#toolbar{display:flex;align-items:center;gap:6px;padding:8px 12px;border-bottom:1px solid #3a3a38;flex-wrap:wrap;background:#1a1a18}
+#toolbar .ttl{font-size:12px;font-weight:700;color:#ddd;margin-right:8px;font-family:ui-monospace,monospace}
+#toolbar button{font-size:11px;padding:4px 10px;border:1px solid #555;border-radius:5px;background:transparent;color:#ccc;cursor:pointer}
+#toolbar button:hover{background:#2a2a28}
+#toolbar button.act{background:#0d2d50;color:#7ec8f8;border-color:#1B5E8A}
+.leg{display:flex;align-items:center;gap:5px;font-size:11px;color:#999}
+.leg-dot{width:10px;height:10px;border-radius:2px}
+#hint{font-size:10px;color:#777;margin-left:6px}
+#maj{font-size:9px;color:#666;margin-left:auto}
+#cwrap{flex:1;width:100%;overflow:hidden;position:relative;cursor:default;background:#141412}
+#cwrap.panning{cursor:grabbing}
+#uml-svg{position:absolute;top:0;left:0}
+.ttip{position:absolute;background:#1e1e1c;border:1px solid #444;border-radius:8px;padding:8px 12px;font-size:11px;color:#ddd;pointer-events:none;z-index:300;display:none;line-height:1.6;max-width:250px}
+</style>
+
+<div id="uml-root">
+<div id="toolbar">
+  <span class="ttl">SamSecure UML v4</span>
+  <button onclick="zoomIn()">+ Zoom</button>
+  <button onclick="zoomOut()">- Zoom</button>
+  <button onclick="resetView()">R&eacute;initialiser</button>
+  <button class="act" onclick="setFilter('all',this)">Toutes</button>
+  <button onclick="setFilter('commune',this)">BDD Commune</button>
+  <button onclick="setFilter('tenant',this)">BDD Tenant</button>
+  <div style="display:flex;gap:12px;align-items:center;margin-left:16px">
+    <div class="leg"><div class="leg-dot" style="background:#C9971C"></div><span>BDD Commune (16 tables)</span></div>
+    <div class="leg"><div class="leg-dot" style="background:#1B5E8A"></div><span>BDD Tenant (1 base par client)</span></div>
+    <div class="leg"><span style="border-bottom:2px dashed #8a8a86;display:inline-block;width:20px;height:0;vertical-align:middle;margin-right:5px"></span><span>Lien inter-bases (r&eacute;solu par l'API)</span></div>
+  </div>
+  <span id="hint">Molette = zoom - Glisser = d&eacute;placer</span>
+  <span id="maj">Derni&egrave;re mise &agrave; jour : 05/08/2026</span>
+</div>
+<div id="cwrap">
+  <svg id="uml-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+</div>
+<div class="ttip" id="ttip"></div>
+</div>
+
+<script>
+const IS_DARK = true;
+
+const COLOR = {
+  communeBorder:'#C9971C', communeHeader:'#33270a', communeTitle:'#f0c25e',
+  tenantBorder:'#1B5E8A',  tenantHeader:'#0d2d50',  tenantTitle:'#7ec8f8',
+  tableBg:'#1e1e1c', rowBg0:'#1e1e1c', rowBg1:'#242422', rowBorder:'#2e2e2c',
+  colName:'#c2c0b6', colType:'#666',
+  pkBg:'#4a1515', pkColor:'#e0685a',
+  fkBg:'#0d2040', fkColor:'#6fb3e0',
+  relCommune:'#C9971C', relTenant:'#2f7fb8', relMix:'#8a8a86',
+};
+
+const ROW_H=21, HDR_H=30, TW=275, PAD=8;
+
+/*DATA-START*/
+// s : 'commune' ou 'tenant'. nv : 'new' (nouvelle table) ou 'maj' (colonnes modifiees en v3).
+const tables={
+  // ===== BDD COMMUNE (16 tables, lecture seule) =====
+  produit_referentiel:{s:'commune',nv:'maj',c:[{n:'id',t:'UUID',k:'PK'},{n:'label',t:'VARCHAR(255)',k:''},{n:'id_editeur',t:'UUID',k:'FK'},{n:'sku',t:'VARCHAR(100)',k:''},{n:'id_produit_parent',t:'UUID',k:'FK'},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  version:{s:'commune',c:[{n:'id',t:'UUID',k:'PK'},{n:'id_produit',t:'UUID',k:'FK'},{n:'label',t:'VARCHAR(100)',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  edition:{s:'commune',c:[{n:'id',t:'UUID',k:'PK'},{n:'id_produit',t:'UUID',k:'FK'},{n:'label',t:'VARCHAR(100)',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  default_profil:{s:'commune',nv:'new',c:[{n:'id',t:'UUID',k:'PK'},{n:'code',t:'VARCHAR(50)',k:'UNIQUE'},{n:'label',t:'VARCHAR(100)',k:''},{n:'description',t:'TEXT',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  default_permission:{s:'commune',nv:'new',c:[{n:'id',t:'UUID',k:'PK'},{n:'code',t:'VARCHAR(100)',k:'UNIQUE'},{n:'label',t:'VARCHAR(255)',k:''},{n:'module',t:'VARCHAR(100)',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  default_profil_permission:{s:'commune',nv:'new',c:[{n:'id',t:'UUID',k:'PK'},{n:'id_profil',t:'UUID',k:'FK'},{n:'id_permission',t:'UUID',k:'FK'},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  default_profil_widget:{s:'commune',nv:'new',c:[{n:'id',t:'UUID',k:'PK'},{n:'id_profil',t:'UUID',k:'FK'},{n:'widget_code',t:'VARCHAR(50)',k:''},{n:'visible_defaut',t:'BOOLEAN',k:''},{n:'acces_autorise',t:'BOOLEAN',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  default_seuil_dashboard:{s:'commune',nv:'new',c:[{n:'id',t:'UUID',k:'PK'},{n:'widget_code',t:'VARCHAR(50)',k:''},{n:'echelle',t:'INTEGER',k:''},{n:'valeur',t:'DECIMAL(12,2)',k:''},{n:'unite',t:'VARCHAR(20)',k:''},{n:'direction',t:'VARCHAR(10)',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  default_fonction:{s:'commune',nv:'new',c:[{n:'id',t:'UUID',k:'PK'},{n:'code',t:'VARCHAR(50)',k:'UNIQUE'},{n:'label',t:'VARCHAR(100)',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  default_type_contrat:{s:'commune',nv:'new',c:[{n:'id',t:'UUID',k:'PK'},{n:'code',t:'VARCHAR(50)',k:'UNIQUE'},{n:'label',t:'VARCHAR(100)',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  default_type_preuve:{s:'commune',nv:'new',c:[{n:'id',t:'UUID',k:'PK'},{n:'code',t:'VARCHAR(50)',k:'UNIQUE'},{n:'label',t:'VARCHAR(100)',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  default_mode_commande:{s:'commune',nv:'new',c:[{n:'id',t:'UUID',k:'PK'},{n:'code',t:'VARCHAR(50)',k:'UNIQUE'},{n:'label',t:'VARCHAR(100)',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  default_unite_mesure:{s:'commune',nv:'new',c:[{n:'id',t:'UUID',k:'PK'},{n:'code',t:'VARCHAR(50)',k:'UNIQUE'},{n:'label',t:'VARCHAR(100)',k:''},{n:'description',t:'TEXT',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  code_retour:{s:'commune',nv:'new',c:[{n:'id',t:'UUID',k:'PK'},{n:'code',t:'INTEGER',k:'UNIQUE'},{n:'type',t:'ENUM',k:''},{n:'libelle',t:'VARCHAR(255)',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+
+  // ===== BDD TENANT - organisation =====
+  societe:{s:'tenant',nv:'maj',c:[{n:'id',t:'UUID',k:'PK'},{n:'id_societe_parent',t:'UUID',k:'FK'},{n:'raison_sociale',t:'VARCHAR(255)',k:''},{n:'siret',t:'VARCHAR(14)',k:''},{n:'email',t:'VARCHAR(255)',k:''},{n:'telephone',t:'VARCHAR(20)',k:''},{n:'duree_amortissement',t:'INTEGER',k:''},{n:'revalorisation_annuelle',t:'DECIMAL(5,2)',k:''},{n:'delai_revalidation',t:'INTEGER',k:''},{n:'debut_exercice_fiscal',t:'DATE',k:''},{n:'actif',t:'BOOLEAN',k:''},{n:'date_fin_activite',t:'DATE',k:''},{n:'created_at',t:'TIMESTAMP',k:''},{n:'updated_at',t:'TIMESTAMP',k:''}]},
+  abonnement_samsecure:{s:'tenant',c:[{n:'id',t:'UUID',k:'PK'},{n:'label',t:'VARCHAR(100)',k:''},{n:'description',t:'TEXT',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  tenant_config:{s:'tenant',nv:'maj',c:[{n:'id',t:'UUID',k:'PK'},{n:'raison_sociale',t:'VARCHAR(255)',k:''},{n:'id_abonnement',t:'UUID',k:'FK'},{n:'id_administrateur',t:'UUID',k:'FK'},{n:'langue_defaut',t:'VARCHAR(10)',k:''},{n:'cle_chiffrement_hash',t:'VARCHAR(255)',k:''},{n:'options_actives',t:'JSONB',k:''},{n:'debut_exercice_fiscal_defaut',t:'DATE',k:''},{n:'taux_hausse_annuelle_defaut',t:'DECIMAL(5,2)',k:''},{n:'version_referentiels',t:'INTEGER',k:''},{n:'created_at',t:'TIMESTAMP',k:''},{n:'updated_at',t:'TIMESTAMP',k:''}]},
+
+  // ===== BDD TENANT - tiers =====
+  editeur:{s:'tenant',nv:'maj',c:[{n:'id',t:'UUID',k:'PK'},{n:'raison_sociale',t:'VARCHAR(255)',k:''},{n:'taux_hausse_annuelle',t:'DECIMAL(5,2)',k:''},{n:'url_logo_defaut',t:'VARCHAR(500)',k:''},{n:'url_logo_custom',t:'VARCHAR(500)',k:''},{n:'created_at',t:'TIMESTAMP',k:''},{n:'updated_at',t:'TIMESTAMP',k:''}]},
+  revendeur:{s:'tenant',c:[{n:'id',t:'UUID',k:'PK'},{n:'raison_sociale',t:'VARCHAR(255)',k:''},{n:'siret',t:'VARCHAR(14)',k:''},{n:'iban',t:'VARCHAR(34)',k:''},{n:'email',t:'VARCHAR(255)',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  mainteneur:{s:'tenant',c:[{n:'id',t:'UUID',k:'PK'},{n:'raison_sociale',t:'VARCHAR(255)',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  contact:{s:'tenant',nv:'maj',c:[{n:'id',t:'UUID',k:'PK'},{n:'nom',t:'VARCHAR(100)',k:''},{n:'prenom',t:'VARCHAR(100)',k:''},{n:'email',t:'VARCHAR(255)',k:''},{n:'telephone',t:'VARCHAR(20)',k:''},{n:'id_fonction',t:'UUID',k:'FK'},{n:'photo_url',t:'VARCHAR(500)',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  fonction:{s:'tenant',nv:'maj',c:[{n:'id',t:'UUID',k:'PK'},{n:'code',t:'VARCHAR(50)',k:'UNIQUE'},{n:'label',t:'VARCHAR(100)',k:''},{n:'personnalise',t:'BOOLEAN',k:''},{n:'valeurs_defaut',t:'JSONB',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+
+  // ===== BDD TENANT - referentiels seedes =====
+  type_contrat:{s:'tenant',nv:'maj',c:[{n:'id',t:'UUID',k:'PK'},{n:'code',t:'VARCHAR(50)',k:'UNIQUE'},{n:'label',t:'VARCHAR(100)',k:''},{n:'personnalise',t:'BOOLEAN',k:''},{n:'valeurs_defaut',t:'JSONB',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  type_preuve:{s:'tenant',nv:'maj',c:[{n:'id',t:'UUID',k:'PK'},{n:'code',t:'VARCHAR(50)',k:'UNIQUE'},{n:'label',t:'VARCHAR(100)',k:''},{n:'personnalise',t:'BOOLEAN',k:''},{n:'valeurs_defaut',t:'JSONB',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  mode_commande:{s:'tenant',nv:'maj',c:[{n:'id',t:'UUID',k:'PK'},{n:'code',t:'VARCHAR(50)',k:'UNIQUE'},{n:'label',t:'VARCHAR(100)',k:''},{n:'personnalise',t:'BOOLEAN',k:''},{n:'valeurs_defaut',t:'JSONB',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  validation_status:{s:'tenant',c:[{n:'id',t:'UUID',k:'PK'},{n:'code',t:'VARCHAR(50)',k:'UNIQUE'},{n:'label',t:'VARCHAR(100)',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  unite_mesure:{s:'tenant',nv:'maj',c:[{n:'id',t:'UUID',k:'PK'},{n:'code',t:'VARCHAR(50)',k:'UNIQUE'},{n:'label',t:'VARCHAR(100)',k:''},{n:'description',t:'TEXT',k:''},{n:'personnalise',t:'BOOLEAN',k:''},{n:'valeurs_defaut',t:'JSONB',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  langue:{s:'commune',nv:'maj',c:[{n:'id',t:'UUID',k:'PK'},{n:'code',t:'VARCHAR(10)',k:'UNIQUE'},{n:'label',t:'VARCHAR(100)',k:''},{n:'actif',t:'BOOLEAN',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  traduction:{s:'commune',nv:'maj',c:[{n:'id',t:'UUID',k:'PK'},{n:'id_langue',t:'UUID',k:'FK'},{n:'cle',t:'VARCHAR(255)',k:''},{n:'valeur',t:'TEXT',k:''},{n:'module',t:'VARCHAR(100)',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+
+  // ===== BDD TENANT - RBAC =====
+  profil:{s:'tenant',nv:'maj',c:[{n:'id',t:'UUID',k:'PK'},{n:'code',t:'VARCHAR(50)',k:'UNIQUE'},{n:'label',t:'VARCHAR(100)',k:''},{n:'description',t:'TEXT',k:''},{n:'personnalise',t:'BOOLEAN',k:''},{n:'valeurs_defaut',t:'JSONB',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  permission:{s:'tenant',nv:'maj',c:[{n:'id',t:'UUID',k:'PK'},{n:'code',t:'VARCHAR(100)',k:'UNIQUE'},{n:'label',t:'VARCHAR(255)',k:''},{n:'module',t:'VARCHAR(100)',k:''},{n:'personnalise',t:'BOOLEAN',k:''},{n:'valeurs_defaut',t:'JSONB',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  profil_permission:{s:'tenant',c:[{n:'id',t:'UUID',k:'PK'},{n:'id_profil',t:'UUID',k:'FK'},{n:'id_permission',t:'UUID',k:'FK'},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  exception_droit:{s:'tenant',nv:'new',c:[{n:'id',t:'UUID',k:'PK'},{n:'id_utilisateur',t:'UUID',k:'FK'},{n:'id_permission',t:'UUID',k:'FK'},{n:'id_societe',t:'UUID',k:'FK'},{n:'type',t:'ENUM',k:''},{n:'motif',t:'TEXT',k:''},{n:'date_debut',t:'DATE',k:''},{n:'date_fin',t:'DATE',k:''},{n:'id_accorde_par',t:'UUID',k:'FK'},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  seuil_dashboard:{s:'tenant',nv:'maj',c:[{n:'id',t:'UUID',k:'PK'},{n:'widget_code',t:'VARCHAR(50)',k:''},{n:'echelle',t:'INTEGER',k:''},{n:'valeur',t:'DECIMAL(12,2)',k:''},{n:'unite',t:'VARCHAR(20)',k:''},{n:'direction',t:'VARCHAR(10)',k:''},{n:'personnalise',t:'BOOLEAN',k:''},{n:'valeurs_defaut',t:'JSONB',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  profil_widget:{s:'tenant',nv:'maj',c:[{n:'id',t:'UUID',k:'PK'},{n:'id_profil',t:'UUID',k:'FK'},{n:'widget_code',t:'VARCHAR(50)',k:''},{n:'visible_defaut',t:'BOOLEAN',k:''},{n:'acces_autorise',t:'BOOLEAN',k:''},{n:'personnalise',t:'BOOLEAN',k:''},{n:'valeurs_defaut',t:'JSONB',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  preference_dashboard:{s:'tenant',c:[{n:'id',t:'UUID',k:'PK'},{n:'id_utilisateur',t:'UUID',k:'FK'},{n:'widget_code',t:'VARCHAR(50)',k:''},{n:'visible',t:'BOOLEAN',k:''},{n:'position',t:'INTEGER',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+
+  // ===== BDD TENANT - produits etendus =====
+  produit_client:{s:'tenant',nv:'maj',c:[{n:'id',t:'UUID',k:'PK'},{n:'label',t:'VARCHAR(255)',k:''},{n:'id_editeur',t:'UUID',k:'FK'},{n:'id_produit_parent',t:'UUID',k:'FK'},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  pre_parametre_licence:{s:'tenant',c:[{n:'id',t:'UUID',k:'PK'},{n:'id_produit',t:'UUID',k:'FK'},{n:'mode_decompte',t:'ENUM',k:''},{n:'id_unite_mesure',t:'UUID',k:'FK'},{n:'created_at',t:'TIMESTAMP',k:''}]},
+
+  // ===== BDD TENANT - contractuel =====
+  contrat:{s:'tenant',nv:'maj',c:[{n:'id',t:'UUID',k:'PK'},{n:'label',t:'VARCHAR(255)',k:''},{n:'id_type_contrat',t:'UUID',k:'FK'},{n:'id_editeur',t:'UUID',k:'FK'},{n:'id_societe',t:'UUID',k:'FK'},{n:'id_revendeur',t:'UUID',k:'FK'},{n:'id_contrat_parent',t:'UUID',k:'FK'},{n:'date_debut',t:'DATE',k:''},{n:'date_fin',t:'DATE',k:''},{n:'a_renouveler',t:'BOOLEAN',k:''},{n:'duree_resiliation',t:'INTEGER',k:''},{n:'created_at',t:'TIMESTAMP',k:''},{n:'updated_at',t:'TIMESTAMP',k:''}]},
+  commande:{s:'tenant',c:[{n:'id',t:'UUID',k:'PK'},{n:'label',t:'VARCHAR(255)',k:''},{n:'id_contrat',t:'UUID',k:'FK'},{n:'id_societe',t:'UUID',k:'FK'},{n:'id_revendeur',t:'UUID',k:'FK'},{n:'id_mode_commande',t:'UUID',k:'FK'},{n:'numero_devis',t:'VARCHAR(100)',k:''},{n:'montant',t:'DECIMAL(12,2)',k:''},{n:'date_fin',t:'DATE',k:''},{n:'a_renouveler',t:'BOOLEAN',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  facture:{s:'tenant',nv:'maj',c:[{n:'id',t:'UUID',k:'PK'},{n:'label',t:'VARCHAR(255)',k:''},{n:'id_commande',t:'UUID',k:'FK'},{n:'id_preuve',t:'UUID',k:'FK'},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  preuve:{s:'tenant',nv:'maj',c:[{n:'id',t:'UUID',k:'PK'},{n:'label',t:'VARCHAR(255)',k:''},{n:'id_type_preuve',t:'UUID',k:'FK'},{n:'id_contrat',t:'UUID',k:'FK'},{n:'id_commande',t:'UUID',k:'FK'},{n:'url_fichier',t:'VARCHAR(500)',k:''},{n:'hash_sha256',t:'VARCHAR(64)',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+
+  // ===== BDD TENANT - licences et budget =====
+  licence:{s:'tenant',nv:'maj',c:[{n:'id',t:'UUID',k:'PK'},{n:'label',t:'VARCHAR(255)',k:''},{n:'id_commande',t:'UUID',k:'FK'},{n:'id_produit',t:'UUID',k:'FK'},{n:'id_edition',t:'UUID',k:'FK'},{n:'id_version',t:'UUID',k:'FK'},{n:'id_revendeur',t:'UUID',k:'FK'},{n:'id_unite_mesure',t:'UUID',k:'FK'},{n:'quantite',t:'INTEGER',k:''},{n:'type',t:'ENUM',k:''},{n:'cout_licence',t:'DECIMAL(12,2)',k:''},{n:'date_fin_souscription',t:'DATE',k:''},{n:'a_maintenance',t:'BOOLEAN',k:''},{n:'version_figee_id',t:'UUID',k:'FK'},{n:'date_arret_maintenance',t:'DATE',k:''},{n:'id_mainteneur',t:'UUID',k:'FK'},{n:'date_fin_maintenance',t:'DATE',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  maintenance_historique:{s:'tenant',c:[{n:'id',t:'UUID',k:'PK'},{n:'id_licence',t:'UUID',k:'FK'},{n:'id_mainteneur',t:'UUID',k:'FK'},{n:'id_revendeur',t:'UUID',k:'FK'},{n:'date_debut',t:'DATE',k:''},{n:'date_fin',t:'DATE',k:''},{n:'cout',t:'DECIMAL(12,2)',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  budget:{s:'tenant',nv:'new',c:[{n:'id',t:'UUID',k:'PK'},{n:'id_licence',t:'UUID',k:'FK'},{n:'type',t:'ENUM',k:''},{n:'montant_CAPEX',t:'DECIMAL(12,2)',k:''},{n:'quantite_CAPEX',t:'DECIMAL(12,2)',k:''},{n:'date_CAPEX',t:'DATE',k:''},{n:'montant_OPEX',t:'DECIMAL(12,2)',k:''},{n:'quantite_OPEX',t:'DECIMAL(12,2)',k:''},{n:'date_debut',t:'DATE',k:''},{n:'date_fin',t:'DATE',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+
+  // ===== BDD TENANT - deploiement =====
+  affectation:{s:'tenant',c:[{n:'id',t:'UUID',k:'PK'},{n:'label',t:'VARCHAR(255)',k:''},{n:'id_licence',t:'UUID',k:'FK'},{n:'id_societe',t:'UUID',k:'FK'},{n:'quantite',t:'INTEGER',k:''},{n:'reference_client',t:'VARCHAR(255)',k:''},{n:'date_revalidation',t:'DATE',k:''},{n:'id_validation_status',t:'UUID',k:'FK'},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  revalidation:{s:'tenant',c:[{n:'id',t:'UUID',k:'PK'},{n:'id_affectation',t:'UUID',k:'FK'},{n:'date_derniere_validation',t:'DATE',k:''},{n:'date_prochaine_revalidation',t:'DATE',k:''},{n:'statut',t:'ENUM',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  precalcul_conformite:{s:'tenant',c:[{n:'id',t:'UUID',k:'PK'},{n:'id_produit',t:'UUID',k:'FK'},{n:'id_editeur',t:'UUID',k:'FK'},{n:'droits_total',t:'INTEGER',k:''},{n:'usages_total',t:'INTEGER',k:''},{n:'ecart',t:'INTEGER',k:''},{n:'ecart_pct',t:'DECIMAL(5,2)',k:''},{n:'statut_conformite',t:'ENUM',k:''},{n:'derniere_maj',t:'TIMESTAMP',k:''}]},
+  precalcul_financier:{s:'tenant',c:[{n:'id',t:'UUID',k:'PK'},{n:'id_editeur',t:'UUID',k:'FK'},{n:'id_societe',t:'UUID',k:'FK'},{n:'periode',t:'VARCHAR(20)',k:''},{n:'montant_commande',t:'DECIMAL(12,2)',k:''},{n:'montant_paye',t:'DECIMAL(12,2)',k:''},{n:'derniere_maj',t:'TIMESTAMP',k:''}]},
+
+  // ===== BDD TENANT - utilisateurs =====
+  utilisateur:{s:'tenant',nv:'maj',c:[{n:'id',t:'UUID',k:'PK'},{n:'nom',t:'VARCHAR(100)',k:''},{n:'prenom',t:'VARCHAR(100)',k:''},{n:'email',t:'VARCHAR(255)',k:'UNIQUE'},{n:'mot_de_passe_hash',t:'VARCHAR(255)',k:''},{n:'actif',t:'BOOLEAN',k:''},{n:'langue',t:'VARCHAR(10)',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  utilisateur_profil_societe:{s:'tenant',nv:'maj',c:[{n:'id',t:'UUID',k:'PK'},{n:'id_utilisateur',t:'UUID',k:'FK'},{n:'id_profil',t:'UUID',k:'FK'},{n:'id_societe',t:'UUID',k:'FK'},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  utilisateur_societe:{s:'tenant',nv:'new',c:[{n:'id',t:'UUID',k:'PK'},{n:'id_utilisateur',t:'UUID',k:'FK'},{n:'id_societe',t:'UUID',k:'FK'},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  profil_societe:{s:'tenant',nv:'new',c:[{n:'id',t:'UUID',k:'PK'},{n:'id_profil',t:'UUID',k:'FK'},{n:'id_societe',t:'UUID',k:'FK'},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  session_token:{s:'tenant',c:[{n:'id',t:'UUID',k:'PK'},{n:'id_utilisateur',t:'UUID',k:'FK'},{n:'access_token_hash',t:'VARCHAR(255)',k:''},{n:'refresh_token_hash',t:'VARCHAR(255)',k:''},{n:'expires_at',t:'TIMESTAMP',k:''},{n:'revoked',t:'BOOLEAN',k:''},{n:'ip_address',t:'VARCHAR(45)',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  reset_password_token:{s:'tenant',c:[{n:'id',t:'UUID',k:'PK'},{n:'id_utilisateur',t:'UUID',k:'FK'},{n:'token_hash',t:'VARCHAR(255)',k:''},{n:'expires_at',t:'TIMESTAMP',k:''},{n:'utilise',t:'BOOLEAN',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  two_factor_auth:{s:'tenant',c:[{n:'id',t:'UUID',k:'PK'},{n:'id_utilisateur',t:'UUID',k:'FK'},{n:'secret_totp',t:'VARCHAR(255)',k:''},{n:'actif',t:'BOOLEAN',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+
+  // ===== BDD TENANT - workflow, audit, qualite =====
+  workflow_validation:{s:'tenant',c:[{n:'id',t:'UUID',k:'PK'},{n:'entite_type',t:'VARCHAR(100)',k:''},{n:'entite_id',t:'UUID',k:''},{n:'id_soumis_par',t:'UUID',k:'FK'},{n:'id_traite_par',t:'UUID',k:'FK'},{n:'id_statut',t:'UUID',k:'FK'},{n:'message_refus',t:'TEXT',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  audit_log:{s:'tenant',c:[{n:'id',t:'UUID',k:'PK'},{n:'id_utilisateur',t:'UUID',k:'FK'},{n:'action',t:'VARCHAR(100)',k:''},{n:'entite_type',t:'VARCHAR(100)',k:''},{n:'entite_id',t:'UUID',k:''},{n:'valeur_avant',t:'JSONB',k:''},{n:'valeur_apres',t:'JSONB',k:''},{n:'ip_address',t:'VARCHAR(45)',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  historique_declaration:{s:'tenant',c:[{n:'id',t:'UUID',k:'PK'},{n:'id_societe',t:'UUID',k:'FK'},{n:'id_utilisateur',t:'UUID',k:'FK'},{n:'action',t:'VARCHAR(100)',k:''},{n:'entite_type',t:'VARCHAR(100)',k:''},{n:'detail',t:'JSONB',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  log_import:{s:'tenant',nv:'maj',c:[{n:'id',t:'UUID',k:'PK'},{n:'id_utilisateur',t:'UUID',k:'FK'},{n:'type_import',t:'VARCHAR(100)',k:''},{n:'nb_lignes_total',t:'INTEGER',k:''},{n:'statut',t:'ENUM',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  anomalie_qualite:{s:'tenant',c:[{n:'id',t:'UUID',k:'PK'},{n:'entite_type',t:'VARCHAR(100)',k:''},{n:'entite_id',t:'UUID',k:''},{n:'type_anomalie',t:'VARCHAR(100)',k:''},{n:'description',t:'TEXT',k:''},{n:'gravite',t:'ENUM',k:''},{n:'resolu',t:'BOOLEAN',k:''},{n:'id_valide_par',t:'UUID',k:'FK'},{n:'created_at',t:'TIMESTAMP',k:''}]},
+
+  // ===== BDD TENANT - connecteurs =====
+  connecteur:{s:'tenant',nv:'maj',c:[{n:'id',t:'UUID',k:'PK'},{n:'label',t:'VARCHAR(255)',k:''},{n:'type',t:'VARCHAR(100)',k:''},{n:'mode',t:'ENUM',k:''},{n:'actif',t:'BOOLEAN',k:''},{n:'statut',t:'ENUM',k:''},{n:'date_derniere_collecte',t:'TIMESTAMP',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  connecteur_mapping:{s:'tenant',c:[{n:'id',t:'UUID',k:'PK'},{n:'id_connecteur',t:'UUID',k:'FK'},{n:'champ_source',t:'VARCHAR(255)',k:''},{n:'champ_cible',t:'VARCHAR(255)',k:''},{n:'transformation',t:'VARCHAR(255)',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  inventaire_raw:{s:'tenant',c:[{n:'id',t:'UUID',k:'PK'},{n:'id_connecteur',t:'UUID',k:'FK'},{n:'id_societe',t:'UUID',k:'FK'},{n:'url_fichier',t:'VARCHAR(500)',k:''},{n:'format_source',t:'VARCHAR(50)',k:''},{n:'statut_rapprochement',t:'ENUM',k:''},{n:'id_affectation',t:'UUID',k:'FK'},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  collecte_log:{s:'tenant',c:[{n:'id',t:'UUID',k:'PK'},{n:'id_connecteur',t:'UUID',k:'FK'},{n:'statut',t:'ENUM',k:''},{n:'nb_enregistrements',t:'INTEGER',k:''},{n:'duree_ms',t:'INTEGER',k:''},{n:'message_erreur',t:'TEXT',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+
+  // ===== BDD TENANT - alertes et systeme =====
+  alerte:{s:'tenant',c:[{n:'id',t:'UUID',k:'PK'},{n:'type_alerte',t:'VARCHAR(100)',k:''},{n:'entite_type',t:'VARCHAR(100)',k:''},{n:'entite_id',t:'UUID',k:''},{n:'message',t:'TEXT',k:''},{n:'niveau',t:'ENUM',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+  notification:{s:'tenant',nv:'maj',c:[{n:'id',t:'UUID',k:'PK'},{n:'id_alerte',t:'UUID',k:'FK'},{n:'id_utilisateur',t:'UUID',k:'FK'},{n:'entite_type',t:'VARCHAR(100)',k:''},{n:'entite_id',t:'UUID',k:''},{n:'statut',t:'ENUM',k:''},{n:'created_at',t:'TIMESTAMP',k:''},{n:'lu_at',t:'TIMESTAMP',k:''}]},
+  tache_asynchrone:{s:'tenant',c:[{n:'id',t:'UUID',k:'PK'},{n:'type',t:'VARCHAR(100)',k:''},{n:'statut',t:'ENUM',k:''},{n:'payload',t:'JSONB',k:''},{n:'tentatives',t:'INTEGER',k:''},{n:'created_at',t:'TIMESTAMP',k:''},{n:'completed_at',t:'TIMESTAMP',k:''}]},
+  log_serveur:{s:'tenant',c:[{n:'id',t:'UUID',k:'PK'},{n:'niveau',t:'ENUM',k:''},{n:'source',t:'VARCHAR(100)',k:''},{n:'message',t:'TEXT',k:''},{n:'context',t:'JSONB',k:''},{n:'created_at',t:'TIMESTAMP',k:''}]},
+};
+
+const relations=[
+  // Commune interne
+  ['produit_referentiel','version'],['produit_referentiel','edition'],
+  ['default_profil','default_profil_permission'],['default_permission','default_profil_permission'],
+  ['default_profil','default_profil_widget'],
+  // Diffusion des defauts (rapprochement par code, D7 du 29/07)
+  ['default_profil','profil'],['default_permission','permission'],
+  ['default_profil_permission','profil_permission'],['default_profil_widget','profil_widget'],
+  ['default_seuil_dashboard','seuil_dashboard'],['default_fonction','fonction'],
+  ['default_type_contrat','type_contrat'],['default_type_preuve','type_preuve'],
+  ['default_mode_commande','mode_commande'],['default_unite_mesure','unite_mesure'],
+  // Liens inter-bases (logiques, resolus par l'API, pas de FK SQL)
+  ['editeur','produit_referentiel'],
+  ['produit_referentiel','produit_client'],
+  ['produit_referentiel','pre_parametre_licence'],
+  ['produit_referentiel','precalcul_conformite'],
+  ['produit_referentiel','licence'],
+  ['version','licence'],
+  ['edition','licence'],
+  // Organisation
+  ['tenant_config','abonnement_samsecure'],['utilisateur','tenant_config'],
+  ['societe','contrat'],['societe','commande'],['societe','affectation'],
+  ['societe','historique_declaration'],['societe','inventaire_raw'],
+  ['societe','precalcul_financier'],['societe','utilisateur_profil_societe'],
+  ['societe','exception_droit'],
+  // Tiers
+  ['editeur','contrat'],['editeur','produit_client'],
+  ['editeur','precalcul_conformite'],['editeur','precalcul_financier'],
+  ['revendeur','commande'],['revendeur','licence'],['revendeur','contrat'],['revendeur','maintenance_historique'],
+  ['mainteneur','licence'],['mainteneur','maintenance_historique'],
+  ['fonction','contact'],
+  // Contractuel
+  ['type_contrat','contrat'],['contrat','commande'],['contrat','preuve'],
+  ['mode_commande','commande'],['commande','facture'],['commande','preuve'],['commande','licence'],
+  ['type_preuve','preuve'],['preuve','facture'],
+  // Licences et budget
+  ['licence','affectation'],['licence','maintenance_historique'],['licence','budget'],
+  ['unite_mesure','licence'],['unite_mesure','pre_parametre_licence'],
+  // Deploiement et workflow
+  ['affectation','revalidation'],['affectation','inventaire_raw'],
+  ['validation_status','affectation'],['validation_status','workflow_validation'],
+  // Utilisateurs et droits
+  ['utilisateur','session_token'],['utilisateur','reset_password_token'],
+  ['utilisateur','two_factor_auth'],['utilisateur','utilisateur_profil_societe'],
+  ['utilisateur','audit_log'],['utilisateur','historique_declaration'],
+  ['utilisateur','notification'],['utilisateur','log_import'],
+  ['utilisateur','workflow_validation'],['utilisateur','preference_dashboard'],
+  ['utilisateur','anomalie_qualite'],['utilisateur','exception_droit'],
+  ['profil','utilisateur_profil_societe'],['profil','profil_permission'],['profil','profil_widget'],
+  ['utilisateur','utilisateur_societe'],['societe','utilisateur_societe'],
+  ['profil','profil_societe'],['societe','profil_societe'],
+  ['permission','profil_permission'],['permission','exception_droit'],
+  // Connecteurs
+  ['connecteur','connecteur_mapping'],['connecteur','collecte_log'],['connecteur','inventaire_raw'],
+  // Alertes et i18n
+  ['alerte','notification'],['seuil_dashboard','alerte'],
+  ['langue','traduction'],
+];
+
+const layout=[
+  // Colonne 0 : BDD Commune
+  ['produit_referentiel','version','edition','langue','traduction','code_retour'],
+  ['default_profil','default_permission','default_profil_permission','default_profil_widget','default_seuil_dashboard'],
+  ['default_fonction','default_type_contrat','default_type_preuve','default_mode_commande','default_unite_mesure'],
+  // Colonnes 1+ : BDD Tenant
+  ['tenant_config','societe','abonnement_samsecure'],
+  ['editeur','revendeur','mainteneur','contact','fonction'],
+  ['type_contrat','type_preuve','mode_commande','validation_status','unite_mesure'],
+  ['contrat','commande','facture','preuve','produit_client'],
+  ['licence','maintenance_historique','budget','pre_parametre_licence'],
+  ['affectation','revalidation','precalcul_conformite','precalcul_financier'],
+  ['utilisateur','utilisateur_societe','profil','profil_societe','utilisateur_profil_societe','exception_droit'],
+  ['permission','profil_permission','session_token','reset_password_token','two_factor_auth'],
+  ['seuil_dashboard','profil_widget','preference_dashboard'],
+  ['workflow_validation','audit_log','historique_declaration','log_import','anomalie_qualite'],
+  ['connecteur','connecteur_mapping','inventaire_raw','collecte_log'],
+  ['alerte','notification','tache_asynchrone','log_serveur'],
+];
+
+const descs={
+  produit_referentiel:"Catalogue global des produits, maintenu par SamSecure. Modif 12 : a_maintenir retir\u00e9, la maintenance est un choix client port\u00e9 par la licence.",
+  version:"Versions successives d'un produit du catalogue global.",
+  edition:"D\u00e9clinaisons commerciales d'un produit (Standard, Pro, Enterprise).",
+  default_profil:"R\u00e9int\u00e9gr\u00e9e (D7 du 29/07). D\u00e9fauts SamSecure des groupes, correspondance un pour un avec profil, rapprochement par code.",
+  default_permission:"R\u00e9int\u00e9gr\u00e9e (D7). D\u00e9fauts des permissions, rapprochement par code.",
+  default_profil_permission:"R\u00e9int\u00e9gr\u00e9e (D7). Matrice de droits par d\u00e9faut, FK internes \u00e0 la Commune.",
+  default_profil_widget:"R\u00e9int\u00e9gr\u00e9e (D7). Visibilit\u00e9 des widgets par d\u00e9faut par groupe.",
+  default_seuil_dashboard:"R\u00e9int\u00e9gr\u00e9e (D7). Seuils par d\u00e9faut par widget et \u00e9chelle, modifiables par le client c\u00f4t\u00e9 tenant (D10).",
+  default_fonction:"R\u00e9int\u00e9gr\u00e9e (D7). Fonctions des contacts par d\u00e9faut, rapprochement par code.",
+  default_type_contrat:"R\u00e9int\u00e9gr\u00e9e (D7). Types contractuels par d\u00e9faut, rapprochement par code.",
+  default_type_preuve:"R\u00e9int\u00e9gr\u00e9e (D7). Types de preuve par d\u00e9faut, rapprochement par code.",
+  default_mode_commande:"R\u00e9int\u00e9gr\u00e9e (D7). Modes de commande par d\u00e9faut, rapprochement par code.",
+  default_unite_mesure:"R\u00e9int\u00e9gr\u00e9e (D7). Unit\u00e9s de mesure par d\u00e9faut, rapprochement par code.",
+  code_retour:"Nouvelle table (V4, 05/08). Catalogue des codes num\u00e9riques de retour API, enveloppe JSON unique. Plages : 1000-1499 succ\u00e8s transverses, 1500-1999 erreurs transverses, 2000-2999 module 1, 3000-3999 module 2, 4000+ modules 3 et 4, sans chevauchement avec les statuts HTTP (100-599) g\u00e9r\u00e9s route par route c\u00f4t\u00e9 serveur. R\u00e9f\u00e9rentiel technique applicatif, 6e table de la BDD Commune ; doctrine : Commune = r\u00e9f\u00e9rentiels techniques de l'application, identiques pour tous les clients ; Tenant = r\u00e9f\u00e9rentiels m\u00e9tier personnalisables. \u00c0 terme, traduction via la cl\u00e9 api.&lt;code&gt; qui primera sur libelle.",
+  societe:"Entit\u00e9 juridique du groupe, racine : id_societe_parent NULL. Modifs 13 et 14 : cycle de vie actif/inactif sans suppression physique, d\u00e9but d'exercice fiscal (d\u00e9faut 01/01).",
+  abonnement_samsecure:"Niveaux de service (Base, Silver, Gold). R\u00e9f\u00e9rentiel seed\u00e9 en Tenant.",
+  tenant_config:"Identit\u00e9 et configuration du tenant, ligne unique : propri\u00e9taire, abonnement, administrateur et d\u00e9fauts (modifs 14, 15, 22). Absorbe l'ex-table client (29/07), l'isolation physique par base rendant sa FK inutile.",
+  editeur:"\u00c9diteurs r\u00e9f\u00e9renc\u00e9s par le client. Modifs 15 et 21 : taux de hausse annuelle, logos (d\u00e9faut seed\u00e9 top 20 + upload client).",
+  revendeur:"Distributeurs commerciaux des licences.",
+  mainteneur:"Int\u00e9grateurs techniques du d\u00e9ploiement et de la maintenance.",
+  contact:"Personnes physiques li\u00e9es aux entit\u00e9s contractuelles. Modif 3 : photo_url.",
+  fonction:"Fonctions des contacts (DSI, DAF, Acheteur). Seed\u00e9, compl\u00e9table par le client (modif 16). Modif 22 : code de rapprochement, flag personnalise, copie locale du d\u00e9faut.",
+  type_contrat:"Types contractuels : CGU/CGV, Simple, Cadre. Seed\u00e9. Modif 22 : code, personnalise, valeurs_defaut pour la diffusion des d\u00e9fauts.",
+  type_preuve:"Cat\u00e9gories de preuves : PDF sign\u00e9, certificat, journal d'audit. Seed\u00e9. Modif 22 : code, personnalise, valeurs_defaut.",
+  mode_commande:"Modes de d\u00e9clenchement : automatis\u00e9, semi-automatique, manuel. Seed\u00e9. Modif 22 : code, personnalise, valeurs_defaut.",
+  validation_status:"Les 4 statuts du workflow de validation. Seed\u00e9 en Tenant.",
+  unite_mesure:"M\u00e9triques de licensing (user, device, CPU, core), compl\u00e9tables par le client. Modif 22 : code, personnalise, valeurs_defaut.",
+  langue:"Langues disponibles \u00e0 la s\u00e9lection. Mont\u00e9e en BDD Commune (arbitrage du 29/07), r\u00e9f\u00e9rentiel SamSecure identique pour tous les tenants.",
+  traduction:"Dictionnaire d'interface g\u00e9r\u00e9 par le back-office SamSecure sans red\u00e9ploiement, lecture seule pour les tenants. Mont\u00e9e en BDD Commune (arbitrage du 29/07), personnalisation par tenant retir\u00e9e (purge du 28/07).",
+  profil:"R\u00f4les de la plateforme, seed\u00e9s et compl\u00e9tables par le client. Modif 22 : flag personnalise et copie locale du d\u00e9faut, le code existait d\u00e9j\u00e0.",
+  permission:"Actions atomiques par module. Modif 22 : personnalise et valeurs_defaut. La restructuration ressource x action (modif 7) reste en r\u00e9serve.",
+  profil_permission:"Droits accord\u00e9s \u00e0 chaque profil.",
+  exception_droit:"Nouvelle table (modif 6). Accorde ou retire un droit par utilisateur et soci\u00e9t\u00e9 (NULL = toutes), avec motif, p\u00e9riode et tra\u00e7abilit\u00e9 id_accorde_par. Le retrait prime sur l'ajout. Port\u00e9e limit\u00e9e au rattachement de l'utilisateur (29/07).",
+  seuil_dashboard:"Seuils de colorim\u00e9trie des widgets. Modif 17 : g\u00e9r\u00e9s c\u00f4t\u00e9 client, montant d'\u00e9cart valoris\u00e9 pris en charge. Modif 22 : personnalise et valeurs_defaut, cl\u00e9 naturelle widget_code + echelle.",
+  profil_widget:"Visibilit\u00e9 des widgets par profil. Modif 22 : personnalise et valeurs_defaut, cl\u00e9 naturelle id_profil + widget_code.",
+  produit_client:"Produits propres au client, absents du catalogue global.",
+  pre_parametre_licence:"Mode de d\u00e9compte par produit (user ou device).",
+  contrat:"Document juridique accordant des droits d'usage. Bi-parti (09/08) : id_societe signataire c\u00f4t\u00e9 client, id_revendeur signataire fournisseur optionnel, id_editeur reste l'ayant droit. Hi\u00e9rarchie (09/08) : parent de tout type accept\u00e9 ; si le parent n'est pas cadre (test sur type_contrat.code = 'cadre', jamais le label), anomalie_qualite incoherence de gravit\u00e9 attention au lieu d'un blocage ; cycles refus\u00e9s. Suppression bloqu\u00e9e par 3 FK entrantes : commande, preuve, sous-contrats ; licences prot\u00e9g\u00e9es transitivement via les commandes. Statut d'\u00e9ch\u00e9ance calcul\u00e9 par l'API, jamais stock\u00e9 : expir\u00e9 si date_fin d\u00e9pass\u00e9e, \u00e0 renouveler si a_renouveler ou date_fin \u00e0 moins de 90 jours, perp\u00e9tuel sans date_fin, actif sinon.",
+  commande:"Acte formel d'achat. Porte la soci\u00e9t\u00e9 payeuse, base de la cha\u00eene budget.",
+  facture:"Document commercial d'une commande. Modif 11 : le fichier vit dans preuve via id_preuve.",
+  preuve:"Table unique de stockage des fichiers. Modifs 10 et 11 : hash SHA-256 d'int\u00e9grit\u00e9, centralisation des documents.",
+  licence:"Droits d'usage, c\u0153ur du SAM. Version fig\u00e9e \u00e0 l'arr\u00eat de la maintenance. Le contrat se d\u00e9duit exclusivement via la commande (id_commande vers commande.id_contrat) : id_contrat supprim\u00e9 le 09/08 pour \u00e9viter le double chemin contradictoire (anti-hyperstatisme).",
+  maintenance_historique:"P\u00e9riodes de maintenance et droits aux mont\u00e9es de version.",
+  budget:"Nouvelle table (Samuel, juillet). Ligne budg\u00e9taire par licence et p\u00e9riode : pr\u00e9visionnel/allou\u00e9, CAPEX/OPEX. L'organisation payeuse se d\u00e9duit de licence, commande, soci\u00e9t\u00e9, jamais stock\u00e9e ici.",
+  affectation:"Usage d\u00e9clar\u00e9 d'une licence, cycle de revalidation 30 jours.",
+  revalidation:"Suivi automatique du cycle de revalidation.",
+  precalcul_conformite:"Balance droits/usages pr\u00e9calcul\u00e9e par triggers.",
+  precalcul_financier:"Agr\u00e9gats financiers par \u00e9diteur, soci\u00e9t\u00e9 et p\u00e9riode. Articulation avec budget \u00e0 cadrer.",
+  utilisateur:"Personne acc\u00e9dant \u00e0 la plateforme.",
+  utilisateur_profil_societe:"Attribution d'un groupe \u00e0 un utilisateur avec port\u00e9e, id_societe NULL = \u00e9chelle du tenant. Valide uniquement sur l'intersection rattachement x diffusion, cumul de groupes en union (mod\u00e8le du 29/07).",
+  utilisateur_societe:"Nouvelle table (port\u00e9es RBAC, 29/07). Rattachement de l'utilisateur aux soci\u00e9t\u00e9s, id_societe NULL = \u00e9chelle du tenant. Unicit\u00e9 NULLS NOT DISTINCT.",
+  profil_societe:"Nouvelle table (port\u00e9es RBAC, 29/07). Diffusion du groupe sur les soci\u00e9t\u00e9s, id_societe NULL = \u00e9chelle du tenant. Unicit\u00e9 NULLS NOT DISTINCT.",
+  session_token:"Tokens JWT d'acc\u00e8s et de rafra\u00eechissement.",
+  reset_password_token:"R\u00e9initialisation de mot de passe, usage unique.",
+  two_factor_auth:"Configuration 2FA TOTP par utilisateur.",
+  workflow_validation:"Cycle de soumission et approbation des saisies.",
+  audit_log:"Journal des actions utilisateur, archivage 6 mois.",
+  historique_declaration:"Historique illimit\u00e9 des d\u00e9clarations.",
+  log_import:"Trace des imports CSV.",
+  anomalie_qualite:"Anomalies de saisie avec validation Manager DSI. Cas d'usage : contrat rattach\u00e9 \u00e0 un parent non cadre (type_anomalie incoherence, gravite attention), g\u00e9n\u00e9r\u00e9 automatiquement par l'API contrats.",
+  connecteur:"Configuration des outils d'inventaire tiers (v2).",
+  connecteur_mapping:"Correspondance sch\u00e9ma outil tiers vers SamSecure.",
+  inventaire_raw:"Pointeur vers le fichier brut collect\u00e9, pas de blob en base.",
+  collecte_log:"Journal des collectes par connecteur.",
+  alerte:"\u00c9v\u00e9nements d'alerte sur seuils et \u00e9ch\u00e9ances. Modif 1 : inclut les types du workflow de validation.",
+  notification:"Notification utilisateur. Modif 1 : source g\u00e9n\u00e9rique entite_type/entite_id, id_alerte devient optionnel.",
+  tache_asynchrone:"File de t\u00e2ches back-office asynchrones.",
+  log_serveur:"Logs applicatifs et techniques.",
+  preference_dashboard:"Pr\u00e9f\u00e9rences individuelles de dashboard.",
+};
+/*DATA-END*/
+
+const COMMUNE_COLS=3, SEPARATOR_W=80;
+const positions={};
+const GAP_X=36, GAP_Y=24;
+let cx=40;
+layout.forEach((col,colIdx)=>{
+  if(colIdx===COMMUNE_COLS) cx+=SEPARATOR_W;
+  let cy=64;
+  col.forEach(name=>{
+    const t=tables[name]; if(!t) return;
+    const h=HDR_H+t.c.length*ROW_H;
+    positions[name]={x:cx,y:cy,w:TW,h};
+    cy+=h+GAP_Y;
+  });
+  cx+=TW+GAP_X;
+});
+
+const totalW=cx+40;
+const totalH=Math.max(...Object.values(positions).map(p=>p.y+p.h))+50;
+const svg=document.getElementById('uml-svg');
+svg.setAttribute('width',totalW);
+svg.setAttribute('height',totalH);
+const wrap=document.getElementById('cwrap');
+
+let tr={x:0,y:0,s:1};
+function applyTransform(){svg.style.transform=`translate(${tr.x}px,${tr.y}px) scale(${tr.s})`;svg.style.transformOrigin='0 0';}
+function zoomIn(){tr.s=Math.min(tr.s*1.2,3);applyTransform();}
+function zoomOut(){tr.s=Math.max(tr.s/1.2,0.12);applyTransform();}
+function resetView(){tr={x:0,y:0,s:1};applyTransform();}
+wrap.addEventListener('wheel',e=>{
+  e.preventDefault();
+  const d=e.deltaY>0?0.9:1.1;
+  const ns=Math.max(0.12,Math.min(tr.s*d,3));
+  const r=wrap.getBoundingClientRect();
+  const mx=e.clientX-r.left, my=e.clientY-r.top;
+  tr.x=mx-(mx-tr.x)*(ns/tr.s);
+  tr.y=my-(my-tr.y)*(ns/tr.s);
+  tr.s=ns;applyTransform();
+},{passive:false});
+
+let panning=false,px=0,py=0,spaceDown=false;
+window.addEventListener('keydown',e=>{if(e.code==='Space'){spaceDown=true;e.preventDefault();}});
+window.addEventListener('keyup',e=>{if(e.code==='Space')spaceDown=false;});
+wrap.addEventListener('mousedown',e=>{
+  const onTable=e.target.closest&&e.target.closest('g[data-tbl]');
+  if(e.button===1||spaceDown||(e.button===0&&!onTable)){
+    panning=true;px=e.clientX-tr.x;py=e.clientY-tr.y;
+    wrap.classList.add('panning');e.preventDefault();
+  }
+});
+window.addEventListener('mousemove',e=>{if(!panning)return;tr.x=e.clientX-px;tr.y=e.clientY-py;applyTransform();});
+window.addEventListener('mouseup',()=>{panning=false;wrap.classList.remove('panning');});
+let tlx=0,tly=0,touching=false;
+wrap.addEventListener('touchstart',e=>{if(e.touches.length===1){touching=true;tlx=e.touches[0].clientX;tly=e.touches[0].clientY;}},{passive:true});
+wrap.addEventListener('touchmove',e=>{
+  if(e.touches.length===1&&touching){
+    e.preventDefault();
+    tr.x+=e.touches[0].clientX-tlx;tr.y+=e.touches[0].clientY-tly;
+    tlx=e.touches[0].clientX;tly=e.touches[0].clientY;applyTransform();
+  }
+},{passive:false});
+wrap.addEventListener('touchend',()=>touching=false);
+
+function isInterBase(t1,t2){return tables[t1].s!==tables[t2].s;}
+
+let filter='all';
+function buildSVG(f){
+  filter=f||'all';
+  while(svg.firstChild)svg.removeChild(svg.firstChild);
+  const defs=document.createElementNS('http://www.w3.org/2000/svg','defs');
+  svg.appendChild(defs);
+  defs.innerHTML=`<marker id="m-c" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="${COLOR.relCommune}" stroke-width="1.5" stroke-linecap="round"/></marker><marker id="m-t" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="${COLOR.relTenant}" stroke-width="1.5" stroke-linecap="round"/></marker><marker id="m-m" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="${COLOR.relMix}" stroke-width="1.5" stroke-linecap="round"/></marker>`;
+
+  const tenantStartX=40+COMMUNE_COLS*(TW+GAP_X)+SEPARATOR_W;
+
+  if(filter!=='tenant'){
+    const labelC=document.createElementNS('http://www.w3.org/2000/svg','text');
+    labelC.setAttribute('x','44');labelC.setAttribute('y','50');
+    labelC.setAttribute('font-size','13');labelC.setAttribute('font-weight','bold');
+    labelC.setAttribute('fill',COLOR.communeTitle);labelC.setAttribute('font-family','system-ui,sans-serif');
+    labelC.textContent='BDD Commune (lecture seule - 16 tables)';
+    svg.appendChild(labelC);
+  }
+  if(filter!=='commune'){
+    const labelT=document.createElementNS('http://www.w3.org/2000/svg','text');
+    labelT.setAttribute('x',String(tenantStartX+4));labelT.setAttribute('y','50');
+    labelT.setAttribute('font-size','13');labelT.setAttribute('font-weight','bold');
+    labelT.setAttribute('fill',COLOR.tenantTitle);labelT.setAttribute('font-family','system-ui,sans-serif');
+    labelT.textContent='BDD Tenant (1 base PostgreSQL par client)';
+    svg.appendChild(labelT);
+  }
+
+  const root=document.createElementNS('http://www.w3.org/2000/svg','g');
+  root.id='rg';svg.appendChild(root);
+  const relG=document.createElementNS('http://www.w3.org/2000/svg','g');
+  root.appendChild(relG);
+
+  relations.forEach(([t1,t2])=>{
+    if(!positions[t1]||!positions[t2])return;
+    const s1=tables[t1].s, s2=tables[t2].s;
+    if(filter==='commune'&&(s1!=='commune'||s2!=='commune'))return;
+    if(filter==='tenant'&&(s1==='commune'||s2==='commune'))return;
+    const p1=positions[t1], p2=positions[t2];
+    const fromRight=p1.x<p2.x;
+    const sx=fromRight?p1.x+p1.w:p1.x, ex=fromRight?p2.x:p2.x+p2.w;
+    const sy=p1.y+p1.h/2, ey=p2.y+p2.h/2;
+    const mx=(sx+ex)/2;
+    const inter=s1!==s2;
+    const col=inter?COLOR.relMix:(s1==='commune'?COLOR.relCommune:COLOR.relTenant);
+    const mid=inter?'m-m':(s1==='commune'?'m-c':'m-t');
+    const path=document.createElementNS('http://www.w3.org/2000/svg','path');
+    path.setAttribute('d',`M${sx},${sy} C${mx},${sy} ${mx},${ey} ${ex},${ey}`);
+    path.setAttribute('fill','none');
+    path.setAttribute('stroke',col);
+    path.setAttribute('stroke-width','0.8');
+    path.setAttribute('opacity',inter?'0.45':'0.3');
+    path.setAttribute('marker-end',`url(#${mid})`);
+    if(inter)path.setAttribute('stroke-dasharray','6,4');
+    path.dataset.t1=t1;
+    path.dataset.t2=t2;
+    relG.appendChild(path);
+  });
+
+  Object.entries(positions).forEach(([name,pos])=>{
+    const t=tables[name]; if(!t)return;
+    if(filter==='commune'&&t.s!=='commune')return;
+    if(filter==='tenant'&&t.s==='commune')return;
+    const isC=t.s==='commune';
+    const bord=isC?COLOR.communeBorder:COLOR.tenantBorder;
+    const hdr=isC?COLOR.communeHeader:COLOR.tenantHeader;
+    const title=isC?COLOR.communeTitle:COLOR.tenantTitle;
+    const g=document.createElementNS('http://www.w3.org/2000/svg','g');
+    g.dataset.tbl=name;
+
+    const sh=document.createElementNS('http://www.w3.org/2000/svg','rect');
+    sh.setAttribute('x',pos.x+3);sh.setAttribute('y',pos.y+3);
+    sh.setAttribute('width',pos.w);sh.setAttribute('height',pos.h);
+    sh.setAttribute('rx','5');sh.setAttribute('fill','#000');sh.setAttribute('opacity','0.1');
+    g.appendChild(sh);
+
+    const body=document.createElementNS('http://www.w3.org/2000/svg','rect');
+    body.setAttribute('x',pos.x);body.setAttribute('y',pos.y);
+    body.setAttribute('width',pos.w);body.setAttribute('height',pos.h);
+    body.setAttribute('rx','5');body.setAttribute('fill',COLOR.tableBg);
+    body.setAttribute('stroke',bord);body.setAttribute('stroke-width','0.5');
+    g.appendChild(body);
+
+    const hdrRect=document.createElementNS('http://www.w3.org/2000/svg','rect');
+    hdrRect.setAttribute('x',pos.x);hdrRect.setAttribute('y',pos.y);
+    hdrRect.setAttribute('width',pos.w);hdrRect.setAttribute('height',HDR_H);
+    hdrRect.setAttribute('rx','5');hdrRect.setAttribute('fill',hdr);
+    hdrRect.setAttribute('stroke',bord);hdrRect.setAttribute('stroke-width','0.5');
+    g.appendChild(hdrRect);
+    const hdrClip=document.createElementNS('http://www.w3.org/2000/svg','rect');
+    hdrClip.setAttribute('x',pos.x);hdrClip.setAttribute('y',pos.y+HDR_H-5);
+    hdrClip.setAttribute('width',pos.w);hdrClip.setAttribute('height',5);
+    hdrClip.setAttribute('fill',hdr);
+    g.appendChild(hdrClip);
+
+    const txt=document.createElementNS('http://www.w3.org/2000/svg','text');
+    txt.setAttribute('x',pos.x+PAD);txt.setAttribute('y',pos.y+HDR_H/2+4);
+    txt.setAttribute('font-size','10.5');txt.setAttribute('font-weight','bold');
+    txt.setAttribute('fill',title);txt.setAttribute('font-family','ui-monospace,monospace');
+    txt.textContent=name;
+    g.appendChild(txt);
+
+    // Badge C/T a droite
+    const badgeW=18;
+    let bx=pos.x+pos.w-badgeW-6;
+    const badgeRect=document.createElementNS('http://www.w3.org/2000/svg','rect');
+    badgeRect.setAttribute('x',bx);badgeRect.setAttribute('y',pos.y+8);
+    badgeRect.setAttribute('width',badgeW);badgeRect.setAttribute('height',14);
+    badgeRect.setAttribute('rx','3');badgeRect.setAttribute('fill',bord);badgeRect.setAttribute('opacity','0.2');
+    g.appendChild(badgeRect);
+    const badgeLabel=document.createElementNS('http://www.w3.org/2000/svg','text');
+    badgeLabel.setAttribute('x',bx+badgeW/2);badgeLabel.setAttribute('y',pos.y+18);
+    badgeLabel.setAttribute('font-size','8');badgeLabel.setAttribute('font-weight','bold');
+    badgeLabel.setAttribute('fill',title);badgeLabel.setAttribute('text-anchor','middle');
+    badgeLabel.setAttribute('font-family','system-ui,sans-serif');
+    badgeLabel.textContent=isC?'C':'T';
+    g.appendChild(badgeLabel);
+
+    // Puce nouvelle / maj v3
+    if(t.nv){
+      const isNew=t.nv==='new';
+      const chipTxt=isNew?'nouvelle':'m\u00e0j v3';
+      const chipW=isNew?46:40;
+      const cxp=bx-chipW-5;
+      const chipRect=document.createElementNS('http://www.w3.org/2000/svg','rect');
+      chipRect.setAttribute('x',cxp);chipRect.setAttribute('y',pos.y+8);
+      chipRect.setAttribute('width',chipW);chipRect.setAttribute('height',14);
+      chipRect.setAttribute('rx','3');chipRect.setAttribute('fill','#C9971C');
+      chipRect.setAttribute('opacity',isNew?'0.35':'0.18');
+      g.appendChild(chipRect);
+      const chipLabel=document.createElementNS('http://www.w3.org/2000/svg','text');
+      chipLabel.setAttribute('x',cxp+chipW/2);chipLabel.setAttribute('y',pos.y+18);
+      chipLabel.setAttribute('font-size','7.5');chipLabel.setAttribute('font-weight','bold');
+      chipLabel.setAttribute('fill','#f0c25e');chipLabel.setAttribute('text-anchor','middle');
+      chipLabel.setAttribute('font-family','system-ui,sans-serif');
+      chipLabel.textContent=chipTxt;
+      g.appendChild(chipLabel);
+    }
+
+    t.c.forEach((col,i)=>{
+      const ry=pos.y+HDR_H+i*ROW_H;
+      const rowBg=document.createElementNS('http://www.w3.org/2000/svg','rect');
+      rowBg.setAttribute('x',pos.x+1);rowBg.setAttribute('y',ry);
+      rowBg.setAttribute('width',pos.w-2);rowBg.setAttribute('height',ROW_H);
+      rowBg.setAttribute('fill',i%2===0?COLOR.rowBg0:COLOR.rowBg1);
+      g.appendChild(rowBg);
+      if(i>0){
+        const sep=document.createElementNS('http://www.w3.org/2000/svg','line');
+        sep.setAttribute('x1',pos.x+6);sep.setAttribute('y1',ry);
+        sep.setAttribute('x2',pos.x+pos.w-6);sep.setAttribute('y2',ry);
+        sep.setAttribute('stroke',COLOR.rowBorder);sep.setAttribute('stroke-width','0.5');
+        g.appendChild(sep);
+      }
+      if(col.k){
+        const isPK=col.k==='PK';
+        const kx=pos.x+PAD;
+        const kw=col.k==='UNIQUE'?38:22;
+        const kr=document.createElementNS('http://www.w3.org/2000/svg','rect');
+        kr.setAttribute('x',kx);kr.setAttribute('y',ry+4);
+        kr.setAttribute('width',kw);kr.setAttribute('height',13);
+        kr.setAttribute('rx','3');kr.setAttribute('fill',isPK?COLOR.pkBg:COLOR.fkBg);
+        g.appendChild(kr);
+        const kt=document.createElementNS('http://www.w3.org/2000/svg','text');
+        kt.setAttribute('x',kx+kw/2);kt.setAttribute('y',ry+14);kt.setAttribute('text-anchor','middle');
+        kt.setAttribute('font-size','7.5');kt.setAttribute('font-weight','bold');
+        kt.setAttribute('fill',isPK?COLOR.pkColor:COLOR.fkColor);
+        kt.setAttribute('font-family','system-ui,sans-serif');
+        kt.textContent=col.k;
+        g.appendChild(kt);
+        var nameOffset=kw+4;
+      }else{var nameOffset=0;}
+      const cn=document.createElementNS('http://www.w3.org/2000/svg','text');
+      cn.setAttribute('x',pos.x+PAD+nameOffset);cn.setAttribute('y',ry+14);
+      cn.setAttribute('font-size','10');cn.setAttribute('fill',COLOR.colName);
+      cn.setAttribute('font-family','ui-monospace,monospace');
+      cn.textContent=col.n;
+      g.appendChild(cn);
+      const ct=document.createElementNS('http://www.w3.org/2000/svg','text');
+      ct.setAttribute('x',pos.x+pos.w-PAD);ct.setAttribute('y',ry+14);ct.setAttribute('text-anchor','end');
+      ct.setAttribute('font-size','8.5');ct.setAttribute('fill',COLOR.colType);
+      ct.setAttribute('font-family','ui-monospace,monospace');
+      ct.textContent=col.t;
+      g.appendChild(ct);
+    });
+
+    const outer=document.createElementNS('http://www.w3.org/2000/svg','rect');
+    outer.setAttribute('x',pos.x);outer.setAttribute('y',pos.y);
+    outer.setAttribute('width',pos.w);outer.setAttribute('height',pos.h);
+    outer.setAttribute('rx','5');outer.setAttribute('fill','none');
+    outer.setAttribute('stroke',bord);outer.setAttribute('stroke-width','0.5');
+    g.appendChild(outer);
+
+    svg.appendChild(g);
+  });
+}
+
+buildSVG('all');
+applyTransform();
+
+const ttip=document.getElementById('ttip');
+let ttipTarget=null;
+svg.addEventListener('mousemove',e=>{
+  const g=e.target.closest('g[data-tbl]');
+  if(!g){
+    if(ttipTarget){ttip.style.display='none';ttipTarget=null;clearHighlight();}
+    return;
+  }
+  const n=g.dataset.tbl;
+  if(n!==ttipTarget){
+    ttipTarget=n;
+    const t=tables[n];
+    const isC=t.s==='commune';
+    const cat=isC?'BDD Commune':'BDD Tenant';
+    const catColor=isC?COLOR.communeTitle:COLOR.tenantTitle;
+    const catBg=isC?COLOR.communeHeader:COLOR.tenantHeader;
+    let chips=`<span style="display:inline-block;font-size:9px;font-weight:600;padding:1px 6px;border-radius:3px;background:${catBg};color:${catColor};margin-bottom:5px">${cat}</span>`;
+    if(t.nv==='new')chips+=` <span style="display:inline-block;font-size:9px;font-weight:600;padding:1px 6px;border-radius:3px;background:#33270a;color:#f0c25e;margin-bottom:5px">nouvelle table</span>`;
+    if(t.nv==='maj')chips+=` <span style="display:inline-block;font-size:9px;font-weight:600;padding:1px 6px;border-radius:3px;background:#33270a;color:#f0c25e;margin-bottom:5px">modifi\u00e9e v3</span>`;
+    ttip.innerHTML=`<strong style="display:block;margin-bottom:3px;font-family:ui-monospace,monospace">${n}</strong>${chips}<br>${descs[n]||''}`;
+    ttip.style.display='block';
+    highlightTable(n);
+  }
+  const r=wrap.getBoundingClientRect();
+  let tx=e.clientX-r.left+14, ty=e.clientY-r.top+14;
+  if(tx+250>r.width)tx=e.clientX-r.left-260;
+  if(ty+90>r.height)ty=e.clientY-r.top-95;
+  ttip.style.left=tx+'px';ttip.style.top=ty+'px';
+});
+svg.addEventListener('mouseleave',()=>{ttip.style.display='none';ttipTarget=null;clearHighlight();});
+
+function highlightTable(name){
+  const relPaths=svg.querySelectorAll('#rg path[data-t1]');
+  const allGroups=svg.querySelectorAll('g[data-tbl]');
+  const linked=new Set([name]);
+  relPaths.forEach(path=>{
+    const t1=path.dataset.t1, t2=path.dataset.t2;
+    if(t1===name)linked.add(t2);
+    if(t2===name)linked.add(t1);
+  });
+  allGroups.forEach(g=>{
+    g.style.opacity=linked.has(g.dataset.tbl)?'1':'0.15';
+  });
+  relPaths.forEach(path=>{
+    const t1=path.dataset.t1, t2=path.dataset.t2;
+    const isLinked=t1===name||t2===name;
+    if(isLinked){
+      const inter=isInterBase(t1,t2);
+      const col=inter?COLOR.relMix:(tables[t1].s==='commune'?COLOR.relCommune:COLOR.relTenant);
+      path.setAttribute('stroke',col);
+      path.setAttribute('stroke-width','2');
+      path.setAttribute('opacity','0.9');
+    }else{
+      path.setAttribute('opacity','0.04');
+    }
+  });
+}
+function clearHighlight(){
+  svg.querySelectorAll('g[data-tbl]').forEach(g=>g.style.opacity='1');
+  svg.querySelectorAll('#rg path[data-t1]').forEach(path=>{
+    const inter=isInterBase(path.dataset.t1,path.dataset.t2);
+    const col=inter?COLOR.relMix:(tables[path.dataset.t1].s==='commune'?COLOR.relCommune:COLOR.relTenant);
+    path.setAttribute('stroke',col);
+    path.setAttribute('stroke-width','0.8');
+    path.setAttribute('opacity',inter?'0.45':'0.3');
+  });
+}
+
+function setFilter(f,btn){
+  document.querySelectorAll('#toolbar button').forEach(b=>b.classList.remove('act'));
+  btn.classList.add('act');buildSVG(f);
+}
+
+window.zoomIn=zoomIn;window.zoomOut=zoomOut;window.resetView=resetView;window.setFilter=setFilter;
+</script>

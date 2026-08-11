@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SamSecure - Plateforme projet v0.5</title>
+<style>
+  :root{
+    --bg:#0c1017;
+    --surface:#131a24;
+    --surface-2:#1a2330;
+    --line:#26303f;
+    --text:#e8eef6;
+    --muted:#93a1b3;
+    --faint:#5c6a7d;
+    --bdd:#f0b03f;
+    --api:#58a6ff;
+    --front:#b79df8;
+    --liv:#3fd68f;
+    --butoir:#ff6b6b;
+    --mono:ui-monospace,'Cascadia Code','SF Mono',Consolas,'Liberation Mono',monospace;
+    --sans:-apple-system,'Segoe UI',system-ui,Roboto,'Helvetica Neue',Arial,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.55;padding-bottom:60px}
+  .wrap{max-width:1060px;margin:0 auto;padding:0 20px}
+
+  /* ---------- entete ---------- */
+  header.top{border-bottom:1px solid var(--line);padding:18px 0 16px}
+  header.top .wrap{display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap}
+  .brand{font-size:20px;font-weight:700;letter-spacing:.3px}
+  .brand .dot{color:var(--liv)}
+  .brand .tag{font-family:var(--mono);font-size:11px;font-weight:400;color:var(--muted);margin-left:10px;text-transform:uppercase;letter-spacing:1.5px}
+  .headmeta{font-family:var(--mono);font-size:12px;color:var(--muted)}
+  .headmeta strong{color:var(--butoir);font-weight:600}
+
+  .eyebrow{font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:1.8px;color:var(--faint);margin-bottom:10px}
+
+  /* ---------- bandeau position ---------- */
+  .hero{display:grid;grid-template-columns:auto 1fr auto;gap:28px;padding:26px 0 22px;align-items:start}
+  .hero .big{font-family:var(--mono);font-size:26px;font-weight:600;letter-spacing:-.5px}
+  .hero .sub{font-size:13px;color:var(--muted);margin-top:6px}
+  .countbox .big{font-size:46px;line-height:1;letter-spacing:-1px}
+  .countbox{text-align:right}
+  .progress{position:relative;height:14px;border-radius:7px;overflow:hidden;background:var(--surface-2);margin-top:14px;border:1px solid var(--line)}
+  .progress .grad{position:absolute;inset:0;background:linear-gradient(90deg,var(--bdd) 0 10%,var(--api) 10% 63%,var(--front) 63% 94%,var(--liv) 94% 100%)}
+  .progress .cover{position:absolute;top:0;bottom:0;right:0;background:var(--surface-2);opacity:.88}
+  .phase-scale{display:flex;font-family:var(--mono);font-size:10px;color:var(--faint);margin-top:6px}
+  .phase-scale span{text-transform:uppercase;letter-spacing:1px;overflow:hidden;white-space:nowrap}
+  .phase-scale .s1{width:10%}.phase-scale .s2{width:53%}.phase-scale .s3{width:31%}.phase-scale .s4{width:6%;text-align:right}
+
+  /* ---------- ligne de temps ---------- */
+  .rail-section{padding:8px 0 4px}
+  .rail-scroll{overflow-x:auto;overflow-y:hidden;padding-bottom:6px;scrollbar-width:none;-ms-overflow-style:none}
+  .rail-scroll::-webkit-scrollbar{display:none}
+  .rail-outer{position:relative;min-width:760px;padding:64px 0 46px}
+  .rail-band{position:relative;display:flex;height:40px;border-radius:8px;overflow:hidden;border:1px solid var(--line)}
+  .rail-band button.seg{flex:1;border:none;cursor:pointer;position:relative;background:transparent;padding:0}
+  .rail-band button.seg::before{content:"";position:absolute;inset:0;opacity:.28;background:var(--segcol)}
+  .rail-band button.seg:not(:last-child){border-right:1px solid rgba(12,16,23,.65)}
+  .rail-band button.seg:hover::before,.rail-band button.seg:focus-visible::before{opacity:.5}
+  .rail-band button.seg:focus-visible{outline:2px solid var(--text);outline-offset:-2px}
+  .rail-band button.seg .lbl{position:relative;font-family:var(--mono);font-size:12px;color:var(--text);font-weight:600}
+  .rail-band button.seg.past .lbl{color:var(--muted)}
+  .rail-band button.seg.past::before{opacity:.12}
+  .rail-band button.seg.current::before{opacity:.55}
+  .rail-overlay{position:absolute;left:0;right:0;top:64px;height:40px;pointer-events:none}
+  .rail-dates{display:flex;font-family:var(--mono);font-size:10px;color:var(--faint);margin-top:6px}
+  .rail-dates span{flex:1;text-align:center;white-space:nowrap}
+
+  .jalon{position:absolute;transform:translateX(-50%);pointer-events:auto}
+  .jalon .diamond{width:11px;height:11px;background:var(--text);transform:rotate(45deg);margin:0 auto;border:2px solid var(--bg)}
+  .jalon.done .diamond{background:var(--liv)}
+  .jalon.today-j .diamond{background:var(--bdd)}
+  .jalon .jl{font-family:var(--mono);font-size:10px;color:var(--muted);text-align:center;margin-bottom:4px;white-space:nowrap}
+  .jalon.lvl2{margin-top:-20px}
+  .jalon.lvl2 .stem{width:1px;height:16px;background:var(--line);margin:0 auto}
+
+  .cursor{position:absolute;top:34px;bottom:20px;width:2px;background:var(--text);box-shadow:0 0 10px rgba(232,238,246,.5);z-index:3}
+  .cursor .pin{position:absolute;top:-7px;left:50%;transform:translateX(-50%);width:10px;height:10px;border-radius:50%;background:var(--text)}
+  .cursor .pulse{position:absolute;top:-11px;left:50%;transform:translateX(-50%);width:18px;height:18px;border-radius:50%;border:1px solid var(--text);opacity:.5;animation:pulse 2.2s ease-out infinite}
+  @keyframes pulse{0%{transform:translateX(-50%) scale(.5);opacity:.7}100%{transform:translateX(-50%) scale(1.6);opacity:0}}
+  .cursor .chip{position:absolute;top:-34px;left:50%;transform:translateX(-50%);background:var(--text);color:var(--bg);font-family:var(--mono);font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;white-space:nowrap}
+  .cursor.edge-r .chip{transform:translateX(-92%)}
+  .cursor.edge-l .chip{transform:translateX(-8%)}
+
+  .flag{position:absolute;top:30px;bottom:22px;width:2px;background:var(--butoir);z-index:2}
+  .flag .fl{position:absolute;bottom:-20px;right:6px;font-family:var(--mono);font-size:10px;color:var(--butoir);white-space:nowrap;text-transform:uppercase;letter-spacing:1px}
+
+  .legend{display:flex;flex-wrap:wrap;gap:16px;font-size:12px;color:var(--muted);margin-top:10px}
+  .legend .it{display:flex;align-items:center;gap:7px}
+  .legend .sw{width:11px;height:11px;border-radius:3px}
+  .legend .dm{width:9px;height:9px;background:var(--text);transform:rotate(45deg)}
+  .legend .ln{width:2px;height:13px;background:var(--butoir)}
+
+  /* ---------- semaines ---------- */
+  .weeks-section{padding:26px 0 8px}
+  .weeks-head{display:flex;justify-content:space-between;align-items:baseline;gap:14px;flex-wrap:wrap}
+  .gotobtn{background:none;border:1px solid var(--line);color:var(--muted);font-family:var(--mono);font-size:11px;padding:5px 12px;border-radius:16px;cursor:pointer}
+  .gotobtn:hover{color:var(--text);border-color:var(--faint)}
+  .hyp{font-size:12px;color:var(--faint);margin:6px 0 18px}
+  .card{display:grid;grid-template-columns:150px 1fr;gap:0;background:var(--surface);border:1px solid var(--line);border-radius:10px;margin-bottom:12px;overflow:hidden;border-left:3px solid var(--segcol,var(--line))}
+  .card.past{opacity:.62}
+  .card.current{border-color:var(--segcol);box-shadow:0 0 0 1px var(--segcol),0 6px 24px rgba(0,0,0,.35);opacity:1}
+  .card .side{padding:16px;border-right:1px solid var(--line);background:var(--surface-2)}
+  .card .sid{font-family:var(--mono);font-size:19px;font-weight:700}
+  .card .sdates{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:2px}
+  .status{display:inline-block;font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:1.2px;padding:3px 9px;border-radius:12px;margin-top:10px;border:1px solid var(--line);color:var(--faint)}
+  .status.now{background:var(--segcol);color:#0c1017;border-color:transparent;font-weight:700}
+  .status.past-s{color:var(--muted)}
+  .wprog{margin-top:10px;font-family:var(--mono);font-size:10px;color:var(--muted)}
+  .wprog .bar{height:4px;background:var(--line);border-radius:2px;margin-top:4px;overflow:hidden}
+  .wprog .bar i{display:block;height:100%;background:var(--segcol)}
+  .card .main{padding:16px 18px}
+  .meta{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px}
+  .chip{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:1.1px;padding:3px 9px;border-radius:12px;border:1px solid var(--line);color:var(--muted)}
+  .chip.phase{color:var(--segcol);border-color:color-mix(in srgb,var(--segcol) 45%,transparent)}
+  .chip.jbadge{color:var(--text);border-color:var(--faint)}
+  .card h3{font-size:15px;font-weight:650;margin-bottom:5px}
+  .card p{font-size:13px;color:var(--muted)}
+  .card .livrable{margin-top:10px;font-size:13px;color:var(--text);border-top:1px dashed var(--line);padding-top:9px}
+  .card .livrable b{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:1.2px;color:var(--faint);font-weight:600;margin-right:6px}
+
+  /* ---------- jalons ---------- */
+  .jalons-section{padding:24px 0}
+  .jrow{display:grid;grid-template-columns:52px 110px 1fr auto;gap:14px;align-items:center;padding:11px 14px;border:1px solid var(--line);border-radius:9px;margin-bottom:8px;background:var(--surface)}
+  .jrow.done{opacity:.62}
+  .jrow.next{border-color:var(--faint);box-shadow:0 0 0 1px var(--line)}
+  .jrow .jid{font-family:var(--mono);font-weight:700;font-size:15px}
+  .jrow .jdate{font-family:var(--mono);font-size:12px;color:var(--muted)}
+  .jrow .jlabel{font-size:13px}
+  .jrow .jstate{font-family:var(--mono);font-size:11px;padding:3px 10px;border-radius:12px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+  .jrow .jstate.ok{color:var(--liv);border-color:color-mix(in srgb,var(--liv) 45%,transparent)}
+  .jrow .jstate.soon{color:var(--bdd);border-color:color-mix(in srgb,var(--bdd) 45%,transparent)}
+  .jrow .jstate.final{color:var(--butoir);border-color:color-mix(in srgb,var(--butoir) 45%,transparent)}
+
+  footer{padding:26px 0 0;font-size:12px;color:var(--faint);border-top:1px solid var(--line);margin-top:26px}
+
+  @media (max-width:720px){
+    .hero{grid-template-columns:1fr;gap:18px}
+    .countbox{text-align:left}
+    .card{grid-template-columns:1fr}
+    .card .side{display:flex;align-items:center;gap:12px;flex-wrap:wrap;border-right:none;border-bottom:1px solid var(--line);padding:12px 16px}
+    .card .side .status,.card .side .wprog{margin-top:0}
+    .wprog{min-width:120px}
+    .jrow{grid-template-columns:44px 1fr auto;grid-template-areas:"a b d" "a c c"}
+    .jrow .jid{grid-area:a}.jrow .jdate{grid-area:b}.jrow .jlabel{grid-area:c}.jrow .jstate{grid-area:d}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .cursor .pulse{animation:none;display:none}
+    html{scroll-behavior:auto}
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <div class="brand">SamSecure<span class="dot">.</span><span class="tag">Plateforme projet</span></div>
+    <div class="headmeta">Planning v0.5 - S30 &rarr; S39 - butoir <strong>ven. 25/09/2026</strong></div>
+  </div>
+</header>
+
+<section class="hero wrap">
+  <div>
+    <div class="eyebrow">Aujourd'hui</div>
+    <div class="big" id="todayDate"></div>
+    <div class="sub" id="todayWeek"></div>
+  </div>
+  <div>
+    <div class="eyebrow">Temps &eacute;coul&eacute; (20/07 &rarr; 25/09)</div>
+    <div class="progress"><div class="grad"></div><div class="cover" id="cover"></div></div>
+    <div class="phase-scale"><span class="s1">BDD</span><span class="s2">D&eacute;veloppement</span><span class="s3">Correctifs</span><span class="s4">Liv.</span></div>
+    <div class="sub" id="elapsedTxt"></div>
+  </div>
+  <div class="countbox">
+    <div class="eyebrow">Compte &agrave; rebours</div>
+    <div class="big" id="countdown"></div>
+    <div class="sub" id="countdownSub"></div>
+  </div>
+</section>
+
+<section class="rail-section wrap">
+  <div class="eyebrow">Ligne de temps</div>
+  <div class="rail-scroll" id="railScroll">
+    <div class="rail-outer" id="railOuter">
+      <div class="rail-band" id="railBand"></div>
+      <div class="rail-dates" id="railDates"></div>
+    </div>
+  </div>
+  <div class="legend">
+    <span class="it"><span class="sw" style="background:var(--bdd)"></span>Base de donn&eacute;es</span>
+    <span class="it"><span class="sw" style="background:var(--api)"></span>Back et branchement</span>
+    <span class="it"><span class="sw" style="background:var(--front)"></span>Correctifs et recette</span>
+    <span class="it"><span class="sw" style="background:var(--liv)"></span>Livraison</span>
+    <span class="it"><span class="dm"></span>Jalon</span>
+    <span class="it"><span class="ln"></span>Butoir 25/09</span>
+  </div>
+</section>
+
+<section class="weeks-section wrap">
+  <div class="weeks-head">
+    <div class="eyebrow" style="margin-bottom:0">Planning hebdomadaire</div>
+    <button class="gotobtn" id="gotoNow">Aller &agrave; la semaine en cours</button>
+  </div>
+  <p class="hyp">Principe : tout le d&eacute;veloppement est boucl&eacute; fin ao&ucirc;t. Septembre, &agrave; disponibilit&eacute;s r&eacute;duites, ne porte que correctifs, recette et livraison, aucun d&eacute;veloppement nouveau apr&egrave;s le 28/08.</p>
+  <div id="weeksList"></div>
+</section>
+
+<section class="jalons-section wrap">
+  <div class="eyebrow">Jalons</div>
+  <div id="jalonsList"></div>
+</section>
+
+<footer>
+  <div class="wrap">Les statuts (&eacute;coul&eacute;e, en cours, &agrave; venir) sont calcul&eacute;s automatiquement &agrave; partir de la date d'ouverture de la page. Ils indiquent la position dans le temps, pas l'avancement r&eacute;el des travaux, qui se pilote en point d'&eacute;quipe. Nayrod - SamSecure - document &eacute;tabli le 20/07/2026, mis &agrave; jour le 21/07/2026.</div>
+</footer>
+
+<script>
+(function(){
+  "use strict";
+  var D = function(y,m,d){ return new Date(y, m-1, d); };
+  var DAY = 86400000;
+
+  var PHASES = {
+    bdd:{label:"Base de donn\u00e9es",     css:"var(--bdd)"},
+    dev:{label:"Back et branchement",     css:"var(--api)"},
+    fix:{label:"Correctifs et recette",   css:"var(--front)"},
+    liv:{label:"Livraison",               css:"var(--liv)"}
+  };
+
+  var WEEKS = [
+    {id:"S30", start:D(2026,7,20),  end:D(2026,7,26), phase:"bdd",
+     objectif:"Base de donn\u00e9es + socle du back",
+     contenu:"D\u00e9cisions finales sur le mod\u00e8le de donn\u00e9es et classification des natures de donn\u00e9es, mise \u00e0 jour du r\u00e9f\u00e9rentiel, cr\u00e9ation et remplissage des bases, le tout en 2 \u00e0 3 jours. Dans la foul\u00e9e, socle du back : connexion aux bases et authentification.",
+     livrable:"Bases en place, socle du back d\u00e9marr\u00e9.", jalons:["J1"]},
+    {id:"S31", start:D(2026,7,27),  end:D(2026,8,2),  phase:"dev",
+     objectif:"Droits d'acc\u00e8s et module R\u00e9f\u00e9rentiels",
+     contenu:"D\u00e9finition de la matrice d'acc\u00e8s : natures de donn\u00e9es par groupe d'utilisateurs, avec droits de lecture et d'\u00e9criture. Les actions particuli\u00e8res (validation, g\u00e9n\u00e9ration de rapports, exports) restent g\u00e9r\u00e9es par des permissions d\u00e9di\u00e9es. Cette matrice pilote l'acc\u00e8s aux pages comme l'affichage des graphiques (complet, partiel ou masqu\u00e9). Configuration des utilisateurs, des profils et des droits, puis back et branchement des r\u00e9f\u00e9rentiels, recherche globale comprise.",
+     livrable:"Matrice d'acc\u00e8s d\u00e9finie et configur\u00e9e, R\u00e9f\u00e9rentiels branch\u00e9s.", jalons:[]},
+    {id:"S32", start:D(2026,8,3),   end:D(2026,8,9),  phase:"dev",
+     objectif:"Module Droits d'usage",
+     contenu:"Back et branchement : contrats, commandes, factures et preuves, avec le circuit de validation des saisies.",
+     livrable:"Droits d'usage branch\u00e9s.", jalons:["J2"]},
+    {id:"S33", start:D(2026,8,10),  end:D(2026,8,16), phase:"dev",
+     objectif:"Module D\u00e9ploiement",
+     contenu:"Back et branchement : licences, affectations, inventaire, conformit\u00e9, alertes et notifications. En parall\u00e8le, d\u00e9marrage de la pr\u00e9paration de l'environnement de production.",
+     livrable:"D\u00e9ploiement branch\u00e9.", jalons:[]},
+    {id:"S34", start:D(2026,8,17),  end:D(2026,8,23), phase:"dev",
+     objectif:"Budget et Rapports",
+     contenu:"Back et branchement des modules Budget et Rapports, derni\u00e8res fonctions transverses. Poursuite de la pr\u00e9paration de l'environnement de production.",
+     livrable:"Budget et Rapports branch\u00e9s.", jalons:[]},
+    {id:"S35", start:D(2026,8,24),  end:D(2026,8,30), phase:"dev",
+     objectif:"Bouclage : tout est pr\u00eat fin ao\u00fbt",
+     contenu:"Reprise des reliquats, passe compl\u00e8te de l'application en donn\u00e9es r\u00e9elles, premiers tests d'ensemble, sauvegardes. Environnement de production finalis\u00e9.",
+     livrable:"Application compl\u00e8te, environnement de production pr\u00eat.", jalons:["J3"]},
+    {id:"S36", start:D(2026,8,31),  end:D(2026,9,6),  phase:"fix",
+     objectif:"Correctifs, vague 1",
+     contenu:"Recette interne par profil, correction des anomalies au fil de l'eau, ajustements du front au besoin. Semaine all\u00e9g\u00e9e, disponibilit\u00e9s r\u00e9duites.",
+     livrable:"Premi\u00e8re vague d'anomalies trait\u00e9e.", jalons:[]},
+    {id:"S37", start:D(2026,9,7),   end:D(2026,9,13), phase:"fix",
+     objectif:"Correctifs, vague 2",
+     contenu:"Suite des corrections, consolidation, ajustements.",
+     livrable:"Version consolid\u00e9e.", jalons:[]},
+    {id:"S38", start:D(2026,9,14),  end:D(2026,9,20), phase:"fix",
+     objectif:"Recette g\u00e9n\u00e9rale",
+     contenu:"Recette compl\u00e8te de l'application, contr\u00f4le des droits et des affichages par groupe d'utilisateurs, d\u00e9ploiement \u00e0 blanc sur l'environnement de production, jeu de donn\u00e9es de d\u00e9monstration finalis\u00e9.",
+     livrable:"Version stabilis\u00e9e, pr\u00eate \u00e0 livrer.", jalons:["J4"]},
+    {id:"S39", start:D(2026,9,21),  end:D(2026,9,27), phase:"liv",
+     objectif:"Livraison",
+     contenu:"Derniers correctifs, d\u00e9ploiement final, recette client et d\u00e9monstration, guide d'acc\u00e8s \u00e0 jour.",
+     livrable:"v0.5 op\u00e9rationnelle le 25/09 (butoir).", jalons:["J5"]}
+  ];
+
+  var JALONS = [
+    {id:"J1", date:D(2026,7,24), label:"Bases de donn\u00e9es en place et remplies"},
+    {id:"J2", date:D(2026,8,7),  label:"Matrice d'acc\u00e8s configur\u00e9e, R\u00e9f\u00e9rentiels et Droits d'usage en donn\u00e9es r\u00e9elles"},
+    {id:"J3", date:D(2026,8,28), label:"Application compl\u00e8te, environnement de production pr\u00eat (fin du d\u00e9veloppement)"},
+    {id:"J4", date:D(2026,9,18), label:"Version stabilis\u00e9e, recette g\u00e9n\u00e9rale faite"},
+    {id:"J5", date:D(2026,9,25), label:"v0.5 op\u00e9rationnelle, valid\u00e9e par le client", final:true}
+  ];
+
+  var START  = WEEKS[0].start;
+  var RAILEND= new Date(WEEKS[WEEKS.length-1].end.getTime() + DAY); // fin S39 minuit
+  var BUTOIR = D(2026,9,25);
+
+  var now = new Date();
+  var today = D(now.getFullYear(), now.getMonth()+1, now.getDate());
+
+  var fmtLong  = new Intl.DateTimeFormat("fr-FR",{weekday:"long", day:"numeric", month:"long", year:"numeric"});
+  var fmtShort = new Intl.DateTimeFormat("fr-FR",{day:"2-digit", month:"2-digit"});
+  var fmtMini  = new Intl.DateTimeFormat("fr-FR",{day:"numeric", month:"short"});
+
+  function pos(date){ return Math.min(100, Math.max(0, (date - START) / (RAILEND - START) * 100)); }
+  function cap(s){ return s.charAt(0).toUpperCase() + s.slice(1); }
+  function daysBetween(a,b){ return Math.round((b - a)/DAY); }
+  function weekdaysUntil(from, to){
+    var n = 0, d = new Date(from.getTime() + DAY);
+    while(d <= to){ var w = d.getDay(); if(w !== 0 && w !== 6) n++; d = new Date(d.getTime() + DAY); }
+    return n;
+  }
+
+  /* ----- bandeau position ----- */
+  document.getElementById("todayDate").textContent = cap(fmtLong.format(today));
+
+  var currentWeek = null;
+  WEEKS.forEach(function(w){ if(today >= w.start && today <= w.end) currentWeek = w; });
+  var twEl = document.getElementById("todayWeek");
+  if(today < START){
+    twEl.textContent = "Avant le lancement du plan (d\u00e9but le 20/07)";
+  } else if(currentWeek){
+    var dayIdx = daysBetween(currentWeek.start, today) + 1;
+    twEl.textContent = "Semaine " + currentWeek.id + " - jour " + dayIdx + "/7 - " + PHASES[currentWeek.phase].label;
+  } else {
+    twEl.textContent = "Plan termin\u00e9 (butoir du 25/09 pass\u00e9)";
+  }
+
+  var totalToButoir = daysBetween(START, BUTOIR);
+  var elapsed = Math.min(totalToButoir, Math.max(0, daysBetween(START, today)));
+  var pct = Math.round(elapsed / totalToButoir * 100);
+  document.getElementById("cover").style.width = (100 - pct) + "%";
+  document.getElementById("elapsedTxt").textContent = pct + " % du calendrier \u00e9coul\u00e9 - jour " + elapsed + " sur " + totalToButoir;
+
+  var cdEl = document.getElementById("countdown");
+  var cdSub = document.getElementById("countdownSub");
+  var toButoir = daysBetween(today, BUTOIR);
+  if(toButoir > 0){
+    cdEl.textContent = "J-" + toButoir;
+    cdEl.style.color = toButoir <= 7 ? "var(--butoir)" : (toButoir <= 30 ? "var(--bdd)" : "var(--liv)");
+    cdSub.textContent = "soit " + weekdaysUntil(today, BUTOIR) + " jours ouvr\u00e9s avant le 25/09";
+  } else if(toButoir === 0){
+    cdEl.textContent = "Jour J";
+    cdEl.style.color = "var(--butoir)";
+    cdSub.textContent = "recette client et d\u00e9monstration aujourd'hui";
+  } else {
+    cdEl.textContent = "J+" + (-toButoir);
+    cdEl.style.color = "var(--muted)";
+    cdSub.textContent = "butoir du 25/09 pass\u00e9";
+  }
+
+  /* ----- ligne de temps ----- */
+  var band = document.getElementById("railBand");
+  var datesRow = document.getElementById("railDates");
+  WEEKS.forEach(function(w){
+    var b = document.createElement("button");
+    b.className = "seg";
+    b.style.setProperty("--segcol", PHASES[w.phase].css);
+    if(today > w.end) b.classList.add("past");
+    if(currentWeek && currentWeek.id === w.id) b.classList.add("current");
+    b.innerHTML = '<span class="lbl">' + w.id + '</span>';
+    b.title = w.id + " (" + fmtShort.format(w.start) + " - " + fmtShort.format(w.end) + ") : " + w.objectif;
+    b.addEventListener("click", function(){
+      var card = document.getElementById("card-" + w.id);
+      if(card){ card.scrollIntoView({behavior:"smooth", block:"center"}); }
+    });
+    band.appendChild(b);
+    var s = document.createElement("span");
+    s.textContent = fmtMini.format(w.start);
+    datesRow.appendChild(s);
+  });
+
+  var outer = document.getElementById("railOuter");
+
+  JALONS.forEach(function(j, i){
+    var el = document.createElement("div");
+    el.className = "jalon" + (i % 2 === 1 ? " lvl2" : "");
+    if(today > j.date) el.classList.add("done");
+    if(today.getTime() === j.date.getTime()) el.classList.add("today-j");
+    el.style.left = pos(new Date(j.date.getTime() + DAY/2)) + "%";
+    el.style.top = "26px";
+    el.title = j.id + " - " + fmtShort.format(j.date) + " : " + j.label;
+    el.innerHTML = '<div class="jl">' + j.id + '</div>' + (i % 2 === 1 ? '<div class="stem"></div>' : '') + '<div class="diamond"></div>';
+    outer.appendChild(el);
+  });
+
+  var flag = document.createElement("div");
+  flag.className = "flag";
+  flag.style.left = pos(new Date(BUTOIR.getTime() + DAY)) + "%";
+  flag.innerHTML = '<div class="fl">Butoir 25/09</div>';
+  outer.appendChild(flag);
+
+  if(today >= START && today <= RAILEND){
+    var cur = document.createElement("div");
+    cur.className = "cursor";
+    var p = pos(new Date(today.getTime() + DAY/2));
+    cur.style.left = p + "%";
+    if(p > 88) cur.classList.add("edge-r");
+    if(p < 12) cur.classList.add("edge-l");
+    cur.innerHTML = '<div class="pulse"></div><div class="pin"></div><div class="chip">Aujourd\u2019hui - ' + fmtShort.format(today) + '</div>';
+    outer.appendChild(cur);
+    requestAnimationFrame(function(){
+      var sc = document.getElementById("railScroll");
+      var target = outer.offsetWidth * p / 100 - sc.clientWidth / 2;
+      if(target > 0) sc.scrollLeft = target;
+    });
+  }
+
+  /* ----- cartes semaines ----- */
+  var list = document.getElementById("weeksList");
+  WEEKS.forEach(function(w){
+    var isPast = today > w.end;
+    var isNow = currentWeek && currentWeek.id === w.id;
+    var card = document.createElement("article");
+    card.className = "card" + (isPast ? " past" : "") + (isNow ? " current" : "");
+    card.id = "card-" + w.id;
+    card.style.setProperty("--segcol", PHASES[w.phase].css);
+
+    var statusHtml;
+    if(isNow){
+      statusHtml = '<span class="status now">En cours</span>';
+    } else if(isPast){
+      statusHtml = '<span class="status past-s">\u00c9coul\u00e9e</span>';
+    } else {
+      var dj = daysBetween(today, w.start);
+      statusHtml = '<span class="status">Dans ' + dj + ' j</span>';
+    }
+
+    var progHtml = "";
+    if(isNow){
+      var di = daysBetween(w.start, today) + 1;
+      progHtml = '<div class="wprog">jour ' + di + '/7<div class="bar"><i style="width:' + Math.round(di/7*100) + '%"></i></div></div>';
+    }
+
+    var jb = w.jalons.map(function(id){
+      var j = JALONS.find(function(x){ return x.id === id; });
+      return '<span class="chip jbadge">' + j.id + ' - ' + fmtShort.format(j.date) + '</span>';
+    }).join("");
+
+    card.innerHTML =
+      '<div class="side">' +
+        '<div><div class="sid">' + w.id + '</div>' +
+        '<div class="sdates">' + fmtShort.format(w.start) + ' - ' + fmtShort.format(w.end) + '</div></div>' +
+        statusHtml + progHtml +
+      '</div>' +
+      '<div class="main">' +
+        '<div class="meta"><span class="chip phase">' + PHASES[w.phase].label + '</span>' + jb + '</div>' +
+        '<h3>' + w.objectif + '</h3>' +
+        '<p>' + w.contenu + '</p>' +
+        '<div class="livrable"><b>Livrable</b>' + w.livrable + '</div>' +
+      '</div>';
+    list.appendChild(card);
+  });
+
+  document.getElementById("gotoNow").addEventListener("click", function(){
+    var target = currentWeek ? document.getElementById("card-" + currentWeek.id) : null;
+    if(!target){
+      target = today < START ? document.getElementById("card-S30") : document.getElementById("card-S39");
+    }
+    if(target) target.scrollIntoView({behavior:"smooth", block:"center"});
+  });
+
+  /* ----- jalons ----- */
+  var jl = document.getElementById("jalonsList");
+  var nextFound = false;
+  JALONS.forEach(function(j){
+    var row = document.createElement("div");
+    var done = today > j.date;
+    var isToday = today.getTime() === j.date.getTime();
+    var isNext = !done && !isToday && !nextFound;
+    if(isNext) nextFound = true;
+    row.className = "jrow" + (done ? " done" : "") + (isNext || isToday ? " next" : "");
+
+    var st;
+    if(done){
+      st = '<span class="jstate ok">pass\u00e9 (' + fmtShort.format(j.date) + ')</span>';
+    } else if(isToday){
+      st = '<span class="jstate soon">aujourd\u2019hui</span>';
+    } else {
+      var d = daysBetween(today, j.date);
+      st = '<span class="jstate' + (j.final ? " final" : (d <= 7 ? " soon" : "")) + '">dans ' + d + ' j</span>';
+    }
+
+    row.innerHTML =
+      '<div class="jid">' + j.id + '</div>' +
+      '<div class="jdate">' + cap(fmtMini.format(j.date)) + ' 2026</div>' +
+      '<div class="jlabel">' + j.label + (j.final ? ' <span style="color:var(--butoir);font-family:var(--mono);font-size:11px">(butoir)</span>' : '') + '</div>' +
+      st;
+    jl.appendChild(row);
+  });
+})();
+</script>
+</body>
+</html>

@@ -2,7 +2,8 @@
 import { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Pencil, Trash2 } from 'lucide-react';
-import { mockDocuments, getContrat, getCommande } from '../../data/mockContrats';
+import { mockDocuments, getCommande } from '../../data/mockContrats';
+import useContratsRef from '../../hooks/useContratsRef';
 import Breadcrumb from '../ui/Breadcrumb';
 import Button from '../ui/Button';
 import ConfirmModal from '../ui/ConfirmModal';
@@ -36,7 +37,8 @@ export default function DocumentDetailPage() {
       </div>
     );
   }
-
+  
+  const { getContrat } = useContratsRef();
   const contrat = doc.id_contrat ? getContrat(doc.id_contrat) : null;
   const commande = doc.id_commande ? getCommande(doc.id_commande) : null;
 

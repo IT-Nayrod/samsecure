@@ -25,14 +25,16 @@ export function matches(regex, value) {
   return regex.test(String(value));
 }
 
-// Interroge l'ensemble du registre pour une requete donnee, filtre par profil actif.
+// Interroge l'ensemble du registre pour une requete donnee, filtre par les
+// permissions reelles de l'utilisateur (une entree sans `permission` est
+// visible par tous).
 // Retourne un tableau de groupes { entry, items, total } (total >= items.length si limite atteinte).
-export function runSearch(registry, query, profil, limit = 5) {
+export function runSearch(registry, query, hasPermission, limit = 5) {
   if (!query || query.trim().length < 2) return [];
   const regex = buildSearchRegex(query.trim());
 
   return registry
-    .filter(entry => !entry.profiles || entry.profiles.includes(profil))
+    .filter(entry => !entry.permission || hasPermission(entry.permission))
     .map(entry => {
       const data = entry.getData();
       const found = data.filter(item => entry.fields(item).some(value => matches(regex, value)));

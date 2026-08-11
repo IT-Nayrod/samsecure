@@ -5,8 +5,9 @@ import Button from '../ui/Button';
 import FormField from '../ui/FormField';
 import DocumentUploadField from './DocumentUploadField';
 import { validateRequired } from '../../utils/validation';
-import { mockContrats, mockCommandes, mockTypesPreuve } from '../../data/mockContrats';
+import { mockCommandes, mockTypesPreuve } from '../../data/mockContrats';
 import { loadDraft, saveDraft, clearDraft } from '../../utils/formDraft';
+import useContratsRef from '../../hooks/useContratsRef';
 
 const INPUT_CLS = 'w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white';
 
@@ -19,6 +20,7 @@ export default function DocumentFormModal({ isOpen, onClose, onSave, doc }) {
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [draftRestaure, setDraftRestaure] = useState(false);
+  const { contrats } = useContratsRef();
 
   useEffect(() => {
     if (!isOpen) return;
@@ -119,7 +121,7 @@ export default function DocumentFormModal({ isOpen, onClose, onSave, doc }) {
           <FormField label="Contrat lie" hint="Optionnel" error={errors.liaison}>
             <select className={INPUT_CLS} value={form.id_contrat} onChange={e => { setForm(v => ({ ...v, id_contrat: e.target.value })); setErrors(v => ({ ...v, liaison: null })); }}>
               <option value="">Aucun</option>
-              {mockContrats.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+              {contrats.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
             </select>
           </FormField>
           <FormField label="Commande liee" hint="Optionnelle">

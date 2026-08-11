@@ -4,8 +4,9 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Wallet, Hash, RefreshCw, TrendingUp, X } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import {
-  mockCommandes as initialCommandes, getContrat, getSocieteLabelContrat, getRevendeurLabelCommande, getEcheanceCommande,
+  mockCommandes as initialCommandes, getSocieteLabelContrat, getRevendeurLabelCommande, getEcheanceCommande,
 } from '../../data/mockContrats';
+import useContratsRef from '../../hooks/useContratsRef';
 import { mockSocietes, mockRevendeurs } from '../../data/mockReferentiels';
 import { mockLicences } from '../../data/mockDeploiement';
 import { mockBudgets } from '../../data/mockBudgets';
@@ -41,6 +42,7 @@ export default function CommandesPage() {
   const contratParam = searchParams.get('contrat');
   const [formModal, setFormModal] = useState({ open: false, commande: null });
   const societeActive = filterSociete || societeParam || null;
+  const { getContrat } = useContratsRef();
 
   function toggleKpi(kpi) {
     setActiveKpi(prev => prev === kpi ? null : kpi);

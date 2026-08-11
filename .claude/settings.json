@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "defaultMode": "plan",
+    "deny": [
+      "Edit",
+      "Write"
+    ]
+  },
+  "useAutoModeDuringPlan": false
+}

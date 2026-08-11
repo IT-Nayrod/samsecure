@@ -1,15 +1,19 @@
-// ContratFormModal - creation / edition d'un contrat
+// ContratFormModal - creation / edition d'un contrat, branche sur l'API.
+// Les messages d'erreur affiches sont ceux renvoyes par le serveur, jamais des
+// messages reconstruits ici.
 import { useState, useEffect } from 'react';
 import SlideOver from '../ui/SlideOver';
 import Button from '../ui/Button';
 import FormField from '../ui/FormField';
-import { validateRequired } from '../../utils/validation';
-import { mockEditeurs, mockSocietes } from '../../data/mockReferentiels';
+import { contratsService } from '../../services/contratsService';
 import { loadDraft, saveDraft, clearDraft } from '../../utils/formDraft';
+import { useToast } from '../../hooks/useToast';
 
 const INPUT_CLS = 'w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white';
 
-// Un contrat ne peut pas etre son propre ancetre : on retire le contrat edite et tous ses descendants des options de parent
+// Un contrat ne peut pas etre son propre ancetre : on retire le contrat edite et
+// tous ses descendants des options de parent. Le serveur refait ce controle
+// (WITH RECURSIVE), c'est ici un simple confort de saisie.
 function getDescendantIds(contrats, rootId) {
   const ids = new Set();
   let frontier = [rootId];
@@ -22,39 +26,51 @@ function getDescendantIds(contrats, rootId) {
 }
 
 const EMPTY_FORM = {
-  label: '', numero: '', type: 'simple', id_editeur: '', id_societe: '', id_contrat_parent: '',
-  date_debut: '', date_fin: '', a_renouveler: false, preavis_resiliation_jours: '',
+  label: '', id_type_contrat: '', id_editeur: '', id_societe: '', id_revendeur: '',
+  id_contrat_parent: '', date_debut: '', date_fin: '', a_renouveler: false, duree_resiliation: '',
 };
 
-export default function ContratFormModal({ isOpen, onClose, onSave, contrat, existingContrats }) {
+export default function ContratFormModal({
+  isOpen, onClose, onSaved, contrat,
+  contrats = [], typesContrat = [], editeurs = [], societes = [], revendeurs = [],
+}) {
   const isEdit = !!contrat;
   const draftKey = `contrat:${contrat?.id ?? 'new'}`;
+  const { addToast } = useToast();
   const [form, setForm] = useState(EMPTY_FORM);
-  const [errors, setErrors] = useState({});
+  const [erreurApi, setErreurApi] = useState(null);
   const [loading, setLoading] = useState(false);
   const [draftRestaure, setDraftRestaure] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
+    setErreurApi(null);
     const draft = loadDraft(draftKey);
     if (draft) {
       setForm(draft);
       setDraftRestaure(true);
-      setErrors({});
       return;
     }
     if (contrat) {
       setForm({
-        label: contrat.label, numero: contrat.numero ?? '', type: contrat.type, id_editeur: contrat.id_editeur ?? '',
-        id_societe: contrat.id_societe ?? '', id_contrat_parent: contrat.id_contrat_parent ?? '',
-        date_debut: contrat.date_debut ?? '', date_fin: contrat.date_fin ?? '',
-        a_renouveler: contrat.a_renouveler, preavis_resiliation_jours: contrat.preavis_resiliation_jours ?? '',
+        label: contrat.label ?? '',
+        id_type_contrat: contrat.id_type_contrat ?? '',
+        id_editeur: contrat.id_editeur ?? '',
+        id_societe: contrat.id_societe ?? '',
+        id_revendeur: contrat.id_revendeur ?? '',
+        id_contrat_parent: contrat.id_contrat_parent ?? '',
+        date_debut: contrat.date_debut ?? '',
+        date_fin: contrat.date_fin ?? '',
+        a_renouveler: !!contrat.a_renouveler,
+        duree_resiliation: contrat.duree_resiliation ?? '',
       });
     } else {
-      setForm(EMPTY_FORM);
+      // Type par defaut : le premier propose, pour ne pas soumettre un formulaire
+      // qui echouerait sur un champ obligatoire cote serveur.
+      setForm({ ...EMPTY_FORM, id_type_contrat: typesContrat[0]?.id ?? '' });
     }
     setDraftRestaure(false);
-    setErrors({});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contrat, isOpen, draftKey]);
 
   useEffect(() => {
@@ -62,37 +78,39 @@ export default function ContratFormModal({ isOpen, onClose, onSave, contrat, exi
     saveDraft(draftKey, form);
   }, [form, isOpen, draftKey]);
 
-  function validate() {
-    const e = {};
-    const labelErr = validateRequired(form.label, 'Le label');
-    if (labelErr) e.label = labelErr;
-    if (!form.id_editeur) e.id_editeur = 'L\'editeur est requis';
-    if (!form.id_societe) e.id_societe = 'La societe est requise';
-    if (form.date_fin && form.date_debut && form.date_fin < form.date_debut) {
-      e.date_fin = 'La date de fin doit etre posterieure a la date de debut';
-    }
-    return e;
-  }
-
   async function handleSave() {
-    const e = validate();
-    if (Object.keys(e).length) { setErrors(e); return; }
     setLoading(true);
-    await new Promise(r => setTimeout(r, 400));
-    setLoading(false);
-    onSave({
-      ...form,
-      id_contrat_parent: form.id_contrat_parent || null,
-      date_fin: form.date_fin || null,
-      preavis_resiliation_jours: form.preavis_resiliation_jours ? Number(form.preavis_resiliation_jours) : null,
-    }, contrat);
-    clearDraft(draftKey);
-    onClose();
+    setErreurApi(null);
+    const payload = {
+      label: form.label,
+      id_type_contrat: form.id_type_contrat,
+      id_editeur: form.id_editeur,
+      id_societe: form.id_societe,
+      id_revendeur: form.id_revendeur,
+      id_contrat_parent: form.id_contrat_parent,
+      date_debut: form.date_debut,
+      date_fin: form.date_fin,
+      a_renouveler: form.a_renouveler,
+      duree_resiliation: form.duree_resiliation,
+    };
+    try {
+      if (isEdit) await contratsService.update(contrat.id, payload);
+      else await contratsService.create(payload);
+      clearDraft(draftKey);
+      addToast({ type: 'success', message: isEdit ? 'Contrat mis a jour.' : 'Contrat cree.' });
+      await onSaved?.();
+      onClose();
+    } catch (err) {
+      setErreurApi(err.message);
+    } finally {
+      setLoading(false);
+    }
   }
 
-  const isValid = !Object.values(validate()).some(Boolean);
-  const excludedIds = contrat ? getDescendantIds(existingContrats, contrat.id) : new Set();
-  const parentOptions = existingContrats.filter(c => c.type === 'cadre' && c.id !== contrat?.id && !excludedIds.has(c.id));
+  const excludedIds = contrat ? getDescendantIds(contrats, contrat.id) : new Set();
+  // L'API accepte un parent non cadre et trace une anomalie qualite. Le
+  // formulaire ne le propose pas : l'anomalie ne couvre que les cas herites des imports.
+  const parentOptions = contrats.filter(c => c.type_code === 'cadre' && c.id !== contrat?.id && !excludedIds.has(c.id));
 
   return (
     <SlideOver
@@ -103,46 +121,52 @@ export default function ContratFormModal({ isOpen, onClose, onSave, contrat, exi
       banner={draftRestaure && (
         <p className="text-xs text-blue-700 dark:text-blue-300 flex items-center justify-between gap-2">
           Brouillon restaure depuis votre derniere saisie.
-          <button onClick={() => { clearDraft(draftKey); setForm(contrat ? form : EMPTY_FORM); setDraftRestaure(false); }} className="underline hover:no-underline flex-shrink-0">Vider le brouillon</button>
+          <button onClick={() => { clearDraft(draftKey); setForm(EMPTY_FORM); setDraftRestaure(false); }} className="underline hover:no-underline flex-shrink-0">Vider le brouillon</button>
         </p>
       )}
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>Annuler</Button>
-          <Button variant="primary" onClick={handleSave} isLoading={loading} disabled={!isValid}>Enregistrer</Button>
+          <Button variant="primary" onClick={handleSave} isLoading={loading}>Enregistrer</Button>
         </>
       }
     >
       <div className="flex flex-col gap-4">
-        <FormField label="Label" required error={errors.label}>
-          <input className={INPUT_CLS} value={form.label} onChange={e => { setForm(v => ({ ...v, label: e.target.value })); setErrors(v => ({ ...v, label: null })); }} />
+        {erreurApi && (
+          <p className="text-sm text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/40 rounded-lg px-3 py-2">
+            {erreurApi}
+          </p>
+        )}
+        <FormField label="Label" required>
+          <input className={INPUT_CLS} value={form.label} onChange={e => setForm(v => ({ ...v, label: e.target.value }))} />
+        </FormField>
+        <FormField label="Type de contrat" required>
+          <select className={INPUT_CLS} value={form.id_type_contrat} onChange={e => setForm(v => ({ ...v, id_type_contrat: e.target.value }))}>
+            <option value="">Choisir...</option>
+            {typesContrat.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+          </select>
+        </FormField>
+        <FormField label="Editeur" hint="Optionnel">
+          <select className={INPUT_CLS} value={form.id_editeur} onChange={e => setForm(v => ({ ...v, id_editeur: e.target.value }))}>
+            <option value="">Aucun</option>
+            {editeurs.map(ed => <option key={ed.id} value={ed.id}>{ed.raison_sociale}</option>)}
+          </select>
         </FormField>
         <div className="grid grid-cols-2 gap-4">
-          <FormField label="Numero" hint="Optionnel">
-            <input className={INPUT_CLS} value={form.numero} onChange={e => setForm(v => ({ ...v, numero: e.target.value }))} />
+          <FormField label="Societe signataire" hint="Signataire client">
+            <select className={INPUT_CLS} value={form.id_societe} onChange={e => setForm(v => ({ ...v, id_societe: e.target.value }))}>
+              <option value="">Aucune</option>
+              {societes.map(s => <option key={s.id} value={s.id}>{s.raison_sociale}</option>)}
+            </select>
           </FormField>
-          <FormField label="Type">
-            <select className={INPUT_CLS} value={form.type} onChange={e => setForm(v => ({ ...v, type: e.target.value }))}>
-              <option value="simple">Simple</option>
-              <option value="cadre">Cadre</option>
+          <FormField label="Revendeur signataire" hint="Optionnel">
+            <select className={INPUT_CLS} value={form.id_revendeur} onChange={e => setForm(v => ({ ...v, id_revendeur: e.target.value }))}>
+              <option value="">Aucun</option>
+              {revendeurs.map(r => <option key={r.id} value={r.id}>{r.raison_sociale}</option>)}
             </select>
           </FormField>
         </div>
-        <div className="grid grid-cols-2 gap-4">
-          <FormField label="Editeur" required error={errors.id_editeur}>
-            <select className={INPUT_CLS} value={form.id_editeur} onChange={e => { setForm(v => ({ ...v, id_editeur: e.target.value })); setErrors(v => ({ ...v, id_editeur: null })); }}>
-              <option value="">Choisir...</option>
-              {mockEditeurs.map(ed => <option key={ed.id} value={ed.id}>{ed.raison_sociale}</option>)}
-            </select>
-          </FormField>
-          <FormField label="Societe" required error={errors.id_societe}>
-            <select className={INPUT_CLS} value={form.id_societe} onChange={e => { setForm(v => ({ ...v, id_societe: e.target.value })); setErrors(v => ({ ...v, id_societe: null })); }}>
-              <option value="">Choisir...</option>
-              {mockSocietes.map(s => <option key={s.id} value={s.id}>{s.raison_sociale}</option>)}
-            </select>
-          </FormField>
-        </div>
-        <FormField label="Contrat cadre parent" hint="Optionnel">
+        <FormField label="Contrat cadre parent" hint="Optionnel, seuls les contrats de type cadre sont proposes">
           <select className={INPUT_CLS} value={form.id_contrat_parent} onChange={e => setForm(v => ({ ...v, id_contrat_parent: e.target.value }))}>
             <option value="">Aucun</option>
             {parentOptions.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
@@ -152,13 +176,13 @@ export default function ContratFormModal({ isOpen, onClose, onSave, contrat, exi
           <FormField label="Date de debut">
             <input type="date" className={INPUT_CLS} value={form.date_debut} onChange={e => setForm(v => ({ ...v, date_debut: e.target.value }))} />
           </FormField>
-          <FormField label="Date de fin" error={errors.date_fin} hint="Optionnelle (perpetuel si vide)">
-            <input type="date" className={INPUT_CLS} value={form.date_fin} onChange={e => { setForm(v => ({ ...v, date_fin: e.target.value })); setErrors(v => ({ ...v, date_fin: null })); }} />
+          <FormField label="Date de fin" hint="Optionnelle (perpetuel si vide)">
+            <input type="date" className={INPUT_CLS} value={form.date_fin} onChange={e => setForm(v => ({ ...v, date_fin: e.target.value }))} />
           </FormField>
         </div>
         <div className="grid grid-cols-2 gap-4 items-end">
           <FormField label="Preavis de resiliation (jours)" hint="Optionnel">
-            <input type="number" min={0} className={INPUT_CLS} value={form.preavis_resiliation_jours} onChange={e => setForm(v => ({ ...v, preavis_resiliation_jours: e.target.value }))} />
+            <input type="number" min={0} className={INPUT_CLS} value={form.duree_resiliation} onChange={e => setForm(v => ({ ...v, duree_resiliation: e.target.value }))} />
           </FormField>
           <FormField label="A renouveler">
             <label className="flex items-center gap-3 pt-1 cursor-pointer">
