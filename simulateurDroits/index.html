@@ -762,7 +762,9 @@ const api = {
       body: JSON.stringify(payload),
     });
   },
-  deleteUtilisateur(id) { return apiFetch(`/utilisateurs/${encodeURIComponent(id)}`, { method: "DELETE" }); },
+  // La suppression d'utilisateur n'existe plus cote API (migration 022) :
+  // le retrait d'un compte est une desactivation, reversible.
+  desactiverUtilisateur(id) { return apiFetch(`/utilisateurs/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify({ actif: false }) }); },
   getUtilisateurSocietes(userId) {
     return apiFetch(`/utilisateurs/${encodeURIComponent(userId)}/societes`);
   },
@@ -2083,7 +2085,7 @@ window.toggleProfilPermission = async function (profilId, permId, accorde) {
     delete state.profilPermissions[profilId]; renderMatriceDroits(); toast("Droit mis à jour");
   } catch (e) { alert(e.message); }
 };
-window.supprimerUtilisateur = async function (id) { if (!confirm("Supprimer cet utilisateur ?")) return; try { const uDel = state.utilisateurs.find(x => x.id === id); await api.deleteUtilisateur(id); pushAdminLog(`Utilisateur "${uDel?.prenom || ''} ${uDel?.nom || ''}" supprimé`); toast("Utilisateur supprimé"); await init(); } catch (e) { alert(e.message); } };
+window.supprimerUtilisateur = async function (id) { if (!confirm("Désactiver cet utilisateur ? Le compte reste visible et pourra être réactivé.")) return; try { const uDel = state.utilisateurs.find(x => x.id === id); await api.desactiverUtilisateur(id); pushAdminLog(`Utilisateur "${uDel?.prenom || ''} ${uDel?.nom || ''}" désactivé`); toast("Utilisateur désactivé"); await init(); } catch (e) { alert(e.message); } };
 window.supprimerProfil = async function (id) {
   try {
     const impact = await api.getProfilImpact(id);
