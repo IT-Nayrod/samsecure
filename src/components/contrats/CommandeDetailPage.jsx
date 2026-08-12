@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Pencil, Trash2, XCircle } from 'lucide-react';
 import { commandesService, modesCommandeService } from '../../services/commandesService';
+import { optionnel } from '../../services/http';
 import { contratsService, referentielsContratsService } from '../../services/contratsService';
 import { societesService } from '../../services/adminService';
 import Breadcrumb from '../ui/Breadcrumb';
@@ -28,7 +29,7 @@ export default function CommandeDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { addToast } = useToast();
-  const { canWrite, canDelete } = useRbac();
+  const { canWrite, canDelete, canValidate } = useRbac({ write: 'saisir_commande', validate: 'valider_saisie' });
 
   const [commande, setCommande] = useState(null);
   const [contrats, setContrats] = useState([]);
@@ -37,6 +38,7 @@ export default function CommandeDetailPage() {
   const [modes, setModes] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [errorStatus, setErrorStatus] = useState(null);
   const [introuvable, setIntrouvable] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -44,20 +46,22 @@ export default function CommandeDetailPage() {
   const load = useCallback(async () => {
     setIsLoading(true);
     setError(null);
+    setErrorStatus(null);
     setIntrouvable(false);
     try {
+      // Seule la fiche est indispensable, le reste alimente le formulaire.
       const [k, c, s, r, m] = await Promise.all([
         commandesService.get(id),
-        contratsService.list(),
-        societesService.list(),
-        referentielsContratsService.revendeurs(),
-        modesCommandeService.list(),
+        optionnel(contratsService.list()),
+        optionnel(societesService.list()),
+        optionnel(referentielsContratsService.revendeurs()),
+        optionnel(modesCommandeService.list()),
       ]);
       setCommande(k); setContrats(c); setSocietes(s); setRevendeurs(r); setModes(m);
     } catch (err) {
       // 404 : la commande n'existe pas ou vient d'etre supprimee, pas une panne.
       if (err.status === 404) setIntrouvable(true);
-      else { setError(err.message); addToast({ type: 'error', message: err.message }); }
+      else { setError(err.message); setErrorStatus(err.status); addToast({ type: 'error', message: err.message }); }
     } finally {
       setIsLoading(false);
     }
@@ -108,7 +112,7 @@ export default function CommandeDetailPage() {
       <div className="flex flex-col gap-6">
         {fil}
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
-          <ErrorState message={error} onRetry={load} />
+          <ErrorState message={error} status={errorStatus} onRetry={load} />
         </div>
       </div>
     );
@@ -129,11 +133,11 @@ export default function CommandeDetailPage() {
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <ValidationActions
+          {canValidate && <ValidationActions
             statut={commande.statut_validation}
             onValidate={() => valider('commande', commande.id)}
             onRefuse={motif => refuser('commande', commande.id, motif)}
-          />
+          />}
           {canWrite && (
             <Button variant="secondary" size="sm" onClick={() => setFormOpen(true)}><Pencil size={14} /> Editer</Button>
           )}

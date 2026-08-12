@@ -10,6 +10,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Receipt, FileCheck, AlertTriangle, X } from 'lucide-react';
 import { preuvesService, facturesService, typesPreuveService, manquesService } from '../../services/documentsService';
 import { contratsService } from '../../services/contratsService';
+import { optionnel } from '../../services/http';
 import { commandesService } from '../../services/commandesService';
 import DataTable from '../ui/DataTable';
 import Button from '../ui/Button';
@@ -32,7 +33,7 @@ import { appliquerStatut } from '../../services/validationService';
 export default function FacturesPage() {
   const navigate = useNavigate();
   const { addToast } = useToast();
-  const { canWrite } = useRbac();
+  const { canWrite, canValidate } = useRbac({ write: 'deposer_facture_preuve', validate: 'valider_saisie' });
 
   const [preuves, setPreuves] = useState([]);
   const [factures, setFactures] = useState([]);
@@ -42,6 +43,7 @@ export default function FacturesPage() {
   const [commandes, setCommandes] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [errorStatus, setErrorStatus] = useState(null);
 
   const [filterType, setFilterType] = useState('');
   const [filterTypePreuve, setFilterTypePreuve] = useState('');
@@ -63,24 +65,29 @@ export default function FacturesPage() {
   const load = useCallback(async () => {
     setIsLoading(true);
     setError(null);
+    setErrorStatus(null);
     const filtres = {
       idTypePreuve: filterTypePreuve || undefined,
       idContrat: contratActif || undefined,
       idCommande: commandeActive || undefined,
     };
     try {
+      // Preuves et factures sont les deux ressources de l'ecran. La detection
+      // des manques, les types et les listes de rattachement sont accessoires :
+      // leur refus retire une section ou un filtre, pas la page.
       const [p, f, m, t, c, k] = await Promise.all([
         preuvesService.list(filtres),
         facturesService.list(filtres),
-        manquesService.list({ idContrat: contratActif || undefined }),
-        typesPreuveService.list(),
-        contratsService.list(),
-        commandesService.list(),
+        optionnel(manquesService.list({ idContrat: contratActif || undefined }), null),
+        optionnel(typesPreuveService.list()),
+        optionnel(contratsService.list()),
+        optionnel(commandesService.list()),
       ]);
       setPreuves(p); setFactures(f); setManques(m);
       setTypesPreuve(t); setContrats(c); setCommandes(k);
     } catch (err) {
       setError(err.message);
+      setErrorStatus(err.status);
     } finally {
       setIsLoading(false);
     }
@@ -157,7 +164,7 @@ export default function FacturesPage() {
       csvValue: r => [r.statut_validation_label, r.message_refus].filter(Boolean).join(' - '),
       render: r => <ValidationCell statut={r.statut_validation} motif={r.message_refus} /> },
     { key: 'actions_validation', label: '', csvValue: () => '',
-      render: r => (
+      render: r => canValidate && (
         <ValidationActions
           statut={r.statut_validation}
           onValidate={() => valider(r.ressource, r.id)}
@@ -181,7 +188,7 @@ export default function FacturesPage() {
       <div className="flex flex-col gap-6">
         <Breadcrumb items={[{ label: 'Droits d\'usage' }, { label: 'Factures & Preuves' }]} />
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
-          <ErrorState message={error} onRetry={load} />
+          <ErrorState message={error} status={errorStatus} onRetry={load} />
         </div>
       </div>
     );

@@ -5,6 +5,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Pencil, Trash2, ChevronDown, XCircle } from 'lucide-react';
 import BudgetEmbeddedSection from '../budget/BudgetEmbeddedSection';
 import { contratsService, referentielsContratsService } from '../../services/contratsService';
+import { optionnel } from '../../services/http';
 import { societesService } from '../../services/adminService';
 import Breadcrumb from '../ui/Breadcrumb';
 import Button from '../ui/Button';
@@ -26,7 +27,7 @@ export default function ContratDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { addToast } = useToast();
-  const { canWrite, canDelete } = useRbac();
+  const { canWrite, canDelete, canValidate } = useRbac({ write: 'saisir_contrat', validate: 'valider_saisie' });
 
   const [contrat, setContrat] = useState(null);
   const [contrats, setContrats] = useState([]);
@@ -36,6 +37,7 @@ export default function ContratDetailPage() {
   const [revendeurs, setRevendeurs] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [errorStatus, setErrorStatus] = useState(null);
   const [introuvable, setIntrouvable] = useState(false);
 
   const [formOpen, setFormOpen] = useState(false);
@@ -45,15 +47,18 @@ export default function ContratDetailPage() {
   const load = useCallback(async () => {
     setIsLoading(true);
     setError(null);
+    setErrorStatus(null);
     setIntrouvable(false);
     try {
+      // Seule la fiche est indispensable. La liste sert aux sous-contrats, les
+      // referentiels au formulaire d'edition.
       const [c, tous, t, e, s, r] = await Promise.all([
         contratsService.get(id),
-        contratsService.list(),
-        referentielsContratsService.typesContrat(),
-        referentielsContratsService.editeurs(),
-        societesService.list(),
-        referentielsContratsService.revendeurs(),
+        optionnel(contratsService.list()),
+        optionnel(referentielsContratsService.typesContrat()),
+        optionnel(referentielsContratsService.editeurs()),
+        optionnel(societesService.list()),
+        optionnel(referentielsContratsService.revendeurs()),
       ]);
       setContrat(c);
       setContrats(tous);
@@ -64,7 +69,7 @@ export default function ContratDetailPage() {
     } catch (err) {
       // 404 : le contrat n'existe pas ou vient d'etre supprime, ce n'est pas une panne.
       if (err.status === 404) setIntrouvable(true);
-      else { setError(err.message); addToast({ type: 'error', message: err.message }); }
+      else { setError(err.message); setErrorStatus(err.status); addToast({ type: 'error', message: err.message }); }
     } finally {
       setIsLoading(false);
     }
@@ -124,7 +129,7 @@ export default function ContratDetailPage() {
       <div className="flex flex-col gap-6">
         {fil}
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
-          <ErrorState message={error} onRetry={load} />
+          <ErrorState message={error} status={errorStatus} onRetry={load} />
         </div>
       </div>
     );
@@ -147,11 +152,11 @@ export default function ContratDetailPage() {
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <ValidationActions
+          {canValidate && <ValidationActions
             statut={contrat.statut_validation}
             onValidate={() => valider('contrat', contrat.id)}
             onRefuse={motif => refuser('contrat', contrat.id, motif)}
-          />
+          />}
           {canWrite && (
             <Button variant="secondary" size="sm" onClick={() => setFormOpen(true)}>
               <Pencil size={14} /> Editer
