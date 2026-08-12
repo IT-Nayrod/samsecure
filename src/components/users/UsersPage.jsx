@@ -29,6 +29,15 @@ function computeStatus(u) {
   return { label: 'Actif', variant: 'success' };
 }
 
+// Inactif au sens du serveur : le login et le calcul des droits refusent un
+// compte a actif = false comme un compte dont l'echeance est depassee. L'ecran
+// doit dire exactement la meme chose, sans quoi il montrerait comme actif un
+// compte que l'API refuse.
+function estInactif(u) {
+  const today = new Date().toISOString().slice(0, 10);
+  return !u.actif || (u.date_finale && u.date_finale < today);
+}
+
 export default function UsersPage() {
   const { addToast } = useToast();
   const [users, setUsers] = useState([]);
@@ -39,7 +48,7 @@ export default function UsersPage() {
   const [groupDiffusions, setGroupDiffusions] = useState({}); // { groupId: [id_societe|null] }
   const [isLoading, setIsLoading] = useState(true);
 
-  const [filterStatut, setFilterStatut] = useState('');
+  const [filterStatut, setFilterStatut] = useState('actifs');
   const [searchParams] = useSearchParams();
   const [search, setSearch] = useState(searchParams.get('q') ?? '');
   const debouncedSearch = useDebounce(search, 300);
@@ -95,7 +104,10 @@ export default function UsersPage() {
   const filtered = useMemo(() => {
     return users.filter((u) => {
       const status = computeStatus(u);
-      if (filterStatut && status.label !== filterStatut) return false;
+      if (filterStatut === 'actifs'   && estInactif(u)) return false;
+      if (filterStatut === 'inactifs' && !estInactif(u)) return false;
+      // Les autres valeurs restent un filtrage fin par libelle de statut.
+      if (filterStatut && !['actifs', 'inactifs', 'tous'].includes(filterStatut) && status.label !== filterStatut) return false;
       if (debouncedSearch) {
         const q = debouncedSearch.toLowerCase();
         if (!`${u.prenom} ${u.nom} ${u.email}`.toLowerCase().includes(q)) return false;
@@ -239,11 +251,13 @@ export default function UsersPage() {
 
       <div className="flex flex-wrap gap-3 bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
         <select value={filterStatut} onChange={e => setFilterStatut(e.target.value)} className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-          <option value="">Tous les statuts</option>
-          <option value="Actif">Actif</option>
-          <option value="Désactivé">Désactivé</option>
-          <option value="Mise en fonction à venir">Mise en fonction à venir</option>
-          <option value="Fin programmée">Fin programmée</option>
+          <option value="actifs">Utilisateurs actifs</option>
+          <option value="inactifs">Utilisateurs inactifs</option>
+          <option value="tous">Tous les utilisateurs</option>
+          <optgroup label="Par statut">
+            <option value="Mise en fonction à venir">Mise en fonction à venir</option>
+            <option value="Fin programmée">Fin programmée</option>
+          </optgroup>
         </select>
         <input
           type="text"
@@ -255,7 +269,16 @@ export default function UsersPage() {
       </div>
 
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-        <DataTable columns={columns} data={filtered} filename="utilisateurs" isLoading={isLoading} emptyState={{ message: 'Aucun utilisateur ne correspond aux filtres.' }} />
+        <DataTable columns={columns} data={filtered} filename="utilisateurs" isLoading={isLoading} emptyState={{ message: 'Aucun utilisateur ne correspond aux filtres.' }} rowClassName={r => estInactif(r)
+          // L'attenuation porte sur les cellules et non sur la ligne :
+          // opacity sur le <tr> s'appliquerait aussi aux boutons d'action, et
+          // aucun enfant ne peut la contrarier, la propriete creant un
+          // contexte d'empilement. La derniere cellule, celle des actions, est
+          // donc exclue pour que les trois boutons restent nets et se lisent
+          // comme utilisables. Le fond colore reste porte par la ligne, il
+          // n'est pas concerne par l'opacite des cellules.
+          ? '[&>td:not(:last-child)]:opacity-60 bg-[rgb(255_0_0_/_10%)]'
+          : ''} />
       </div>
 
       <UserFormModal
