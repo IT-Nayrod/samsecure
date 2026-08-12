@@ -1,5 +1,8 @@
 import express from "express";
 import { tenantPool } from "../db.js";
+import {
+  jointureStatut, COLONNES_STATUT, soumettre, purgerValidations,
+} from "../utils/validationWorkflow.js";
 
 const router = express.Router();
 
@@ -45,12 +48,14 @@ const SELECT_COMMANDE = `
          ${STATUT_ECHEANCE},
          CASE WHEN c.date_fin IS NULL THEN NULL
               ELSE (c.date_fin - CURRENT_DATE) END AS jours_restants,
-         c.created_at, c.updated_at
+         c.created_at, c.updated_at,
+         ${COLONNES_STATUT}
   FROM commande c
   LEFT JOIN contrat       ct ON ct.id = c.id_contrat
   LEFT JOIN societe       s  ON s.id  = c.id_societe
   LEFT JOIN revendeur     r  ON r.id  = c.id_revendeur
-  LEFT JOIN mode_commande mc ON mc.id = c.id_mode_commande`;
+  LEFT JOIN mode_commande mc ON mc.id = c.id_mode_commande
+  ${jointureStatut("commande", "c")}`;
 
 const CHAMPS = [
   "label", "numero_devis", "reference_interne", "id_contrat", "id_societe",
@@ -392,6 +397,10 @@ router.post("/commandes", async (req, res) => {
        corps.date_commande, corps.date_fin, corps.a_renouveler]
     );
 
+    // Toute saisie part en attente de validation, dans la meme transaction que
+    // l'ecriture metier.
+    await soumettre(client, "commande", creee.id, req.user?.id);
+
     await log(client, "CREATE", "commande", creee.id, `Creation de la commande "${label}"`, corps);
     await client.query("COMMIT");
 
@@ -461,6 +470,9 @@ router.patch("/commandes/:id", async (req, res) => {
        corps.date_commande, corps.date_fin, corps.a_renouveler, id]
     );
 
+    // Une modification est une saisie : retour en attente, motif de refus efface.
+    await soumettre(client, "commande", id, req.user?.id);
+
     await log(client, "UPDATE", "commande", id, `Modification de la commande "${label}"`, patch);
     await client.query("COMMIT");
 
@@ -519,6 +531,9 @@ router.delete("/commandes/:id", async (req, res) => {
       });
     }
 
+    // workflow_validation.entite_id est polymorphe et sans FK : nettoyage
+    // applicatif, dans la meme transaction que la suppression.
+    await purgerValidations(client, "commande", id);
     await client.query(`DELETE FROM commande WHERE id = $1`, [id]);
     await log(client, "DELETE", "commande", id, `Suppression de la commande "${existant[0].label}"`, null);
     await client.query("COMMIT");

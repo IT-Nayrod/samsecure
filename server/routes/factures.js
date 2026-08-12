@@ -3,6 +3,9 @@ import { tenantPool } from "../db.js";
 import {
   recevoirUnFichier, erreurReception, validerFichier, ecrireFichier, supprimerFichier,
 } from "../utils/stockagePreuves.js";
+import {
+  jointureStatut, COLONNES_STATUT, soumettre, purgerValidations,
+} from "../utils/validationWorkflow.js";
 
 const router = express.Router();
 
@@ -33,12 +36,14 @@ const SELECT_FACTURE = `
          cm.id_contrat, ct.label AS contrat_label,
          f.id_preuve,   pr.label AS preuve_label, pr.url_fichier AS preuve_url_fichier,
          pr.id_type_preuve AS preuve_id_type_preuve, tp.label AS preuve_type_label,
-         f.created_at
+         f.created_at,
+         ${COLONNES_STATUT}
   FROM facture f
   LEFT JOIN commande    cm ON cm.id = f.id_commande
   LEFT JOIN contrat     ct ON ct.id = cm.id_contrat
   LEFT JOIN preuve      pr ON pr.id = f.id_preuve
-  LEFT JOIN type_preuve tp ON tp.id = pr.id_type_preuve`;
+  LEFT JOIN type_preuve tp ON tp.id = pr.id_type_preuve
+  ${jointureStatut("facture", "f")}`;
 
 // Ordre identique aux $n de l'INSERT et de l'UPDATE.
 const CHAMPS = ["label", "id_commande", "id_preuve"];
@@ -215,6 +220,11 @@ async function deposerFacture(req, res) {
       `INSERT INTO facture (label, id_commande, id_preuve) VALUES ($1, $2, $3) RETURNING id`,
       [label, idCommande, preuve.id]);
 
+    // Deux saisies distinctes du point de vue du workflow, bien qu'elles
+    // naissent dans la meme transaction : chacune se valide pour son compte.
+    await soumettre(client, "preuve", preuve.id, req.user?.id);
+    await soumettre(client, "facture", facture.id, req.user?.id);
+
     await audit(client, req, "DEPOT_FICHIER", "preuve", preuve.id,
       { url_fichier: ecrit.nomPhysique, hash_sha256: ecrit.hash, nom_origine: ecrit.nomOrigine,
         taille: req.file.size, id_facture: facture.id });
@@ -300,6 +310,10 @@ router.post("/factures", async (req, res) => {
       [label, corps.id_commande, corps.id_preuve]
     );
 
+    // Toute saisie part en attente de validation, dans la meme transaction que
+    // l'ecriture metier.
+    await soumettre(client, "facture", creee.id, req.user?.id);
+
     await log(client, "CREATE", "facture", creee.id, `Creation de la facture "${label}"`, corps);
     await client.query("COMMIT");
 
@@ -357,6 +371,9 @@ router.patch("/factures/:id", async (req, res) => {
       [label, corps.id_commande, corps.id_preuve, id]
     );
 
+    // Une modification est une saisie : retour en attente, motif de refus efface.
+    await soumettre(client, "facture", id, req.user?.id);
+
     await log(client, "UPDATE", "facture", id, `Modification de la facture "${label}"`, patch);
     await client.query("COMMIT");
 
@@ -395,6 +412,9 @@ router.delete("/factures/:id", async (req, res) => {
     // Aucun garde-fou de suppression : dans le DDL v4, aucune table ne
     // reference facture. La preuve liee n'est pas supprimee, elle survit a sa
     // facture et redevient une preuve libre.
+    // workflow_validation.entite_id est polymorphe et sans FK : nettoyage
+    // applicatif, dans la meme transaction que la suppression.
+    await purgerValidations(client, "facture", id);
     await client.query(`DELETE FROM facture WHERE id = $1`, [id]);
     await log(client, "DELETE", "facture", id, `Suppression de la facture "${existant[0].label}"`, null);
     await client.query("COMMIT");
