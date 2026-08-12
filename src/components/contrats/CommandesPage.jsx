@@ -22,6 +22,10 @@ import useRbac from '../../hooks/useRbac';
 import { useToast } from '../../hooks/useToast';
 import { formatDate } from '../../utils/dateUtils';
 import { toIsoDate, debutExerciceDepuisDate } from '../../utils/fiscalPeriod';
+import ValidationCell from '../referentiels/ValidationCell';
+import ValidationActions from '../referentiels/ValidationActions';
+import useValidation from '../../hooks/useValidation';
+import { appliquerStatut } from '../../services/validationService';
 
 const euros = (v) => `${(v ?? 0).toLocaleString('fr-FR')} €`;
 
@@ -99,6 +103,13 @@ export default function CommandesPage() {
     await loadAgregats();
   }, [loadReferentiel, loadAgregats]);
 
+  // Ni loadReferentiel ni loadAgregats : le statut de validation n'entre dans
+  // aucun agregat financier, seule la ligne concernee change.
+  const appliquer = useCallback(reponse => {
+    setCommandes(prev => prev.map(k => k.id === reponse.entite_id ? appliquerStatut(k, reponse) : k));
+  }, []);
+  const { valider, refuser } = useValidation(appliquer);
+
   // L'exercice fiscal vient de la societe filtree, a defaut l'annee civile :
   // il n'existe pas d'endpoint sur tenant_config pour un defaut de tenant.
   const debutExercice = useMemo(() => {
@@ -168,6 +179,17 @@ export default function CommandesPage() {
           </div>
         : <span className="text-gray-400">-</span>
     ) },
+    { key: 'statut_validation', label: 'Validation', sortable: true,
+      csvValue: r => [r.statut_validation_label, r.message_refus].filter(Boolean).join(' - '),
+      render: r => <ValidationCell statut={r.statut_validation} motif={r.message_refus} /> },
+    { key: 'actions_validation', label: '', csvValue: () => '',
+      render: r => (
+        <ValidationActions
+          statut={r.statut_validation}
+          onValidate={() => valider('commande', r.id)}
+          onRefuse={motif => refuser('commande', r.id, motif)}
+        />
+      ) },
   ];
 
   const enTete = (
