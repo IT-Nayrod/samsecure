@@ -2,7 +2,7 @@
 // Donnees API. La suppression s'appuie sur le refus du serveur, pas sur un garde-fou local.
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Pencil, Trash2 } from 'lucide-react';
+import { Pencil, Trash2, XCircle } from 'lucide-react';
 import { commandesService, modesCommandeService } from '../../services/commandesService';
 import { contratsService, referentielsContratsService } from '../../services/contratsService';
 import { societesService } from '../../services/adminService';
@@ -17,6 +17,10 @@ import CommandeFormModal from './CommandeFormModal';
 import useRbac from '../../hooks/useRbac';
 import { useToast } from '../../hooks/useToast';
 import { formatDate } from '../../utils/dateUtils';
+import StatutValidationBadge from '../referentiels/StatutValidationBadge';
+import ValidationActions from '../referentiels/ValidationActions';
+import useValidation from '../../hooks/useValidation';
+import { appliquerStatut } from '../../services/validationService';
 
 const euros = (v) => `${(v ?? 0).toLocaleString('fr-FR')} €`;
 
@@ -61,6 +65,9 @@ export default function CommandeDetailPage() {
   }, [id]);
 
   useEffect(() => { load(); }, [load]);
+
+  const appliquer = useCallback(reponse => setCommande(k => appliquerStatut(k, reponse)), []);
+  const { valider, refuser } = useValidation(appliquer);
 
   async function handleDelete() {
     try {
@@ -115,12 +122,18 @@ export default function CommandeDetailPage() {
           <div className="flex items-center gap-2 flex-wrap">
             <h1 className="text-xl font-semibold text-gray-900 dark:text-white">{commande.label}</h1>
             {(commande.a_renouveler || commande.date_fin) && <StatutEcheanceBadge statut={commande.statut_echeance} />}
+            <StatutValidationBadge statut={commande.statut_validation} />
           </div>
           <p className="text-sm text-gray-500 mt-1">
             {commande.societe_label ?? '-'}{commande.revendeur_label ? ` - ${commande.revendeur_label}` : ''}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          <ValidationActions
+            statut={commande.statut_validation}
+            onValidate={() => valider('commande', commande.id)}
+            onRefuse={motif => refuser('commande', commande.id, motif)}
+          />
           {canWrite && (
             <Button variant="secondary" size="sm" onClick={() => setFormOpen(true)}><Pencil size={14} /> Editer</Button>
           )}
@@ -129,6 +142,16 @@ export default function CommandeDetailPage() {
           )}
         </div>
       </div>
+
+      {commande.statut_validation === 'refuse' && commande.message_refus && (
+        <div className="flex items-start gap-2 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+          <XCircle size={16} className="text-red-600 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-red-800 dark:text-red-300">Saisie refusee</p>
+            <p className="text-sm text-red-700 dark:text-red-400 mt-0.5">{commande.message_refus}</p>
+          </div>
+        </div>
+      )}
 
       <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
         <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Origine</h2>
