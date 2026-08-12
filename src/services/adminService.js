@@ -43,7 +43,6 @@ export const usersService = {
   list: () => http.get('/utilisateurs'),
   create: (payload) => http.post('/utilisateurs', payload),
   update: (id, payload) => http.patch(`/utilisateurs/${id}`, payload),
-  remove: (id) => http.delete(`/utilisateurs/${id}`),
   listSocietes: (id) =>
     http.get(`/utilisateurs/${id}/societes`).then((rows) =>
       rows.map((r) => ({ id: r.id, id_utilisateur: r.idutilisateur, id_societe: r.idsociete }))

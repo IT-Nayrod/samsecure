@@ -17,6 +17,8 @@ export default function DataTable({
   renderCard,
   cardsClassName = 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4',
   onRowClick,
+  // Style conditionnel par ligne, ex. griser une ligne inactive.
+  rowClassName,
 }) {
   const [sortKey, setSortKey] = useState(null);
   const [sortDir, setSortDir] = useState('asc');
@@ -181,7 +183,7 @@ export default function DataTable({
                       onClick={onRowClick ? () => onRowClick(row) : undefined}
                       onKeyDown={onRowClick ? (e) => { if (e.key === 'Enter') onRowClick(row); } : undefined}
                       tabIndex={onRowClick ? 0 : undefined}
-                      className={`hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors ${selected.has(id) ? 'bg-blue-50/40' : ''} ${onRowClick ? 'cursor-pointer' : ''}`}
+                      className={`hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors ${selected.has(id) ? 'bg-blue-50/40' : ''} ${onRowClick ? 'cursor-pointer' : ''} ${rowClassName ? rowClassName(row) : ''}`}
                     >
                       <td className="px-4 py-3" onClick={onRowClick ? e => e.stopPropagation() : undefined}>
                         <input type="checkbox" checked={selected.has(id)} onChange={() => toggleRow(id)} className="rounded border-gray-300" />

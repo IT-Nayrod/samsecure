@@ -1,11 +1,11 @@
 // UsersPage - administration des utilisateurs réels (données API, plus de mocks)
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Pencil, UserX, UserCheck, Trash2, UserPlus, Eye } from 'lucide-react';
+import { Pencil, UserX, UserCheck, UserPlus, Eye } from 'lucide-react';
 import DataTable from '../ui/DataTable';
 import Badge from '../ui/Badge';
 import Button from '../ui/Button';
-import ConfirmModal from '../ui/ConfirmModal';
+import DesactivationModal from './DesactivationModal';
 import ProfileBadge from './ProfileBadge';
 import DroitsViewer from '../admin/DroitsViewer';
 import UserFormModal from './UserFormModal';
@@ -15,13 +15,27 @@ import useDebounce from '../../hooks/useDebounce';
 import { usersService, societesService, groupsService, attributionsService } from '../../services/adminService';
 import { attribuerGroupe } from '../../utils/attributionScope';
 
+// Le statut Supprime n'existe plus : depuis la migration 022, le retrait d'un
+// compte est une desactivation. Un utilisateur retire reste dans la liste,
+// porte le statut Desactive et se reactive d'un clic.
 function computeStatus(u) {
   const today = new Date().toISOString().slice(0, 10);
-  if (u.date_suppression) return { label: 'Supprimé', variant: 'error' };
   if (!u.actif) return { label: 'Désactivé', variant: 'neutral' };
+  // Une echeance depassee vaut desactivation : le login et le calcul des droits
+  // la refusent deja, l'ecran doit dire la meme chose.
+  if (u.date_finale && u.date_finale < today) return { label: 'Désactivé (échéance)', variant: 'neutral' };
   if (u.date_mise_en_fonction && u.date_mise_en_fonction > today) return { label: 'Mise en fonction à venir', variant: 'warning' };
   if (u.date_finale) return { label: 'Fin programmée', variant: 'warning' };
   return { label: 'Actif', variant: 'success' };
+}
+
+// Inactif au sens du serveur : le login et le calcul des droits refusent un
+// compte a actif = false comme un compte dont l'echeance est depassee. L'ecran
+// doit dire exactement la meme chose, sans quoi il montrerait comme actif un
+// compte que l'API refuse.
+function estInactif(u) {
+  const today = new Date().toISOString().slice(0, 10);
+  return !u.actif || (u.date_finale && u.date_finale < today);
 }
 
 export default function UsersPage() {
@@ -34,13 +48,13 @@ export default function UsersPage() {
   const [groupDiffusions, setGroupDiffusions] = useState({}); // { groupId: [id_societe|null] }
   const [isLoading, setIsLoading] = useState(true);
 
-  const [filterStatut, setFilterStatut] = useState('');
+  const [filterStatut, setFilterStatut] = useState('actifs');
   const [searchParams] = useSearchParams();
   const [search, setSearch] = useState(searchParams.get('q') ?? '');
   const debouncedSearch = useDebounce(search, 300);
   const [formModal, setFormModal] = useState({ open: false, user: null });
   const [droitsModal, setDroitsModal] = useState(null);
-  const [confirm, setConfirm] = useState({ open: false, title: '', message: '', action: null, destructive: false });
+  const [desactivation, setDesactivation] = useState(null);
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -90,7 +104,10 @@ export default function UsersPage() {
   const filtered = useMemo(() => {
     return users.filter((u) => {
       const status = computeStatus(u);
-      if (filterStatut && status.label !== filterStatut) return false;
+      if (filterStatut === 'actifs'   && estInactif(u)) return false;
+      if (filterStatut === 'inactifs' && !estInactif(u)) return false;
+      // Les autres valeurs restent un filtrage fin par libelle de statut.
+      if (filterStatut && !['actifs', 'inactifs', 'tous'].includes(filterStatut) && status.label !== filterStatut) return false;
       if (debouncedSearch) {
         const q = debouncedSearch.toLowerCase();
         if (!`${u.prenom} ${u.nom} ${u.email}`.toLowerCase().includes(q)) return false;
@@ -98,10 +115,6 @@ export default function UsersPage() {
       return true;
     });
   }, [users, filterStatut, debouncedSearch]);
-
-  function openConfirm(title, message, action, destructive = false) {
-    setConfirm({ open: true, title, message, action, destructive });
-  }
 
   async function handleSubmit(payload, nouvellesSocietes, impactees = [], additions = []) {
     let userId = formModal.user?.id;
@@ -157,23 +170,31 @@ export default function UsersPage() {
     await load();
   }
 
-  async function handleToggleActif(u) {
+  // Reactivation : actif = true ne suffit pas, une echeance depassee continuerait
+  // de bloquer la connexion. Elle est effacee dans le meme geste.
+  async function handleReactiver(u) {
     try {
-      await usersService.update(u.id, { actif: !u.actif });
-      addToast({ type: u.actif ? 'info' : 'success', message: u.actif ? 'Utilisateur désactivé.' : 'Utilisateur réactivé.' });
+      await usersService.update(u.id, { actif: true, date_finale: null });
+      addToast({ type: 'success', message: 'Utilisateur réactivé.' });
       await load();
     } catch (err) {
       addToast({ type: 'error', message: err.message });
     }
   }
 
-  async function handleDelete(u) {
+  async function handleDesactiver(payload) {
     try {
-      await usersService.remove(u.id);
-      addToast({ type: 'success', message: 'Utilisateur supprimé.' });
+      await usersService.update(desactivation.id, payload);
+      addToast({
+        type: 'info',
+        message: payload.actif === false
+          ? 'Utilisateur désactivé.'
+          : `Désactivation programmée au ${formatDate(payload.date_finale)}.`,
+      });
       await load();
     } catch (err) {
       addToast({ type: 'error', message: err.message });
+      throw err;
     }
   }
 
@@ -185,31 +206,32 @@ export default function UsersPage() {
     ) },
     { key: 'rattachement', label: 'Rattachement', render: r => <span className="text-xs text-gray-500">{societesLabel(r.id)}</span> },
     { key: 'statut', label: 'Statut', sortable: true, render: r => { const s = computeStatus(r); return <Badge variant={s.variant} label={s.label} />; } },
-    { key: 'date_mise_en_fonction', label: 'Mise en fonction', render: r => formatDate(r.date_mise_en_fonction), csvValue: r => formatDate(r.date_mise_en_fonction) },
+    { key: 'date_mise_en_fonction', label: 'Mise en fonction', sortable: true,
+      render: r => formatDate(r.date_mise_en_fonction) || '-',
+      csvValue: r => formatDate(r.date_mise_en_fonction) },
+    { key: 'date_finale', label: 'Date de désactivation', sortable: true,
+      // Le tri porte sur la valeur brute, au format ISO : son ordre
+      // lexicographique est deja chronologique. Trier sur le rendu JJ/MM/AAAA
+      // classerait par jour du mois.
+      render: r => formatDate(r.date_finale) || '-',
+      csvValue: r => formatDate(r.date_finale) },
     {
       key: 'actions', label: 'Actions', render: r => (
         <div className="flex items-center gap-1">
           <button onClick={() => setDroitsModal(r)} aria-label="Voir les droits" className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-blue-700 transition-colors">
             <Eye size={14} />
           </button>
-          {!r.date_suppression && (
-            <button onClick={() => setFormModal({ open: true, user: r })} aria-label="Modifier" className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors">
-              <Pencil size={14} />
-            </button>
-          )}
-          {!r.date_suppression && (r.actif
-            ? <button onClick={() => openConfirm('Désactiver l\'utilisateur', `Désactiver ${r.prenom} ${r.nom} ?`, () => handleToggleActif(r))} aria-label="Désactiver" className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-orange-600 transition-colors">
+          <button onClick={() => setFormModal({ open: true, user: r })} aria-label="Modifier" className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors">
+            <Pencil size={14} />
+          </button>
+          {r.actif
+            ? <button onClick={() => setDesactivation(r)} aria-label="Désactiver" className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-orange-600 transition-colors">
                 <UserX size={14} />
               </button>
-            : <button onClick={() => handleToggleActif(r)} aria-label="Réactiver" className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-green-600 transition-colors">
+            : <button onClick={() => handleReactiver(r)} aria-label="Réactiver" className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-green-600 transition-colors">
                 <UserCheck size={14} />
               </button>
-          )}
-          {!r.date_suppression && (
-            <button onClick={() => openConfirm('Supprimer l\'utilisateur', `Supprimer ${r.prenom} ${r.nom} ? Cette action est réversible en base (soft delete) mais l'utilisateur ne pourra plus se connecter.`, () => handleDelete(r), true)} aria-label="Supprimer" className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-red-600 transition-colors">
-              <Trash2 size={14} />
-            </button>
-          )}
+          }
         </div>
       ),
     },
@@ -229,11 +251,13 @@ export default function UsersPage() {
 
       <div className="flex flex-wrap gap-3 bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
         <select value={filterStatut} onChange={e => setFilterStatut(e.target.value)} className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-          <option value="">Tous les statuts</option>
-          <option value="Actif">Actif</option>
-          <option value="Désactivé">Désactivé</option>
-          <option value="Mise en fonction à venir">Mise en fonction à venir</option>
-          <option value="Fin programmée">Fin programmée</option>
+          <option value="actifs">Utilisateurs actifs</option>
+          <option value="inactifs">Utilisateurs inactifs</option>
+          <option value="tous">Tous les utilisateurs</option>
+          <optgroup label="Par statut">
+            <option value="Mise en fonction à venir">Mise en fonction à venir</option>
+            <option value="Fin programmée">Fin programmée</option>
+          </optgroup>
         </select>
         <input
           type="text"
@@ -245,7 +269,16 @@ export default function UsersPage() {
       </div>
 
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-        <DataTable columns={columns} data={filtered} filename="utilisateurs" isLoading={isLoading} emptyState={{ message: 'Aucun utilisateur ne correspond aux filtres.' }} />
+        <DataTable columns={columns} data={filtered} filename="utilisateurs" isLoading={isLoading} emptyState={{ message: 'Aucun utilisateur ne correspond aux filtres.' }} rowClassName={r => estInactif(r)
+          // L'attenuation porte sur les cellules et non sur la ligne :
+          // opacity sur le <tr> s'appliquerait aussi aux boutons d'action, et
+          // aucun enfant ne peut la contrarier, la propriete creant un
+          // contexte d'empilement. La derniere cellule, celle des actions, est
+          // donc exclue pour que les trois boutons restent nets et se lisent
+          // comme utilisables. Le fond colore reste porte par la ligne, il
+          // n'est pas concerne par l'opacite des cellules.
+          ? '[&>td:not(:last-child)]:opacity-60 bg-[rgb(255_0_0_/_10%)]'
+          : ''} />
       </div>
 
       <UserFormModal
@@ -271,15 +304,13 @@ export default function UsersPage() {
         />
       )}
 
-      <ConfirmModal
-        isOpen={confirm.open}
-        onClose={() => setConfirm(v => ({ ...v, open: false }))}
-        onConfirm={confirm.action ?? (() => {})}
-        title={confirm.title}
-        message={confirm.message}
-        isDestructive={confirm.destructive}
-        confirmLabel={confirm.destructive ? 'Supprimer' : 'Confirmer'}
+      <DesactivationModal
+        isOpen={!!desactivation}
+        utilisateur={desactivation}
+        onClose={() => setDesactivation(null)}
+        onConfirm={handleDesactiver}
       />
+
     </div>
   );
 }

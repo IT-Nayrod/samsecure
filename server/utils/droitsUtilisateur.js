@@ -13,14 +13,14 @@ import { tenantPool } from "../db.js";
 export async function permissionsEffectives(idUtilisateur) {
   const aujourdhui = new Date().toISOString().slice(0, 10);
 
-  // Un compte supprime ou hors de sa periode d'activite n'a aucun droit, meme
-  // porteur d'un jeton encore valide. Sans ce controle, un utilisateur
-  // desactive conserve ses permissions jusqu'a l'expiration de son jeton, et
-  // le soft delete ne protege rien. Meme condition que la route
-  // /utilisateurs/:id/droits-effectifs.
+  // Un compte desactive ou hors de sa periode d'activite n'a aucun droit, meme
+  // porteur d'un jeton encore valide. Sans ce controle, un utilisateur retire
+  // conserve ses permissions jusqu'a l'expiration de son jeton.
+  // actif = false est le seul etat de retrait : la colonne date_suppression a
+  // ete supprimee par la migration 023.
   const { rows: actif } = await tenantPool.query(
     `SELECT 1 FROM utilisateur
-      WHERE id = $1 AND date_suppression IS NULL
+      WHERE id = $1 AND actif = true
         AND (date_finale            IS NULL OR date_finale            >= CURRENT_DATE)
         AND (date_mise_en_fonction  IS NULL OR date_mise_en_fonction  <= CURRENT_DATE)`,
     [idUtilisateur]

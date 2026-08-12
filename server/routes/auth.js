@@ -61,7 +61,7 @@ router.post("/login", async (req, res) => {
   }
   try {
     const { rows } = await tenantPool.query(
-      `SELECT id, nom, prenom, email, mot_de_passe_hash, date_suppression, date_finale, date_mise_en_fonction
+      `SELECT id, nom, prenom, email, mot_de_passe_hash, actif, date_finale, date_mise_en_fonction
        FROM utilisateur WHERE email = $1`,
       [email.toLowerCase().trim()]
     );
@@ -70,7 +70,10 @@ router.post("/login", async (req, res) => {
       await log("LOGIN_FAILED", null, `Échec de connexion : compte inconnu (${email})`);
       return res.status(401).json({ error: "Identifiants incorrects." });
     }
-    if (user.date_suppression) {
+    // actif = false est le seul etat de retrait d'un compte : la suppression
+    // logique a ete abandonnee (migration 023, colonne date_suppression
+    // supprimee). Un compte retire reste visible et reactivable.
+    if (!user.actif) {
       await log("LOGIN_FAILED", user.id, `Échec de connexion : compte désactivé (${user.email})`, user.id);
       return res.status(403).json({ error: "Ce compte a été désactivé." });
     }
@@ -121,7 +124,7 @@ router.post("/refresh", async (req, res) => {
   try {
     const { rows } = await tenantPool.query(
       `SELECT s.id, s.id_utilisateur, s.refresh_token_hash, s.expires_at, s.revoked,
-              u.email, u.date_suppression
+              u.email, u.actif
        FROM session_token s
        JOIN utilisateur u ON u.id = s.id_utilisateur
        WHERE s.id = $1`,
@@ -134,7 +137,10 @@ router.post("/refresh", async (req, res) => {
     if (session.refresh_token_hash !== hashToken(refreshToken)) {
       return res.status(401).json({ error: "Jeton invalide." });
     }
-    if (session.date_suppression) {
+    // Sans ce controle, un compte desactive renouvellerait son jeton d'acces
+    // indefiniment : la desactivation ne prendrait effet qu'a l'expiration du
+    // jeton de rafraichissement, sept jours plus tard.
+    if (!session.actif) {
       return res.status(403).json({ error: "Ce compte a été désactivé." });
     }
 
@@ -171,12 +177,12 @@ router.post("/logout", async (req, res) => {
 router.get("/me", authMiddleware, async (req, res) => {
   try {
     const { rows } = await tenantPool.query(
-      `SELECT id, nom, prenom, email, langue, actif, date_suppression
+      `SELECT id, nom, prenom, email, langue, actif
        FROM utilisateur WHERE id = $1`,
       [req.user.id]
     );
     const user = rows[0];
-    if (!user || user.date_suppression) {
+    if (!user || !user.actif) {
       return res.status(403).json({ error: "Ce compte a été désactivé." });
     }
     const { rows: rattachement } = await tenantPool.query(
@@ -184,7 +190,6 @@ router.get("/me", authMiddleware, async (req, res) => {
        FROM utilisateur_societe WHERE id_utilisateur = $1 AND date_suppression IS NULL`,
       [req.user.id]
     );
-    delete user.date_suppression;
     res.json({
       ...user,
       isTenantScope: rattachement.some((r) => r.idsociete === null),
