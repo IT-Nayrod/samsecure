@@ -1,16 +1,16 @@
 // TenantSettingsPage - Section 5 Specs UX v0.5
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { mockTenant } from '../../data/mockSettings';
-import { mockSocietes } from '../../data/mockReferentiels';
 import DataTable from '../ui/DataTable';
 import Badge from '../ui/Badge';
 import Button from '../ui/Button';
 import Modal from '../ui/Modal';
 import FormField from '../ui/FormField';
+import { societesService } from '../../services/adminService';
 
-const TABS = ['Informations client', 'Sociétés', 'Configuration', 'Connecteurs'];
+const TABS = ['Informations client', 'Organisations', 'Configuration', 'Connecteurs'];
 const CONNECTEURS = ['Lansweeper', 'GLPI', 'Active Directory', 'SCCM', 'Intune', 'Ivanti'];
 
 function InfoTab() {
@@ -32,25 +32,32 @@ function InfoTab() {
   );
 }
 
-function SocietesTab() {
+function OrganisationsTab() {
+  const [organisations, setOrganisations] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    societesService.list().then(setOrganisations).finally(() => setIsLoading(false));
+  }, []);
+
   const columns = [
     { key: 'raison_sociale', label: 'Raison sociale', sortable: true },
     { key: 'siret', label: 'SIRET' },
-    { key: 'societe_parent_id', label: 'Société parente', render: r => mockSocietes.find(s => s.id === r.societe_parent_id)?.raison_sociale ?? '-' },
-    { key: 'duree_amortissement', label: 'Durée amort.', render: r => `${r.duree_amortissement} mois` },
-    { key: 'delai_revalidation', label: 'Délai revalid.', render: r => `${r.delai_revalidation} jours` },
+    { key: 'id_societe_parent', label: 'Organisation parente', render: r => organisations.find(o => o.id === r.id_societe_parent)?.raison_sociale ?? '-' },
+    { key: 'duree_amortissement', label: 'Durée amort.', render: r => r.duree_amortissement ? `${r.duree_amortissement} mois` : '-' },
+    { key: 'delai_revalidation', label: 'Délai revalid.', render: r => r.delai_revalidation ? `${r.delai_revalidation} jours` : '-' },
     { key: 'actif', label: 'Statut', render: r => <Badge variant={r.actif ? 'success' : 'neutral'} label={r.actif ? 'Active' : 'Inactive'} /> },
   ];
 
   return (
     <div className="flex flex-col gap-4">
       <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
-        <p className="text-sm text-blue-700 dark:text-blue-400">La création et l'édition des sociétés se font désormais depuis Administration &gt; Organisation.</p>
+        <p className="text-sm text-blue-700 dark:text-blue-400">La création et l'édition des organisations se font désormais depuis Administration &gt; Organisation.</p>
         <Link to="/referentiels/organisation">
-          <Button variant="secondary" size="sm">Gérer les sociétés <ArrowRight size={14} /></Button>
+          <Button variant="secondary" size="sm">Gérer les organisations <ArrowRight size={14} /></Button>
         </Link>
       </div>
-      <DataTable columns={columns} data={mockSocietes} filename="societes" emptyState={{ message: 'Aucune société.' }} />
+      <DataTable columns={columns} data={organisations} isLoading={isLoading} filename="organisations" emptyState={{ message: 'Aucune organisation.' }} />
     </div>
   );
 }
@@ -133,7 +140,7 @@ export default function TenantSettingsPage() {
         </nav>
         <div className="flex-1 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
           {tab === 0 && <InfoTab />}
-          {tab === 1 && <SocietesTab />}
+          {tab === 1 && <OrganisationsTab />}
           {tab === 2 && <ConfigTab />}
           {tab === 3 && <ConnecteursTab />}
         </div>

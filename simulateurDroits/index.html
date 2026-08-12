@@ -1,0 +1,2208 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SamSecure - Simulateur de droits (RBAC)</title>
+<style>
+  :root{
+    --navy:#101a36;
+    --navy-2:#1b2a52;
+    --blue:#3d6fb4;
+    --blue-ink:#2a5691;
+    --blue-soft:#e3ecf7;
+    --blue-border:#c3d5eb;
+    --amber:#e8963a;
+    --amber-ink:#9a5c14;
+    --amber-soft:#fdf1de;
+    --amber-border:#f0d3a8;
+    --green:#1f7a4d;
+    --green-soft:#e2f2e9;
+    --green-border:#bfe0cf;
+    --red:#b23c2e;
+    --red-soft:#f9e6e2;
+    --red-border:#ecc7c0;
+    --ink:#1c2333;
+    --muted:#5b6478;
+    --bg:#f4f5f8;
+    --card:#ffffff;
+    --line:#dfe3ec;
+    --hover:#f7f9fc;
+    --mono:"Cascadia Mono","SFMono-Regular",ui-monospace,Consolas,"Liberation Mono",monospace;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    font-size:14px;
+    line-height:1.45;
+  }
+
+  /* ---------- Bandeau ---------- */
+  .topbar{
+    background:var(--navy);
+    color:#fff;
+    border-bottom:3px solid;
+    border-image:linear-gradient(90deg, var(--blue), var(--amber)) 1;
+  }
+  .topbar-inner{
+    max-width:1240px; margin:0 auto; padding:14px 20px;
+    display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;
+  }
+  .brand{ display:flex; align-items:baseline; gap:14px; flex-wrap:wrap; }
+  .brand-mark{
+    font-family:var(--mono); font-weight:700; letter-spacing:.22em; font-size:16px;
+  }
+  .brand-sub{ color:#c9d3ea; font-size:13px; }
+  .pill{
+    display:inline-flex; align-items:center; gap:6px;
+    font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
+    padding:4px 12px; border-radius:999px;
+  }
+  .pill-mock{ background:var(--amber); color:#3a2405; }
+
+  /* ---------- Layout ---------- */
+  .layout{
+    max-width:1240px; margin:22px auto 40px; padding:0 20px;
+    display:grid; grid-template-columns:330px 1fr; gap:18px; align-items:start;
+  }
+  @media (max-width: 940px){ .layout{ grid-template-columns:1fr; } }
+
+  .card{
+    background:var(--card); border:1px solid var(--line); border-radius:10px;
+    padding:16px; margin-bottom:16px;
+  }
+  .card h2{
+    margin:0 0 12px; font-size:11px; font-weight:700; letter-spacing:.12em;
+    text-transform:uppercase; color:var(--muted);
+  }
+
+  /* ---------- Sélecteurs ---------- */
+  .field{ display:block; margin-bottom:12px; }
+  .field span{ display:block; font-size:12px; font-weight:600; color:var(--muted); margin-bottom:5px; }
+  select{
+    width:100%; padding:8px 10px; border:1px solid var(--line); border-radius:8px;
+    background:#fff; color:var(--ink); font-size:13.5px; font-family:inherit;
+  }
+  select:focus{ outline:2px solid var(--blue-border); outline-offset:1px; }
+
+  /* ---------- Bandeaux d'information ---------- */
+  .banner{
+    border-radius:8px; padding:10px 12px; font-size:12.5px; margin-bottom:12px;
+  }
+  .banner:last-child{ margin-bottom:0; }
+  .banner-sim{
+    background:var(--amber-soft); border:1px solid var(--amber-border);
+    border-left:4px solid var(--amber); color:var(--amber-ink);
+  }
+  .banner-info{
+    background:var(--blue-soft); border:1px solid var(--blue-border);
+    border-left:4px solid var(--blue); color:var(--blue-ink);
+  }
+  .banner button{
+    margin-top:6px; display:inline-block;
+    background:none; border:none; padding:0; cursor:pointer;
+    color:inherit; font-size:12.5px; font-weight:700; text-decoration:underline; font-family:inherit;
+  }
+  .hidden{ display:none !important; }
+
+  /* ---------- Fiche utilisateur ---------- */
+  .user-head{ display:flex; align-items:center; gap:12px; margin-bottom:12px; }
+  .avatar{
+    width:42px; height:42px; border-radius:50%; flex:0 0 auto;
+    background:var(--navy-2); color:#fff; font-weight:700; font-size:15px;
+    display:flex; align-items:center; justify-content:center; letter-spacing:.04em;
+  }
+  .user-name{ font-weight:700; font-size:15px; }
+  .user-mail{ font-family:var(--mono); font-size:11.5px; color:var(--muted); }
+  .chip{
+    display:inline-flex; align-items:center; gap:6px;
+    background:#eef0f4; border:1px solid var(--line); border-radius:999px;
+    padding:3px 10px; font-size:11.5px; font-weight:600; color:var(--ink);
+    margin:0 6px 6px 0;
+  }
+  .chip .soc{ color:var(--muted); font-weight:500; }
+  .chip-actif{ background:var(--green-soft); border-color:var(--green-border); color:var(--green); }
+  .sub-label{ font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); margin:12px 0 6px; }
+  .exc-count{ font-size:12.5px; color:var(--muted); }
+
+  /* ---------- Badges de source ---------- */
+  .badge{
+    display:inline-flex; align-items:center; gap:7px; white-space:nowrap;
+    font-size:11.5px; font-weight:700; padding:3px 10px; border-radius:999px; letter-spacing:.02em;
+  }
+  .badge .dot{ width:7px; height:7px; border-radius:50%; flex:0 0 auto; }
+  .b-profil{ background:var(--blue-soft); color:var(--blue-ink); border:1px solid var(--blue-border); }
+  .b-profil .dot{ background:var(--blue); }
+  .b-plus{ background:var(--green-soft); color:var(--green); border:1px solid var(--green-border); }
+  .b-plus .dot{ background:var(--green); }
+  .b-moins{ background:var(--red-soft); color:var(--red); border:1px solid var(--red-border); }
+  .b-moins .dot{ background:var(--red); }
+  .b-aucun{ background:#eef0f4; color:#79808f; border:1px solid var(--line); }
+  .b-aucun .dot{ background:#a6adbc; }
+  .legend .badge{ margin:0 8px 8px 0; }
+  .legend p{ margin:8px 0 0; font-size:12px; color:var(--muted); }
+
+  /* ---------- Logique de résolution ---------- */
+  .resolution ol{ margin:0; padding-left:18px; }
+  .resolution li{ margin-bottom:8px; font-size:12.5px; }
+  .resolution code, .explorer code, .perm-code{
+    font-family:var(--mono); font-size:11px; background:#eef0f4;
+    border:1px solid var(--line); border-radius:5px; padding:1px 5px;
+  }
+  .resolution .note{ font-size:11.5px; color:var(--amber-ink); background:var(--amber-soft); border:1px solid var(--amber-border); border-radius:6px; padding:6px 8px; margin-top:8px; }
+
+  /* ---------- Statistiques ---------- */
+  .stats{ display:grid; grid-template-columns:repeat(3, 1fr); gap:12px; margin-bottom:14px; }
+  @media (max-width: 640px){ .stats{ grid-template-columns:1fr; } }
+  .stat{ background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px 14px; }
+  .stat .num{ font-size:26px; font-weight:700; color:var(--navy); line-height:1.1; }
+  .stat .num small{ font-size:14px; color:var(--muted); font-weight:600; }
+  .stat .lbl{ font-size:12px; color:var(--muted); margin-top:2px; }
+
+  /* ---------- Barre d'outils ---------- */
+  .toolbar{ display:flex; justify-content:flex-end; margin-bottom:10px; }
+  .switch{ display:inline-flex; align-items:center; gap:8px; font-size:12.5px; color:var(--muted); cursor:pointer; user-select:none; }
+  .switch input{ accent-color:var(--blue); width:15px; height:15px; cursor:pointer; }
+
+  /* ---------- Modules et permissions ---------- */
+  .module{ background:var(--card); border:1px solid var(--line); border-radius:10px; margin-bottom:14px; overflow:hidden; }
+  .module-head{ padding:13px 16px 10px; }
+  .module-head-row{ display:flex; align-items:baseline; justify-content:space-between; gap:10px; }
+  .module-head h3{ margin:0; font-size:14px; font-weight:700; }
+  .module-count{ font-size:12px; color:var(--muted); font-weight:600; white-space:nowrap; }
+  .module-bar{ height:4px; background:#edf0f5; border-radius:99px; margin-top:9px; overflow:hidden; }
+  .module-bar i{ display:block; height:100%; background:var(--blue); border-radius:99px; transition:width .25s ease; }
+  .perm-row{
+    display:grid; grid-template-columns:1fr auto; gap:6px 14px; align-items:center;
+    padding:10px 16px; border-top:1px solid var(--line);
+  }
+  .perm-row:hover{ background:var(--hover); }
+  .perm-label{ font-size:13.5px; }
+  .perm-row.off .perm-label{ color:#8b91a0; }
+  .perm-code{ margin-left:8px; }
+  .perm-exc{
+    grid-column:1 / -1; font-size:12px; font-style:italic; margin-top:-2px;
+  }
+  .perm-exc.plus{ color:var(--green); }
+  .perm-exc.moins{ color:var(--red); }
+  .perm-exc.redondant{ color:var(--muted); }
+  .module-empty{ padding:12px 16px; border-top:1px solid var(--line); font-size:12.5px; color:var(--muted); font-style:italic; }
+
+  /* ---------- Explorateur de données ---------- */
+  .explorer{ background:var(--card); border:1px solid var(--line); border-radius:10px; padding:0; margin-bottom:14px; }
+  .explorer > summary{
+    cursor:pointer; padding:13px 16px; font-weight:700; font-size:13.5px; list-style:none;
+    display:flex; align-items:center; gap:10px;
+  }
+  .explorer > summary::before{ content:"\25B8"; color:var(--muted); transition:transform .15s; }
+  .explorer[open] > summary::before{ transform:rotate(90deg); }
+  .explorer-body{ padding:0 16px 16px; }
+  .explorer-hint{ font-size:12.5px; color:var(--muted); margin:0 0 12px; }
+  .table-block{ border:1px solid var(--line); border-radius:8px; margin-bottom:8px; overflow:hidden; }
+  .table-block summary{
+    cursor:pointer; padding:9px 12px; font-size:12.5px; background:#fafbfd;
+    display:flex; align-items:center; gap:10px; flex-wrap:wrap; list-style:none;
+  }
+  .table-block summary::before{ content:"\25B8"; color:var(--muted); font-size:11px; }
+  .table-block[open] summary::before{ content:"\25BE"; }
+  .table-rows{ color:var(--muted); }
+  .table-ep{ margin-left:auto; font-family:var(--mono); font-size:10.5px; color:var(--amber-ink); background:var(--amber-soft); border:1px solid var(--amber-border); border-radius:5px; padding:1px 6px; }
+  .table-block pre{
+    margin:0; padding:10px 12px; max-height:260px; overflow:auto;
+    font-family:var(--mono); font-size:11px; line-height:1.55; background:#fff;
+    border-top:1px solid var(--line);
+  }
+  .btn{
+    display:inline-block; margin-top:10px; cursor:pointer;
+    background:var(--navy); color:#fff; border:none; border-radius:8px;
+    padding:8px 14px; font-size:12.5px; font-weight:700; font-family:inherit;
+  }
+  .btn:hover{ background:var(--navy-2); }
+
+  .foot{ font-size:11.5px; color:var(--muted); padding:4px 2px 20px; }
+
+  /* ---------- Navigation de vues ---------- */
+  .viewnav{ background:#fff; border-bottom:1px solid var(--line); }
+  .viewnav-inner{ max-width:1240px; margin:0 auto; padding:10px 20px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .viewbtn{ border:1px solid var(--line); background:#fff; color:var(--muted); font-weight:700; font-size:13px; padding:7px 16px; border-radius:999px; cursor:pointer; font-family:inherit; }
+  .viewbtn.actif{ background:var(--navy); border-color:var(--navy); color:#fff; }
+  .viewnav-note{ margin-left:auto; font-size:11.5px; color:var(--muted); }
+
+  /* ---------- Administration ---------- */
+  .layout-admin{ max-width:1240px; margin:22px auto 40px; padding:0 20px; }
+  .subtabs{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; }
+  .subtab{ border:1px solid var(--line); background:#fff; color:var(--ink); font-size:12.5px; font-weight:600; padding:6px 13px; border-radius:8px; cursor:pointer; font-family:inherit; }
+  .subtab.actif{ background:var(--blue-soft); border-color:var(--blue-border); color:var(--blue-ink); }
+  .admin-grid{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.35fr); gap:16px; align-items:start; }
+  @media (max-width: 940px){ .admin-grid{ grid-template-columns:1fr; } }
+  .inp{ width:100%; padding:8px 10px; border:1px solid var(--line); border-radius:8px; background:#fff; color:var(--ink); font-size:13.5px; font-family:inherit; }
+  textarea.inp{ resize:vertical; min-height:56px; }
+  .inp:focus{ outline:2px solid var(--blue-border); outline-offset:1px; }
+  .form-2col{ display:grid; grid-template-columns:1fr 1fr; gap:0 12px; }
+  @media (max-width: 640px){ .form-2col{ grid-template-columns:1fr; } }
+  .form-hint{ font-family:var(--mono); font-size:10.5px; color:var(--amber-ink); background:var(--amber-soft); border:1px solid var(--amber-border); border-radius:5px; padding:2px 7px; display:inline-block; margin-top:6px; }
+  .btn-ghost{ display:inline-block; cursor:pointer; background:#fff; color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:8px 14px; font-size:12.5px; font-weight:700; font-family:inherit; }
+  .btn-ghost:hover{ background:var(--hover); }
+  .btn-danger{ display:inline-block; cursor:pointer; background:#fff; color:var(--red); border:1px solid var(--red-border); border-radius:8px; padding:5px 10px; font-size:12px; font-weight:700; font-family:inherit; }
+  .btn-danger:hover{ background:var(--red-soft); }
+  .btn-mini{ padding:4px 9px; font-size:11.5px; border-radius:7px; }
+  .btn.btn-mini, .btn-ghost.btn-mini, .btn-danger.btn-mini{ padding:4px 9px; font-size:11.5px; border-radius:7px; margin-top:0; }
+  .list-item{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:10px 2px; border-top:1px solid var(--line); }
+  .list-item:first-child{ border-top:none; }
+  .li-corps{ flex:1 1 220px; min-width:0; }
+  .li-titre{ font-weight:700; font-size:13.5px; }
+  .li-sous{ font-size:11.5px; color:var(--muted); font-family:var(--mono); }
+  .li-meta{ font-size:12px; color:var(--muted); }
+  .li-actions{ display:flex; gap:6px; flex-wrap:wrap; }
+  .inactif .li-titre{ color:#8b91a0; text-decoration:line-through; }
+  .mat-actions{ display:flex; gap:10px; align-items:baseline; }
+  .lnk{ background:none; border:none; padding:0; cursor:pointer; color:var(--blue-ink); font-size:11.5px; font-weight:700; text-decoration:underline; font-family:inherit; }
+  .case{ width:16px; height:16px; accent-color:var(--blue); cursor:pointer; }
+  .radio-ligne{ display:flex; gap:16px; margin:2px 0 12px; font-size:13px; flex-wrap:wrap; }
+  .radio-ligne label{ display:inline-flex; gap:6px; align-items:center; cursor:pointer; }
+  .radio-ligne input{ accent-color:var(--blue); }
+  .grp-ligne{ display:flex; align-items:center; gap:8px; padding:5px 2px; cursor:pointer; }
+  .grp-label{ font-size:13px; font-weight:600; }
+  .grp-portee{ font-family:var(--mono); font-size:10px; color:var(--blue-ink); background:var(--blue-soft); border:1px solid var(--blue-border); border-radius:5px; padding:1px 6px; }
+  .perm-via{ grid-column:1 / -1; font-size:11px; color:var(--muted); }
+
+  /* ---------- Journal des écritures et toasts ---------- */
+  .j-item{ border-top:1px solid var(--line); padding:8px 2px; font-size:12px; display:flex; gap:8px; align-items:baseline; flex-wrap:wrap; }
+  .j-methode{ font-family:var(--mono); font-size:10.5px; font-weight:700; padding:1px 7px; border-radius:5px; }
+  .j-POST, .j-CREATE{ background:var(--green-soft); color:var(--green); border:1px solid var(--green-border); }
+  .j-DELETE, .j-SOFT_DELETE{ background:var(--red-soft); color:var(--red); border:1px solid var(--red-border); }
+  .j-PATCH, .j-UPDATE{ background:var(--amber-soft); color:var(--amber-ink); border:1px solid var(--amber-border); }
+  .j-INFO{ background:#eef0f4; color:var(--muted); border:1px solid var(--line); }
+  .j-endpoint{ font-family:var(--mono); font-size:11px; }
+  .j-payload{ flex-basis:100%; font-family:var(--mono); font-size:10.5px; color:var(--muted); overflow-wrap:anywhere; }
+  .toast{ position:fixed; top:16px; right:16px; z-index:50; max-width:340px; padding:10px 14px; border-radius:9px; font-size:12.5px; font-weight:600; box-shadow:0 6px 20px rgba(16,26,54,.18); display:none; }
+  .toast.ok{ background:var(--green-soft); border:1px solid var(--green-border); color:var(--green); display:block; }
+  .toast.ko{ background:var(--red-soft); border:1px solid var(--red-border); color:var(--red); display:block; }
+
+    /* ---------- Login ---------- */
+  .login-screen{
+    position:fixed; inset:0; background:var(--bg);
+    display:flex; align-items:center; justify-content:center; z-index:100;
+  }
+  .login-card{
+    background:var(--card); border:1px solid var(--line); border-radius:10px;
+    padding:32px; width:360px; box-shadow:0 4px 20px rgba(16,26,54,.08);
+  }
+  .login-card h1{
+    margin:0 0 4px; font-size:20px; font-weight:700; color:var(--navy); text-align:center;
+  }
+  .login-sub{ text-align:center; font-size:13px; color:var(--muted); margin-bottom:20px; }
+  .login-field{ display:block; margin-bottom:14px; }
+  .login-field span{ display:block; font-size:12px; font-weight:600; color:var(--muted); margin-bottom:5px; }
+  .login-field input{
+    width:100%; padding:8px 10px; border:1px solid var(--line); border-radius:8px;
+    background:#fff; color:var(--ink); font-size:13.5px; font-family:inherit;
+  }
+  .login-field input:focus{ outline:2px solid var(--blue-border); outline-offset:1px; }
+  .login-error{
+    background:var(--red-soft); border:1px solid var(--red-border); color:var(--red);
+    padding:8px 10px; border-radius:6px; font-size:12px; margin-bottom:12px; display:none;
+  }
+  .login-btn{
+    width:100%; padding:10px; background:var(--navy); color:#fff; border:none; border-radius:8px;
+    font-size:13.5px; font-weight:700; cursor:pointer; font-family:inherit;
+  }
+  .login-btn:hover{ background:var(--navy-2); }
+</style>
+<base target="_blank">
+<base target="_blank">
+</head>
+<body>
+<div id="login-screen" class="login-screen hidden">
+  <div class="login-card">
+    <h1>SamSecure</h1>
+    <div class="login-sub">Gestion des actifs logiciels</div>
+    <div id="login-error" class="login-error"></div>
+    <label class="login-field">
+      <span>Adresse email *</span>
+      <input type="email" id="login-email" placeholder="admin@demo.fr" value="admin@demo.fr">
+    </label>
+    <label class="login-field">
+      <span>Mot de passe *</span>
+      <input type="password" id="login-password" placeholder="••••••••" value="Admin1234!">
+    </label>
+    <button type="button" class="login-btn" id="login-btn">Se connecter</button>
+  </div>
+</div>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <span class="brand-mark">SAMSECURE</span>
+      <span class="brand-sub">Simulateur et administration des droits, héritage par profil et exceptions individuelles</span>
+    </div>
+    <span class="pill pill-mock">Jeu de données factice</span>
+  </div>
+</header>
+
+<nav class="viewnav">
+  <div class="viewnav-inner">
+    <button type="button" class="viewbtn actif" id="btn-vue-simulation">Simulation</button>
+    <button type="button" class="viewbtn" id="btn-vue-admin">Administration (écriture)</button>
+    <span class="viewnav-note">Écritures en mémoire de session, visibles immédiatement dans la simulation.</span>
+  </div>
+</nav>
+
+<main class="layout" id="vue-simulation">
+
+  <!-- ================= Colonne de gauche ================= -->
+  <aside>
+    <section class="card">
+      <h2>Contexte</h2>
+      <label class="field">
+        <span>Utilisateur</span>
+        <select id="sel-user"></select>
+      </label>
+      <label class="field">
+        <span>Société</span>
+        <select id="sel-societe"></select>
+      </label>
+      <div class="field">
+        <span>Groupe appliqué</span>
+        <select id="sel-profil"></select>
+      </div>
+      <div id="banner-noattr" class="banner banner-info hidden"></div>
+      <div id="banner-sim" class="banner banner-sim hidden"></div>
+    </section>
+
+    <section class="card" id="user-card"></section>
+
+    <section class="card legend">
+      <h2>Légende</h2>
+      <span class="badge b-profil"><i class="dot"></i>Accordé, hérité d'un groupe</span>
+      <span class="badge b-plus"><i class="dot"></i>Accordé par exception</span>
+      <span class="badge b-moins"><i class="dot"></i>Retiré par exception</span>
+      <span class="badge b-aucun"><i class="dot"></i>Non accordé</span>
+      <p>Les exceptions sont attachées au couple utilisateur et société, elles restent donc actives même en modifiant les groupes simulés.</p>
+    </section>
+
+    <section class="card resolution">
+      <h2>Logique de résolution</h2>
+      <ol>
+        <li><code>utilisateur_societe</code> et <code>profil_societe</code> définissent le rattachement de l'utilisateur et la diffusion du groupe (NULL = échelle du tenant).</li>
+        <li><code>utilisateur_profil_societe</code> liste les groupes attribués, dans la limite des sociétés communes au rattachement et à la diffusion.</li>
+        <li><code>profil_permission</code> fournit les droits hérités : union des droits de tous les groupes appliqués sur la société sélectionnée.</li>
+        <li><code>exception_droit</code> ajuste individuellement, en ajout ou en retrait, dans la limite du rattachement.</li>
+      </ol>
+      <div class="note">Règle cible : en cas de conflit, un retrait prime toujours, y compris sur un droit hérité de plusieurs groupes. Point à confirmer avec Samuel.</div>
+    </section>
+  </aside>
+
+  <!-- ================= Colonne principale ================= -->
+  <section>
+    <div class="stats" id="stats"></div>
+
+    <div class="toolbar">
+      <label class="switch">
+        <input type="checkbox" id="chk-effectifs">
+        Afficher uniquement les droits effectifs
+      </label>
+    </div>
+
+    <div id="modules"></div>
+
+    <details class="explorer" id="explorer">
+      <summary>Explorer les données (structure BDD) et correspondance API</summary>
+      <div class="explorer-body">
+        <p class="explorer-hint">
+          Les données ci-dessous sont embarquées dans la page (constante <code>DB</code> du source) et reprennent
+          la structure des tables cibles de la BDD Tenant. La couche <code>api</code> de lecture est déjà branchée
+          côté back : la couche d'écriture suit le même schéma, son contrat est visible dans le journal de la vue
+          Administration. La résolution des droits effectifs a vocation à être portée côté API :
+          <code>GET /api/utilisateurs/{id}/droits-effectifs?societe={id}</code>. L'export JSON ci-dessous reflète
+          l'état courant, écritures de session incluses.
+        </p>
+        <div id="tables"></div>
+        <button class="btn" id="btn-json" type="button">Télécharger le JSON complet</button>
+      </div>
+    </details>
+
+    <footer class="foot">
+      Données 100% factices. Structure alignée sur le modèle cible : RBAC entièrement en BDD Tenant
+      (profils initialisés depuis un modèle à la création du tenant), BDD Commune limitée au catalogue produits.
+      Table <span class="perm-code">exception_droit</span> à intégrer au référentiel BDD lors de la prochaine session dédiée.
+    </footer>
+  </section>
+</main>
+
+<!-- ================= Vue Administration (écriture) ================= -->
+<main class="layout-admin hidden" id="vue-admin">
+
+  <div class="subtabs">
+    <button type="button" class="subtab actif" data-cible="adm-utilisateurs">Utilisateurs</button>
+    <button type="button" class="subtab" data-cible="adm-groupes">Groupes et droits</button>
+    <button type="button" class="subtab" data-cible="adm-attributions">Attributions</button>
+    <button type="button" class="subtab" data-cible="adm-exceptions">Exceptions</button>
+    <button type="button" class="subtab" data-cible="adm-societes">Sociétés</button>
+    <button type="button" class="subtab" data-cible="adm-journal">Journal</button>
+  </div>
+
+  <section id="adm-utilisateurs" class="adm-section">
+    <div class="admin-grid">
+      <div class="card">
+        <h2>Créer un utilisateur</h2>
+        <label class="field"><span>Prénom</span><input class="inp" id="inp-usr-prenom" type="text" placeholder="Camille"></label>
+        <label class="field"><span>Nom</span><input class="inp" id="inp-usr-nom" type="text" placeholder="Moreau"></label>
+        <label class="field"><span>Email (identifiant de connexion, unique)</span><input class="inp" id="inp-usr-email" type="text" placeholder="camille.moreau@helios.fr"></label>
+        <div class="field"><span>Rattachement de l'utilisateur</span>
+          <div class="radio-ligne">
+            <label><input type="radio" name="usr-portee" value="tenant" checked> Échelle du tenant (toutes sociétés)</label>
+            <label><input type="radio" name="usr-portee" value="societes"> Sociétés spécifiques</label>
+          </div>
+          <div id="chk-usr-societes" class="hidden"></div>
+        </div>
+        <label class="field" style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+          <input type="checkbox" id="chk-usr-temporaire" style="width:auto;accent-color:var(--blue);cursor:pointer;">
+          <span style="margin-bottom:0;">Utilisateur temporaire</span>
+        </label>
+        <label class="field hidden" id="field-usr-date-finale">
+          <span>Date finale</span>
+          <input class="inp" id="inp-usr-date-finale" type="date">
+        </label>
+        <label class="field">
+          <span>Date de mise en fonction</span>
+          <input class="inp" id="inp-usr-date-mef" type="date">
+        </label>
+        <button type="button" class="btn" id="btn-creer-utilisateur">Créer l'utilisateur</button>
+        <div><span class="form-hint">POST /api/utilisateurs</span></div>
+      </div>
+      <div class="card">
+        <h2>Utilisateurs existants</h2>
+        <div id="liste-utilisateurs"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="adm-groupes" class="adm-section hidden">
+    <div class="admin-grid">
+      <div class="card">
+        <h2>Créer un groupe (profil)</h2>
+        <label class="field"><span>Libellé</span><input class="inp" id="inp-prof-label" type="text" placeholder="Responsable achats"></label>
+        <label class="field"><span>Description</span><textarea class="inp" id="inp-prof-desc" placeholder="Responsabilités du rôle"></textarea></label>
+        <div class="field"><span>Diffusion du groupe</span>
+          <div class="radio-ligne">
+            <label><input type="radio" name="prof-portee" value="tenant" checked> Échelle du tenant (toutes sociétés)</label>
+            <label><input type="radio" name="prof-portee" value="societes"> Sociétés spécifiques</label>
+          </div>
+          <div id="chk-prof-societes" class="hidden"></div>
+        </div>
+        <button type="button" class="btn" id="btn-creer-profil">Créer le groupe</button>
+        <div><span class="form-hint">POST /api/profils</span></div>
+      </div>
+      <div class="card">
+        <h2>Groupes existants</h2>
+        <div id="liste-profils"></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Droits du groupe (hérités par tous ses utilisateurs)</h2>
+      <label class="field"><span>Groupe à configurer</span><select id="sel-adm-profil-droits"></select></label>
+      <div id="matrice-droits"></div>
+      <div><span class="form-hint">POST /api/profils/{id}/permissions et DELETE /api/profils/{id}/permissions/{idPermission}</span></div>
+    </div>
+  </section>
+
+  <section id="adm-attributions" class="adm-section hidden">
+    <div class="admin-grid">
+      <div class="card">
+        <h2>Associer un groupe à un utilisateur</h2>
+        <label class="field"><span>Utilisateur</span><select id="sel-att-utilisateur"></select></label>
+        <label class="field"><span>Groupe (profil)</span><select id="sel-att-profil"></select></label>
+        <div class="field"><span>Portée de l'attribution</span>
+          <div class="radio-ligne">
+            <label><input type="radio" name="att-portee" value="tenant" checked> Échelle du tenant (toutes sociétés)</label>
+            <label><input type="radio" name="att-portee" value="societes"> Sociétés spécifiques</label>
+          </div>
+          <div id="chk-att-societes" class="hidden"></div>
+        </div>
+        <button type="button" class="btn" id="btn-creer-attribution">Créer l'attribution</button>
+        <div><span class="form-hint">POST /api/utilisateurs/{id}/profils</span></div>
+        <p class="explorer-hint" style="margin-top:10px">Un groupe n'est attribuable que sur les sociétés communes au rattachement de l'utilisateur et à la diffusion du groupe. L'échelle du tenant signifie : toutes les sociétés communes, actuelles et futures. Un utilisateur peut cumuler plusieurs groupes, droits en union.</p>
+      </div>
+      <div class="card">
+        <h2>Attributions existantes</h2>
+        <div id="liste-attributions"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="adm-exceptions" class="adm-section hidden">
+    <div class="admin-grid">
+      <div class="card">
+        <h2>Créer une exception individuelle</h2>
+        <label class="field"><span>Utilisateur</span><select id="sel-exc-utilisateur"></select></label>
+        <label class="field"><span>Permission ajustée</span><select id="sel-exc-permission"></select></label>
+        <label class="field"><span>Société de portée</span><select id="sel-exc-societe"></select></label>
+        <div class="radio-ligne">
+          <label><input type="radio" name="exc-type" value="accorde" checked> Accorder (ajout)</label>
+          <label><input type="radio" name="exc-type" value="retire"> Retirer (prioritaire sur l'ajout)</label>
+        </div>
+        <label class="field"><span>Motif (requis, traçabilité)</span><textarea class="inp" id="inp-exc-motif" placeholder="Justification de l'exception"></textarea></label>
+        <div class="form-2col">
+          <label class="field"><span>Début de validité</span><input class="inp" id="inp-exc-debut" type="date"></label>
+          <label class="field"><span>Fin de validité (optionnelle)</span><input class="inp" id="inp-exc-fin" type="date"></label>
+        </div>
+        <button type="button" class="btn" id="btn-creer-exception">Créer l'exception</button>
+        <div><span class="form-hint">POST /api/utilisateurs/{id}/exceptions</span></div>
+      </div>
+      <div class="card">
+        <h2>Exceptions existantes</h2>
+        <div id="liste-exceptions"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="adm-societes" class="adm-section hidden">
+    <div class="admin-grid">
+      <div class="card">
+        <h2>Créer une société</h2>
+        <label class="field"><span>Raison sociale</span><input class="inp" id="inp-soc-rs" type="text" placeholder="Helios Digital"></label>
+        <label class="field"><span>SIRET (14 chiffres)</span><input class="inp" id="inp-soc-siret" type="text" placeholder="84210634900074"></label>
+        <label class="field"><span>Société parente</span><select id="sel-soc-parent"></select></label>
+        <button type="button" class="btn" id="btn-creer-societe">Créer la société</button>
+        <div><span class="form-hint">POST /api/societes</span></div>
+      </div>
+      <div class="card">
+        <h2>Sociétés existantes</h2>
+        <div id="liste-societes"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="adm-journal" class="adm-section hidden">
+    <div class="card">
+      <h2>Journal des événements</h2>
+      <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
+        <input class="inp" id="inp-journal-search" type="text" placeholder="Rechercher dans le journal..." style="flex:1;min-width:200px;">
+        <button type="button" class="btn" id="btn-journal-search" style="margin-top:0;">Rechercher</button>
+        <button type="button" class="btn-ghost" id="btn-journal-dl-full" style="margin-top:0;">Télécharger complet</button>
+      </div>
+      <div id="journal-liste-complete"></div>
+    </div>
+  </section>
+
+  <details class="explorer" id="journal-card" open>
+    <summary>Journal des appels API (<span id="journal-count">0</span>)</summary>
+    <div class="explorer-body">
+      <p class="explorer-hint">Chaque écriture réalisée ici trace l'appel REST que le back devra exposer, avec sa méthode, son endpoint et son payload : c'est le contrat de la couche d'écriture, en miroir de la couche de lecture déjà branchée. Les validations appliquées (unicités, blocages de suppression, retrait prioritaire) sont à porter côté API.</p>
+      <div id="journal-liste"></div>
+      <button class="btn" id="btn-journal-dl" type="button">Télécharger le journal</button>
+      <button class="btn-ghost" id="btn-reset-donnees" type="button" style="margin-left:8px">Réinitialiser le jeu de données</button>
+    </div>
+  </details>
+
+  <footer class="foot">
+    Écritures en mémoire de session uniquement : un rechargement de la page restaure le seed initial.
+    Utiliser "Télécharger le JSON complet" (vue Simulation) pour exporter l'état courant, écritures incluses.
+  </footer>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+
+/* ============================================================
+   CONFIG & API
+============================================================ */
+
+const API_BASE = "/api";
+
+const TOKEN_KEY = "ss_refresh_token";
+let accessToken = null;
+
+function getRefreshToken() { return localStorage.getItem(TOKEN_KEY); }
+function setRefreshToken(t) { localStorage.setItem(TOKEN_KEY, t); }
+function clearAuth() { accessToken = null; localStorage.removeItem(TOKEN_KEY); }
+
+async function refreshAccessToken() {
+  const rt = getRefreshToken();
+  if (!rt) return false;
+  try {
+    const r = await fetch(API_BASE + "/auth/refresh", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refreshToken: rt })
+    });
+    if (!r.ok) { clearAuth(); return false; }
+    const data = await r.json();
+    accessToken = data.accessToken;
+    return true;
+  } catch (e) { clearAuth(); return false; }
+}
+
+async function apiFetch(path, options = {}) {
+  const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
+  if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+
+  const res = await fetch(API_BASE + path, { headers, ...options });
+
+  if (res.status === 401) {
+    const ok = await refreshAccessToken();
+    if (ok) {
+      headers.Authorization = `Bearer ${accessToken}`;
+      const retry = await fetch(API_BASE + path, { headers, ...options });
+      if (!retry.ok) {
+        const text = await retry.text();
+        throw new Error(`API ${path} : ${retry.status} ${text}`);
+      }
+      if (retry.status === 204) return null;
+      return retry.json();
+    }
+    showLoginScreen();
+    throw new Error("Session expirée. Veuillez vous reconnecter.");
+  }
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`API ${path} : ${res.status} ${text}`);
+  }
+  if (res.status === 204) return null;
+  return res.json();
+}
+
+async function doLogin() {
+  const email = $("login-email").value.trim();
+  const password = $("login-password").value;
+  const errBox = $("login-error");
+  errBox.style.display = "none";
+  errBox.textContent = "";
+
+  try {
+    const r = await fetch(API_BASE + "/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password })
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || "Identifiants invalides.");
+
+    accessToken = data.accessToken;
+    setRefreshToken(data.refreshToken);
+
+    hideLoginScreen();
+    await init();
+  } catch (e) {
+    errBox.textContent = e.message;
+    errBox.style.display = "block";
+  }
+}
+
+function showLoginScreen() {
+  const ls = $("login-screen");
+  if (ls) ls.classList.remove("hidden");
+  const tb = document.querySelector(".topbar");
+  const vn = document.querySelector(".viewnav");
+  if (tb) tb.classList.add("hidden");
+  if (vn) vn.classList.add("hidden");
+  const vs = $("vue-simulation");
+  const va = $("vue-admin");
+  if (vs) vs.classList.add("hidden");
+  if (va) va.classList.add("hidden");
+}
+
+function hideLoginScreen() {
+  const ls = $("login-screen");
+  if (ls) ls.classList.add("hidden");
+  const tb = document.querySelector(".topbar");
+  const vn = document.querySelector(".viewnav");
+  if (tb) tb.classList.remove("hidden");
+  if (vn) vn.classList.remove("hidden");
+  const vs = $("vue-simulation");
+  if (vs) vs.classList.remove("hidden");
+}
+
+function checkAuth() {
+  const rt = getRefreshToken();
+  if (!rt) { showLoginScreen(); return false; }
+  return true;
+}
+
+const api = {
+  getSocietes() { return apiFetch("/societes"); },
+  getUtilisateurs() { return apiFetch("/utilisateurs"); },
+  getProfils() { return apiFetch("/profils"); },
+  getPermissions() { return apiFetch("/permissions"); },
+  getAttributions(userId) { return apiFetch(`/utilisateurs/${encodeURIComponent(userId)}/profils`); },
+  getAllAttributions() { return apiFetch("/attributions"); },
+  getExceptions(userId, societeId) {
+    const q = societeId ? `?societeId=${encodeURIComponent(societeId)}` : "";
+    return apiFetch(`/utilisateurs/${encodeURIComponent(userId)}/exceptions${q}`);
+  },
+  getAllExceptions() { return apiFetch("/exceptions"); },
+  resolveDroits(userId, societeId, profilId) {
+    let q = `?societeId=${encodeURIComponent(societeId)}`;
+    if (profilId) q += `&profilId=${encodeURIComponent(profilId)}`;
+    return apiFetch(`/utilisateurs/${encodeURIComponent(userId)}/droits-effectifs${q}`);
+  },
+  getProfilPermissions(profilId) {
+    return apiFetch(`/profils/${encodeURIComponent(profilId)}/permissions`);
+  },
+
+  createSociete(payload) { return apiFetch("/societes", { method: "POST", body: JSON.stringify(payload) }); },
+  updateSociete(id, payload) { return apiFetch(`/societes/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(payload) }); },
+  deleteSociete(id) { return apiFetch(`/societes/${encodeURIComponent(id)}`, { method: "DELETE" }); },
+  getSocieteProfilsOrphelins(id) { return apiFetch(`/societes/${encodeURIComponent(id)}/profils-orphelins`); },
+
+  createUtilisateur(payload) { return apiFetch("/utilisateurs", { method: "POST", body: JSON.stringify(payload) }); },
+  addUtilisateurSociete(userId, societeId) {
+    return apiFetch(`/utilisateurs/${encodeURIComponent(userId)}/societes`, { method: "POST", body: JSON.stringify({ id_societe: societeId }) });
+  },
+  updateUtilisateur(id, payload) {
+    return apiFetch(`/utilisateurs/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  },
+  deleteUtilisateur(id) { return apiFetch(`/utilisateurs/${encodeURIComponent(id)}`, { method: "DELETE" }); },
+  getUtilisateurSocietes(userId) {
+    return apiFetch(`/utilisateurs/${encodeURIComponent(userId)}/societes`);
+  },
+  removeUtilisateurSociete(userId, societeId) {
+    return apiFetch(`/utilisateurs/${encodeURIComponent(userId)}/societes/${encodeURIComponent(societeId)}`, {
+      method: "DELETE",
+    });
+  },
+  createProfil(payload) { return apiFetch("/profils", { method: "POST", body: JSON.stringify(payload) }); },
+  addProfilSociete(profilId, societeId) {
+    return apiFetch(`/profils/${encodeURIComponent(profilId)}/societes`, { method: "POST", body: JSON.stringify({ id_societe: societeId }) });
+  },
+  getProfil(id) { return apiFetch(`/profils/${encodeURIComponent(id)}`); },
+  updateProfil(id, payload) { return apiFetch(`/profils/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(payload) }); },
+  getProfilSocietes(id) { return apiFetch(`/profils/${encodeURIComponent(id)}/societes`); },
+  removeProfilSociete(profilId, psId) { return apiFetch(`/profils/${encodeURIComponent(profilId)}/societes/${encodeURIComponent(psId)}`, { method: "DELETE" }); },
+  deleteProfil(id) { return apiFetch(`/profils/${encodeURIComponent(id)}`, { method: "DELETE" }); },
+  getProfilImpact(id) { return apiFetch(`/profils/${encodeURIComponent(id)}/impact`); },
+  addProfilPermission(profilId, payload) {
+    return apiFetch(`/profils/${encodeURIComponent(profilId)}/permissions`, { method: "POST", body: JSON.stringify(payload) });
+  },
+  removeProfilPermission(profilId, permId) {
+    return apiFetch(`/profils/${encodeURIComponent(profilId)}/permissions/${encodeURIComponent(permId)}`, { method: "DELETE" });
+  },
+
+  addProfilToUtilisateur(userId, payload) {
+    return apiFetch(`/utilisateurs/${encodeURIComponent(userId)}/profils`, { method: "POST", body: JSON.stringify(payload) });
+  },
+  removeProfilAttribution(userId, attribId) {
+    return apiFetch(`/utilisateurs/${encodeURIComponent(userId)}/profils/${encodeURIComponent(attribId)}`, { method: "DELETE" });
+  },
+
+  createException(userId, payload) {
+    return apiFetch(`/utilisateurs/${encodeURIComponent(userId)}/exceptions`, { method: "POST", body: JSON.stringify(payload) });
+  },
+  deleteException(userId, excId) {
+    return apiFetch(`/utilisateurs/${encodeURIComponent(userId)}/exceptions/${encodeURIComponent(excId)}`, { method: "DELETE" });
+  },
+  updateException(userId, excId, payload) {
+    return apiFetch(`/utilisateurs/${encodeURIComponent(userId)}/exceptions/${encodeURIComponent(excId)}`, { method: "PATCH", body: JSON.stringify(payload) });
+  },
+  postJournal(payload) {
+    return apiFetch("/journal", { method: "POST", body: JSON.stringify(payload) });
+  },
+  getJournal(params) {
+    const q = new URLSearchParams(params).toString();
+    return apiFetch(`/journal?${q}`);
+  },
+};
+
+/* ============================================================
+   STATE
+============================================================ */
+
+const state = {
+  mode: "simulation",
+  loading: true,
+  error: null,
+  societes: [],
+  utilisateurs: [],
+  profils: [],
+  permissions: [],
+  attributions: [],
+  exceptions: [],
+  allAttributions: [],
+  allExceptions: [],
+  droits: [],
+  profilPermissions: {},
+  userId: null,
+  societeId: null,
+  profilId: null,
+  profilReelId: null,
+  profilIdsReels: [],
+  onlyEffectifs: false,
+  journal: [],
+  journalSearch: "",
+};
+window.state = state;
+
+/* ============================================================
+   DOM HELPERS
+============================================================ */
+
+const $ = (id) => document.getElementById(id);
+function esc(v) {
+  return String(v ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
+}
+function initials(prenom, nom) { return ((prenom?.[0] || "") + (nom?.[0] || "")).toUpperCase(); }
+function slugify(str) {
+  return str
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, "")
+    .trim()
+    .replace(/\s+/g, "_");
+}
+
+function pushAdminLog(msg) {
+  const key = "samsecure_admin_logs";
+  const arr = JSON.parse(sessionStorage.getItem(key) || "[]");
+  arr.unshift(`[${new Date().toLocaleString()}] ${msg}`);
+  sessionStorage.setItem(key, JSON.stringify(arr.slice(0, 50)));
+}
+
+function toast(message, ok = true) {
+  let t = $("toast");
+  if (!t) { t = document.createElement("div"); t.id = "toast"; document.body.appendChild(t); }
+  t.textContent = message;
+  t.className = "toast " + (ok ? "ok" : "ko");
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => { t.className = "toast"; }, 4000);
+}
+
+/* ============================================================
+   INIT
+============================================================ */
+
+window.addEventListener("DOMContentLoaded", () => {
+  bindGlobalEvents();
+  if (!checkAuth()) {
+    $("login-btn").addEventListener("click", doLogin);
+    $("login-password").addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); });
+    return;
+  }
+  refreshAccessToken().then(ok => {
+    if (ok) init().catch(showFatal);
+    else showLoginScreen();
+  });
+});
+
+async function init() {
+  state.loading = true; state.error = null; renderAll();
+
+  const [societes, utilisateurs, profils, permissions] = await Promise.all([
+    api.getSocietes(), api.getUtilisateurs(), api.getProfils(), api.getPermissions()
+  ]);
+  state.societes = societes || [];
+  state.utilisateurs = utilisateurs || [];
+  state.profils = profils || [];
+  state.permissions = permissions || [];
+
+  const [allAttr, allExc] = await Promise.all([
+    api.getAllAttributions().catch(() => []),
+    api.getAllExceptions().catch(() => []),
+  ]);
+  state.allAttributions = allAttr;
+  state.allExceptions = allExc;
+
+  state.userId = state.utilisateurs[0]?.id || null;
+  state.societeId = state.societes[0]?.id || null;
+  state.profilId = null; state.profilReelId = null; state.profilIdsReels = [];
+
+  await reloadContext();
+  state.loading = false; renderAll();
+}
+
+async function reloadContext() {
+  if (!state.userId || !state.societeId) {
+    state.attributions = []; state.exceptions = []; state.droits = [];
+    state.profilReelId = null; state.profilIdsReels = [];
+    if (!state.profilId) state.profilId = null;
+    return;
+  }
+  const [attributions, exceptions, droitsData] = await Promise.all([
+    api.getAttributions(state.userId),
+    api.getExceptions(state.userId, state.societeId),
+    api.resolveDroits(state.userId, state.societeId, state.profilId),
+  ]);
+  state.attributions = attributions || [];
+  state.exceptions = exceptions || [];
+  state.droits = droitsData?.droits || [];
+  state.profilReelId = droitsData?.profilId || null;
+  state.profilIdsReels = droitsData?.profilIds || [];
+
+  if (!state.profilId && state.profilIdsReels.length > 0) {
+    state.profilId = state.profilIdsReels[0];
+  }
+}
+
+/* ============================================================
+   NAVIGATION
+============================================================ */
+
+function setMode(mode) {
+  state.mode = mode;
+  const simBtn = $("btn-vue-simulation");
+  const admBtn = $("btn-vue-admin");
+  simBtn?.classList.toggle("actif", mode === "simulation");
+  admBtn?.classList.toggle("actif", mode === "admin");
+  $("vue-simulation")?.classList.toggle("hidden", mode !== "simulation");
+  $("vue-admin")?.classList.toggle("hidden", mode !== "admin");
+  if (mode === "admin") { remplirSelectsAdmin(); renderAdmin(); }
+}
+
+function bindGlobalEvents() {
+  $("btn-vue-simulation")?.addEventListener("click", () => setMode("simulation"));
+  $("btn-vue-admin")?.addEventListener("click", () => setMode("admin"));
+
+  document.querySelectorAll(".subtab").forEach(btn =>
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".adm-section").forEach(sec => sec.classList.toggle("hidden", sec.id !== btn.dataset.cible));
+      document.querySelectorAll(".subtab").forEach(b => b.classList.toggle("actif", b === btn));
+      if (btn.dataset.cible === "adm-attributions") refreshAttributionSocietes();
+    })
+  );
+
+  $("sel-user")?.addEventListener("change", async (e) => {
+    state.userId = e.target.value || null;
+    state.profilId = null;
+    await reloadContext();
+    renderAll();
+  });
+  $("sel-societe")?.addEventListener("change", async (e) => {
+    state.societeId = e.target.value || null;
+    state.profilId = null;
+    await reloadContext();
+    renderAll();
+  });
+  $("sel-profil")?.addEventListener("change", async (e) => {
+    state.profilId = e.target.value || null;
+    await reloadContext();
+    renderAll();
+  });
+  $("chk-effectifs")?.addEventListener("change", (e) => {
+    state.onlyEffectifs = !!e.target.checked;
+    renderAll();
+  });
+
+  $("btn-creer-utilisateur")?.addEventListener("click", handleCreateUser);
+  $("btn-creer-societe")?.addEventListener("click", handleCreateSociete);
+  $("btn-creer-profil")?.addEventListener("click", handleCreateProfil);
+  $("btn-creer-attribution")?.addEventListener("click", handleAddAttribution);
+  $("btn-creer-exception")?.addEventListener("click", handleAddException);
+
+  $("sel-adm-profil-droits")?.addEventListener("change", renderMatriceDroits);
+
+  $("btn-json")?.addEventListener("click", exportJson);
+  $("btn-journal-dl")?.addEventListener("click", exportJournal);
+  $("btn-reset-donnees")?.addEventListener("click", () => { sessionStorage.removeItem("samsecure_admin_logs"); location.reload(); });
+
+  $("chk-usr-temporaire")?.addEventListener("change", (e) => {
+    $("field-usr-date-finale")?.classList.toggle("hidden", !e.target.checked);
+  });
+  $("btn-journal-search")?.addEventListener("click", renderJournal);
+  $("inp-journal-search")?.addEventListener("keydown", (e) => { if (e.key === "Enter") renderJournal(); });
+  $("btn-journal-dl-full")?.addEventListener("click", downloadFullJournal);
+
+  [{ n: "usr-portee", c: "chk-usr-societes" }, { n: "prof-portee", c: "chk-prof-societes" }, { n: "att-portee", c: "chk-att-societes" }].forEach(({ n, c }) =>
+    document.querySelectorAll("input[name='" + n + "']").forEach(r => r.addEventListener("change", () => {
+      const val = document.querySelector("input[name='" + n + "']:checked")?.value;
+      $(c)?.classList.toggle("hidden", val !== "societes");
+      if (n === "att-portee" && val === "societes") refreshAttributionSocietes();
+    }))
+  );
+
+  $("sel-att-utilisateur")?.addEventListener("change", refreshAttributionSocietes);
+  $("sel-att-profil")?.addEventListener("change", refreshAttributionSocietes);
+
+  setMode("simulation");
+}
+
+/* ============================================================
+   RENDER GLOBAL
+============================================================ */
+const MODULES = [
+  { code: "organisation",   label: "Organisation (référentiels)" },
+  { code: "droits_usage",   label: "Droits d'usage" },
+  { code: "deploiement",    label: "Déploiement" },
+  { code: "budget",         label: "Budget" },
+  { code: "rapports",       label: "Conformité et optimisation (rapports)" },
+  { code: "administration", label: "Administration" }
+];
+
+function renderAll() {
+  renderTopState(); renderSelects(); renderBanner(); renderUserCard();
+  renderStats(); renderModules(); renderExplorer();
+  renderAdmin(); renderAdminJournal(); renderJsonExport();
+  if ($("loading-indicator")) $("loading-indicator").classList.toggle("hidden", !state.loading);
+  if ($("error-box")) { $("error-box").classList.toggle("hidden", !state.error); $("error-box").textContent = state.error || ""; }
+  setMode(state.mode);
+}
+function renderTopState() { const l = $("mode-label"); if (l) l.textContent = state.mode === "admin" ? "Administration (écriture)" : "Simulation"; }
+
+function buildCompleteDroits() {
+  const droitsMap = new Map();
+  for (const d of state.droits) {
+    if (d.permission?.id) droitsMap.set(d.permission.id, d);
+  }
+  return state.permissions.map(p => {
+    const d = droitsMap.get(p.id);
+    if (d) return d;
+    return { permission: p, source: "aucun", effectif: false, exception: null, redondante: false, profils: [] };
+  });
+}
+
+function getSocieteDepth(societe, allSocietes) {
+  let depth = 0;
+  let current = societe;
+  const seen = new Set();
+  while (current) {
+    const pid = current.id_societe_parent || current.idsocieteparent;
+    if (!pid) break;
+    if (seen.has(pid)) break;
+    seen.add(pid);
+    current = allSocietes.find(x => x.id === pid);
+    if (current) depth++;
+  }
+  return depth;
+}
+
+function sortSocietesByHierarchy(societes) {
+  const byParent = new Map();
+  byParent.set(null, []);
+  const allIds = new Set(societes.map(s => s.id));
+  for (const s of societes) {
+    const pid = s.id_societe_parent || s.idsocieteparent || null;
+    if (!byParent.has(pid)) byParent.set(pid, []);
+    byParent.get(pid).push(s);
+  }
+  // Assurer que les parents manquants (hors liste) ont une entrée vide
+  for (const s of societes) {
+    const pid = s.id_societe_parent || s.idsocieteparent || null;
+    if (pid && !allIds.has(pid) && !byParent.has(pid)) byParent.set(pid, []);
+  }
+  for (const [, arr] of byParent) {
+    arr.sort((a, b) => (a.raisonsociale || a.raison_sociale || "").localeCompare(b.raisonsociale || b.raison_sociale || ""));
+  }
+  const result = [];
+  const visited = new Set();
+  function walk(pid, depth) {
+    const children = byParent.get(pid) || [];
+    for (const child of children) {
+      if (visited.has(child.id)) continue;
+      visited.add(child.id);
+      result.push({ ...child, _depth: depth });
+      walk(child.id, depth + 1);
+    }
+  }
+  walk(null, 0);
+  // Ajouter les sociétés non visitées (parent absent de la liste)
+  for (const s of societes) {
+    if (!visited.has(s.id)) {
+      result.push({ ...s, _depth: 0 });
+    }
+  }
+  return result;
+}
+
+function formatSocieteLabel(s, allSocietes) {
+  const d = s._depth !== undefined ? s._depth : getSocieteDepth(s, allSocietes);
+  const indent = "\u00A0\u00A0".repeat(Math.max(0, d - 1));
+  const prefix = d > 0 ? indent + "\u2514 " : "";
+  return prefix + (s.raisonsociale || s.raison_sociale || "");
+}
+
+function renderMultiSelectSocietes(containerId, societesToShow = null, selectedIds = [], flat = false) {
+  const container = $(containerId);
+  if (!container) return;
+
+  const current = Array.from(container.querySelectorAll('.ms-opt:checked')).map(c => c.value);
+  const toSelect = selectedIds.length ? selectedIds : current;
+
+  const liste = societesToShow || state.societes;
+  let sorted;
+  if (flat) {
+    sorted = [...liste].sort((a, b) => (a.raisonsociale || a.raison_sociale || "").localeCompare(b.raisonsociale || b.raison_sociale || ""));
+  } else {
+    sorted = sortSocietesByHierarchy(liste);
+  }
+
+  const labelText = toSelect.length ? `${toSelect.length} société(s) sélectionnée(s)` : 'Sélectionner des sociétés...';
+
+  let html = `
+    <div class="ms-dropdown" style="position:relative;">
+      <div class="ms-trigger" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:#fff;cursor:pointer;display:flex;justify-content:space-between;align-items:center;outline:none;user-select:none;">
+        <span class="ms-label" style="font-size:13.5px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(labelText)}</span>
+        <span style="color:var(--muted);font-size:11px;margin-left:8px;">&#9662;</span>
+      </div>
+      <div class="ms-options hidden" style="position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:20;background:#fff;border:1px solid var(--line);border-radius:8px;max-height:260px;overflow:auto;box-shadow:0 6px 20px rgba(16,26,54,.12);padding:4px 0;">
+  `;
+
+  for (const s of sorted) {
+    const label = flat ? (s.raisonsociale || s.raison_sociale || "") : formatSocieteLabel(s, liste);
+    const checked = toSelect.includes(s.id) ? 'checked' : '';
+    html += `
+      <label style="display:flex;align-items:center;gap:8px;padding:6px 10px;cursor:pointer;font-size:13px;white-space:nowrap;">
+        <input type="checkbox" class="case ms-opt" value="${s.id}" ${checked}>
+        <span>${esc(label)}</span>
+      </label>
+    `;
+  }
+
+  html += `</div></div>`;
+  container.innerHTML = html;
+
+  const trigger = container.querySelector('.ms-trigger');
+  const options = container.querySelector('.ms-options');
+  const labelSpan = container.querySelector('.ms-label');
+
+  trigger.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+  });
+
+  trigger.addEventListener('click', (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const isHidden = options.classList.contains('hidden');
+    document.querySelectorAll('.ms-options').forEach(el => el.classList.add('hidden'));
+    if (isHidden) {
+      options.classList.remove('hidden');
+      container._blockChange = true;
+      setTimeout(() => { container._blockChange = false; }, 80);
+    }
+  });
+
+  container.querySelectorAll('.ms-opt').forEach(chk => {
+    chk.addEventListener('change', (e) => {
+      if (container._blockChange) {
+        e.preventDefault();
+        e.stopPropagation();
+        chk.checked = !chk.checked;
+        return;
+      }
+      const vals = Array.from(container.querySelectorAll('.ms-opt:checked')).map(c => c.value);
+      labelSpan.textContent = vals.length ? `${vals.length} société(s) sélectionnée(s)` : 'Sélectionner des sociétés...';
+    });
+  });
+
+  if (!container._msInit) {
+    container._msInit = true;
+    document.addEventListener('click', (e) => {
+      if (!container.contains(e.target)) {
+        const opts = container.querySelector('.ms-options');
+        if (opts) opts.classList.add('hidden');
+      }
+    });
+  }
+}
+
+function getMultiSelectValues(containerId) {
+  const container = $(containerId);
+  if (!container) return [];
+  return Array.from(container.querySelectorAll('.ms-opt:checked')).map(c => c.value);
+}
+
+function renderSelects() {
+  const su = $("sel-user"), ss = $("sel-societe"), sp = $("sel-profil");
+
+  if (su) {
+    su.innerHTML = state.utilisateurs.map(u => `<option value="${u.id}">${esc(u.prenom)} ${esc(u.nom)}</option>`).join("");
+    if (state.userId) su.value = state.userId;
+  }
+
+    if (ss) {
+    const sorted = sortSocietesByHierarchy(state.societes);
+    ss.innerHTML = sorted.map(s => {
+      const label = formatSocieteLabel(s, state.societes);
+      return `<option value="${s.id}">${esc(label)}</option>`;
+    }).join("");
+    if (state.societeId) ss.value = state.societeId;
+  }
+
+  if (sp) {
+    const attribs = state.attributions.filter(a => a.idsociete === state.societeId || a.idsociete === null);
+    if (attribs.length === 0) {
+      sp.innerHTML = `<option value="">Aucun groupe attribué</option>`;
+      sp.value = "";
+    } else {
+      sp.innerHTML = attribs.map(a => {
+        const p = state.profils.find(x => x.id === a.idprofil);
+        return `<option value="${a.idprofil}">${esc(p?.label || a.idprofil)}</option>`;
+      }).join("");
+      if (state.profilId && attribs.some(a => a.idprofil === state.profilId)) {
+        sp.value = state.profilId;
+      } else {
+        state.profilId = attribs[0].idprofil;
+        sp.value = state.profilId;
+      }
+    }
+  }
+}
+
+function renderBanner() {
+  const b1 = $("banner-noattr"), b2 = $("banner-sim");
+  const user = state.utilisateurs.find(u => u.id === state.userId);
+  const soc = state.societes.find(s => s.id === state.societeId);
+  const socLabel = soc?.raisonsociale || soc?.raison_sociale || "";
+
+  if (b1) {
+    if (!state.profilIdsReels.length) {
+      b1.classList.remove("hidden");
+      b1.innerHTML = `Aucune attribution en BDD pour <strong>${esc(user?.prenom)} ${esc(user?.nom)}</strong> sur <strong>${esc(socLabel)}</strong>.`;
+    } else {
+      b1.classList.add("hidden");
+    }
+  }
+
+  if (b2) {
+    const sim = state.profilId && !state.profilIdsReels.includes(state.profilId);
+    if (sim) {
+      const pSim = state.profils.find(p => p.id === state.profilId);
+      const reels = state.profilIdsReels.map(id => state.profils.find(p => p.id === id)?.label || id).join(", ");
+      b2.classList.remove("hidden");
+      b2.innerHTML = `
+        <strong>Mode simulation</strong> : groupe appliqué : ${esc(pSim?.label || "")}.
+        Attribution réelle en BDD : ${esc(reels)}.
+        <br><button type="button" id="btn-reset-prof">Rétablir l'attribution réelle</button>
+      `;
+      $("btn-reset-prof")?.addEventListener("click", () => {
+        state.profilId = state.profilIdsReels[0] || null;
+        reloadContext().then(renderAll);
+      });
+    } else {
+      b2.classList.add("hidden");
+    }
+  }
+}
+
+function renderUserCard() {
+  const el = $("user-card"); if (!el) return;
+  const user = state.utilisateurs.find(u => u.id === state.userId);
+  if (!user) { el.innerHTML = "<p>Aucun utilisateur sélectionné.</p>"; return; }
+
+  const attribs = state.attributions.map(a => {
+    const p = state.profils.find(x => x.id === (a.idprofil || a.id_profil));
+    const s = state.societes.find(x => x.id === (a.idsociete || a.id_societe));
+    return `<span class="chip">${esc(p?.label || "")} · ${esc(s?.raisonsociale || s?.raison_sociale || "Tenant")}</span>`;
+  }).join("");
+
+  el.innerHTML = `
+    <div class="user-head"><div class="avatar">${esc(initials(user.prenom, user.nom))}</div><div><div class="user-name">${esc(user.prenom)} ${esc(user.nom)}</div><div class="user-mail">${esc(user.email)}</div></div></div>
+    <div class="sub-label">Attributions en BDD</div><div>${attribs || "<em>Aucune attribution.</em>"}</div>
+    <div class="sub-label">Exceptions individuelles</div><div class="exc-count">${state.exceptions.length} exception(s).</div>
+  `;
+}
+
+function renderStats() {
+  const el = $("stats"); if (!el) return;
+  const all = buildCompleteDroits();
+  const total = all.length;
+  const eff = all.filter(d => d.effectif).length;
+  const herites = all.filter(d => d.source === "profil").length;
+  const plus = all.filter(d => d.source === "exceptionaccorde").length;
+  const moins = all.filter(d => d.source === "exceptionretire").length;
+
+  el.innerHTML = `
+    <div class="stat"><div class="num">${eff}<small> / ${total}</small></div><div class="lbl">Droits effectifs</div></div>
+    <div class="stat"><div class="num">${herites}</div><div class="lbl">Hérités des groupes (union)</div></div>
+    <div class="stat"><div class="num">${plus + moins}</div><div class="lbl">Exceptions appliquées : ${plus} en ajout, ${moins} en retrait</div></div>
+  `;
+}
+
+function renderModules() {
+  const el = $("modules"); if (!el) return;
+  const all = buildCompleteDroits();
+
+  el.innerHTML = MODULES.map(mo => {
+    const lignes = all.filter(r => r.permission.module === mo.code);
+    const eff = lignes.filter(r => r.effectif).length;
+    const affichees = state.onlyEffectifs ? lignes.filter(r => r.effectif) : lignes;
+    const pct = lignes.length ? Math.round(eff / lignes.length * 100) : 0;
+
+    const corps = affichees.length
+      ? affichees.map(r => `
+          <div class="perm-row ${r.effectif ? "" : "off"}">
+            <div>
+              <span class="perm-label">${esc(r.permission.label)}</span>
+              <span class="perm-code">${esc(r.permission.code)}</span>
+            </div>
+            ${renderSourceBadge(r.source)}
+            ${r.source === "profil" && state.profilId ? `<div class="perm-via">Hérité du groupe : ${esc(state.profils.find(p => p.id === state.profilId)?.label || "")}</div>` : ""}
+            ${r.exception ? `<div class="perm-exc ${esc(r.exception.type)}">${esc(r.exception.type)} · ${esc(r.exception.motif || "")}</div>` : ""}
+          </div>`).join("")
+      : `<div class="module-empty">Aucun droit effectif dans ce module.</div>`;
+
+    return `
+      <div class="module">
+        <div class="module-head">
+          <div class="module-head-row">
+            <h3>${esc(mo.label)}</h3>
+            <span class="module-count">${eff} / ${lignes.length} effectif${eff > 1 ? "s" : ""}</span>
+          </div>
+          <div class="module-bar"><i style="width:${pct}%"></i></div>
+        </div>
+        ${corps}
+      </div>`;
+  }).join("");
+}
+
+function renderPermissionRow(d) {
+  const badge = renderSourceBadge(d.source);
+  const exc = d.exception ? `<div class="perm-exc ${esc(d.exception.type)}">${esc(d.exception.type)} · ${esc(d.exception.motif || "")}</div>` : "";
+  const off = d.effectif ? "" : " off";
+  return `
+    <div class="perm-row${off}">
+      <div class="perm-label">
+        ${esc(d.permission?.label || "")}
+        <span class="perm-code">${esc(d.permission?.code || "")}</span>
+      </div>
+      <div>${badge}</div>
+      ${exc}
+    </div>
+  `;
+}
+
+function renderSourceBadge(source) {
+  switch (source) {
+    case "profil": return `<span class="badge b-profil"><span class="dot"></span>Accordé · Groupe</span>`;
+    case "exceptionaccorde": return `<span class="badge b-plus"><span class="dot"></span>Accordé · Exception</span>`;
+    case "exceptionretire": return `<span class="badge b-moins"><span class="dot"></span>Retiré · Exception</span>`;
+    default: return `<span class="badge b-aucun"><span class="dot"></span>Non accordé</span>`;
+  }
+}
+
+function renderExplorer() {
+  const el = $("tables"); if (!el) return;
+  const payload = {
+    societes: state.societes, utilisateurs: state.utilisateurs, profils: state.profils,
+    permissions: state.permissions, attributions: state.attributions, exceptions: state.exceptions, droits: state.droits
+  };
+  el.innerHTML = `<pre style="white-space:pre-wrap">${esc(JSON.stringify(payload, null, 2))}</pre>`;
+}
+
+async function renderJournal() {
+  const el = $("journal-liste-complete");
+  if (!el) return;
+  const search = $("inp-journal-search")?.value?.trim() || "";
+  el.innerHTML = "<em>Chargement...</em>";
+  try {
+    const logs = await api.getJournal({ search, limit: 1000, offset: 0 });
+    if (!logs.length) { el.innerHTML = "<em>Aucun événement.</em>"; return; }
+    el.innerHTML = logs.map(l => `
+      <div class="j-item">
+        <span class="j-methode j-${esc(l.action)}">${esc(l.action)}</span>
+        <span style="font-weight:600;">${esc(l.description)}</span>
+        <span style="margin-left:auto;font-size:11px;color:var(--muted);white-space:nowrap;">${new Date(l.created_at).toLocaleString()}</span>
+      </div>
+      ${l.payload ? `<div class="j-payload">${esc(JSON.stringify(l.payload))}</div>` : ""}
+    `).join("");
+  } catch (e) {
+    el.innerHTML = "<em>Erreur de chargement.</em>";
+  }
+}
+
+async function downloadFullJournal() {
+  try {
+    const logs = await api.getJournal({ limit: 10000, offset: 0 });
+    const lines = logs.map(l => `[${new Date(l.created_at).toLocaleString()}] ${l.action} | ${l.description} | ${l.entite_type || '-'} | ${l.entite_id || '-'}${l.payload ? ' | ' + JSON.stringify(l.payload) : ''}`);
+    const blob = new Blob([lines.join("\n")], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = "samsecure-journal-complet.txt"; a.click(); URL.revokeObjectURL(url);
+  } catch (e) {
+    toast("Erreur de téléchargement", false);
+  }
+}
+
+function renderAdminJournal() {
+  const el = $("journal-liste"); if (!el) return;
+  const logs = JSON.parse(sessionStorage.getItem("samsecure_admin_logs") || "[]");
+  $("journal-count").textContent = logs.length;
+  el.innerHTML = logs.map(l => {
+    const action = l.includes('DELETE') ? 'DELETE' : l.includes('PATCH') ? 'PATCH' : 'POST';
+    return `<div class="j-item"><span class="j-methode j-${action}">${action}</span> <span class="j-endpoint">${esc(l)}</span></div>`;
+  }).join("") || "<em>Aucun événement.</em>";
+}
+
+function renderJsonExport() { }
+function exportJson() {
+  const blob = new Blob([JSON.stringify({ societes: state.societes, utilisateurs: state.utilisateurs, profils: state.profils, permissions: state.permissions, attributions: state.attributions, exceptions: state.exceptions, droits: state.droits }, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = "samsecure-export.json"; a.click(); URL.revokeObjectURL(url);
+}
+function exportJournal() {
+  const logs = JSON.parse(sessionStorage.getItem("samsecure_admin_logs") || "[]");
+  const blob = new Blob([logs.join("\n")], { type: "text/plain" }); const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href = url; a.download = "samsecure-journal.txt"; a.click(); URL.revokeObjectURL(url);
+}
+
+function showFatal(err) { state.loading = false; state.error = err?.message || String(err); renderAll(); alert(`Erreur d'initialisation API : ${state.error}`); }
+
+/* ============================================================
+   ADMIN RENDER
+============================================================ */
+
+function renderAdmin() {
+  if (state.mode !== "admin") return;
+  renderListeUtilisateurs(); renderListeProfils(); renderListeAttributions();
+  renderListeExceptions(); renderListeSocietes(); renderMatriceDroits(); renderJournal();
+}
+
+function remplirSelectsAdmin() {
+  const nomU = u => `${u.prenom || ""} ${u.nom || ""}`.trim();
+  const nomS = s => s.raisonsociale || s.raison_sociale || "";
+  const opts = (liste, lib) => (liste || []).map(x => `<option value="${x.id}">${esc(lib(x))}</option>`).join("");
+
+  const sortedSocietes = sortSocietesByHierarchy(state.societes);
+  const societeOptions = sortedSocietes.map(s => {
+    const label = formatSocieteLabel(s, state.societes);
+    return `<option value="${s.id}">${esc(label)}</option>`;
+  }).join("");
+
+  const paires = [
+    ["sel-att-utilisateur", opts(state.utilisateurs, nomU)],
+    ["sel-att-profil", opts(state.profils, p => p.label || p.code || "")],
+    ["sel-exc-utilisateur", opts(state.utilisateurs, nomU)],
+    ["sel-soc-parent", `<option value="">Aucune (société racine)</option>` + societeOptions],
+    ["sel-adm-profil-droits", opts(state.profils, p => p.label || p.code || "")]
+  ];
+  paires.forEach(([id, html]) => { const sel = $(id); if (!sel) return; const m = sel.value; sel.innerHTML = html; if (m && Array.from(sel.options).some(o => o.value === m)) sel.value = m; });
+
+  /* ---------- Select Permission avec optgroup par module ---------- */
+  const selExcPerm = $("sel-exc-permission");
+  if (selExcPerm) {
+    const memo = selExcPerm.value;
+    const MODULES = [
+      { code: "organisation", label: "Organisation (référentiels)" },
+      { code: "droits_usage", label: "Droits d'usage" },
+      { code: "deploiement", label: "Déploiement" },
+      { code: "budget", label: "Budget" },
+      { code: "rapports", label: "Conformité et optimisation (rapports)" },
+      { code: "administration", label: "Administration" }
+    ];
+    let html = "";
+    for (const mo of MODULES) {
+      const perms = (state.permissions || []).filter(p => p.module === mo.code);
+      if (perms.length) {
+        html += `<optgroup label="${esc(mo.label)}">`;
+        html += perms.map(p => `<option value="${p.id}">${esc(p.label || p.code || "")}</option>`).join("");
+        html += `</optgroup>`;
+      }
+    }
+    const autres = (state.permissions || []).filter(p => !MODULES.some(m => m.code === p.module));
+    if (autres.length) {
+      html += `<optgroup label="Autre">`;
+      html += autres.map(p => `<option value="${p.id}">${esc(p.label || p.code || "")}</option>`).join("");
+      html += `</optgroup>`;
+    }
+    selExcPerm.innerHTML = html;
+    if (memo && Array.from(selExcPerm.options).some(o => o.value === memo)) selExcPerm.value = memo;
+  }
+
+  const selExcSoc = $("sel-exc-societe");
+  if (selExcSoc) {
+    const memo = selExcSoc.value;
+    selExcSoc.innerHTML = `<option value="">Toutes ses sociétés (id_societe NULL)</option>` + societeOptions;
+    if (memo && Array.from(selExcSoc.options).some(o => o.value === memo)) selExcSoc.value = memo;
+  }
+
+  renderMultiSelectSocietes("chk-usr-societes");
+  renderMultiSelectSocietes("chk-prof-societes");
+  refreshAttributionSocietes();
+}
+
+function renderListeUtilisateurs() {
+  const el = $("liste-utilisateurs"); if (!el) return;
+  if (!state.utilisateurs.length) { el.innerHTML = "<em>Aucun utilisateur.</em>"; return; }
+
+  const editState = window._editUserData || null;
+
+  el.innerHTML = state.utilisateurs.map(u => {
+    /* ---------- Mode édition ---------- */
+    if (editState && editState.userId === u.id) {
+      return `
+        <div class="list-item" style="flex-wrap:wrap;padding:14px 2px;">
+          <div style="flex:1 1 100%;margin-bottom:10px;">
+            <label class="field" style="margin-bottom:8px;">
+              <span>Prénom</span>
+              <input class="inp" id="edit-prenom-${u.id}" type="text" value="${esc(u.prenom)}">
+            </label>
+            <label class="field" style="margin-bottom:8px;">
+              <span>Nom</span>
+              <input class="inp" id="edit-nom-${u.id}" type="text" value="${esc(u.nom)}">
+            </label>
+            <label class="field" style="margin-bottom:8px;">
+              <span>Email</span>
+              <input class="inp" id="edit-email-${u.id}" type="text" value="${esc(u.email)}">
+            </label>
+            <label class="field" style="margin-bottom:8px;">
+              <span style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                <input type="checkbox" id="edit-temp-${u.id}" style="width:auto;accent-color:var(--blue);cursor:pointer;" ${u.date_finale ? 'checked' : ''}>
+                <span style="margin-bottom:0;">Utilisateur temporaire</span>
+              </span>
+            </label>
+            <label class="field ${u.date_finale ? '' : 'hidden'}" id="field-date-finale-${u.id}" style="margin-bottom:8px;">
+              <span>Date finale</span>
+              <input class="inp" id="edit-date-finale-${u.id}" type="date" value="${esc(u.date_finale || '')}">
+            </label>
+            <label class="field" style="margin-bottom:4px;">
+              <span>Date de mise en fonction</span>
+              <input class="inp" id="edit-date-mef-${u.id}" type="date" value="${esc(u.date_mise_en_fonction || '')}">
+            </label>
+            <label class="field" style="margin-bottom:4px;">
+              <span>Sociétés de rattachement</span>
+              <div id="edit-soc-container-${u.id}"></div>
+            </label>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button type="button" class="btn btn-mini" onclick="sauverModificationUtilisateur('${u.id}')">Sauvegarder</button>
+            <button type="button" class="btn-ghost btn-mini" onclick="annulerEditUtilisateur()">Annuler</button>
+          </div>
+        </div>`;
+    }
+
+    /* ---------- Mode lecture ---------- */
+    const nbA = state.allAttributions.filter(a => a.idutilisateur === u.id).length;
+    const nbE = state.allExceptions.filter(e => e.idutilisateur === u.id).length;
+    const mefLabel = u.date_mise_en_fonction ? ` · MEF : ${esc(u.date_mise_en_fonction)}` : '';
+    const finLabel = u.date_finale ? ` · Fin : ${esc(u.date_finale)}` : '';
+    return `<div class="list-item ${u.actif === false ? 'inactif' : ''}">
+      <div class="li-corps"><div class="li-titre">${esc(u.prenom)} ${esc(u.nom)}</div><div class="li-sous">${esc(u.email)}</div><div class="li-meta">${nbA} attribution(s), ${nbE} exception(s)${mefLabel}${finLabel}</div></div>
+      <div class="li-actions">
+        <button type="button" class="btn-ghost btn-mini" onclick="editerUtilisateur('${u.id}')">Modifier</button>
+        <button type="button" class="btn-danger btn-mini" onclick="supprimerUtilisateur('${u.id}')">Supprimer</button>
+      </div>
+    </div>`;
+  }).join("");
+
+  /* Post-render : injecter le multi-select des sociétés si en mode édition */
+  if (editState) {
+    const u = state.utilisateurs.find(x => x.id === editState.userId);
+    if (u) {
+      const selectedIds = (editState.societes || []).map(s => s.idsociete).filter(Boolean);
+      renderMultiSelectSocietes(`edit-soc-container-${u.id}`, state.societes, selectedIds);
+      const chkTemp = $(`edit-temp-${u.id}`);
+      const fieldDate = $(`field-date-finale-${u.id}`);
+      chkTemp?.addEventListener("change", (e) => {
+        fieldDate?.classList.toggle("hidden", !e.target.checked);
+      });
+    }
+  }
+}
+
+function renderListeProfils() {
+  const el = $("liste-profils"); if (!el) return;
+  if (!state.profils.length) { el.innerHTML = "<em>Aucun groupe.</em>"; return; }
+
+  const editState = window._editProfilData || null;
+
+  el.innerHTML = state.profils.map(p => {
+    if (editState && editState.profilId === p.id) {
+      return `
+        <div class="list-item" style="flex-wrap:wrap;padding:14px 2px;">
+          <div style="flex:1 1 100%;margin-bottom:10px;">
+            <label class="field" style="margin-bottom:8px;">
+              <span>Libellé</span>
+              <input class="inp" id="edit-prof-label-${p.id}" type="text" value="${esc(p.label)}">
+            </label>
+            <label class="field" style="margin-bottom:8px;">
+              <span>Description</span>
+              <textarea class="inp" id="edit-prof-desc-${p.id}" placeholder="Responsabilités du rôle">${esc(p.description || "")}</textarea>
+            </label>
+            <label class="field" style="margin-bottom:4px;">
+              <span>Sociétés de diffusion</span>
+              <div id="edit-prof-soc-container-${p.id}"></div>
+            </label>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button type="button" class="btn btn-mini" onclick="sauverModificationProfil('${p.id}')">Sauvegarder</button>
+            <button type="button" class="btn-ghost btn-mini" onclick="annulerEditProfil()">Annuler</button>
+          </div>
+        </div>`;
+    }
+    return `<div class="list-item">
+      <div class="li-corps"><div class="li-titre">${esc(p.label || p.code)}</div><div class="li-sous">${esc(p.code)}</div></div>
+      <div class="li-actions">
+        <button class="btn-ghost btn-mini" onclick="editerProfil('${p.id}')">Modifier</button>
+        <button class="btn-danger btn-mini" onclick="supprimerProfil('${p.id}')">Supprimer</button>
+      </div>
+    </div>`;
+  }).join("");
+
+  if (editState) {
+    const p = state.profils.find(x => x.id === editState.profilId);
+    if (p) {
+      const selectedIds = (editState.societes || []).map(s => s.idsociete).filter(Boolean);
+      renderMultiSelectSocietes(`edit-prof-soc-container-${p.id}`, state.societes, selectedIds);
+    }
+  }
+}
+
+function renderListeAttributions() {
+  const el = $("liste-attributions"); if (!el) return;
+  const attrs = state.allAttributions || [];
+  if (!attrs.length) { el.innerHTML = "<em>Aucune attribution.</em>"; return; }
+  el.innerHTML = attrs.map(a => {
+    const u = state.utilisateurs.find(x => x.id === a.idutilisateur);
+    const p = state.profils.find(x => x.id === a.idprofil);
+    const s = state.societes.find(x => x.id === a.idsociete);
+    return `<div class="list-item"><div class="li-corps"><div class="li-titre">${esc(u ? `${u.prenom} ${u.nom}` : a.idutilisateur)}</div><div class="li-sous">${esc(p?.label || p?.code || '')} · ${esc(s?.raisonsociale || s?.raison_sociale || 'Échelle tenant')}</div></div><div class="li-actions"><button class="btn-danger btn-mini" onclick="supprimerAttribution('${a.idutilisateur}','${a.id}')">Supprimer</button></div></div>`;
+  }).join("");
+}
+
+function renderListeExceptions() {
+  const el = $("liste-exceptions"); if (!el) return;
+  const today = new Date().toISOString().split("T")[0];
+  let excs = (state.allExceptions || []).filter(e => !e.datefin || e.datefin >= today);
+  if (!excs.length) { el.innerHTML = "<em>Aucune exception.</em>"; return; }
+
+  const editState = window._editExceptionData || null;
+
+  el.innerHTML = excs.map(e => {
+    if (editState && editState.excId === e.id) {
+      return `
+        <div class="list-item" style="flex-wrap:wrap;padding:14px 2px;">
+          <div style="flex:1 1 100%;margin-bottom:10px;">
+            <div style="font-size:13.5px;font-weight:700;margin-bottom:4px;">${esc(state.permissions.find(x => x.id === e.idpermission)?.label || e.idpermission)}</div>
+            <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">
+              ${esc(state.utilisateurs.find(x => x.id === e.idutilisateur)?.prenom || "")} ${esc(state.utilisateurs.find(x => x.id === e.idutilisateur)?.nom || "")} ·
+              ${esc(state.societes.find(x => x.id === e.idsociete)?.raisonsociale || state.societes.find(x => x.id === e.idsociete)?.raison_sociale || 'Toutes sociétés')} ·
+              Type : <strong>${esc(e.type)}</strong>
+            </div>
+            <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">Début : ${esc(e.datedebut || '—')} · Fin actuelle : ${esc(e.datefin || '—')}</div>
+            <div class="form-2col">
+              <label class="field" style="margin-bottom:8px;">
+                <span>Nouvelle date de début</span>
+                <input class="inp" id="edit-exc-debut-${e.id}" type="date" value="${esc(e.datedebut || '')}">
+              </label>
+              <label class="field" style="margin-bottom:8px;">
+                <span>Nouvelle date de fin</span>
+                <input class="inp" id="edit-exc-fin-${e.id}" type="date" value="${esc(e.datefin || '')}">
+              </label>
+            </div>
+            <label class="field" style="margin-bottom:4px;">
+              <span>Motif de modification</span>
+              <textarea class="inp" id="edit-exc-motif-${e.id}" placeholder="Justification de la modification">${esc(e.motif_modification || '')}</textarea>
+            </label>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button type="button" class="btn btn-mini" onclick="sauverModificationException('${e.idutilisateur}','${e.id}')">Sauvegarder</button>
+            <button type="button" class="btn-ghost btn-mini" onclick="annulerEditException()">Annuler</button>
+          </div>
+        </div>`;
+    }
+    const u = state.utilisateurs.find(x => x.id === e.idutilisateur);
+    const perm = state.permissions.find(x => x.id === e.idpermission);
+    const s = state.societes.find(x => x.id === e.idsociete);
+    return `<div class="list-item"><div class="li-corps"><div class="li-titre">${esc(perm?.label || perm?.code || '')}</div><div class="li-sous">${esc(u ? `${u.prenom} ${u.nom}` : e.idutilisateur)} · ${esc(s?.raisonsociale || s?.raison_sociale || 'Toutes sociétés')}</div><div class="li-meta">Type : <strong>${esc(e.type)}</strong>${e.motif ? ' · ' + esc(e.motif) : ''}${e.datefin ? ' · Fin : ' + esc(e.datefin) : ''}</div></div><div class="li-actions"><button class="btn-ghost btn-mini" onclick="editerException('${e.idutilisateur}','${e.id}')">Modifier</button><button class="btn-danger btn-mini" onclick="supprimerException('${e.idutilisateur}','${e.id}')">Supprimer</button></div></div>`;
+  }).join("");
+}
+
+function renderListeSocietes() {
+  const el = $("liste-societes"); if (!el) return;
+  if (!state.societes.length) { el.innerHTML = "<em>Aucune société.</em>"; return; }
+  const sorted = sortSocietesByHierarchy(state.societes);
+
+  const editState = window._editSocieteData || null;
+
+  el.innerHTML = sorted.map(s => {
+    if (editState && editState.societeId === s.id) {
+      const currentParent = s.id_societe_parent || s.idsocieteparent;
+      const parentOptions = state.societes
+        .filter(x => x.id !== s.id)
+        .map(x => `<option value="${x.id}" ${(x.id === currentParent) ? 'selected' : ''}>${esc(x.raisonsociale || x.raison_sociale || x.id)}</option>`)
+        .join("");
+      return `
+        <div class="list-item" style="flex-wrap:wrap;padding:14px 2px;">
+          <div style="flex:1 1 100%;margin-bottom:10px;">
+            <div style="font-size:13.5px;font-weight:700;margin-bottom:4px;">${esc(s.raisonsociale || s.raison_sociale || '')}</div>
+            <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">${esc(s.siret || '')}</div>
+            <label class="field" style="margin-bottom:4px;">
+              <span>Société parente</span>
+              <select class="inp" id="edit-soc-parent-${s.id}">
+                <option value="">Aucune (société racine)</option>
+                ${parentOptions}
+              </select>
+            </label>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button type="button" class="btn btn-mini" onclick="sauverModificationSociete('${s.id}')">Sauvegarder</button>
+            <button type="button" class="btn-ghost btn-mini" onclick="annulerEditSociete()">Annuler</button>
+          </div>
+        </div>`;
+    }
+    const label = formatSocieteLabel(s, state.societes);
+    const parent = state.societes.find(x => x.id === (s.id_societe_parent || s.idsocieteparent));
+    return `<div class="list-item"><div class="li-corps"><div class="li-titre">${esc(label)}</div><div class="li-sous">${esc(s.siret || '')}${parent ? ' · Parent : ' + esc(parent.raisonsociale || parent.raison_sociale || '') : ''}</div></div><div class="li-actions"><button class="btn-ghost btn-mini" onclick="editerSociete('${s.id}')">Modifier</button><button class="btn-danger btn-mini" onclick="supprimerSociete('${s.id}')">Supprimer</button></div></div>`;
+  }).join("");
+}
+
+async function renderMatriceDroits() {
+  const el = $("matrice-droits"), sel = $("sel-adm-profil-droits");
+  if (!el || !sel) return;
+  const profilId = sel.value;
+  if (!profilId) { el.innerHTML = "<em>Sélectionnez un groupe pour configurer ses droits.</em>"; return; }
+  if (!state.profilPermissions[profilId]) {
+    el.innerHTML = "<em>Chargement...</em>";
+    try { state.profilPermissions[profilId] = await api.getProfilPermissions(profilId); } catch (e) { el.innerHTML = "<em>Erreur de chargement.</em>"; return; }
+  }
+  const permIds = new Set(state.profilPermissions[profilId].map(p => p.id));
+  const byModule = {};
+  for (const p of state.permissions) { const m = p.module || "Autre"; if (!byModule[m]) byModule[m] = []; byModule[m].push(p); }
+  let html = "";
+  for (const [mod, perms] of Object.entries(byModule)) {
+    html += `<div style="margin-bottom:14px;"><div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;">${esc(mod)}</div>`;
+    for (const p of perms) {
+      const checked = permIds.has(p.id) ? "checked" : "";
+      html += `<label class="grp-ligne" style="margin-top:3px;"><input type="checkbox" class="case" onchange="toggleProfilPermission('${profilId}','${p.id}',this.checked)" ${checked}><span class="grp-label">${esc(p.label || p.code)} <code style="font-size:10px;background:#eef0f4;border:1px solid var(--line);border-radius:5px;padding:1px 5px;">${esc(p.code)}</code></span></label>`;
+    }
+    html += `</div>`;
+  }
+  el.innerHTML = html || "<em>Aucune permission disponible.</em>";
+}
+
+/* ============================================================
+   ADMIN ACTIONS
+============================================================ */
+
+async function handleCreateUser() {
+  const nom = $("inp-usr-nom")?.value?.trim(), prenom = $("inp-usr-prenom")?.value?.trim(), email = $("inp-usr-email")?.value?.trim();
+  if (!nom || !prenom || !email) return alert("Nom, prénom et email requis.");
+  let payloadUser = { nom, prenom, email, actif: true, langue: "fr", mot_de_passe_hash: "temporary" };
+  if ($("chk-usr-temporaire")?.checked) {
+    const dv = $("inp-usr-date-finale")?.value;
+    if (dv) payloadUser.date_finale = dv;
+  }
+  const dmef = $("inp-usr-date-mef")?.value;
+  if (dmef) payloadUser.date_mise_en_fonction = dmef;
+  try {
+    const user = await api.createUtilisateur(payloadUser);
+    const portee = document.querySelector('input[name="usr-portee"]:checked')?.value;
+    if (portee === "societes") {
+      const ids = getMultiSelectValues("chk-usr-societes");
+      if (ids.length === 0) return alert("Sélectionnez au moins une société.");
+      for (const idS of ids) await api.addUtilisateurSociete(user.id, idS);
+    } else {
+      await api.addUtilisateurSociete(user.id, null);
+    }
+    pushAdminLog(`Utilisateur "${prenom} ${nom}" créé`); toast("Utilisateur créé"); await init();
+  } catch (e) { alert(e.message); }
+}
+
+async function handleCreateSociete() {
+  const raison_sociale = $("inp-soc-rs")?.value?.trim();
+  if (!raison_sociale) return alert("Raison sociale requise.");
+  try {
+    await api.createSociete({ raison_sociale, siret: $("inp-soc-siret")?.value?.trim() || null, id_societe_parent: $("sel-soc-parent")?.value || null });
+    pushAdminLog(`Société "${raison_sociale}" créée`); toast("Société créée"); await init();
+  } catch (e) { alert(e.message); }
+}
+
+async function handleCreateProfil() {
+  const label = $("inp-prof-label")?.value?.trim();
+  const description = $("inp-prof-desc")?.value?.trim() || null;
+  if (!label) return alert("Libellé requis.");
+  const code = slugify(label);
+  if (!code) return alert("Le libellé ne permet pas de générer un code technique valide.");
+  try {
+    const profil = await api.createProfil({ code, label, description });
+    const portee = document.querySelector('input[name="prof-portee"]:checked')?.value;
+    if (portee === "societes") {
+      const ids = getMultiSelectValues("chk-prof-societes");
+      if (ids.length === 0) return alert("Sélectionnez au moins une société.");
+      for (const idS of ids) await api.addProfilSociete(profil.id, idS);
+    }
+    pushAdminLog(`Groupe "${label}" créé`); toast("Groupe créé"); await init();
+  } catch (e) { alert(e.message); }
+}
+
+async function refreshAttributionSocietes() {
+  const userId = $("sel-att-utilisateur")?.value;
+  const profilId = $("sel-att-profil")?.value;
+  if (!userId || !profilId) {
+    renderMultiSelectSocietes("chk-att-societes", [], [], true);
+    return;
+  }
+  try {
+    const [userSocs, profilSocs] = await Promise.all([
+      api.getUtilisateurSocietes(userId),
+      api.getProfilSocietes(profilId)
+    ]);
+    const userSocIds = new Set((userSocs || []).map(s => s.idsociete).filter(Boolean));
+    const profilSocIds = new Set((profilSocs || []).map(s => s.idsociete).filter(Boolean));
+    const profilTenant = (profilSocs || []).length === 0 || (profilSocs || []).some(s => s.idsociete === null);
+    const userTenant = (userSocs || []).length === 0 || (userSocs || []).some(s => s.idsociete === null);
+    let available;
+    if (userTenant && profilTenant) {
+      available = state.societes;
+    } else if (userTenant) {
+      available = state.societes.filter(s => profilSocIds.has(s.id));
+    } else if (profilTenant) {
+      available = state.societes.filter(s => userSocIds.has(s.id));
+    } else {
+      available = state.societes.filter(s => userSocIds.has(s.id) && profilSocIds.has(s.id));
+    }
+    renderMultiSelectSocietes("chk-att-societes", available, [], true);
+  } catch (e) {
+    renderMultiSelectSocietes("chk-att-societes", [], [], true);
+  }
+}
+
+async function handleAddAttribution() {
+  try {
+    const userId = $("sel-att-utilisateur")?.value, profilId = $("sel-att-profil")?.value;
+    if (!userId || !profilId) return alert("Utilisateur et groupe requis.");
+    const portee = document.querySelector('input[name="att-portee"]:checked')?.value;
+    if (portee === "societes") {
+      const ids = getMultiSelectValues("chk-att-societes");
+      if (ids.length === 0) return alert("Sélectionnez au moins une société.");
+      const uA = state.utilisateurs.find(x => x.id === userId);
+      const pA = state.profils.find(x => x.id === profilId);
+      for (const idS of ids) {
+        await api.addProfilToUtilisateur(userId, { id_profil: profilId, id_societe: idS });
+        const sA = state.societes.find(x => x.id === idS);
+        pushAdminLog(`Attribution du groupe "${pA?.label || pA?.code || profilId}" à ${uA?.prenom || ''} ${uA?.nom || ''} sur ${sA?.raisonsociale || sA?.raison_sociale || idS}`);
+      }
+    } else {
+      await api.addProfilToUtilisateur(userId, { id_profil: profilId, id_societe: null });
+      const uAt = state.utilisateurs.find(x => x.id === userId);
+      const pAt = state.profils.find(x => x.id === profilId);
+      pushAdminLog(`Attribution du groupe "${pAt?.label || pAt?.code || profilId}" à ${uAt?.prenom || ''} ${uAt?.nom || ''} (échelle tenant)`);
+    }
+    toast("Attribution créée"); await init();
+  } catch (e) { alert(e.message); }
+}
+
+async function handleAddException() {
+  try {
+    const userId = $("sel-exc-utilisateur")?.value, id_permission = $("sel-exc-permission")?.value, id_societe = $("sel-exc-societe")?.value || null;
+    const type = document.querySelector('input[name="exc-type"]:checked')?.value;
+    const motif = $("inp-exc-motif")?.value?.trim() || null, date_debut = $("inp-exc-debut")?.value || null, date_fin = $("inp-exc-fin")?.value || null;
+    if (!userId || !id_permission || !type) return alert("Utilisateur, permission et type requis.");
+    await api.createException(userId, { id_permission, id_societe, type, motif, date_debut, date_fin });
+    const uE = state.utilisateurs.find(x => x.id === userId);
+    const permE = state.permissions.find(x => x.id === id_permission);
+    const sE = state.societes.find(x => x.id === id_societe);
+    pushAdminLog(`Exception "${permE?.label || permE?.code || id_permission}" (${type}) créée pour ${uE?.prenom || ''} ${uE?.nom || ''} sur ${sE?.raisonsociale || sE?.raison_sociale || 'toutes sociétés'}`);
+    toast("Exception créée"); await init();
+  } catch (e) { alert(e.message); }
+}
+
+/* ============================================================
+   GLOBAL ACTIONS
+============================================================ */
+
+
+window.editerUtilisateur = async function(userId) {
+  try {
+    const societes = await api.getUtilisateurSocietes(userId);
+    window._editUserData = { userId, societes: societes || [] };
+    renderListeUtilisateurs();
+  } catch (e) {
+    toast("Erreur chargement des sociétés", false);
+  }
+};
+
+window.annulerEditUtilisateur = function() {
+  window._editUserData = null;
+  renderListeUtilisateurs();
+};
+
+window.sauverModificationUtilisateur = async function(userId) {
+  const nom = $(`edit-nom-${userId}`)?.value?.trim();
+  const prenom = $(`edit-prenom-${userId}`)?.value?.trim();
+  const email = $(`edit-email-${userId}`)?.value?.trim();
+  let payloadUpdate = { nom, prenom, email };
+  if ($(`edit-temp-${userId}`)?.checked) {
+    const dv = $(`edit-date-finale-${userId}`)?.value;
+    if (dv) payloadUpdate.date_finale = dv;
+  }
+  const dmef = $(`edit-date-mef-${userId}`)?.value;
+  if (dmef) payloadUpdate.date_mise_en_fonction = dmef;
+  const nouvellesSocietes = getMultiSelectValues(`edit-soc-container-${userId}`);
+
+  if (!nom || !prenom || !email) {
+    toast("Nom, prénom et email requis", false);
+    return;
+  }
+
+  const anciennes = (window._editUserData?.societes || []).map(s => s.idsociete).filter(Boolean);
+  const retirees = anciennes.filter(id => !nouvellesSocietes.includes(id));
+
+  /* ---------- Détection des groupes impactés ---------- */
+  let groupesImpactes = [];
+  for (const socId of retirees) {
+    const attribs = state.allAttributions.filter(a =>
+      a.idutilisateur === userId &&
+      a.idsociete === socId
+    );
+    for (const a of attribs) {
+      const p = state.profils.find(x => x.id === a.idprofil);
+      const s = state.societes.find(x => x.id === socId);
+      if (p) groupesImpactes.push({ label: p.label, societe: s?.raisonsociale || s?.raison_sociale || socId });
+    }
+  }
+  groupesImpactes = groupesImpactes.filter((v, i, a) => a.findIndex(t => t.label === v.label && t.societe === v.societe) === i);
+
+  if (retirees.length > 0 && groupesImpactes.length > 0) {
+    const liste = groupesImpactes.map(g => `  • ${g.label} (${g.societe})`).join("\n");
+    const msg = `Attention : en retirant ${retirees.length > 1 ? 'ces sociétés' : 'cette société'} du rattachement, les rôles suivants seront supprimés pour cet utilisateur :\n\n${liste}\n\nLes droits hérités de ces rôles seront perdus. Continuer ?`;
+    if (!confirm(msg)) return;
+  }
+
+  try {
+    /* 1. Mettre à jour l'utilisateur */
+    await api.updateUtilisateur(userId, payloadUpdate);
+    pushAdminLog(`Utilisateur "${prenom} ${nom}" modifié`);
+
+    /* 2. Supprimer les attributions sur les sociétés retirées */
+    for (const socId of retirees) {
+      const attribs = state.allAttributions.filter(a =>
+        a.idutilisateur === userId && a.idsociete === socId
+      );
+      for (const a of attribs) {
+        await api.removeProfilAttribution(userId, a.id);
+        const pAttr = state.profils.find(x => x.id === a.idprofil);
+        const sAttr = state.societes.find(x => x.id === a.idsociete);
+        pushAdminLog(`Attribution du groupe "${pAttr?.label || pAttr?.code || a.idprofil}" supprimée pour ${prenom} ${nom} sur ${sAttr?.raisonsociale || sAttr?.raison_sociale || 'tenant'}`);
+      }
+    }
+
+    /* 3. Supprimer les anciens rattachements et recréer les nouveaux */
+    for (const socId of anciennes) {
+      await api.removeUtilisateurSociete(userId, socId);
+      pushAdminLog(`Rattachement de ${prenom} ${nom} à la société "${sR?.raisonsociale || sR?.raison_sociale || socId}" supprimé`);
+    }
+    for (const socId of nouvellesSocietes) {
+      await api.addUtilisateurSociete(userId, socId);
+      pushAdminLog(`Rattachement de ${prenom} ${nom} à la société "${sRa?.raisonsociale || sRa?.raison_sociale || socId}" ajouté`);
+    }
+
+    window._editUserData = null;
+    toast("Utilisateur modifié", true);
+    await init();
+  } catch (e) {
+    toast(e.message, false);
+  }
+};
+
+window.editerProfil = async function(profilId) {
+  try {
+    const societes = await api.getProfilSocietes(profilId);
+    window._editProfilData = { profilId, societes: societes || [] };
+    renderListeProfils();
+  } catch (e) {
+    toast("Erreur chargement des diffusions", false);
+  }
+};
+
+window.annulerEditProfil = function() {
+  window._editProfilData = null;
+  renderListeProfils();
+};
+
+window.sauverModificationProfil = async function(profilId) {
+  const label = $(`edit-prof-label-${profilId}`)?.value?.trim();
+  const description = $(`edit-prof-desc-${profilId}`)?.value?.trim() || null;
+  const nouvellesSocietes = getMultiSelectValues(`edit-prof-soc-container-${profilId}`);
+
+  if (!label) {
+    toast("Libellé requis", false);
+    return;
+  }
+
+  const anciennes = (window._editProfilData?.societes || []).map(s => s.idsociete).filter(Boolean);
+  const retirees = anciennes.filter(id => !nouvellesSocietes.includes(id));
+  const ajoutees = nouvellesSocietes.filter(id => !anciennes.includes(id));
+
+  try {
+    await api.updateProfil(profilId, { label, description });
+    pushAdminLog(`Groupe "${label}" modifié`);
+
+    for (const ps of (window._editProfilData?.societes || [])) {
+      if (retirees.includes(ps.idsociete)) {
+        await api.removeProfilSociete(profilId, ps.id);
+        const sP = state.societes.find(x => x.id === ps.idsociete);
+        pushAdminLog(`Diffusion du groupe "${label}" retirée de la société "${sP?.raisonsociale || sP?.raison_sociale || ps.idsociete}"`);
+      }
+    }
+
+    for (const socId of ajoutees) {
+      await api.addProfilSociete(profilId, socId);
+      const sPa = state.societes.find(x => x.id === socId);
+      pushAdminLog(`Diffusion du groupe "${label}" ajoutée à la société "${sPa?.raisonsociale || sPa?.raison_sociale || socId}"`);
+    }
+
+    window._editProfilData = null;
+    toast("Groupe modifié", true);
+    await init();
+  } catch (e) {
+    toast(e.message, false);
+  }
+};
+
+window.editerException = function(userId, excId) {
+  window._editExceptionData = { userId, excId };
+  renderListeExceptions();
+};
+
+window.annulerEditException = function() {
+  window._editExceptionData = null;
+  renderListeExceptions();
+};
+
+window.sauverModificationException = async function(userId, excId) {
+  const date_debut = $(`edit-exc-debut-${excId}`)?.value || null;
+  const date_fin = $(`edit-exc-fin-${excId}`)?.value || null;
+  const motif_modification = $(`edit-exc-motif-${excId}`)?.value?.trim() || null;
+  const exc = state.allExceptions.find(x => x.id === excId);
+  const u = state.utilisateurs.find(x => x.id === userId);
+  const perm = state.permissions.find(x => x.id === exc?.idpermission);
+  const s = state.societes.find(x => x.id === exc?.idsociete);
+  try {
+    await api.updateException(userId, excId, { date_debut, date_fin, motif_modification });
+    pushAdminLog(`Exception "${perm?.label || perm?.code || exc?.idpermission}" modifiée pour ${u?.prenom || ''} ${u?.nom || ''} sur ${s?.raisonsociale || s?.raison_sociale || 'toutes sociétés'}`);
+    window._editExceptionData = null;
+    toast("Exception modifiée", true);
+    await init();
+  } catch (e) {
+    toast(e.message, false);
+  }
+};
+
+window.toggleProfilPermission = async function (profilId, permId, accorde) {
+  try {
+    const pPerm = state.profils.find(x => x.id === profilId);
+    const permObj = state.permissions.find(x => x.id === permId);
+    if (accorde) { await api.addProfilPermission(profilId, { id_permission: permId }); pushAdminLog(`Permission "${permObj?.label || permObj?.code || permId}" ajoutée au groupe "${pPerm?.label || pPerm?.code || profilId}"`); }
+    else { await api.removeProfilPermission(profilId, permId); pushAdminLog(`Permission "${permObj?.label || permObj?.code || permId}" retirée du groupe "${pPerm?.label || pPerm?.code || profilId}"`); }
+    delete state.profilPermissions[profilId]; renderMatriceDroits(); toast("Droit mis à jour");
+  } catch (e) { alert(e.message); }
+};
+window.supprimerUtilisateur = async function (id) { if (!confirm("Supprimer cet utilisateur ?")) return; try { const uDel = state.utilisateurs.find(x => x.id === id); await api.deleteUtilisateur(id); pushAdminLog(`Utilisateur "${uDel?.prenom || ''} ${uDel?.nom || ''}" supprimé`); toast("Utilisateur supprimé"); await init(); } catch (e) { alert(e.message); } };
+window.supprimerProfil = async function (id) {
+  try {
+    const impact = await api.getProfilImpact(id);
+    const hasUsers = impact.utilisateurs?.length > 0;
+    const hasSocietes = impact.societes?.length > 0;
+    if (hasUsers || hasSocietes) {
+      let msg = "Ce groupe est utilisé par :\n\n";
+      if (hasUsers) {
+        msg += "Utilisateurs :\n";
+        msg += impact.utilisateurs.map(u => `  • ${u.prenom} ${u.nom} (${u.email})`).join("\n");
+        msg += "\n\n";
+      }
+      if (hasSocietes) {
+        msg += "Sociétés de diffusion :\n";
+        msg += impact.societes.map(s => `  • ${s.raisonsociale || s.raison_sociale || s.id}`).join("\n");
+        msg += "\n\n";
+      }
+      msg += "La suppression retirera ces attributions et diffusions. Continuer ?";
+      if (!confirm(msg)) return;
+    } else {
+      if (!confirm("Supprimer ce groupe ?")) return;
+    }
+    const pDel = state.profils.find(x => x.id === id);
+    await api.deleteProfil(id);
+    pushAdminLog(`Groupe "${pDel?.label || pDel?.code || id}" supprimé`);
+    toast("Groupe supprimé");
+    await init();
+  } catch (e) { alert(e.message); }
+};
+window.supprimerAttribution = async function (userId, attribId) { if (!confirm("Supprimer cette attribution ?")) return; try { const aDel = state.allAttributions.find(x => x.id === attribId); const uDel = state.utilisateurs.find(x => x.id === userId); const pDel = state.profils.find(x => x.id === aDel?.idprofil); const sDel = state.societes.find(x => x.id === aDel?.idsociete); await api.removeProfilAttribution(userId, attribId); pushAdminLog(`Attribution du groupe "${pDel?.label || pDel?.code || aDel?.idprofil}" supprimée pour ${uDel?.prenom || ''} ${uDel?.nom || ''} sur ${sDel?.raisonsociale || sDel?.raison_sociale || 'tenant'}`); toast("Attribution supprimée"); await init(); } catch (e) { alert(e.message); } };
+window.supprimerException = async function (userId, excId) { if (!confirm("Supprimer cette exception ?")) return; try { const eDel = state.allExceptions.find(x => x.id === excId); const uDel = state.utilisateurs.find(x => x.id === userId); const pDel = state.permissions.find(x => x.id === eDel?.idpermission); const sDel = state.societes.find(x => x.id === eDel?.idsociete); await api.deleteException(userId, excId); pushAdminLog(`Exception "${pDel?.label || pDel?.code || eDel?.idpermission}" supprimée pour ${uDel?.prenom || ''} ${uDel?.nom || ''} sur ${sDel?.raisonsociale || sDel?.raison_sociale || 'toutes sociétés'}`); toast("Exception supprimée"); await init(); } catch (e) { alert(e.message); } };
+function collecterEnfantsFront(parentId) {
+  const ids = [];
+  const queue = [parentId];
+  while (queue.length > 0) {
+    const current = queue.shift();
+    const children = state.societes.filter(s => (s.id_societe_parent || s.idsocieteparent) === current);
+    for (const child of children) {
+      ids.push(child.id);
+      queue.push(child.id);
+    }
+  }
+  return ids;
+}
+
+window.editerSociete = function(societeId) {
+  window._editSocieteData = { societeId };
+  renderListeSocietes();
+};
+
+window.annulerEditSociete = function() {
+  window._editSocieteData = null;
+  renderListeSocietes();
+};
+
+window.sauverModificationSociete = async function(societeId) {
+  const parentId = $(`edit-soc-parent-${societeId}`)?.value || null;
+  try {
+    const sMod = state.societes.find(x => x.id === societeId);
+    const sParent = state.societes.find(x => x.id === parentId);
+    await api.updateSociete(societeId, { id_societe_parent: parentId });
+    pushAdminLog(`Société "${sMod?.raisonsociale || sMod?.raison_sociale || societeId}" modifiée${sParent ? ', parent : "' + (sParent?.raisonsociale || sParent?.raison_sociale || parentId) + '"' : ', racine'}`);
+    window._editSocieteData = null;
+    toast("Société modifiée", true);
+    await init();
+  } catch (e) {
+    toast(e.message, false);
+  }
+};
+
+window.supprimerSociete = async function (id) {
+  try {
+    // Collecter tous les enfants récursivement
+    const enfants = collecterEnfantsFront(id);
+    const tousIds = [id, ...enfants];
+
+    // Vérifier les groupes orphelins sur toutes les sociétés (parent + enfants)
+    let allOrphelins = [];
+    for (const socId of tousIds) {
+      const orp = await api.getSocieteProfilsOrphelins(socId);
+      for (const p of orp) {
+        const s = state.societes.find(x => x.id === socId);
+        allOrphelins.push({ ...p, societeNom: s?.raisonsociale || s?.raison_sociale || socId });
+      }
+    }
+    // Dédupliquer par profil id
+    const seenProfil = new Set();
+    allOrphelins = allOrphelins.filter(o => {
+      if (seenProfil.has(o.id)) return false;
+      seenProfil.add(o.id);
+      return true;
+    });
+
+    if (allOrphelins.length > 0) {
+      const liste = allOrphelins.map(p => `  • ${p.label || p.code} (${p.societeNom})`).join("\n");
+      const reassign = confirm(`Attention : les groupes suivants ne sont diffusés que sur cette société (ou ses enfants) et seront supprimés :\n\n${liste}\n\nCliquez OK pour réassigner ces groupes, Annuler pour continuer...`);
+      if (reassign) {
+        setMode("admin");
+        document.querySelectorAll(".subtab").forEach(b => b.classList.toggle("actif", b.dataset.cible === "adm-groupes"));
+        document.querySelectorAll(".adm-section").forEach(sec => sec.classList.toggle("hidden", sec.id !== "adm-groupes"));
+        window._editProfilData = { profilId: allOrphelins[0].id, societes: [] };
+        try {
+          const socList = await api.getProfilSocietes(allOrphelins[0].id);
+          window._editProfilData.societes = socList || [];
+        } catch (e) {}
+        renderListeProfils();
+        return;
+      }
+      if (!confirm("Supprimer la société, ses enfants et les groupes orphelins ?")) return;
+    } else {
+      if (!confirm("Supprimer cette société et ses enfants ?")) return;
+    }
+    const sDel = state.societes.find(x => x.id === id);
+    await api.deleteSociete(id);
+    pushAdminLog(`Société "${sDel?.raisonsociale || sDel?.raison_sociale || id}" et ${enfants.length} enfant(s) supprimée(s)`);
+    toast("Société supprimée");
+    await init();
+  } catch (e) { alert(e.message); }
+};
+</script>
+</body>
+</html>

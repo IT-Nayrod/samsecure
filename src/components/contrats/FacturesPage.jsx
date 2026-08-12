@@ -1,118 +1,191 @@
-// FacturesPage - vue documentaire et orientee audit (Factures & Preuves)
-import { useState, useMemo, useRef } from 'react';
+// FacturesPage - ecran unifie Factures et Preuves, oriente audit.
+// Branche sur deux ressources API distinctes, /api/preuves et /api/factures,
+// fidelement au schema : la page les assemble pour l'affichage mais ne fusionne
+// pas les modeles. Chaque ligne conserve sa ressource d'origine, qui determine
+// l'API a interroger pour sa fiche.
+// La detection des manques vient de /api/commandes/manques : une vue temps
+// reel, jamais un stock d'anomalies, d'ou le rechargement apres chaque depot.
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Receipt, FileCheck, AlertTriangle, X } from 'lucide-react';
-import {
-  mockDocuments as initialDocuments, mockContrats, mockCommandes, mockTypesPreuve, getContrat, getCommande, getManquesAudit,
-} from '../../data/mockContrats';
+import { preuvesService, facturesService, typesPreuveService, manquesService } from '../../services/documentsService';
+import { contratsService } from '../../services/contratsService';
+import { commandesService } from '../../services/commandesService';
 import DataTable from '../ui/DataTable';
 import Button from '../ui/Button';
 import Breadcrumb from '../ui/Breadcrumb';
-import StatutValidationBadge from '../referentiels/StatutValidationBadge';
+import ErrorState from '../ui/ErrorState';
+import Skeleton from '../ui/Skeleton';
 import DocumentIcon from './DocumentIcon';
 import ManqueBadge from './ManqueBadge';
 import DeploiementKpiCard from '../deploiement/DeploiementKpiCard';
-import DocumentFormModal from './DocumentFormModal';
+import PreuveFormModal from './PreuveFormModal';
+import FactureFormModal from './FactureFormModal';
 import useRbac from '../../hooks/useRbac';
 import { useToast } from '../../hooks/useToast';
-import useAuth from '../../hooks/useAuth';
 import { formatDate } from '../../utils/dateUtils';
+import ValidationCell from '../referentiels/ValidationCell';
+import ValidationActions from '../referentiels/ValidationActions';
+import useValidation from '../../hooks/useValidation';
+import { appliquerStatut } from '../../services/validationService';
 
 export default function FacturesPage() {
   const navigate = useNavigate();
   const { addToast } = useToast();
-  const { canWrite, submitsForValidation } = useRbac();
-  const { user } = useAuth();
-  const [documents, setDocuments] = useState(initialDocuments);
+  const { canWrite } = useRbac();
+
+  const [preuves, setPreuves] = useState([]);
+  const [factures, setFactures] = useState([]);
+  const [manques, setManques] = useState(null);
+  const [typesPreuve, setTypesPreuve] = useState([]);
+  const [contrats, setContrats] = useState([]);
+  const [commandes, setCommandes] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+
   const [filterType, setFilterType] = useState('');
   const [filterTypePreuve, setFilterTypePreuve] = useState('');
   const [filterContrat, setFilterContrat] = useState('');
   const [filterCommande, setFilterCommande] = useState('');
-  const [filterStatut, setFilterStatut] = useState('');
   const [searchParams] = useSearchParams();
   const contratParam = searchParams.get('contrat');
   const commandeParam = searchParams.get('commande');
-  const [formModal, setFormModal] = useState({ open: false, doc: null });
+  const [preuveModal, setPreuveModal] = useState(false);
+  const [factureModal, setFactureModal] = useState(false);
   const manquesRef = useRef(null);
 
-  const manques = useMemo(() => getManquesAudit(documents), [documents]);
+  // Les filtres partent a l'API plutot que d'etre appliques en memoire : c'est
+  // la meme regle de filtrage pour les deux ressources, et elle ne peut pas
+  // deriver de ce que le serveur considere comme rattache.
+  const contratActif = filterContrat || contratParam || '';
+  const commandeActive = filterCommande || commandeParam || '';
 
-  function handleKpiFactures() {
-    setFilterType(prev => prev === 'facture' ? '' : 'facture');
+  const load = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    const filtres = {
+      idTypePreuve: filterTypePreuve || undefined,
+      idContrat: contratActif || undefined,
+      idCommande: commandeActive || undefined,
+    };
+    try {
+      const [p, f, m, t, c, k] = await Promise.all([
+        preuvesService.list(filtres),
+        facturesService.list(filtres),
+        manquesService.list({ idContrat: contratActif || undefined }),
+        typesPreuveService.list(),
+        contratsService.list(),
+        commandesService.list(),
+      ]);
+      setPreuves(p); setFactures(f); setManques(m);
+      setTypesPreuve(t); setContrats(c); setCommandes(k);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [filterTypePreuve, contratActif, commandeActive]);
+
+  useEffect(() => { load(); }, [load]);
+
+  function apresDepot(toast) {
+    if (toast) addToast(toast);
+    load();
   }
 
-  function handleKpiPreuves() {
-    setFilterType(prev => prev === 'preuve' ? '' : 'preuve');
-  }
-
-  function handleKpiManques() {
-    manquesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
+  // Les deux ressources restent separees, comme le veut l'en-tete de ce
+  // fichier : la reponse dit laquelle mettre a jour.
+  const appliquer = useCallback(reponse => {
+    const maj = liste => liste.map(x => x.id === reponse.entite_id ? appliquerStatut(x, reponse) : x);
+    if (reponse.entite_type === 'preuve') setPreuves(maj);
+    else setFactures(maj);
+  }, []);
+  const { valider, refuser } = useValidation(appliquer);
 
   function resetFiltres() {
-    setFilterType('');
-    setFilterTypePreuve('');
-    setFilterContrat('');
-    setFilterCommande('');
-    setFilterStatut('');
+    setFilterType(''); setFilterTypePreuve(''); setFilterContrat(''); setFilterCommande('');
   }
 
-  const hasActiveFiltres = !!(filterType || filterTypePreuve || filterContrat || filterCommande || filterStatut);
+  const hasActiveFiltres = !!(filterType || filterTypePreuve || filterContrat || filterCommande);
 
-  const filtres = useMemo(() => {
-    return documents.filter(d => {
-      if (filterType && d.type !== filterType) return false;
-      if (filterTypePreuve && d.type_preuve !== filterTypePreuve) return false;
-      if ((filterContrat || contratParam) && d.id_contrat !== (filterContrat || contratParam)) return false;
-      if ((filterCommande || commandeParam) && d.id_commande !== (filterCommande || commandeParam)) return false;
-      if (filterStatut && d.statut_validation !== filterStatut) return false;
-      return true;
-    });
-  }, [documents, filterType, filterTypePreuve, filterContrat, filterCommande, filterStatut, contratParam, commandeParam]);
-
-  const kpis = useMemo(() => ({
-    nbFactures: documents.filter(d => d.type === 'facture').length,
-    nbPreuves: documents.filter(d => d.type === 'preuve').length,
-    nbManques: manques.length,
-  }), [documents, manques]);
-
-  function handleSave(data, existing) {
-    if (existing) {
-      const resoumis = submitsForValidation;
-      setDocuments(prev => prev.map(d => d.id === existing.id ? {
-        ...d, ...data,
-        statut_validation: resoumis ? 'en_attente' : 'valide',
-        soumis_par: `${user.prenom} ${user.nom}`,
-      } : d));
-      addToast({ type: 'success', message: resoumis ? 'Modification soumise a validation.' : 'Document mis a jour.' });
-    } else {
-      const newDoc = {
-        id: `doc-${Date.now()}`, ...data,
-        statut_validation: submitsForValidation ? 'en_attente' : 'valide',
-        soumis_par: `${user.prenom} ${user.nom}`,
-      };
-      setDocuments(prev => [...prev, newDoc]);
-      addToast({ type: 'success', message: submitsForValidation ? 'Document soumis a validation.' : 'Document ajoute.' });
-    }
-  }
+  // Assemblage et non fusion : chaque ligne porte sa ressource d'origine, qui
+  // dit quelle API sert sa fiche et quels champs elle possede reellement.
+  const lignes = useMemo(() => {
+    const dePreuves = preuves.map(p => ({
+      ressource: 'preuve',
+      id: p.id,
+      label: p.label,
+      nom_fichier: p.nom_origine || p.url_fichier,
+      type_preuve_label: p.type_label,
+      contrat_label: p.contrat_label,
+      commande_label: p.commande_label,
+      created_at: p.created_at,
+      statut_validation: p.statut_validation,
+      statut_validation_label: p.statut_validation_label,
+      message_refus: p.message_refus,
+    }));
+    const deFactures = factures.map(f => ({
+      ressource: 'facture',
+      id: f.id,
+      label: f.label,
+      nom_fichier: f.preuve_url_fichier,
+      type_preuve_label: f.preuve_type_label,
+      contrat_label: f.contrat_label,
+      commande_label: f.commande_label,
+      created_at: f.created_at,
+      statut_validation: f.statut_validation,
+      statut_validation_label: f.statut_validation_label,
+      message_refus: f.message_refus,
+    }));
+    const tout = [...deFactures, ...dePreuves];
+    const visibles = filterType ? tout.filter(l => l.ressource === filterType) : tout;
+    return visibles.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+  }, [preuves, factures, filterType]);
 
   const columns = [
-    { key: 'nom_fichier', label: 'Fichier', render: r => (
-      <button onClick={() => navigate(`/contrats/factures/${r.id}`)} className="flex items-center gap-2.5 font-medium text-blue-800 hover:underline text-left">
+    { key: 'label', label: 'Document', render: r => (
+      <button onClick={() => navigate(`/contrats/factures/${r.id}?ressource=${r.ressource}`)} className="flex items-center gap-2.5 font-medium text-blue-800 hover:underline text-left">
         <DocumentIcon nomFichier={r.nom_fichier} size={28} />
         {r.label}
       </button>
     ), csvValue: r => r.label },
-    { key: 'type', label: 'Type', sortable: true, render: r => r.type === 'facture' ? 'Facture' : 'Preuve' },
-    { key: 'type_preuve', label: 'Type de preuve', render: r => r.type_preuve ?? '-' },
-    { key: 'liaison', label: 'Contrat / Commande', render: r => {
-      const contrat = r.id_contrat ? getContrat(r.id_contrat) : null;
-      const commande = r.id_commande ? getCommande(r.id_commande) : null;
-      return [contrat?.label, commande?.label].filter(Boolean).join(' - ') || '-';
-    } },
-    { key: 'date', label: 'Date', sortable: true, render: r => formatDate(r.date) },
-    { key: 'statut_validation', label: 'Validation', sortable: true, render: r => <StatutValidationBadge statut={r.statut_validation} /> },
+    { key: 'ressource', label: 'Type', sortable: true, render: r => r.ressource === 'facture' ? 'Facture' : 'Preuve' },
+    { key: 'type_preuve_label', label: 'Type de preuve', render: r => r.type_preuve_label ?? '-' },
+    { key: 'liaison', label: 'Contrat / Commande', render: r => [r.contrat_label, r.commande_label].filter(Boolean).join(' - ') || '-' },
+    { key: 'created_at', label: 'Depose le', sortable: true, render: r => formatDate(r.created_at) },
+    { key: 'statut_validation', label: 'Validation', sortable: true,
+      csvValue: r => [r.statut_validation_label, r.message_refus].filter(Boolean).join(' - '),
+      render: r => <ValidationCell statut={r.statut_validation} motif={r.message_refus} /> },
+    { key: 'actions_validation', label: '', csvValue: () => '',
+      render: r => (
+        <ValidationActions
+          statut={r.statut_validation}
+          onValidate={() => valider(r.ressource, r.id)}
+          onRefuse={motif => refuser(r.ressource, r.id, motif)}
+        />
+      ) },
   ];
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col gap-6">
+        <Breadcrumb items={[{ label: 'Droits d\'usage' }, { label: 'Factures & Preuves' }]} />
+        <Skeleton lines={3} height="h-20" />
+        <Skeleton lines={6} />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col gap-6">
+        <Breadcrumb items={[{ label: 'Droits d\'usage' }, { label: 'Factures & Preuves' }]} />
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
+          <ErrorState message={error} onRetry={load} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -120,35 +193,51 @@ export default function FacturesPage() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Factures & Preuves</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Pieces justificatives et aptitude a l'audit</p>
+          <p className="text-sm text-gray-500 mt-0.5">Pieces justificatives et aptitude a l&apos;audit</p>
         </div>
         {canWrite && (
-          <Button variant="primary" onClick={() => setFormModal({ open: true, doc: null })}>
-            <Plus size={15} /> Ajouter un document
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={() => setPreuveModal(true)}>
+              <Plus size={15} /> Deposer une preuve
+            </Button>
+            <Button variant="primary" onClick={() => setFactureModal(true)}>
+              <Plus size={15} /> Deposer une facture
+            </Button>
+          </div>
         )}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <DeploiementKpiCard label="Factures" value={kpis.nbFactures} icon={Receipt} color="#1F4E79" onClick={handleKpiFactures} active={filterType === 'facture'} />
-        <DeploiementKpiCard label="Preuves" value={kpis.nbPreuves} icon={FileCheck} color="#22C55E" onClick={handleKpiPreuves} active={filterType === 'preuve'} />
-        <DeploiementKpiCard label="Manques detectes" value={kpis.nbManques} icon={AlertTriangle} color="#EF4444" onClick={handleKpiManques} />
+        <DeploiementKpiCard label="Factures" value={factures.length} icon={Receipt} color="#1F4E79"
+          onClick={() => setFilterType(v => v === 'facture' ? '' : 'facture')} active={filterType === 'facture'} />
+        <DeploiementKpiCard label="Preuves" value={preuves.length} icon={FileCheck} color="#22C55E"
+          onClick={() => setFilterType(v => v === 'preuve' ? '' : 'preuve')} active={filterType === 'preuve'} />
+        <DeploiementKpiCard label="Manques detectes" value={manques?.total ?? 0} icon={AlertTriangle} color="#EF4444"
+          onClick={() => manquesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })} />
       </div>
 
       <section ref={manquesRef} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Detection des manques (risque audit)</h2>
-        {manques.length === 0 ? (
+        <div className="flex items-baseline justify-between gap-3 mb-3">
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Detection des manques (risque audit)</h2>
+          {manques?.total > 0 && (
+            <p className="text-xs text-gray-500">
+              {manques.total_sans_facture} sans facture, {manques.total_sans_preuve} sans preuve
+            </p>
+          )}
+        </div>
+        {!manques || manques.total === 0 ? (
           <p className="text-sm text-gray-500">Aucun manque detecte : toutes les commandes ont facture et preuve.</p>
         ) : (
           <div className="flex flex-col gap-2">
-            {manques.map(({ commande, sansFacture, sansPreuve }) => (
-              <div key={commande.id} className="flex items-center justify-between gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-900/40" style={{ borderLeft: '3px solid #EF4444' }}>
-                <button onClick={() => navigate(`/contrats/commandes/${commande.id}`)} className="text-sm font-medium text-gray-900 dark:text-white hover:underline text-left">
-                  {commande.label}
+            {manques.commandes.map(c => (
+              <div key={c.id} className="flex items-center justify-between gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-900/40" style={{ borderLeft: '3px solid #EF4444' }}>
+                <button onClick={() => navigate(`/contrats/commandes/${c.id}`)} className="text-sm font-medium text-gray-900 dark:text-white hover:underline text-left">
+                  {c.label}
+                  <span className="ml-2 text-xs font-normal text-gray-500">{[c.contrat_label, c.societe_label].filter(Boolean).join(' - ')}</span>
                 </button>
                 <div className="flex items-center gap-2 flex-shrink-0">
-                  {sansFacture && <ManqueBadge label="Sans facture" />}
-                  {sansPreuve && <ManqueBadge label="Sans preuve" />}
+                  {c.facture_manquante && <ManqueBadge label="Sans facture" />}
+                  {c.preuve_manquante && <ManqueBadge label="Sans preuve" />}
                 </div>
               </div>
             ))}
@@ -164,21 +253,15 @@ export default function FacturesPage() {
         </select>
         <select value={filterTypePreuve} onChange={e => setFilterTypePreuve(e.target.value)} className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="">Tous les types de preuve</option>
-          {mockTypesPreuve.map(t => <option key={t} value={t}>{t}</option>)}
+          {typesPreuve.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
         </select>
         <select value={filterContrat} onChange={e => setFilterContrat(e.target.value)} className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="">Tous les contrats</option>
-          {mockContrats.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+          {contrats.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
         </select>
         <select value={filterCommande} onChange={e => setFilterCommande(e.target.value)} className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="">Toutes les commandes</option>
-          {mockCommandes.map(k => <option key={k.id} value={k.id}>{k.label}</option>)}
-        </select>
-        <select value={filterStatut} onChange={e => setFilterStatut(e.target.value)} className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-          <option value="">Tous les statuts</option>
-          <option value="en_attente">En attente</option>
-          <option value="valide">Valide</option>
-          <option value="refuse">Refuse</option>
+          {commandes.map(k => <option key={k.id} value={k.id}>{k.label}</option>)}
         </select>
         {hasActiveFiltres && (
           <button onClick={resetFiltres} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 px-3 py-2">
@@ -190,17 +273,29 @@ export default function FacturesPage() {
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
         <DataTable
           columns={columns}
-          data={filtres}
+          data={lignes}
           filename="documents"
-          emptyState={{ message: 'Aucun document ne correspond aux filtres.' }}
+          emptyState={{ message: hasActiveFiltres ? 'Aucun document ne correspond aux filtres.' : 'Aucun document depose a ce jour.' }}
         />
       </div>
 
-      <DocumentFormModal
-        isOpen={formModal.open}
-        onClose={() => setFormModal({ open: false, doc: null })}
-        onSave={handleSave}
-        doc={formModal.doc}
+      <PreuveFormModal
+        isOpen={preuveModal}
+        onClose={() => setPreuveModal(false)}
+        onDone={apresDepot}
+        typesPreuve={typesPreuve}
+        contrats={contrats}
+        commandes={commandes}
+        contratParDefaut={contratActif || null}
+        commandeParDefaut={commandeActive || null}
+      />
+      <FactureFormModal
+        isOpen={factureModal}
+        onClose={() => setFactureModal(false)}
+        onDone={apresDepot}
+        typesPreuve={typesPreuve}
+        commandes={commandes}
+        commandeParDefaut={commandeActive || null}
       />
     </div>
   );

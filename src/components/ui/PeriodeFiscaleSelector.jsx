@@ -6,16 +6,16 @@ import { PERIODE_OPTIONS, resolveFiscalPeriod, formatPeriodeLabel } from '../../
 
 const SELECT_CLS = 'text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500';
 
-export default function PeriodeFiscaleSelector({ societeId = null, defaultPeriode = 'fiscale_courante', onChange }) {
+export default function PeriodeFiscaleSelector({ societeId = null, debutExercice = null, defaultPeriode = 'fiscale_courante', onChange }) {
   const [periodeKey, setPeriodeKey] = useState(defaultPeriode);
   const [customDebut, setCustomDebut] = useState('');
   const [customFin, setCustomFin] = useState('');
 
   useEffect(() => {
-    const range = resolveFiscalPeriod(periodeKey, { societeId, customDebut, customFin });
+    const range = resolveFiscalPeriod(periodeKey, { societeId, debutExercice, customDebut, customFin });
     onChange?.({ key: periodeKey, debut: range.debut, fin: range.fin, label: formatPeriodeLabel(range) });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [periodeKey, societeId, customDebut, customFin]);
+  }, [periodeKey, societeId, debutExercice, customDebut, customFin]);
 
   const range = resolveFiscalPeriod(periodeKey, { societeId, customDebut, customFin });
 

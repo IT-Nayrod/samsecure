@@ -7,10 +7,8 @@ import ForgotPasswordPage from '../components/auth/ForgotPasswordPage';
 import ResetPasswordPage from '../components/auth/ResetPasswordPage';
 import TwoFactorPage from '../components/auth/TwoFactorPage';
 import DashboardPage from '../components/Dashboard/DashboardPage';
-import UsersPage from '../components/users/UsersPage';
 import TenantSettingsPage from '../components/settings/TenantSettingsPage';
 import UserSettingsPage from '../components/settings/UserSettingsPage';
-import ComingSoonPage from '../pages/ComingSoonPage';
 import UnauthorizedPage from '../pages/UnauthorizedPage';
 import OrganisationPage from '../components/referentiels/OrganisationPage';
 import OrganisationDetailPage from '../components/referentiels/OrganisationDetailPage';
@@ -35,11 +33,12 @@ import CommandeDetailPage from '../components/contrats/CommandeDetailPage';
 import FacturesPage from '../components/contrats/FacturesPage';
 import DocumentDetailPage from '../components/contrats/DocumentDetailPage';
 import BudgetPage from '../pages/budget/BudgetPage';
-import OldBudgetPage from '../components/contrats/BudgetPage';
 import ReportsConformitePage from '../pages/rapports/ReportsConformitePage';
 import ReportsOptimisationPage from '../pages/rapports/ReportsOptimisationPage';
 import ReportViewPage from '../pages/rapports/ReportViewPage';
 import CustomReportBuilderPage from '../pages/rapports/CustomReportBuilderPage';
+import UserManagementPage from '../components/admin/UserManagementPage';
+import { ADMIN_PERMISSIONS } from '../constants/permissions';
 
 export default function AppRouter() {
   return (
@@ -58,16 +57,25 @@ export default function AppRouter() {
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/settings/me" element={<UserSettingsPage />} />
 
-            {/* Manager DSI only */}
-            <Route element={<ProtectedRoute allowedProfils={['manager_dsi']} />}>
-              <Route path="/admin/users" element={<UsersPage />} />
+            {/* Administration - page unique (onglets internes par permission) */}
+            <Route element={<ProtectedRoute requireAnyPermission={[
+              ADMIN_PERMISSIONS.UTILISATEURS, ADMIN_PERMISSIONS.GROUPES,
+              ADMIN_PERMISSIONS.EXCEPTIONS, ADMIN_PERMISSIONS.JOURNAL,
+            ]} />}>
+              <Route path="/admin/utilisateurs" element={<UserManagementPage />} />
+            </Route>
+            <Route element={<ProtectedRoute requirePermission={ADMIN_PERMISSIONS.UTILISATEURS} />}>
               <Route path="/admin/settings" element={<TenantSettingsPage />} />
+            </Route>
+            <Route element={<ProtectedRoute requirePermission={ADMIN_PERMISSIONS.CONNECTEURS} />}>
               <Route path="/admin/connectors" element={<Navigate to="/admin/settings?tab=connecteurs" replace />} />
             </Route>
 
             {/* Referentiels */}
-            <Route path="/referentiels/organisation" element={<OrganisationPage />} />
-            <Route path="/referentiels/organisation/:id" element={<OrganisationDetailPage />} />
+            <Route element={<ProtectedRoute requirePermission={ADMIN_PERMISSIONS.SOCIETES} />}>
+              <Route path="/referentiels/organisation" element={<OrganisationPage />} />
+              <Route path="/referentiels/organisation/:id" element={<OrganisationDetailPage />} />
+            </Route>
             <Route path="/referentiels/editeurs" element={<EditeursPage />} />
             <Route path="/referentiels/editeurs/:id" element={<EditeurDetailPage />} />
             <Route path="/referentiels/revendeurs" element={<RevendeursPage />} />
@@ -92,17 +100,14 @@ export default function AppRouter() {
             <Route path="/contrats/commandes/:id" element={<CommandeDetailPage />} />
             <Route path="/contrats/factures" element={<FacturesPage />} />
             <Route path="/contrats/factures/:id" element={<DocumentDetailPage />} />
-            <Route path="/contrats/budget" element={<OldBudgetPage />} />
             <Route path="/budget" element={<BudgetPage />} />
 
-            {/* Rapports - manager_dsi + financier uniquement */}
-            <Route element={<ProtectedRoute allowedProfils={['manager_dsi', 'financier']} />}>
-              <Route path="/rapports" element={<Navigate to="/rapports/conformite" replace />} />
-              <Route path="/rapports/conformite" element={<ReportsConformitePage />} />
-              <Route path="/rapports/optimisation" element={<ReportsOptimisationPage />} />
-              <Route path="/rapports/personnalise" element={<CustomReportBuilderPage />} />
-              <Route path="/rapports/vue/:reportId" element={<ReportViewPage />} />
-            </Route>
+            {/* Rapports - accessible à tout utilisateur connecté (aucun bridage) */}
+            <Route path="/rapports" element={<Navigate to="/rapports/conformite" replace />} />
+            <Route path="/rapports/conformite" element={<ReportsConformitePage />} />
+            <Route path="/rapports/optimisation" element={<ReportsOptimisationPage />} />
+            <Route path="/rapports/personnalise" element={<CustomReportBuilderPage />} />
+            <Route path="/rapports/vue/:reportId" element={<ReportViewPage />} />
           </Route>
         </Route>
 

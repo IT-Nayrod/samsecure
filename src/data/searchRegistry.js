@@ -3,7 +3,7 @@
 // Chaque entree lit une source de donnees existante (aucune copie), declare ses champs cherchables,
 // le contexte affiche dans le resultat, et les routes de destination (detail si elle existe, sinon liste).
 import {
-  Building, Building2, Store, Users, Package, FileText, ShoppingCart, Receipt, Shield, Tag, Database, UserCog,
+  Building, Building2, Store, Users, Package, FileText, ShoppingCart, Receipt, Shield, Tag, Database,
 } from 'lucide-react';
 import {
   mockSocietes, mockEditeurs, mockRevendeurs, mockContacts, mockProduits, mockFonctions,
@@ -11,7 +11,6 @@ import {
 } from './mockReferentiels';
 import { mockContrats, mockCommandes, mockDocuments, getEditeurLabel, getSocieteLabelContrat } from './mockContrats';
 import { mockLicences, mockAffectations, mockInventaireRaw } from './mockDeploiement';
-import { mockUsers } from './mockUsers';
 
 function produitLabel(idProduit) {
   return mockProduits.find(p => p.id === idProduit)?.label ?? 'Produit inconnu';
@@ -91,7 +90,6 @@ export const SEARCH_REGISTRY = [
     key: 'contrats',
     label: 'Contrats',
     icon: FileText,
-    profiles: ['manager_dsi', 'it_ops'],
     getData: () => mockContrats,
     fields: item => [item.label, item.numero],
     getResultLabel: item => item.label,
@@ -103,7 +101,6 @@ export const SEARCH_REGISTRY = [
     key: 'commandes',
     label: 'Commandes',
     icon: ShoppingCart,
-    profiles: ['manager_dsi', 'it_ops'],
     getData: () => mockCommandes,
     fields: item => [item.label, item.numero_devis, item.reference_interne],
     getResultLabel: item => item.label,
@@ -115,7 +112,6 @@ export const SEARCH_REGISTRY = [
     key: 'documents',
     label: 'Factures & Preuves',
     icon: Receipt,
-    profiles: ['manager_dsi', 'it_ops'],
     getData: () => mockDocuments,
     fields: item => [item.label, item.nom_fichier],
     getResultLabel: item => item.label,
@@ -156,16 +152,10 @@ export const SEARCH_REGISTRY = [
     getDetailPath: item => `/conformite/inventaire/${item.id}`,
     getListPath: () => '/conformite/inventaire',
   },
-  {
-    key: 'utilisateurs',
-    label: 'Utilisateurs',
-    icon: UserCog,
-    profiles: ['manager_dsi'],
-    getData: () => mockUsers,
-    fields: item => [item.nom, item.prenom, item.email],
-    getResultLabel: item => `${item.prenom} ${item.nom}`,
-    getContext: item => item.habilitations?.[0]?.profilLabel ?? '',
-    getDetailPath: () => null,
-    getListPath: () => '/admin/users',
-  },
 ];
+
+// Remarque : l'entrée "Utilisateurs" a été retirée de la recherche globale.
+// Elle indexait src/data/mockUsers.js, qui n'est plus la source de vérité
+// depuis le passage aux données réelles (voir Administration > Utilisateurs).
+// Réintroduire cette entrée suppose une source de données asynchrone que le
+// registre actuel (getData synchrone) ne supporte pas encore.

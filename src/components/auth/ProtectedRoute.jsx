@@ -2,8 +2,8 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import useAuth from '../../hooks/useAuth';
 
-export default function ProtectedRoute({ allowedProfils }) {
-  const { isAuthenticated, isLoading, profil } = useAuth();
+export default function ProtectedRoute({ requirePermission, requireAnyPermission }) {
+  const { isAuthenticated, isLoading, hasPermission, hasAnyPermission } = useAuth();
   const location = useLocation();
 
   if (isLoading) {
@@ -18,7 +18,10 @@ export default function ProtectedRoute({ allowedProfils }) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  if (allowedProfils && !allowedProfils.includes(profil)) {
+  if (requirePermission && !hasPermission(requirePermission)) {
+    return <Navigate to="/unauthorized" replace />;
+  }
+  if (requireAnyPermission && !hasAnyPermission(requireAnyPermission)) {
     return <Navigate to="/unauthorized" replace />;
   }
 

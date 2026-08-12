@@ -1,114 +1,151 @@
-// UserFormModal - Section 3.2 Specs UX v0.5
+// UserFormModal - création / édition d'un utilisateur réel (identité,
+// rattachement, groupes). L'attribution de groupes se pilote directement ici
+// (section Groupes) et en miroir depuis la fiche du groupe.
 import { useState, useEffect } from 'react';
-import { Plus, X } from 'lucide-react';
 import SlideOver from '../ui/SlideOver';
 import Button from '../ui/Button';
 import FormField from '../ui/FormField';
-import ProfileBadge from './ProfileBadge';
+import ConfirmModal from '../ui/ConfirmModal';
+import SocieteSelector from '../ui/SocieteSelector';
+import UserGroupsSection from './UserGroupsSection';
 import { validateEmail, validateRequired } from '../../utils/validation';
-import { mockSocietes } from '../../data/mockReferentiels';
-import { loadDraft, saveDraft, clearDraft } from '../../utils/formDraft';
-
-const PROFILS = [
-  { value: 'manager_dsi', label: 'Manager DSI' },
-  { value: 'financier', label: 'Financier' },
-  { value: 'it_ops', label: 'IT Ops' },
-];
+import { isGroupAssignable } from '../../utils/attributionScope';
 
 const LANGUES = [{ value: 'fr', label: 'Français' }, { value: 'en', label: 'English' }];
 
 const INPUT_CLS = 'w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white';
 
-const EMPTY_FORM = { prenom: '', nom: '', email: '', langue: 'fr', actif: true };
+const EMPTY_FORM = {
+  prenom: '', nom: '', email: '', password: '', langue: 'fr', actif: true,
+  temporaire: false, date_finale: '', date_mise_en_fonction: '',
+};
 
-export default function UserFormModal({ isOpen, onClose, onSave, user }) {
+
+export default function UserFormModal({ isOpen, onClose, onSubmit, user, initialSocieteIds, societes, userAttributions, groups, groupDiffusions, onGroupsChanged }) {
   const isEdit = !!user;
-  const draftKey = `user:${user?.id ?? 'new'}`;
   const [form, setForm] = useState(EMPTY_FORM);
-  const [habilitations, setHabilitations] = useState([]);
-  const [newHab, setNewHab] = useState({ profil: '', societe_id: '' });
+  const [scope, setScope] = useState('tenant'); // 'tenant' | 'specifique'
+  const [selectedSocietes, setSelectedSocietes] = useState([]);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
-  const [draftRestaure, setDraftRestaure] = useState(false);
+  const [impactModal, setImpactModal] = useState(null);
+  // Groupes cochés alors qu'ils ne sont assignables qu'avec le rattachement
+  // en cours d'édition (pas encore enregistré) : mis en attente ici, créés
+  // réellement à l'enregistrement une fois le nouveau rattachement effectif.
+  const [pendingGroupAdditions, setPendingGroupAdditions] = useState(new Set());
 
   useEffect(() => {
     if (!isOpen) return;
-    const draft = loadDraft(draftKey);
-    if (draft) {
-      setForm(draft.form);
-      setHabilitations(draft.habilitations ?? []);
-      setDraftRestaure(true);
-      setErrors({});
-      setNewHab({ profil: '', societe_id: '' });
-      return;
-    }
     if (user) {
-      setForm({ prenom: user.prenom, nom: user.nom, email: user.email, langue: user.langue, actif: user.actif });
-      setHabilitations(user.habilitations ?? []);
+      setForm({
+        prenom: user.prenom, nom: user.nom, email: user.email, password: '',
+        langue: user.langue || 'fr', actif: user.actif,
+        temporaire: !!user.date_finale, date_finale: user.date_finale || '',
+        date_mise_en_fonction: user.date_mise_en_fonction || '',
+      });
+      const ids = initialSocieteIds || [];
+      const isTenant = ids.includes(null) || ids.length === 0;
+      setScope(isTenant ? 'tenant' : 'specifique');
+      setSelectedSocietes(ids.filter(Boolean));
     } else {
       setForm(EMPTY_FORM);
-      setHabilitations([]);
+      setScope('tenant');
+      setSelectedSocietes([]);
     }
-    setDraftRestaure(false);
     setErrors({});
-    setNewHab({ profil: '', societe_id: '' });
-  }, [user, isOpen, draftKey]);
+    setPendingGroupAdditions(new Set());
+  }, [user, isOpen, initialSocieteIds]);
 
-  useEffect(() => {
-    if (!isOpen) return;
-    saveDraft(draftKey, { form, habilitations });
-  }, [form, habilitations, isOpen, draftKey]);
+  // Rattachement en cours d'édition (non enregistré), pour la prévisualisation
+  // temps réel de la section Groupes.
+  const nouvellesSocietesLive = scope === 'tenant' ? [null] : selectedSocietes;
+
+  function togglePendingAddition(groupId, checked) {
+    setPendingGroupAdditions((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(groupId); else next.delete(groupId);
+      return next;
+    });
+  }
 
   function validate() {
     const e = {};
-    if (validateRequired(form.prenom, 'Le prénom')) e.prenom = validateRequired(form.prenom, 'Le prénom');
-    if (validateRequired(form.nom, 'Le nom')) e.nom = validateRequired(form.nom, 'Le nom');
-    const emailErr = validateEmail(form.email);
-    if (emailErr) e.email = emailErr;
+    const nomErr = validateRequired(form.prenom, 'Le prénom'); if (nomErr) e.prenom = nomErr;
+    const nomErr2 = validateRequired(form.nom, 'Le nom'); if (nomErr2) e.nom = nomErr2;
+    const emailErr = validateEmail(form.email); if (emailErr) e.email = emailErr;
+    if (!isEdit && (!form.password || form.password.length < 4)) {
+      e.password = 'Mot de passe initial requis (4 caractères minimum)';
+    }
+    if (form.temporaire && !form.date_finale) e.date_finale = 'Date finale requise pour un compte temporaire';
+    if (scope === 'specifique' && selectedSocietes.length === 0) {
+      e.societes = 'Sélectionnez au moins une organisation, ou choisissez le rattachement tenant';
+    }
     return e;
   }
 
-  async function handleSave() {
+  const isValid = Object.keys(validate()).length === 0;
+
+  async function doSave(payload, nouvellesSocietes, impactees, additions) {
+    setLoading(true);
+    try {
+      await onSubmit(payload, nouvellesSocietes, impactees || [], additions || []);
+      onClose();
+    } catch (err) {
+      setErrors((v) => ({ ...v, global: err.message }));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handleSave() {
     const e = validate();
     if (Object.keys(e).length) { setErrors(e); return; }
-    setLoading(true);
-    await new Promise(r => setTimeout(r, 600));
-    setLoading(false);
-    onSave({ ...form, habilitations });
-    clearDraft(draftKey);
-    onClose();
-  }
+    const payload = {
+      nom: form.nom.trim(), prenom: form.prenom.trim(), email: form.email.trim().toLowerCase(),
+      actif: form.actif, langue: form.langue,
+      date_finale: form.temporaire ? form.date_finale : null,
+      date_mise_en_fonction: form.date_mise_en_fonction || null,
+    };
+    // Contrat d'Antonin : le champ s'appelle mot_de_passe_hash (cf. sandbox
+    // handleCreateUser), pas password. La valeur saisie ici transite telle
+    // quelle, fidèle au comportement de référence de la sandbox.
+    if (!isEdit) payload.mot_de_passe_hash = form.password;
+    const nouvellesSocietes = scope === 'tenant' ? [null] : selectedSocietes;
 
-  function addHab() {
-    if (!newHab.profil || !newHab.societe_id) return;
-    const soc = mockSocietes.find(s => s.id === newHab.societe_id);
-    setHabilitations(prev => [...prev, {
-      profil: newHab.profil,
-      profilLabel: PROFILS.find(p => p.value === newHab.profil)?.label ?? newHab.profil,
-      societe_id: newHab.societe_id,
-      societe_label: soc?.raison_sociale ?? '',
-    }]);
-    setNewHab({ profil: '', societe_id: '' });
-  }
+    // Réévalue CHAQUE attribution actuelle contre le nouveau rattachement, via
+    // la même fonction que les cases à cocher (isGroupAssignable). Ne pas se
+    // contenter de comparer les sociétés retirées : un passage tenant →
+    // spécifique retire une portée implicite (NULL) qu'un simple diff de
+    // tableaux ne détecte pas, alors qu'il invalide potentiellement les
+    // attributions prises à l'échelle tenant.
+    const impactees = (userAttributions || []).filter((a) => {
+      const groupSocieteIds = (groupDiffusions?.[a.id_profil] || []);
+      return !isGroupAssignable(nouvellesSocietes, groupSocieteIds);
+    });
 
-  function removeHab(idx) {
-    setHabilitations(prev => prev.filter((_, i) => i !== idx));
-  }
+    const additions = Array.from(pendingGroupAdditions);
 
-  const isValid = !Object.values(validate()).some(Boolean);
+    if (impactees.length) {
+      const liste = impactees.map((a) => {
+        const g = (groups || []).find((g) => g.id === a.id_profil);
+        return g?.label || 'groupe inconnu';
+      }).join(' • ');
+      setImpactModal({
+        message: `Ce rattachement supprimera les attributions suivantes, devenues sans société commune : ${liste}. Continuer ?`,
+        onConfirm: () => doSave(payload, nouvellesSocietes, impactees, additions),
+      });
+      return;
+    }
+
+    doSave(payload, nouvellesSocietes, [], additions);
+  }
 
   return (
     <SlideOver
       isOpen={isOpen}
       onClose={onClose}
-      title={isEdit ? 'Modifier l\'utilisateur' : 'Ajouter un utilisateur'}
+      title={isEdit ? "Modifier l'utilisateur" : 'Ajouter un utilisateur'}
       size="md"
-      banner={draftRestaure && (
-        <p className="text-xs text-blue-700 dark:text-blue-300 flex items-center justify-between gap-2">
-          Brouillon restaure depuis votre derniere saisie.
-          <button onClick={() => { clearDraft(draftKey); setForm(user ? form : EMPTY_FORM); setDraftRestaure(false); }} className="underline hover:no-underline flex-shrink-0">Vider le brouillon</button>
-        </p>
-      )}
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>Annuler</Button>
@@ -119,24 +156,36 @@ export default function UserFormModal({ isOpen, onClose, onSave, user }) {
       }
     >
       <div className="flex flex-col gap-6">
-        {/* Informations */}
+        {errors.global && (
+          <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+            <p className="text-sm text-red-700">{errors.global}</p>
+          </div>
+        )}
+
         <section>
           <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 pb-2 border-b border-gray-100 dark:border-gray-700">
             Informations personnelles
           </h3>
           <div className="grid grid-cols-2 gap-4">
             <FormField label="Prénom" required error={errors.prenom}>
-              <input className={INPUT_CLS} value={form.prenom} onChange={e => { setForm(v => ({ ...v, prenom: e.target.value })); setErrors(v => ({ ...v, prenom: null })); }} />
+              <input className={INPUT_CLS} value={form.prenom} onChange={e => setForm(v => ({ ...v, prenom: e.target.value }))} />
             </FormField>
             <FormField label="Nom" required error={errors.nom}>
-              <input className={INPUT_CLS} value={form.nom} onChange={e => { setForm(v => ({ ...v, nom: e.target.value })); setErrors(v => ({ ...v, nom: null })); }} />
+              <input className={INPUT_CLS} value={form.nom} onChange={e => setForm(v => ({ ...v, nom: e.target.value }))} />
             </FormField>
           </div>
           <div className="grid grid-cols-2 gap-4 mt-4">
             <FormField label="Email" required error={errors.email} className="col-span-2">
-              <input type="email" className={INPUT_CLS} value={form.email} onChange={e => { setForm(v => ({ ...v, email: e.target.value })); setErrors(v => ({ ...v, email: null })); }} />
+              <input type="email" className={INPUT_CLS} value={form.email} onChange={e => setForm(v => ({ ...v, email: e.target.value }))} />
             </FormField>
           </div>
+          {!isEdit && (
+            <div className="grid grid-cols-2 gap-4 mt-4">
+              <FormField label="Mot de passe initial" required error={errors.password} hint="Communiqué à l'utilisateur en dehors de l'application." className="col-span-2">
+                <input type="text" className={INPUT_CLS} value={form.password} onChange={e => setForm(v => ({ ...v, password: e.target.value }))} />
+              </FormField>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-4 mt-4">
             <FormField label="Langue">
               <select className={INPUT_CLS} value={form.langue} onChange={e => setForm(v => ({ ...v, langue: e.target.value }))}>
@@ -157,43 +206,82 @@ export default function UserFormModal({ isOpen, onClose, onSave, user }) {
           </div>
         </section>
 
-        {/* Habilitations */}
         <section>
           <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 pb-2 border-b border-gray-100 dark:border-gray-700">
-            Habilitations
+            Fenêtre d'activité
           </h3>
-          <div className="flex flex-col gap-2 mb-3">
-            {habilitations.map((hab, i) => (
-              <div key={i} className="flex items-center justify-between gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                <div className="flex items-center gap-2 flex-1 min-w-0">
-                  <ProfileBadge profil={hab.profil} />
-                  <span className="text-sm text-gray-600 dark:text-gray-300 truncate">sur {hab.societe_label}</span>
-                </div>
-                <button onClick={() => removeHab(i)} aria-label="Supprimer" className="text-gray-400 hover:text-red-500 flex-shrink-0">
-                  <X size={14} />
-                </button>
-              </div>
-            ))}
-          </div>
-          <div className="flex gap-2 items-end">
-            <FormField label="Profil" className="flex-1">
-              <select className={INPUT_CLS} value={newHab.profil} onChange={e => setNewHab(v => ({ ...v, profil: e.target.value }))}>
-                <option value="">Choisir…</option>
-                {PROFILS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
-              </select>
+          <FormField label="Date de mise en fonction" hint="Permet de créer le compte en avance pour l'onboarding.">
+            <input type="date" className={INPUT_CLS} value={form.date_mise_en_fonction} onChange={e => setForm(v => ({ ...v, date_mise_en_fonction: e.target.value }))} />
+          </FormField>
+          <label className="flex items-center gap-2 mt-4 cursor-pointer">
+            <input type="checkbox" checked={form.temporaire} onChange={e => setForm(v => ({ ...v, temporaire: e.target.checked }))} className="rounded border-gray-300" />
+            <span className="text-sm text-gray-700 dark:text-gray-300">Utilisateur temporaire</span>
+          </label>
+          {form.temporaire && (
+            <FormField label="Date finale" required error={errors.date_finale} className="mt-3">
+              <input type="date" className={INPUT_CLS} value={form.date_finale} onChange={e => setForm(v => ({ ...v, date_finale: e.target.value }))} />
             </FormField>
-            <FormField label="Société" className="flex-1">
-              <select className={INPUT_CLS} value={newHab.societe_id} onChange={e => setNewHab(v => ({ ...v, societe_id: e.target.value }))}>
-                <option value="">Choisir…</option>
-                {mockSocietes.filter(s => s.actif).map(s => <option key={s.id} value={s.id}>{s.raison_sociale}</option>)}
-              </select>
-            </FormField>
-            <Button variant="secondary" size="sm" onClick={addHab} disabled={!newHab.profil || !newHab.societe_id} className="mb-0 flex-shrink-0">
-              <Plus size={14} /> Ajouter
-            </Button>
-          </div>
+          )}
         </section>
+
+        <section>
+          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 pb-2 border-b border-gray-100 dark:border-gray-700">
+            Rattachement
+          </h3>
+          <div className="flex gap-2 mb-3">
+            <button
+              type="button"
+              onClick={() => setScope('tenant')}
+              className={`flex-1 px-3 py-2 rounded-lg text-sm border ${scope === 'tenant' ? 'bg-blue-50 border-blue-400 text-blue-700 font-medium' : 'border-gray-200 text-gray-600'}`}
+            >
+              Échelle tenant (toutes organisations)
+            </button>
+            <button
+              type="button"
+              onClick={() => setScope('specifique')}
+              className={`flex-1 px-3 py-2 rounded-lg text-sm border ${scope === 'specifique' ? 'bg-blue-50 border-blue-400 text-blue-700 font-medium' : 'border-gray-200 text-gray-600'}`}
+            >
+              Organisations spécifiques
+            </button>
+          </div>
+          {scope === 'specifique' && (
+            <FormField error={errors.societes}>
+              {(societes || []).length === 0 ? (
+                <p className="px-3 py-3 text-sm text-gray-400 border border-gray-200 dark:border-gray-600 rounded-lg">
+                  Aucune organisation. Créez-en une depuis Administration &gt; Organisation.
+                </p>
+              ) : (
+                <SocieteSelector organisations={societes} selectedIds={selectedSocietes} onChange={setSelectedSocietes} />
+              )}
+            </FormField>
+          )}
+        </section>
+
+        {isEdit && (
+          <UserGroupsSection
+            userId={user.id}
+            userSocieteIds={initialSocieteIds || []}
+            pendingSocieteIds={nouvellesSocietesLive}
+            pendingAdditions={pendingGroupAdditions}
+            onTogglePendingAddition={togglePendingAddition}
+            groups={groups || []}
+            groupDiffusions={groupDiffusions || {}}
+            societes={societes || []}
+            attributions={userAttributions || []}
+            onChange={onGroupsChanged}
+          />
+        )}
       </div>
+
+      <ConfirmModal
+        isOpen={!!impactModal}
+        onClose={() => setImpactModal(null)}
+        onConfirm={() => impactModal?.onConfirm()}
+        title="Attributions impactées"
+        message={impactModal?.message}
+        isDestructive
+        confirmLabel="Confirmer le retrait"
+      />
     </SlideOver>
   );
 }
