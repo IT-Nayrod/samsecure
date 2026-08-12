@@ -197,7 +197,7 @@ export default function ExceptionsPage() {
           <FormField label="Utilisateur" required error={errors.userId}>
             <select className={INPUT_CLS} value={form.userId} onChange={e => setForm(v => ({ ...v, userId: e.target.value }))}>
               <option value="">Choisir…</option>
-              {users.filter((u) => !u.date_suppression).map(u => <option key={u.id} value={u.id}>{u.prenom} {u.nom}</option>)}
+              {users.filter((u) => u.actif).map(u => <option key={u.id} value={u.id}>{u.prenom} {u.nom}</option>)}
             </select>
           </FormField>
 

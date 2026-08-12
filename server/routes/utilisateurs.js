@@ -17,16 +17,16 @@ async function log(client, action, entite_type, entite_id, description, payload)
   }
 }
 
+// Tous les comptes sont servis, desactives compris : la suppression n'existe
+// plus, un compte retire doit rester visible pour etre reactivable.
 router.get("/utilisateurs", async (req, res) => {
-  const inclureSupprimes = req.query.inclureSupprimes === "true";
   try {
     const scope = await getAdminScope(req.user.id);
     const { clause, params } = scopeWhereClause(scope, 1);
     const { rows } = await tenantPool.query(
-      `SELECT u.id, u.nom, u.prenom, u.email, u.actif, u.date_finale, u.date_mise_en_fonction, u.date_suppression
+      `SELECT u.id, u.nom, u.prenom, u.email, u.actif, u.date_finale, u.date_mise_en_fonction
        FROM utilisateur u
-       WHERE ${inclureSupprimes ? "TRUE" : "u.date_suppression IS NULL"}
-         AND (${clause})
+       WHERE (${clause})
        ORDER BY u.nom, u.prenom`,
       params
     );
@@ -115,7 +115,7 @@ router.patch("/utilisateurs/:id", async (req, res) => {
     if (setFields.length === 0) return res.status(400).json({ error: "Aucun champ à modifier" });
 
     const { rows } = await client.query(
-      `UPDATE utilisateur SET ${setFields.join(", ")} WHERE id = $1 AND date_suppression IS NULL RETURNING id, nom, prenom, email, actif, langue, date_finale, date_mise_en_fonction`,
+      `UPDATE utilisateur SET ${setFields.join(", ")} WHERE id = $1 RETURNING id, nom, prenom, email, actif, langue, date_finale, date_mise_en_fonction`,
       values
     );
     if (!rows.length) { await client.query("ROLLBACK"); return res.status(404).json({ error: "Utilisateur introuvable" }); }
@@ -131,34 +131,11 @@ router.patch("/utilisateurs/:id", async (req, res) => {
   }
 });
 
-router.delete("/utilisateurs/:id", async (req, res) => {
-  const { id } = req.params;
-  const scope = await getAdminScope(req.user.id);
-  if (!(await isUserInScope(id, scope))) {
-    return res.status(403).json({ error: "Cet utilisateur n'est pas dans votre périmètre." });
-  }
-  const client = await tenantPool.connect();
-  try {
-    await client.query("BEGIN");
-    const { rows } = await client.query(
-      `SELECT nom, prenom FROM utilisateur WHERE id = $1 AND date_suppression IS NULL`, [id]
-    );
-    if (!rows.length) { await client.query("ROLLBACK"); return res.status(404).json({ error: "Utilisateur introuvable" }); }
-    await client.query(`UPDATE utilisateur_societe SET date_suppression = now() WHERE id_utilisateur = $1`, [id]);
-    await client.query(`UPDATE utilisateur_profil_societe SET date_suppression = now() WHERE id_utilisateur = $1`, [id]);
-    await client.query(`UPDATE exception_droit SET date_suppression = now() WHERE id_utilisateur = $1`, [id]);
-    await client.query(`UPDATE utilisateur SET date_suppression = now() WHERE id = $1`, [id]);
-    await log(client, "SOFT_DELETE", "utilisateur", id, `Utilisateur "${rows[0].prenom} ${rows[0].nom}" supprimé`, null);
-    await client.query("COMMIT");
-    res.status(204).end();
-  } catch (err) {
-    await client.query("ROLLBACK");
-    console.error("DELETE /utilisateurs/:id error", err);
-    res.status(500).json({ error: "Erreur serveur" });
-  } finally {
-    client.release();
-  }
-});
+// La suppression d'un utilisateur n'existe plus, migration 022 : le retrait
+// d'un compte se fait par desactivation, PATCH /utilisateurs/:id { actif:
+// false }. Un compte desactive reste visible a l'ecran et reactivable, la ou
+// un compte supprime disparaissait de la liste et n'etait plus recuperable que
+// par une intervention en base.
 
 router.post("/utilisateurs/:id/societes", async (req, res) => {
   const { id } = req.params;

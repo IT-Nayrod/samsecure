@@ -45,7 +45,7 @@ export default function GroupUsersSection({ groupId, groupSocieteIds, users, use
         Utilisateurs associés
       </h3>
       <div className="flex flex-col gap-1 max-h-64 overflow-y-auto">
-        {users.filter((u) => !u.date_suppression).map((user) => {
+        {users.filter((u) => u.actif).map((user) => {
           const userSocieteIds = userSocietesMap[user.id] || [];
           const assignable = isGroupAssignable(userSocieteIds, groupSocieteIds);
           const checked = attributedUserIds.has(user.id);

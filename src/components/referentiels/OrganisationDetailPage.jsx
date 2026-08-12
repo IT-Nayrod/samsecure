@@ -77,7 +77,7 @@ export default function OrganisationDetailPage() {
   // Utilisateurs ayant un rattachement explicite à cette organisation (pas les
   // rattachements à l'échelle tenant, qui n'ont pas de ligne société précise
   // à retirer via DELETE /utilisateurs/{id}/societes/{societeId}).
-  const rattaches = users.filter((u) => !u.date_suppression && (userSocietesMap[u.id] || []).includes(organisation.id));
+  const rattaches = users.filter((u) => u.actif && (userSocietesMap[u.id] || []).includes(organisation.id));
 
   async function handleSubmit(data, existing) {
     await societesService.update(existing.id, data);

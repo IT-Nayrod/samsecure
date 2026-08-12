@@ -106,7 +106,6 @@ export const ROUTES_PERMISSIONS = [
   ["GET",    "/utilisateurs",                            "gerer_utilisateurs"],
   ["POST",   "/utilisateurs",                            "gerer_utilisateurs"],
   ["PATCH",  "/utilisateurs/:id",                        "gerer_utilisateurs"],
-  ["DELETE", "/utilisateurs/:id",                        "gerer_utilisateurs"],
 
   ["GET",    "/profils/:id/permissions",                 "gerer_utilisateurs"],
   ["POST",   "/profils/:id/permissions",                 "gerer_utilisateurs"],

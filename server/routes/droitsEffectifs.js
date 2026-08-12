@@ -13,7 +13,7 @@ router.get("/utilisateurs/:id/droits-effectifs", async (req, res) => {
 
   try {
     const { rows: userCheck } = await tenantPool.query(
-      `SELECT 1 FROM utilisateur WHERE id = $1 AND date_suppression IS NULL
+      `SELECT 1 FROM utilisateur WHERE id = $1 AND actif = true
        AND (date_finale IS NULL OR date_finale >= CURRENT_DATE)
        AND (date_mise_en_fonction IS NULL OR date_mise_en_fonction <= CURRENT_DATE)`,
       [id]
