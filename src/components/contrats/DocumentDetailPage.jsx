@@ -43,13 +43,14 @@ export default function DocumentDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { addToast } = useToast();
-  const { canWrite, canDelete } = useRbac();
+  const { canWrite, canDelete, canValidate } = useRbac({ write: 'deposer_facture_preuve', validate: 'valider_saisie' });
   const [searchParams] = useSearchParams();
 
   const [doc, setDoc] = useState(null);
   const [ressource, setRessource] = useState(searchParams.get('ressource'));
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [errorStatus, setErrorStatus] = useState(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [ouverture, setOuverture] = useState(false);
   const [copie, setCopie] = useState(false);
@@ -59,6 +60,7 @@ export default function DocumentDetailPage() {
   const load = useCallback(async () => {
     setIsLoading(true);
     setError(null);
+    setErrorStatus(null);
     const demandee = searchParams.get('ressource');
     const ordre = demandee === 'facture' ? ['facture', 'preuve'] : ['preuve', 'facture'];
     try {
@@ -77,6 +79,7 @@ export default function DocumentDetailPage() {
       setError('Ce document n\'existe pas ou a ete supprime.');
     } catch (err) {
       setError(err.message);
+      setErrorStatus(err.status);
     } finally {
       setIsLoading(false);
     }
@@ -161,7 +164,7 @@ export default function DocumentDetailPage() {
       <div className="flex flex-col gap-6">
         <Breadcrumb items={[...FIL, { label: 'Introuvable' }]} />
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
-          <ErrorState message={error} onRetry={load} />
+          <ErrorState message={error} status={errorStatus} onRetry={load} />
         </div>
       </div>
     );
@@ -185,11 +188,11 @@ export default function DocumentDetailPage() {
           </div>
         </div>
         <div className="flex gap-2">
-          <ValidationActions
+          {canValidate && <ValidationActions
             statut={doc.statut_validation}
             onValidate={() => valider(ressource, doc.id)}
             onRefuse={motif => refuser(ressource, doc.id, motif)}
-          />
+          />}
           {estPreuve && fichierDepose && (
             <Button variant="primary" onClick={ouvrirFichier} isLoading={ouverture}>
               <ExternalLink size={15} /> Ouvrir le fichier

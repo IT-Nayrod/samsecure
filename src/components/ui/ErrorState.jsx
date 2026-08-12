@@ -3,13 +3,19 @@
 import { AlertTriangle } from 'lucide-react';
 import Button from './Button';
 
-export default function ErrorState({ message, onRetry }) {
+export default function ErrorState({ message, onRetry, status }) {
+  // Un 403 n'est pas une panne : reproposer "Reessayer" enverrait l'utilisateur
+  // se heurter au meme refus. Le message du serveur nomme deja la permission
+  // manquante, il est affiche tel quel.
+  const refuse = status === 403;
   return (
     <div className="flex flex-col items-center justify-center text-center py-16 px-4">
       <AlertTriangle size={48} className="text-red-400 dark:text-red-500/70 mb-4" strokeWidth={1.5} />
-      <h3 className="text-base font-semibold text-gray-700 dark:text-gray-300 mb-2">Chargement impossible</h3>
+      <h3 className="text-base font-semibold text-gray-700 dark:text-gray-300 mb-2">
+        {refuse ? 'Acces refuse' : 'Chargement impossible'}
+      </h3>
       <p className="text-sm text-gray-500 dark:text-gray-400 mb-6 max-w-sm">{message}</p>
-      {onRetry && <Button onClick={onRetry}>Reessayer</Button>}
+      {onRetry && !refuse && <Button onClick={onRetry}>Reessayer</Button>}
     </div>
   );
 }

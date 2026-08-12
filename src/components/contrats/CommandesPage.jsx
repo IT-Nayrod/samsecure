@@ -7,6 +7,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Wallet, Hash, RefreshCw, TrendingUp, X } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { commandesService, modesCommandeService } from '../../services/commandesService';
+import { optionnel } from '../../services/http';
 import { contratsService, referentielsContratsService } from '../../services/contratsService';
 import { societesService } from '../../services/adminService';
 import DataTable from '../ui/DataTable';
@@ -32,7 +33,7 @@ const euros = (v) => `${(v ?? 0).toLocaleString('fr-FR')} €`;
 export default function CommandesPage() {
   const navigate = useNavigate();
   const { addToast } = useToast();
-  const { canWrite } = useRbac();
+  const { canWrite, canValidate } = useRbac({ write: 'saisir_commande', validate: 'valider_saisie' });
 
   const [commandes, setCommandes] = useState([]);
   const [contrats, setContrats] = useState([]);
@@ -42,6 +43,7 @@ export default function CommandesPage() {
   const [agregats, setAgregats] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [errorStatus, setErrorStatus] = useState(null);
 
   const [filterContrat, setFilterContrat] = useState('');
   const [filterSociete, setFilterSociete] = useState('');
@@ -62,17 +64,21 @@ export default function CommandesPage() {
   const loadReferentiel = useCallback(async () => {
     setIsLoading(true);
     setError(null);
+    setErrorStatus(null);
     try {
+      // Seules les commandes sont indispensables ici, le reste alimente
+      // filtres et formulaire.
       const [k, c, s, r, m] = await Promise.all([
         commandesService.list(),
-        contratsService.list(),
-        societesService.list(),
-        referentielsContratsService.revendeurs(),
-        modesCommandeService.list(),
+        optionnel(contratsService.list()),
+        optionnel(societesService.list()),
+        optionnel(referentielsContratsService.revendeurs()),
+        optionnel(modesCommandeService.list()),
       ]);
       setCommandes(k); setContrats(c); setSocietes(s); setRevendeurs(r); setModes(m);
     } catch (err) {
       setError(err.message);
+      setErrorStatus(err.status);
       addToast({ type: 'error', message: err.message });
     } finally {
       setIsLoading(false);
@@ -83,13 +89,17 @@ export default function CommandesPage() {
   const loadAgregats = useCallback(async () => {
     if (!periode?.debut || !periode?.fin) return;
     try {
-      setAgregats(await commandesService.agregats({
+      // consulter_kpi_financiers est une permission a part : un IT Ops lit ses
+      // commandes sans acceder aux tableaux de bord financiers. Son refus retire
+      // le graphe et les KPI, il ne condamne pas l'ecran.
+      setAgregats(await optionnel(commandesService.agregats({
         dateDebut: toIsoDate(periode.debut),
         dateFin: toIsoDate(periode.fin),
         idSociete: societeActive,
-      }));
+      }), null));
     } catch (err) {
       setError(err.message);
+      setErrorStatus(err.status);
       addToast({ type: 'error', message: err.message });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -121,7 +131,12 @@ export default function CommandesPage() {
   // du selecteur : le precalcul est mensuel, aligner la liste dessus est la
     // seule facon de garantir l'egalite au centime entre liste, timeline et KPI.
   const dansPeriode = useMemo(() => {
-    if (!agregats) return [];
+    // Sans agregats, la liste perd sa reference de bornes. C'est le cas d'un
+    // porteur de consulter_contrats sans consulter_kpi_financiers : il a droit
+    // a ses commandes, pas aux tableaux de bord financiers. On sert alors la
+    // liste entiere plutot qu'une liste vide, l'egalite au centime avec la
+    // timeline et les KPI n'ayant plus d'objet puisqu'ils ne s'affichent pas.
+    if (!agregats) return commandes;
     return commandes.filter((k) => {
       if (!k.date_commande) return false;
       const mois = k.date_commande.slice(0, 7);
@@ -183,7 +198,7 @@ export default function CommandesPage() {
       csvValue: r => [r.statut_validation_label, r.message_refus].filter(Boolean).join(' - '),
       render: r => <ValidationCell statut={r.statut_validation} motif={r.message_refus} /> },
     { key: 'actions_validation', label: '', csvValue: () => '',
-      render: r => (
+      render: r => canValidate && (
         <ValidationActions
           statut={r.statut_validation}
           onValidate={() => valider('commande', r.id)}
@@ -214,7 +229,7 @@ export default function CommandesPage() {
       <div className="flex flex-col gap-6">
         {enTete}
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
-          <ErrorState message={error} onRetry={reload} />
+          <ErrorState message={error} status={errorStatus} onRetry={reload} />
         </div>
       </div>
     );
@@ -240,6 +255,18 @@ export default function CommandesPage() {
 
       <PeriodeFiscaleSelector debutExercice={debutExercice} onChange={setPeriode} />
 
+      {/* Tout ce bloc vit des agregats financiers. Sans le droit
+          consulter_kpi_financiers ils ne sont pas servis : afficher des KPI a
+          zero et une timeline vide ferait croire a une absence de commandes,
+          alors que la liste plus bas les montre toutes. */}
+      {!agregats && (
+        <p className="text-sm text-gray-500 bg-gray-50 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
+          Les indicateurs financiers ne sont pas accessibles avec votre niveau de droit.
+          La liste des commandes reste consultable ci-dessous.
+        </p>
+      )}
+
+      {agregats && (<>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <DeploiementKpiCard label="Montant total commande" value={euros(totaux.montant_commande)} icon={Wallet} color="#7C6FCD" />
         <DeploiementKpiCard label="Nombre de commandes" value={totaux.nb_commandes ?? 0} icon={Hash} color="#1F4E79" />
@@ -276,6 +303,7 @@ export default function CommandesPage() {
           </div>
         </div>
       </section>
+      </>)}
 
       <div className="flex flex-wrap gap-3 bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
         <select value={filterSociete} onChange={e => setFilterSociete(e.target.value)} className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">

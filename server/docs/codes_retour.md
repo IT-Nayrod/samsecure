@@ -229,3 +229,36 @@ Aucun controle de profil dans cette tache, decision de sequencement actee : tout
 utilisateur authentifie soumet et traite, y compris ses propres saisies. La
 restriction arrive avec la story Droits et se branchera dans traiter(), entre le
 chargement de l'entite et la lecture du statut courant.
+
+## Controle des permissions (transverse)
+
+Plage droits 3400-3499. Le controle est central, monte une seule fois dans
+index.js apres l'authentification : aucun routeur ne declare de permission, la
+table server/config/routesPermissions.js est la seule source.
+
+| Code | Type | Libelle propose | Route |
+|------|------|-----------------|-------|
+| 3400 | erreur | Cette action n'est pas permise pour votre niveau de droit. Permission requise : <code>. | toutes les routes protegees |
+| 3499 | erreur | Erreur serveur inattendue (calcul des droits) | toutes les routes protegees |
+
+Le 3400 nomme la permission manquante. C'est un choix assume : le support et
+l'administrateur qui utilise le simulateur de droits doivent pouvoir dire quelle
+permission attribuer sans lire les journaux. Le vocabulaire expose est celui du
+referentiel permission, deja visible dans l'ecran d'administration.
+
+Le controle est fail-closed. Une route protegee absente de la table est refusee
+avec le meme 3400, et l'anomalie part dans les logs sous le prefixe [rbac]. Une
+route ajoutee sans sa ligne de permission se voit donc immediatement, au lieu de
+rester ouverte en silence.
+
+Un compte supprime, ou hors de sa periode d'activite, n'a aucune permission
+meme porteur d'un jeton encore valide. Sans ce controle le soft delete ne
+protegeait rien : l'utilisateur desactive conservait tous ses droits jusqu'a
+l'expiration de son jeton, soit quinze minutes, et pouvait les renouveler par
+son jeton de rafraichissement.
+
+La variable d'environnement RBAC_STRICT pilote le mode. Absente ou differente
+de "false", elle vaut strict et le refus est un 403. A "false", le refus est
+journalise sans bloquer, pour observer les refus reels d'un environnement avant
+de couper. Un defaut permissif aurait ete un piege : un .env incomplet aurait
+silencieusement desactive le controle.

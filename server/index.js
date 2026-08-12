@@ -5,6 +5,7 @@ import { APP_ENV } from "./db.js";
 
 import authRouter from "./routes/auth.js";
 import { authMiddleware } from "./middleware/auth.js";
+import { controlePermissions } from "./middleware/exigerPermission.js";
 
 import societesRouter from "./routes/societes.js";
 import profilsRouter from "./routes/profils.js";
@@ -29,6 +30,10 @@ app.use(express.json());
 app.use("/api/auth", authRouter);
 
 app.use("/api", authMiddleware);
+// Jeton valide ne vaut pas droit d'agir : le controle des permissions est
+// central et couvre toutes les routes metier, y compris celles appelees a la
+// main hors de l'interface.
+app.use("/api", controlePermissions);
 app.use("/api", societesRouter);
 app.use("/api", profilsRouter);
 app.use("/api", permissionsRouter);
