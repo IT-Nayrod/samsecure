@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { tenantPool } from "../db.js";
 import { authMiddleware } from "../middleware/auth.js";
+import { permissionsEffectives } from "../utils/droitsUtilisateur.js";
 
 const router = express.Router();
 
@@ -197,58 +198,10 @@ router.get("/me", authMiddleware, async (req, res) => {
 
 router.get("/mes-droits", authMiddleware, async (req, res) => {
   try {
-    const uid = req.user.id;
-    const today = new Date().toISOString().slice(0, 10);
-
-    const { rows: ratt } = await tenantPool.query(
-      `SELECT id_societe FROM utilisateur_societe WHERE id_utilisateur = $1 AND date_suppression IS NULL`,
-      [uid]
-    );
-    const isTenantScope = ratt.some((r) => r.id_societe === null);
-    const societeIds = ratt.map((r) => r.id_societe).filter(Boolean);
-    const dansPerimetre = (idSociete) =>
-      isTenantScope || idSociete === null || societeIds.includes(idSociete);
-
-    const { rows: attribs } = await tenantPool.query(
-      `SELECT id_profil, id_societe FROM utilisateur_profil_societe
-       WHERE id_utilisateur = $1 AND date_suppression IS NULL`,
-      [uid]
-    );
-    const profilIds = [...new Set(attribs.filter((a) => dansPerimetre(a.id_societe)).map((a) => a.id_profil))];
-
-    let permissions = new Set();
-    if (profilIds.length) {
-      const { rows } = await tenantPool.query(
-        `SELECT DISTINCT p.code
-         FROM profil_permission pp
-         JOIN permission p ON p.id = pp.id_permission
-         WHERE pp.id_profil = ANY($1) AND pp.date_suppression IS NULL`,
-        [profilIds]
-      );
-      permissions = new Set(rows.map((r) => r.code));
-    }
-
-    const { rows: exceptions } = await tenantPool.query(
-      `SELECT ed.id_societe, ed.type, p.code
-       FROM exception_droit ed
-       JOIN permission p ON p.id = ed.id_permission
-       WHERE ed.id_utilisateur = $1 AND ed.date_suppression IS NULL
-         AND (ed.date_debut IS NULL OR ed.date_debut <= $2)
-         AND (ed.date_fin IS NULL OR ed.date_fin >= $2)`,
-      [uid, today]
-    );
-
-    for (const exc of exceptions) {
-      if (exc.type === "accorde" && dansPerimetre(exc.id_societe)) permissions.add(exc.code);
-    }
-    for (const exc of exceptions) {
-      if (exc.type !== "retire" || !dansPerimetre(exc.id_societe)) continue;
-      // Le retrait ne prime que sur son propre périmètre : un retrait limité à une
-      // société précise ne doit pas masquer un droit toujours acquis ailleurs.
-      const retraitCouvreTout = exc.id_societe === null || !isTenantScope;
-      if (retraitCouvreTout) permissions.delete(exc.code);
-    }
-
+    // Meme calcul que le middleware de controle : une divergence entre ce que
+    // le front affiche et ce que l'API autorise produirait des boutons qui
+    // mènent a un refus, ou des actions possibles mais invisibles.
+    const { permissions, isTenantScope } = await permissionsEffectives(req.user.id);
     res.json({ permissions: Array.from(permissions).sort(), isTenantScope });
   } catch (err) {
     console.error("GET /auth/mes-droits error", err);

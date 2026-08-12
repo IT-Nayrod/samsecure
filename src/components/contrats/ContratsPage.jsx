@@ -5,6 +5,7 @@ import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Layers, List, FileText, AlertTriangle, RefreshCw, FolderTree, ChevronRight, ChevronDown, X } from 'lucide-react';
 import { contratsService, referentielsContratsService } from '../../services/contratsService';
+import { optionnel } from '../../services/http';
 import { societesService } from '../../services/adminService';
 import DataTable from '../ui/DataTable';
 import Button from '../ui/Button';
@@ -23,7 +24,7 @@ import ValidationActions from '../referentiels/ValidationActions';
 import useValidation from '../../hooks/useValidation';
 import { appliquerStatut } from '../../services/validationService';
 
-function TreeNode({ contrat, depth, enfantsParParent, navigate, onValider, onRefuser }) {
+function TreeNode({ contrat, depth, enfantsParParent, navigate, onValider, onRefuser, canValider }) {
   const [open, setOpen] = useState(depth === 0);
   const enfants = enfantsParParent.get(contrat.id) ?? [];
   const hasEnfants = enfants.length > 0;
@@ -47,16 +48,16 @@ function TreeNode({ contrat, depth, enfantsParParent, navigate, onValider, onRef
         {/* La ligne entiere navigue au clic (l.32) : sans stopPropagation,
             cliquer Valider ouvrirait la fiche au lieu de traiter la saisie. */}
         <div onClick={e => e.stopPropagation()}>
-          <ValidationActions
+          {canValider && <ValidationActions
             statut={contrat.statut_validation}
             onValidate={() => onValider(contrat.id)}
             onRefuse={motif => onRefuser(contrat.id, motif)}
-          />
+          />}
         </div>
       </div>
       {open && hasEnfants && enfants.map(e => (
         <TreeNode key={e.id} contrat={e} depth={depth + 1} enfantsParParent={enfantsParParent}
-                  navigate={navigate} onValider={onValider} onRefuser={onRefuser} />
+                  navigate={navigate} onValider={onValider} onRefuser={onRefuser} canValider={canValider} />
       ))}
     </div>
   );
@@ -65,7 +66,7 @@ function TreeNode({ contrat, depth, enfantsParParent, navigate, onValider, onRef
 export default function ContratsPage() {
   const navigate = useNavigate();
   const { addToast } = useToast();
-  const { canWrite } = useRbac();
+  const { canWrite, canValidate } = useRbac({ write: 'saisir_contrat', validate: 'valider_saisie' });
 
   const [contrats, setContrats] = useState([]);
   const [editeurs, setEditeurs] = useState([]);
@@ -74,6 +75,7 @@ export default function ContratsPage() {
   const [revendeurs, setRevendeurs] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [errorStatus, setErrorStatus] = useState(null);
 
   const [vueArbo, setVueArbo] = useState(true);
   const [filterEditeur, setFilterEditeur] = useState('');
@@ -89,13 +91,17 @@ export default function ContratsPage() {
   const load = useCallback(async () => {
     setIsLoading(true);
     setError(null);
+    setErrorStatus(null);
     try {
+      // Seuls les contrats sont indispensables a cet ecran. Les referentiels
+      // alimentent les filtres et le formulaire : un droit manquant sur eux
+      // doit priver de ces commodites, pas de la liste.
       const [c, e, s, t, r] = await Promise.all([
         contratsService.list(),
-        referentielsContratsService.editeurs(),
-        societesService.list(),
-        referentielsContratsService.typesContrat(),
-        referentielsContratsService.revendeurs(),
+        optionnel(referentielsContratsService.editeurs()),
+        optionnel(societesService.list()),
+        optionnel(referentielsContratsService.typesContrat()),
+        optionnel(referentielsContratsService.revendeurs()),
       ]);
       setContrats(c);
       setEditeurs(e);
@@ -104,6 +110,7 @@ export default function ContratsPage() {
       setRevendeurs(r);
     } catch (err) {
       setError(err.message);
+      setErrorStatus(err.status);
       addToast({ type: 'error', message: err.message });
     } finally {
       setIsLoading(false);
@@ -194,7 +201,7 @@ export default function ContratsPage() {
       csvValue: r => [r.statut_validation_label, r.message_refus].filter(Boolean).join(' - '),
       render: r => <ValidationCell statut={r.statut_validation} motif={r.message_refus} /> },
     { key: 'actions_validation', label: '', csvValue: () => '',
-      render: r => (
+      render: r => canValidate && (
         <ValidationActions
           statut={r.statut_validation}
           onValidate={() => valider('contrat', r.id)}
@@ -235,7 +242,7 @@ export default function ContratsPage() {
       <div className="flex flex-col gap-6">
         {enTete}
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
-          <ErrorState message={error} onRetry={load} />
+          <ErrorState message={error} status={errorStatus} onRetry={load} />
         </div>
       </div>
     );
@@ -304,7 +311,7 @@ export default function ContratsPage() {
             : racinesArbo.map(c => (
                 <TreeNode key={c.id} contrat={c} depth={0} enfantsParParent={enfantsParParent} navigate={navigate}
                   onValider={id => valider('contrat', id)}
-                  onRefuser={(id, motif) => refuser('contrat', id, motif)} />
+                  onRefuser={(id, motif) => refuser('contrat', id, motif)} canValider={canValidate} />
               ))
           }
         </div>

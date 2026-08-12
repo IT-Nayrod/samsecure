@@ -95,6 +95,21 @@ async function request(path, { method = 'GET', body, retry = true } = {}) {
   return data;
 }
 
+// Un 403 sur une ressource accessoire ne doit pas condamner l'ecran entier :
+// un utilisateur autorise a consulter les contrats mais pas les referentiels
+// merite sa liste, pas une page d'erreur. La ressource principale d'un ecran,
+// elle, garde son echec : sans elle la page n'a plus d'objet.
+// A n'employer que sur les chargements groupes, jamais sur une action.
+export function optionnel(promesse, defaut = []) {
+  return promesse.catch((err) => {
+    if (err instanceof ApiError && err.status === 403) {
+      console.info('[droits] ressource accessoire refusee, ecran servi sans elle');
+      return defaut;
+    }
+    throw err;
+  });
+}
+
 export const http = {
   get: (path) => request(path),
   post: (path, body) => request(path, { method: 'POST', body }),
