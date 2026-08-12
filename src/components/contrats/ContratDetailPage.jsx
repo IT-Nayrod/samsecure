@@ -2,7 +2,7 @@
 // Donnees API. La suppression s'appuie sur le refus du serveur, pas sur un garde-fou local.
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Pencil, Trash2, ChevronDown } from 'lucide-react';
+import { Pencil, Trash2, ChevronDown, XCircle } from 'lucide-react';
 import BudgetEmbeddedSection from '../budget/BudgetEmbeddedSection';
 import { contratsService, referentielsContratsService } from '../../services/contratsService';
 import { societesService } from '../../services/adminService';
@@ -17,6 +17,10 @@ import ContratFormModal from './ContratFormModal';
 import useRbac from '../../hooks/useRbac';
 import { useToast } from '../../hooks/useToast';
 import { formatDate } from '../../utils/dateUtils';
+import StatutValidationBadge from '../referentiels/StatutValidationBadge';
+import ValidationActions from '../referentiels/ValidationActions';
+import useValidation from '../../hooks/useValidation';
+import { appliquerStatut } from '../../services/validationService';
 
 export default function ContratDetailPage() {
   const { id } = useParams();
@@ -68,6 +72,9 @@ export default function ContratDetailPage() {
   }, [id]);
 
   useEffect(() => { load(); }, [load]);
+
+  const appliquer = useCallback(reponse => setContrat(c => appliquerStatut(c, reponse)), []);
+  const { valider, refuser } = useValidation(appliquer);
 
   const sousContrats = useMemo(
     () => contrats.filter(c => c.id_contrat_parent === id),
@@ -133,12 +140,18 @@ export default function ContratDetailPage() {
             <h1 className="text-xl font-semibold text-gray-900 dark:text-white">{contrat.label}</h1>
             {contrat.type_code === 'cadre' && <span className="text-xs font-semibold text-blue-700 bg-blue-100 dark:bg-blue-900/30 px-2.5 py-1 rounded-full">Cadre</span>}
             <StatutEcheanceBadge statut={contrat.statut_echeance} />
+            <StatutValidationBadge statut={contrat.statut_validation} />
           </div>
           <p className="text-sm text-gray-500 mt-1">
             {contrat.type_label ?? '-'}{contrat.editeur_label ? ` - ${contrat.editeur_label}` : ''}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          <ValidationActions
+            statut={contrat.statut_validation}
+            onValidate={() => valider('contrat', contrat.id)}
+            onRefuse={motif => refuser('contrat', contrat.id, motif)}
+          />
           {canWrite && (
             <Button variant="secondary" size="sm" onClick={() => setFormOpen(true)}>
               <Pencil size={14} /> Editer
@@ -151,6 +164,16 @@ export default function ContratDetailPage() {
           )}
         </div>
       </div>
+
+      {contrat.statut_validation === 'refuse' && contrat.message_refus && (
+        <div className="flex items-start gap-2 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+          <XCircle size={16} className="text-red-600 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-red-800 dark:text-red-300">Saisie refusee</p>
+            <p className="text-sm text-red-700 dark:text-red-400 mt-0.5">{contrat.message_refus}</p>
+          </div>
+        </div>
+      )}
 
       <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
         <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Signataires</h2>

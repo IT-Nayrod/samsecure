@@ -6,6 +6,9 @@ import {
   PREUVES_DIR, TYPES_ADMIS, NOM_PHYSIQUE_RE,
   recevoirUnFichier, erreurReception, validerFichier, ecrireFichier, supprimerFichier,
 } from "../utils/stockagePreuves.js";
+import {
+  jointureStatut, COLONNES_STATUT, soumettre, purgerValidations,
+} from "../utils/validationWorkflow.js";
 
 const router = express.Router();
 
@@ -42,11 +45,13 @@ const SELECT_PREUVE = `
          p.id_contrat,     ct.label AS contrat_label,
          p.id_commande,    cm.label AS commande_label,
          p.url_fichier, p.hash_sha256, p.nom_origine, p.created_at,
-         (SELECT count(*) FROM facture f WHERE f.id_preuve = p.id)::int AS nb_factures
+         (SELECT count(*) FROM facture f WHERE f.id_preuve = p.id)::int AS nb_factures,
+         ${COLONNES_STATUT}
   FROM preuve p
   LEFT JOIN type_preuve tp ON tp.id = p.id_type_preuve
   LEFT JOIN contrat     ct ON ct.id = p.id_contrat
-  LEFT JOIN commande    cm ON cm.id = p.id_commande`;
+  LEFT JOIN commande    cm ON cm.id = p.id_commande
+  ${jointureStatut("preuve", "p")}`;
 
 // nom_origine en est volontairement absent : il n'est pas saisissable, seul
 // le depot de la #49 le renseigne, en meme temps que url_fichier et le hash.
@@ -208,6 +213,10 @@ router.post("/preuves", async (req, res) => {
        corps.url_fichier, corps.hash_sha256]
     );
 
+    // Toute saisie part en attente de validation, dans la meme transaction que
+    // l'ecriture metier.
+    await soumettre(client, "preuve", creee.id, req.user?.id);
+
     await log(client, "CREATE", "preuve", creee.id, `Creation de la preuve "${label}"`, corps);
     await client.query("COMMIT");
 
@@ -271,6 +280,9 @@ router.patch("/preuves/:id", async (req, res) => {
        corps.url_fichier, corps.hash_sha256, id]
     );
 
+    // Une modification est une saisie : retour en attente, motif de refus efface.
+    await soumettre(client, "preuve", id, req.user?.id);
+
     await log(client, "UPDATE", "preuve", id, `Modification de la preuve "${label}"`, patch);
     await client.query("COMMIT");
 
@@ -321,6 +333,9 @@ router.delete("/preuves/:id", async (req, res) => {
       });
     }
 
+    // workflow_validation.entite_id est polymorphe et sans FK : nettoyage
+    // applicatif, dans la meme transaction que la suppression.
+    await purgerValidations(client, "preuve", id);
     await client.query(`DELETE FROM preuve WHERE id = $1`, [id]);
     await log(client, "DELETE", "preuve", id, `Suppression de la preuve "${existant[0].label}"`, null);
     await client.query("COMMIT");
@@ -399,6 +414,10 @@ async function deposerFichier(req, res) {
     await client.query(
       `UPDATE preuve SET url_fichier = $1, hash_sha256 = $2, nom_origine = $3 WHERE id = $4`,
       [ecrit.nomPhysique, ecrit.hash, ecrit.nomOrigine, id]);
+
+    // Remplacer le justificatif d'une preuve validee est une modification :
+    // elle repasse en attente. C'est le cas ou le controle a le plus de valeur.
+    await soumettre(client, "preuve", id, req.user?.id);
 
     await audit(client, req, remplacement ? "REMPLACEMENT_FICHIER" : "DEPOT_FICHIER", id,
       remplacement

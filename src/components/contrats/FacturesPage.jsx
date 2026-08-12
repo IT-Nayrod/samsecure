@@ -24,6 +24,10 @@ import FactureFormModal from './FactureFormModal';
 import useRbac from '../../hooks/useRbac';
 import { useToast } from '../../hooks/useToast';
 import { formatDate } from '../../utils/dateUtils';
+import ValidationCell from '../referentiels/ValidationCell';
+import ValidationActions from '../referentiels/ValidationActions';
+import useValidation from '../../hooks/useValidation';
+import { appliquerStatut } from '../../services/validationService';
 
 export default function FacturesPage() {
   const navigate = useNavigate();
@@ -89,6 +93,15 @@ export default function FacturesPage() {
     load();
   }
 
+  // Les deux ressources restent separees, comme le veut l'en-tete de ce
+  // fichier : la reponse dit laquelle mettre a jour.
+  const appliquer = useCallback(reponse => {
+    const maj = liste => liste.map(x => x.id === reponse.entite_id ? appliquerStatut(x, reponse) : x);
+    if (reponse.entite_type === 'preuve') setPreuves(maj);
+    else setFactures(maj);
+  }, []);
+  const { valider, refuser } = useValidation(appliquer);
+
   function resetFiltres() {
     setFilterType(''); setFilterTypePreuve(''); setFilterContrat(''); setFilterCommande('');
   }
@@ -107,6 +120,9 @@ export default function FacturesPage() {
       contrat_label: p.contrat_label,
       commande_label: p.commande_label,
       created_at: p.created_at,
+      statut_validation: p.statut_validation,
+      statut_validation_label: p.statut_validation_label,
+      message_refus: p.message_refus,
     }));
     const deFactures = factures.map(f => ({
       ressource: 'facture',
@@ -117,6 +133,9 @@ export default function FacturesPage() {
       contrat_label: f.contrat_label,
       commande_label: f.commande_label,
       created_at: f.created_at,
+      statut_validation: f.statut_validation,
+      statut_validation_label: f.statut_validation_label,
+      message_refus: f.message_refus,
     }));
     const tout = [...deFactures, ...dePreuves];
     const visibles = filterType ? tout.filter(l => l.ressource === filterType) : tout;
@@ -134,6 +153,17 @@ export default function FacturesPage() {
     { key: 'type_preuve_label', label: 'Type de preuve', render: r => r.type_preuve_label ?? '-' },
     { key: 'liaison', label: 'Contrat / Commande', render: r => [r.contrat_label, r.commande_label].filter(Boolean).join(' - ') || '-' },
     { key: 'created_at', label: 'Depose le', sortable: true, render: r => formatDate(r.created_at) },
+    { key: 'statut_validation', label: 'Validation', sortable: true,
+      csvValue: r => [r.statut_validation_label, r.message_refus].filter(Boolean).join(' - '),
+      render: r => <ValidationCell statut={r.statut_validation} motif={r.message_refus} /> },
+    { key: 'actions_validation', label: '', csvValue: () => '',
+      render: r => (
+        <ValidationActions
+          statut={r.statut_validation}
+          onValidate={() => valider(r.ressource, r.id)}
+          onRefuse={motif => refuser(r.ressource, r.id, motif)}
+        />
+      ) },
   ];
 
   if (isLoading) {

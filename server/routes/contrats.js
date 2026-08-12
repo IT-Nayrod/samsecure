@@ -1,5 +1,8 @@
 import express from "express";
 import { tenantPool } from "../db.js";
+import {
+  jointureStatut, COLONNES_STATUT, soumettre, purgerValidations,
+} from "../utils/validationWorkflow.js";
 
 const router = express.Router();
 
@@ -48,13 +51,15 @@ const SELECT_CONTRAT = `
          c.created_at, c.updated_at,
          ${STATUT_ECHEANCE},
          CASE WHEN c.date_fin IS NULL THEN NULL
-              ELSE (c.date_fin - CURRENT_DATE) END AS jours_restants
+              ELSE (c.date_fin - CURRENT_DATE) END AS jours_restants,
+         ${COLONNES_STATUT}
   FROM contrat c
   LEFT JOIN type_contrat tc ON tc.id = c.id_type_contrat
   LEFT JOIN editeur      e  ON e.id  = c.id_editeur
   LEFT JOIN societe      s  ON s.id  = c.id_societe
   LEFT JOIN revendeur    r  ON r.id  = c.id_revendeur
-  LEFT JOIN contrat      p  ON p.id  = c.id_contrat_parent`;
+  LEFT JOIN contrat      p  ON p.id  = c.id_contrat_parent
+  ${jointureStatut("contrat", "c")}`;
 
 // Colonnes metier ecrivables, dans l'ordre des parametres d'INSERT et d'UPDATE.
 const CHAMPS = [
@@ -267,6 +272,11 @@ router.post("/contrats", async (req, res) => {
       await signalerParentNonCadre(client, cree.id, label, parent.anomalie.parentLabel);
     }
 
+    // Toute saisie part en attente de validation, dans la meme transaction que
+    // l'ecriture metier : un contrat cree sans son entree de workflow serait
+    // invisible du controle, donc jamais validable.
+    await soumettre(client, "contrat", cree.id, req.user?.id);
+
     await log(client, "CREATE", "contrat", cree.id, `Creation du contrat "${label}"`, corps);
 
     const { rows } = await client.query(`${SELECT_CONTRAT} WHERE c.id = $1`, [cree.id]);
@@ -345,6 +355,10 @@ router.patch("/contrats/:id", async (req, res) => {
     if (parent.anomalie) await signalerParentNonCadre(client, id, label, parent.anomalie.parentLabel);
     else await resoudreAnomalieParent(client, id);
 
+    // Une modification est une saisie : un contrat valide qui change repasse en
+    // attente, sans comparaison avant/apres. Decision de la #53.
+    await soumettre(client, "contrat", id, req.user?.id);
+
     await log(client, "UPDATE", "contrat", id, `Modification du contrat "${label}"`, patch);
 
     const { rows } = await client.query(`${SELECT_CONTRAT} WHERE c.id = $1`, [id]);
@@ -399,6 +413,9 @@ router.delete("/contrats/:id", async (req, res) => {
     }
 
     await client.query(`DELETE FROM anomalie_qualite WHERE entite_type = 'contrat' AND entite_id = $1`, [id]);
+    // workflow_validation.entite_id est polymorphe et sans FK : le nettoyage est
+    // applicatif, dans la meme transaction que la suppression.
+    await purgerValidations(client, "contrat", id);
     await client.query(`DELETE FROM contrat WHERE id = $1`, [id]);
     await log(client, "DELETE", "contrat", id, `Suppression du contrat "${existant[0].label}"`, null);
     await client.query("COMMIT");

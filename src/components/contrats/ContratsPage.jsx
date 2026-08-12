@@ -18,8 +18,12 @@ import ContratFormModal from './ContratFormModal';
 import DeploiementKpiCard from '../deploiement/DeploiementKpiCard';
 import useRbac from '../../hooks/useRbac';
 import { useToast } from '../../hooks/useToast';
+import ValidationCell from '../referentiels/ValidationCell';
+import ValidationActions from '../referentiels/ValidationActions';
+import useValidation from '../../hooks/useValidation';
+import { appliquerStatut } from '../../services/validationService';
 
-function TreeNode({ contrat, depth, enfantsParParent, navigate }) {
+function TreeNode({ contrat, depth, enfantsParParent, navigate, onValider, onRefuser }) {
   const [open, setOpen] = useState(depth === 0);
   const enfants = enfantsParParent.get(contrat.id) ?? [];
   const hasEnfants = enfants.length > 0;
@@ -39,9 +43,20 @@ function TreeNode({ contrat, depth, enfantsParParent, navigate }) {
         <span className="text-xs text-gray-400">{contrat.editeur_label ?? '-'} - {contrat.societe_label ?? '-'}</span>
         {contrat.type_code === 'cadre' && <span className="text-[10px] font-semibold text-blue-700 bg-blue-100 dark:bg-blue-900/30 px-2 py-0.5 rounded-full">Cadre</span>}
         <StatutEcheanceBadge statut={contrat.statut_echeance} />
+        <ValidationCell statut={contrat.statut_validation} motif={contrat.message_refus} />
+        {/* La ligne entiere navigue au clic (l.32) : sans stopPropagation,
+            cliquer Valider ouvrirait la fiche au lieu de traiter la saisie. */}
+        <div onClick={e => e.stopPropagation()}>
+          <ValidationActions
+            statut={contrat.statut_validation}
+            onValidate={() => onValider(contrat.id)}
+            onRefuse={motif => onRefuser(contrat.id, motif)}
+          />
+        </div>
       </div>
       {open && hasEnfants && enfants.map(e => (
-        <TreeNode key={e.id} contrat={e} depth={depth + 1} enfantsParParent={enfantsParParent} navigate={navigate} />
+        <TreeNode key={e.id} contrat={e} depth={depth + 1} enfantsParParent={enfantsParParent}
+                  navigate={navigate} onValider={onValider} onRefuser={onRefuser} />
       ))}
     </div>
   );
@@ -97,6 +112,14 @@ export default function ContratsPage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // Mise a jour locale plutot qu'un load() : la reponse de traitement porte
+  // exactement les trois champs de statut que sert la liste, recharger
+  // rejouerait cinq appels pour rien.
+  const appliquer = useCallback(reponse => {
+    setContrats(prev => prev.map(c => c.id === reponse.entite_id ? appliquerStatut(c, reponse) : c));
+  }, []);
+  const { valider, refuser } = useValidation(appliquer);
 
   // Index parent -> enfants, construit une fois : l'API renvoie une liste plate.
   const enfantsParParent = useMemo(() => {
@@ -165,6 +188,19 @@ export default function ContratsPage() {
     { key: 'date_debut', label: 'Date debut', sortable: true, render: r => r.date_debut ?? '-' },
     { key: 'date_fin', label: 'Date fin', sortable: true, render: r => r.date_fin ?? 'Perpetuel' },
     { key: 'statut_echeance', label: 'Statut', sortable: true, render: r => <StatutEcheanceBadge statut={r.statut_echeance} /> },
+    { key: 'statut_validation', label: 'Validation', sortable: true,
+      // Le CSV retombe sur row[key] sans csvValue : on y met le libelle et le
+      // motif plutot que le code brut du referentiel.
+      csvValue: r => [r.statut_validation_label, r.message_refus].filter(Boolean).join(' - '),
+      render: r => <ValidationCell statut={r.statut_validation} motif={r.message_refus} /> },
+    { key: 'actions_validation', label: '', csvValue: () => '',
+      render: r => (
+        <ValidationActions
+          statut={r.statut_validation}
+          onValidate={() => valider('contrat', r.id)}
+          onRefuse={motif => refuser('contrat', r.id, motif)}
+        />
+      ) },
   ];
 
   const enTete = (
@@ -265,7 +301,11 @@ export default function ContratsPage() {
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
           {racinesArbo.length === 0
             ? <EmptyState title="Aucun contrat" description={contrats.length === 0 ? 'Aucun contrat enregistre pour le moment.' : 'Aucun contrat ne correspond aux filtres.'} />
-            : racinesArbo.map(c => <TreeNode key={c.id} contrat={c} depth={0} enfantsParParent={enfantsParParent} navigate={navigate} />)
+            : racinesArbo.map(c => (
+                <TreeNode key={c.id} contrat={c} depth={0} enfantsParParent={enfantsParParent} navigate={navigate}
+                  onValider={id => valider('contrat', id)}
+                  onRefuser={(id, motif) => refuser('contrat', id, motif)} />
+              ))
           }
         </div>
       ) : (

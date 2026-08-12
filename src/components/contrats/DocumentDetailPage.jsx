@@ -3,11 +3,12 @@
 // transmet en naviguant. Un lien copie sans ce parametre reste exploitable :
 // on tente la preuve puis la facture, les identifiants etant des UUID sans
 // collision possible entre les deux tables.
-// Badge et actions de validation ont disparu avec le mock : ils reviennent
-// avec la story #19, decision de sequencement inchangee.
+// Badge et actions de validation sont branches sur l'API depuis la #54.
+// L'entite_type transmis au workflow est la ressource resolue par load() :
+// une preuve et une facture se valident separement, meme nees du meme depot.
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
-import { Trash2, ExternalLink, Copy, Check, FileWarning } from 'lucide-react';
+import { Trash2, ExternalLink, Copy, Check, FileWarning, XCircle } from 'lucide-react';
 import { preuvesService, facturesService } from '../../services/documentsService';
 import Breadcrumb from '../ui/Breadcrumb';
 import Button from '../ui/Button';
@@ -19,6 +20,10 @@ import DocumentUploadField from './DocumentUploadField';
 import useRbac from '../../hooks/useRbac';
 import { useToast } from '../../hooks/useToast';
 import { formatDate } from '../../utils/dateUtils';
+import StatutValidationBadge from '../referentiels/StatutValidationBadge';
+import ValidationActions from '../referentiels/ValidationActions';
+import useValidation from '../../hooks/useValidation';
+import { appliquerStatut } from '../../services/validationService';
 
 const FIL = [
   { label: 'Droits d\'usage', to: '/contrats/factures' },
@@ -78,6 +83,9 @@ export default function DocumentDetailPage() {
   }, [id, searchParams]);
 
   useEffect(() => { load(); }, [load]);
+
+  const appliquer = useCallback(reponse => setDoc(d => appliquerStatut(d, reponse)), []);
+  const { valider, refuser } = useValidation(appliquer);
 
   const estPreuve = ressource === 'preuve';
 
@@ -173,9 +181,15 @@ export default function DocumentDetailPage() {
             <p className="text-sm text-gray-500 mt-0.5">
               {estPreuve ? `Preuve${doc.type_label ? ` - ${doc.type_label}` : ''}` : 'Facture'}
             </p>
+            <div className="mt-1.5"><StatutValidationBadge statut={doc.statut_validation} /></div>
           </div>
         </div>
         <div className="flex gap-2">
+          <ValidationActions
+            statut={doc.statut_validation}
+            onValidate={() => valider(ressource, doc.id)}
+            onRefuse={motif => refuser(ressource, doc.id, motif)}
+          />
           {estPreuve && fichierDepose && (
             <Button variant="primary" onClick={ouvrirFichier} isLoading={ouverture}>
               <ExternalLink size={15} /> Ouvrir le fichier
@@ -188,6 +202,16 @@ export default function DocumentDetailPage() {
           )}
         </div>
       </div>
+
+      {doc.statut_validation === 'refuse' && doc.message_refus && (
+        <div className="flex items-start gap-2 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+          <XCircle size={16} className="text-red-600 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-red-800 dark:text-red-300">Saisie refusee</p>
+            <p className="text-sm text-red-700 dark:text-red-400 mt-0.5">{doc.message_refus}</p>
+          </div>
+        </div>
+      )}
 
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 grid grid-cols-2 md:grid-cols-3 gap-5">
         <Champ label="Libelle">{doc.label}</Champ>

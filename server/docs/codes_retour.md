@@ -192,3 +192,40 @@ Le code 3255 reste reserve : POST /api/factures accepte toujours une facture
 sans preuve. Durcir cette route interdirait toute saisie de facture hors depot
 de fichier, y compris une reprise de donnees, ce qui n'a pas ete demande. A
 trancher separement.
+
+## Validation des saisies (#53)
+
+Plage validation 3300-3399. Le statut n'est pas une colonne des tables metier :
+il est la derniere entree de workflow_validation designant l'entite. Les quatre
+ressources du module 2 se comportent a l'identique.
+
+| Code | Type | Libelle propose | Route |
+|------|------|-----------------|-------|
+| 3300 | succes | Saisie validee | POST /api/validation/:entite_type/:entite_id/valider |
+| 3301 | succes | Saisie refusee | POST /api/validation/:entite_type/:entite_id/refuser |
+| 3310 | erreur | Type d'entite inconnu du workflow de validation | les deux |
+| 3311 | erreur | Entite introuvable | les deux |
+| 3312 | erreur | Cette saisie ne porte aucune demande de validation | les deux |
+| 3313 | erreur | Seule une saisie en attente peut etre traitee | les deux |
+| 3314 | erreur | Le motif de refus est obligatoire | POST .../refuser |
+| 3399 | erreur | Erreur serveur inattendue (module validation) | toutes |
+
+La soumission automatique n'a pas de code propre : creation et modification
+inserent leur entree en_attente dans la transaction de l'ecriture metier et
+repondent sous le code de cette ecriture, 3002, 3103, 3242, 3203 et leurs
+voisins. Une soumission qui echoue fait echouer l'ecriture, jamais l'inverse.
+
+Le 3312 est residuel depuis la migration 020, qui a rattrape le parc anterieur.
+Il subsiste pour le cas d'une entite creee par un chemin qui ne soumet pas :
+refus explicite plutot que creation implicite, un traitement ne doit pas
+fabriquer la demande qu'il traite.
+
+Le 3313 est le seul refus qui depend de l'etat et non de la saisie : valider une
+entite deja validee, refuser une entite deja refusee, ou traiter une entite que
+quelqu'un vient de modifier. Il renvoie le statut courant en plus du message,
+pour que le front puisse se resynchroniser sans second appel.
+
+Aucun controle de profil dans cette tache, decision de sequencement actee : tout
+utilisateur authentifie soumet et traite, y compris ses propres saisies. La
+restriction arrive avec la story Droits et se branchera dans traiter(), entre le
+chargement de l'entite et la lecture du statut courant.
