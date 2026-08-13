@@ -4,8 +4,46 @@ Fichier transitoire alimente au fil du developpement. La story #68 fera les
 INSERT en base a partir de ce tableau et remplacera les retours commentes par
 le helper d'enveloppe. Ne pas implementer de resolution de code ici.
 
-Plages : contrats 3000-3099 | commandes 3100-3199 | documents 3200-3299 |
-validation 3300-3399
+Plages : administration 2000-2999 | contrats 3000-3099 |
+commandes 3100-3199 | documents 3200-3299 | validation 3300-3399 |
+droits 3400-3499
+
+## Administration des comptes, trace probante (#79)
+
+Plage administration 2000-2999. Ces codes ne sont pas des reponses HTTP : ils
+identifient un evenement ecrit dans audit_log, la route repondant par ailleurs
+son propre code de succes. Ils sont catalogues ici pour que la #68 puisse les
+resoudre comme les autres.
+
+| Code | Type | Evenement | Route |
+|------|------|-----------|-------|
+| 2000 | trace | Compte cree | POST /api/utilisateurs |
+| 2001 | trace | Compte modifie | PATCH /api/utilisateurs/:id |
+| 2002 | trace | Compte active | PATCH /api/utilisateurs/:id |
+| 2003 | trace | Compte desactive | PATCH /api/utilisateurs/:id |
+| 2004 | trace | Desactivation planifiee | PATCH /api/utilisateurs/:id |
+| 2005 | trace | Planification levee | PATCH /api/utilisateurs/:id |
+| 2006 | trace | Mise en fonction planifiee | PATCH /api/utilisateurs/:id |
+| 2007 | erreur | Cet email est deja utilise | POST, PATCH /api/utilisateurs |
+| 2010 | trace | Mot de passe defini par un administrateur | POST /api/utilisateurs |
+| 2011 | reserve | [PREREQUIS] Mail de reinitialisation envoye. Route inexistante | - |
+| 2012 | reserve | [PREREQUIS] Mot de passe reinitialise par lien. Route inexistante | - |
+| 2020 | trace | Groupe attribue | POST /api/utilisateurs/:id/profils |
+| 2021 | trace | Groupe retire | DELETE /api/utilisateurs/:id/profils/:attribId |
+| 2030 | trace | Connexion reussie | POST /api/auth/login |
+| 2040 | reserve | [PREREQUIS] Execution d'une planification a l'echeance. Aucun ordonnanceur n'existe | - |
+| 2041 | reserve | [PREREQUIS] Activation de la double authentification. Aucune route serveur | - |
+
+Les champs sensibles ne sont jamais ecrits dans valeur_avant ni valeur_apres :
+mot de passe, hash, jetons et secret 2FA sont retires A L'ECRITURE par
+filtrerSensibles(), et non masques a la lecture. Une trace ne doit pas contenir
+de secret, meme si personne ne la lit : un hash bcrypt reste attaquable hors
+ligne, un jeton reste rejouable. La cle est retiree entierement plutot que
+caviardee, sa seule presence revelerait deja le changement, et l'action suffit
+a le dire.
+
+Les codes 2011, 2012, 2040 et 2041 sont reserves et non emis : les routes
+correspondantes n'existent pas. Voir les STOP remontes avec la #79.
 
 ## Contrats (#41)
 

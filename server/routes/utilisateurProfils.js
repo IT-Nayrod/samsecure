@@ -1,6 +1,7 @@
 import express from "express";
 import { tenantPool } from "../db.js";
 import { getAdminScope, scopeWhereClause } from "../utils/scope.js";
+import { auditer } from "../utils/audit.js";
 
 const router = express.Router();
 
@@ -72,6 +73,16 @@ router.post("/utilisateurs/:id/profils", async (req, res) => {
     const { rows: p } = await client.query(`SELECT label FROM profil WHERE id = $1`, [id_profil]);
     const { rows: s } = id_societe ? await client.query(`SELECT raison_sociale FROM societe WHERE id = $1`, [id_societe]) : { rows: [{ raison_sociale: null }] };
     await log(client, "CREATE", "utilisateur_profil_societe", rows[0].id, `Attribution du groupe "${p[0]?.label || id_profil}" à ${u[0]?.prenom || ''} ${u[0]?.nom || ''} sur ${s[0]?.raison_sociale || id_societe || 'tenant'}`, rows[0]);
+    // entiteId vise le COMPTE et non la ligne d'attribution : l'audit d'un
+    // utilisateur doit se lire d'une seule requete sur entite_id, sans avoir a
+    // remonter les identifiants techniques des tables de liaison.
+    // code_retour: 2020
+    await auditer(client, req, {
+      action: "GROUPE_ATTRIBUE",
+      entiteId: id,
+      apres: { id_profil, profil: p[0]?.label || null, id_societe: id_societe || null,
+               societe: s[0]?.raison_sociale || "tenant", id_attribution: rows[0].id },
+    });
     await client.query("COMMIT");
     res.status(201).json(rows[0]);
   } catch (err) {
@@ -84,7 +95,7 @@ router.post("/utilisateurs/:id/profils", async (req, res) => {
 });
 
 router.delete("/utilisateurs/:id/profils/:attribId", async (req, res) => {
-  const { attribId } = req.params;
+  const { id, attribId } = req.params;
   const client = await tenantPool.connect();
   try {
     await client.query("BEGIN");
@@ -98,6 +109,17 @@ router.delete("/utilisateurs/:id/profils/:attribId", async (req, res) => {
     const { rows: p } = await client.query(`SELECT label FROM profil WHERE id = $1`, [a[0]?.id_profil]);
     const { rows: s } = a[0]?.id_societe ? await client.query(`SELECT raison_sociale FROM societe WHERE id = $1`, [a[0].id_societe]) : { rows: [{ raison_sociale: null }] };
     await log(client, "SOFT_DELETE", "utilisateur_profil_societe", attribId, `Attribution du groupe "${p[0]?.label || a[0]?.id_profil}" supprimée pour ${u[0]?.prenom || ''} ${u[0]?.nom || ''} sur ${s[0]?.raison_sociale || a[0]?.id_societe || 'tenant'}`, null);
+    // code_retour: 2021
+    await auditer(client, req, {
+      action: "GROUPE_RETIRE",
+      // L'utilisateur porteur de l'attribution fait foi, le parametre d'URL
+      // n'est qu'un repli : les deux doivent concorder, mais c'est la ligne en
+      // base qui dit de quel compte le groupe est reellement retire.
+      entiteId: a[0]?.id_utilisateur || id,
+      avant: { id_profil: a[0]?.id_profil, profil: p[0]?.label || null,
+               id_societe: a[0]?.id_societe || null,
+               societe: s[0]?.raison_sociale || "tenant", id_attribution: attribId },
+    });
     await client.query("COMMIT");
     res.status(204).end();
   } catch (err) {
