@@ -43,6 +43,9 @@ export const usersService = {
   list: () => http.get('/utilisateurs'),
   create: (payload) => http.post('/utilisateurs', payload),
   update: (id, payload) => http.patch(`/utilisateurs/${id}`, payload),
+  // Historique probant d'un compte, lecture seule. La pagination est portee
+  // par l'API, 20 evenements par page.
+  historique: (id, page = 1) => http.get(`/utilisateurs/${id}/historique?page=${page}`),
   listSocietes: (id) =>
     http.get(`/utilisateurs/${id}/societes`).then((rows) =>
       rows.map((r) => ({ id: r.id, id_utilisateur: r.idutilisateur, id_societe: r.idsociete }))
