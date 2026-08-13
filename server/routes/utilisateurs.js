@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { tenantPool } from "../db.js";
 import { getAdminScope, isUserInScope, scopeWhereClause } from "../utils/scope.js";
 import { auditer, diff } from "../utils/audit.js";
+import { traduireEvenement } from "../utils/historiqueLibelles.js";
 
 const router = express.Router();
 
@@ -73,10 +74,28 @@ router.post("/utilisateurs", async (req, res) => {
       placeholders.push("CURRENT_DATE");
     }
 
-    const sql = `INSERT INTO utilisateur (${fields.join(", ")}) VALUES (${placeholders.join(", ")}) RETURNING id, nom, prenom, email, actif, langue, date_finale, date_mise_en_fonction`;
-
+    const sql = `INSERT INTO utilisateur (${fields.join(", ")}) VALUES (${placeholders.join(", ")})
+                 RETURNING id, nom, prenom, email, actif, langue,
+                           date_finale::text AS date_finale,
+                           date_mise_en_fonction::text AS date_mise_en_fonction`;
+                          
     const { rows } = await client.query(sql, values);
     await log(client, "CREATE", "utilisateur", rows[0].id, `Utilisateur "${prenom} ${nom}" créé`, { email, date_finale, date_mise_en_fonction });
+    // code_retour: 2000
+    await auditer(client, req, {
+      action: "UTILISATEUR_CREE",
+      entiteId: rows[0].id,
+      apres: { nom, prenom, email, actif: actif ?? true, langue: langue || "fr",
+               date_finale: date_finale ?? null, date_mise_en_fonction: date_mise_en_fonction ?? null },
+    });
+    // Le mot de passe initial est un evenement distinct : c'est lui qui ouvre
+    // l'acces, et il doit se lire seul dans l'historique. Aucune valeur,
+    // aucun hash, l'action porte toute l'information.
+    // code_retour: 2010
+    await auditer(client, req, {
+      action: "MOT_DE_PASSE_DEFINI_PAR_ADMIN",
+      entiteId: rows[0].id,
+    });
     await client.query("COMMIT");
     res.status(201).json(rows[0]);
   } catch (err) {
@@ -126,7 +145,14 @@ router.patch("/utilisateurs/:id", async (req, res) => {
     const avant = avantRows[0] || {};
 
     const { rows } = await client.query(
-      `UPDATE utilisateur SET ${setFields.join(", ")} WHERE id = $1 RETURNING id, nom, prenom, email, actif, langue, date_finale, date_mise_en_fonction`,
+      // Cast en text obligatoire : sans lui pg renvoie un objet Date, et la
+      // comparaison avec l'etat anterieur, deja lu en text, ne peut jamais
+      // etre vraie. Le diff signalait donc des champs inchanges, et la date
+      // ecrite dans la trace ressortait sous la forme "Fri Aug 14".
+      `UPDATE utilisateur SET ${setFields.join(", ")} WHERE id = $1
+       RETURNING id, nom, prenom, email, actif, langue,
+                 date_finale::text AS date_finale,
+                 date_mise_en_fonction::text AS date_mise_en_fonction`,
       values
     );
     if (!rows.length) { await client.query("ROLLBACK"); return res.status(404).json({ error: "Utilisateur introuvable" }); }
@@ -134,11 +160,22 @@ router.patch("/utilisateurs/:id", async (req, res) => {
     const apres = {
       nom: rows[0].nom, prenom: rows[0].prenom, email: rows[0].email,
       actif: rows[0].actif, langue: rows[0].langue,
-      date_finale: rows[0].date_finale ? String(rows[0].date_finale).slice(0, 10) : null,
-      date_mise_en_fonction: rows[0].date_mise_en_fonction ? String(rows[0].date_mise_en_fonction).slice(0, 10) : null,
+      // Deja en text depuis le RETURNING, aucune conversion a faire.
+      date_finale: rows[0].date_finale,
+      date_mise_en_fonction: rows[0].date_mise_en_fonction,
     };
     const d = diff(avant, apres);
-    await log(client, "UPDATE", "utilisateur", id, `Utilisateur "${rows[0].prenom} ${rows[0].nom}" modifié`, d.apres);
+
+    // Les champs couverts par un evenement dedie sortent du diff : sans cela
+    // un meme changement produirait deux lignes d'historique, l'evenement
+    // explicite et une modification generique redondante.
+    const retirerDuDiff = (champ) => {
+      if (d.avant) delete d.avant[champ];
+      if (d.apres) {
+        delete d.apres[champ];
+        if (!Object.keys(d.apres).length) d.apres = null;
+      }
+    };
 
     // Un changement d'etat n'est pas une modification comme une autre : il se
     // lit seul dans la trace, sans avoir a comparer deux JSONB. Les trois cas
@@ -152,6 +189,8 @@ router.patch("/utilisateurs/:id", async (req, res) => {
         avant: { actif: avant.actif, date_finale: avant.date_finale },
         apres: { actif: apres.actif, date_finale: apres.date_finale },
       });
+      retirerDuDiff("actif");
+      retirerDuDiff("date_finale");
     } else if (avant.date_finale !== apres.date_finale) {
       // Pose ou levee d'une echeance : c'est une decision d'administrateur,
       // tracee au moment ou elle est prise. Rien ne sera ecrit a l'echeance
@@ -164,6 +203,7 @@ router.patch("/utilisateurs/:id", async (req, res) => {
         avant: { date_finale: avant.date_finale },
         apres: { date_finale: apres.date_finale },
       });
+      retirerDuDiff("date_finale");
     } else if (avant.date_mise_en_fonction !== apres.date_mise_en_fonction) {
       // code_retour: 2006
       await auditer(client, req, {
@@ -172,7 +212,12 @@ router.patch("/utilisateurs/:id", async (req, res) => {
         avant: { date_mise_en_fonction: avant.date_mise_en_fonction },
         apres: { date_mise_en_fonction: apres.date_mise_en_fonction },
       });
+      retirerDuDiff("date_mise_en_fonction");
     }
+
+    // Journalise le diff filtre et non req.body : le corps de la requete
+    // pourrait porter un champ sensible le jour ou cette route en acceptera un.
+    await log(client, "UPDATE", "utilisateur", id, `Utilisateur "${rows[0].prenom} ${rows[0].nom}" modifié`, d.apres);
 
     // Les autres champs modifies dans la meme requete, s'il y en a.
     if (d.apres) {
@@ -222,6 +267,107 @@ router.post("/utilisateurs/:id/societes", async (req, res) => {
     res.status(201).json(rows[0]);
   } catch (err) {
     console.error(err);
+    res.status(500).json({ error: "Erreur serveur" });
+  }
+});
+
+// GET /api/utilisateurs/:id/historique
+// Lecture seule de la trace probante d'un compte. N'ecrit rien, ne modifie
+// rien : consulter un historique ne doit pas en produire une ligne.
+router.get("/utilisateurs/:id/historique", async (req, res) => {
+  const { id } = req.params;
+
+  // Garde-fou : un :id non UUID partirait en Postgres et ressortirait en 22P02
+  // brute remontee en 500, la ou le compte est simplement introuvable.
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+    // code_retour: 2050
+    return res.status(404).json({ error: "Utilisateur introuvable" });
+  }
+
+  // Meme controle de perimetre que les autres routes d'administration : un
+  // administrateur restreint ne lit pas l'historique d'un compte hors de ses
+  // societes. La permission gerer_utilisateurs est deja exigee en amont par le
+  // middleware, ceci en est le complement par societe.
+  const scope = await getAdminScope(req.user.id);
+  if (!(await isUserInScope(id, scope))) {
+    // code_retour: 2051
+    return res.status(403).json({ error: "Cet utilisateur n'est pas dans votre périmètre." });
+  }
+
+  const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+  const parPage = 20;
+
+  try {
+    const { rows: cible } = await tenantPool.query(
+      `SELECT id, prenom, nom FROM utilisateur WHERE id = $1`, [id]);
+    // code_retour: 2050
+    if (!cible.length) return res.status(404).json({ error: "Utilisateur introuvable" });
+
+    const { rows } = await tenantPool.query(
+      `WITH evenements AS (
+         SELECT a.id, a.action, a.valeur_avant, a.valeur_apres,
+                a.ip_address, a.created_at, a.id_utilisateur AS id_acteur
+           FROM audit_log a
+          WHERE a.entite_type = 'utilisateur' AND a.entite_id = $1
+         UNION ALL
+         -- La creation est reconstituee depuis utilisateur.created_at : elle
+         -- survit a l'archivage glissant de six mois d'audit_log, et elle
+         -- existe pour les comptes anterieurs a l'instrumentation. Le NOT
+         -- EXISTS evite le doublon depuis que POST /utilisateurs trace la
+         -- creation : la vraie entree, qui porte son acteur, prime.
+         SELECT NULL::uuid, 'UTILISATEUR_CREE', NULL::jsonb, NULL::jsonb,
+                NULL::varchar, u.created_at, NULL::uuid
+           FROM utilisateur u
+          WHERE u.id = $1
+            AND NOT EXISTS (
+              SELECT 1 FROM audit_log a2
+               WHERE a2.entite_type = 'utilisateur' AND a2.entite_id = u.id
+                 AND a2.action = 'UTILISATEUR_CREE')
+       )
+       SELECT e.id, e.action, e.valeur_avant, e.valeur_apres, e.ip_address,
+              e.created_at, e.id_acteur,
+              acteur.prenom AS acteur_prenom, acteur.nom AS acteur_nom,
+              -- Fonction fenetre evaluee avant LIMIT : donne le total sans
+              -- seconde requete ni risque de divergence entre les deux.
+              count(*) OVER () AS total
+         FROM evenements e
+         LEFT JOIN utilisateur acteur ON acteur.id = e.id_acteur
+        ORDER BY e.created_at DESC
+        LIMIT $2 OFFSET $3`,
+      [id, parPage, (page - 1) * parPage]
+    );
+
+    // count(*) OVER () ne renvoie aucune ligne sur une page vide : le total
+    // doit alors etre relu, sinon une page hors bornes annoncerait un
+    // historique vide au lieu de sa vraie taille.
+    let total;
+    if (rows.length) {
+      total = Number(rows[0].total);
+    } else {
+      const { rows: [c] } = await tenantPool.query(
+        `SELECT (SELECT count(*) FROM audit_log
+                  WHERE entite_type = 'utilisateur' AND entite_id = $1)
+              + (SELECT count(*) FROM utilisateur u
+                  WHERE u.id = $1 AND NOT EXISTS (
+                    SELECT 1 FROM audit_log a2
+                     WHERE a2.entite_type = 'utilisateur' AND a2.entite_id = u.id
+                       AND a2.action = 'UTILISATEUR_CREE')) AS total`,
+        [id]);
+      total = Number(c?.total || 0);
+    }
+
+    // code_retour: 2052
+    res.json({
+      utilisateur: { id: cible[0].id, prenom: cible[0].prenom, nom: cible[0].nom },
+      page,
+      par_page: parPage,
+      total,
+      pages: Math.max(1, Math.ceil(total / parPage)),
+      evenements: rows.map((r) => traduireEvenement(r, id)),
+    });
+  } catch (err) {
+    console.error("GET /utilisateurs/:id/historique error", err);
+    // code_retour: 2099
     res.status(500).json({ error: "Erreur serveur" });
   }
 });

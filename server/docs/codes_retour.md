@@ -33,6 +33,10 @@ resoudre comme les autres.
 | 2030 | trace | Connexion reussie | POST /api/auth/login |
 | 2040 | reserve | [PREREQUIS] Execution d'une planification a l'echeance. Aucun ordonnanceur n'existe | - |
 | 2041 | reserve | [PREREQUIS] Activation de la double authentification. Aucune route serveur | - |
+| 2050 | erreur | Utilisateur introuvable | GET /api/utilisateurs/:id/historique |
+| 2051 | erreur | Cet utilisateur n'est pas dans votre perimetre | GET /api/utilisateurs/:id/historique |
+| 2052 | succes | Historique du compte | GET /api/utilisateurs/:id/historique |
+| 2099 | erreur | Erreur serveur inattendue (module administration) | toutes |
 
 Les champs sensibles ne sont jamais ecrits dans valeur_avant ni valeur_apres :
 mot de passe, hash, jetons et secret 2FA sont retires A L'ECRITURE par
