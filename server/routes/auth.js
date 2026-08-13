@@ -5,6 +5,7 @@ import jwt from "jsonwebtoken";
 import { tenantPool } from "../db.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { permissionsEffectives } from "../utils/droitsUtilisateur.js";
+import { auditer } from "../utils/audit.js";
 
 const router = express.Router();
 
@@ -95,6 +96,13 @@ router.post("/login", async (req, res) => {
 
     const { accessToken, refreshToken } = await issueTokens(user, req.ip);
     await log("LOGIN", user.id, `Connexion de ${user.prenom} ${user.nom}`, user.id);
+
+    // code_retour: 2030
+    // Aucune valeur avant/apres : une connexion ne modifie rien. L'acteur,
+    // l'horodatage et l'adresse IP portent toute l'information probante.
+    await auditer(tenantPool, req, {
+      action: "CONNEXION", entiteId: user.id,
+    });
 
     res.json({
       accessToken,

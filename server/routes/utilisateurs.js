@@ -2,6 +2,7 @@ import express from "express";
 import bcrypt from "bcryptjs";
 import { tenantPool } from "../db.js";
 import { getAdminScope, isUserInScope, scopeWhereClause } from "../utils/scope.js";
+import { auditer, diff } from "../utils/audit.js";
 
 const router = express.Router();
 
@@ -114,18 +115,85 @@ router.patch("/utilisateurs/:id", async (req, res) => {
 
     if (setFields.length === 0) return res.status(400).json({ error: "Aucun champ à modifier" });
 
+    // Etat anterieur, indispensable au diff. mot_de_passe_hash n'est pas
+    // selectionne : il n'a rien a faire dans une trace, et cette route ne le
+    // modifie pas.
+    const { rows: avantRows } = await client.query(
+      `SELECT nom, prenom, email, actif, langue,
+              date_finale::text AS date_finale,
+              date_mise_en_fonction::text AS date_mise_en_fonction
+         FROM utilisateur WHERE id = $1`, [id]);
+    const avant = avantRows[0] || {};
+
     const { rows } = await client.query(
       `UPDATE utilisateur SET ${setFields.join(", ")} WHERE id = $1 RETURNING id, nom, prenom, email, actif, langue, date_finale, date_mise_en_fonction`,
       values
     );
     if (!rows.length) { await client.query("ROLLBACK"); return res.status(404).json({ error: "Utilisateur introuvable" }); }
-    await log(client, "UPDATE", "utilisateur", id, `Utilisateur "${rows[0].prenom} ${rows[0].nom}" modifié`, req.body);
+    
+    const apres = {
+      nom: rows[0].nom, prenom: rows[0].prenom, email: rows[0].email,
+      actif: rows[0].actif, langue: rows[0].langue,
+      date_finale: rows[0].date_finale ? String(rows[0].date_finale).slice(0, 10) : null,
+      date_mise_en_fonction: rows[0].date_mise_en_fonction ? String(rows[0].date_mise_en_fonction).slice(0, 10) : null,
+    };
+    const d = diff(avant, apres);
+    await log(client, "UPDATE", "utilisateur", id, `Utilisateur "${rows[0].prenom} ${rows[0].nom}" modifié`, d.apres);
+
+    // Un changement d'etat n'est pas une modification comme une autre : il se
+    // lit seul dans la trace, sans avoir a comparer deux JSONB. Les trois cas
+    // sont exclusifs et priment sur UTILISATEUR_MODIFIE.
+    if (avant.actif !== apres.actif) {
+      // code_retour: 2002
+      // code_retour: 2003
+      await auditer(client, req, {
+        action: apres.actif ? "UTILISATEUR_ACTIVE" : "UTILISATEUR_DESACTIVE",
+        entiteId: id,
+        avant: { actif: avant.actif, date_finale: avant.date_finale },
+        apres: { actif: apres.actif, date_finale: apres.date_finale },
+      });
+    } else if (avant.date_finale !== apres.date_finale) {
+      // Pose ou levee d'une echeance : c'est une decision d'administrateur,
+      // tracee au moment ou elle est prise. Rien ne sera ecrit a l'echeance
+      // elle-meme, aucun ordonnanceur n'existe (STOP planification).
+      // code_retour: 2004
+      // code_retour: 2005
+      await auditer(client, req, {
+        action: apres.date_finale ? "DESACTIVATION_PLANIFIEE" : "PLANIFICATION_LEVEE",
+        entiteId: id,
+        avant: { date_finale: avant.date_finale },
+        apres: { date_finale: apres.date_finale },
+      });
+    } else if (avant.date_mise_en_fonction !== apres.date_mise_en_fonction) {
+      // code_retour: 2006
+      await auditer(client, req, {
+        action: "MISE_EN_FONCTION_PLANIFIEE",
+        entiteId: id,
+        avant: { date_mise_en_fonction: avant.date_mise_en_fonction },
+        apres: { date_mise_en_fonction: apres.date_mise_en_fonction },
+      });
+    }
+
+    // Les autres champs modifies dans la meme requete, s'il y en a.
+    if (d.apres) {
+      // code_retour: 2001
+      await auditer(client, req, {
+        action: "UTILISATEUR_MODIFIE", entiteId: id, avant: d.avant, apres: d.apres,
+      });
+    }
     await client.query("COMMIT");
     res.json(rows[0]);
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("PATCH /utilisateurs/:id error", err);
-    res.status(500).json({ error: "Cet email est déjà utilisé." });
+    // 23505 : violation de l'unicite de utilisateur.email. Ce message ne doit
+    // sortir que dans ce cas precis. Le renvoyer pour toute erreur faisait
+    // mentir l'interface et masquait la cause reelle des pannes de cette route.
+    // code_retour: 2007
+    if (err.code === "23505") {
+      return res.status(409).json({ error: "Cet email est déjà utilisé." });
+    }
+    res.status(500).json({ error: "Erreur serveur" });
   } finally {
     client.release();
   }
