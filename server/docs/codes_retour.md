@@ -30,6 +30,9 @@ resoudre comme les autres.
 | 2012 | reserve | [PREREQUIS] Mot de passe reinitialise par lien. Route inexistante | - |
 | 2020 | trace | Groupe attribue | POST /api/utilisateurs/:id/profils |
 | 2021 | trace | Groupe retire | DELETE /api/utilisateurs/:id/profils/:attribId |
+| 2022 | trace | Exception de droit ajoutee | POST /api/utilisateurs/:id/exceptions |
+| 2023 | trace | Exception de droit modifiee | PATCH /api/utilisateurs/:id/exceptions/:excId |
+| 2024 | trace | Exception de droit supprimee | DELETE /api/utilisateurs/:id/exceptions/:excId |
 | 2030 | trace | Connexion reussie | POST /api/auth/login |
 | 2040 | reserve | [PREREQUIS] Execution d'une planification a l'echeance. Aucun ordonnanceur n'existe | - |
 | 2041 | reserve | [PREREQUIS] Activation de la double authentification. Aucune route serveur | - |

@@ -1,11 +1,12 @@
 // UsersPage - administration des utilisateurs réels (données API, plus de mocks)
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Pencil, UserX, UserCheck, UserPlus, Eye } from 'lucide-react';
+import { Pencil, UserX, UserCheck, UserPlus, Eye, History } from 'lucide-react';
 import DataTable from '../ui/DataTable';
 import Badge from '../ui/Badge';
 import Button from '../ui/Button';
 import DesactivationModal from './DesactivationModal';
+import HistoriqueModal from './HistoriqueModal';
 import ProfileBadge from './ProfileBadge';
 import DroitsViewer from '../admin/DroitsViewer';
 import UserFormModal from './UserFormModal';
@@ -55,6 +56,7 @@ export default function UsersPage() {
   const [formModal, setFormModal] = useState({ open: false, user: null });
   const [droitsModal, setDroitsModal] = useState(null);
   const [desactivation, setDesactivation] = useState(null);
+  const [historique, setHistorique] = useState(null);
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -224,6 +226,9 @@ export default function UsersPage() {
           <button onClick={() => setFormModal({ open: true, user: r })} aria-label="Modifier" className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors">
             <Pencil size={14} />
           </button>
+          <button onClick={() => setHistorique(r)} aria-label="Voir l'historique" className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-blue-700 transition-colors">
+            <History size={14} />
+          </button>
           {r.actif
             ? <button onClick={() => setDesactivation(r)} aria-label="Désactiver" className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-orange-600 transition-colors">
                 <UserX size={14} />
@@ -303,6 +308,12 @@ export default function UsersPage() {
           userSocieteIds={userSocietes[droitsModal.id] || []}
         />
       )}
+
+      <HistoriqueModal
+        isOpen={!!historique}
+        utilisateur={historique}
+        onClose={() => setHistorique(null)}
+      />
 
       <DesactivationModal
         isOpen={!!desactivation}
