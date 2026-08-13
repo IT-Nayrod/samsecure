@@ -1,6 +1,7 @@
 import express from "express";
 import { tenantPool } from "../db.js";
 import { getAdminScope, scopeWhereClause } from "../utils/scope.js";
+import { auditer } from "../utils/audit.js";
 
 const router = express.Router();
 
@@ -91,6 +92,22 @@ router.post("/utilisateurs/:id/exceptions", async (req, res) => {
     const { rows: p } = await client.query(`SELECT label, code FROM permission WHERE id = $1`, [id_permission]);
     const { rows: s } = id_societe ? await client.query(`SELECT raison_sociale FROM societe WHERE id = $1`, [id_societe]) : { rows: [{ raison_sociale: null }] };
     await log(client, "CREATE", "exception_droit", rows[0].id, `Exception "${p[0]?.label || p[0]?.code || id_permission}" (${type}) créée pour ${u[0]?.prenom || ''} ${u[0]?.nom || ''} sur ${s[0]?.raison_sociale || id_societe || 'toutes sociétés'}`, rows[0]);
+    // entiteId vise le COMPTE et non la ligne d'exception : l'historique d'un
+    // utilisateur doit se lire d'une seule requete sur entite_id.
+    // code_retour: 2022
+    await auditer(client, req, {
+      action: "EXCEPTION_AJOUTEE",
+      entiteId: id,
+      apres: {
+        permission: p[0]?.label || p[0]?.code || null,
+        type,
+        portee: s[0]?.raison_sociale || "toutes sociétés",
+        motif: motif || null,
+        date_debut: date_debut || null,
+        date_fin: date_fin || null,
+        id_exception: rows[0].id,
+      },
+    });
     await client.query("COMMIT");
     res.status(201).json(rows[0]);
   } catch (err) {
@@ -105,21 +122,61 @@ router.post("/utilisateurs/:id/exceptions", async (req, res) => {
 router.patch("/utilisateurs/:id/exceptions/:excId", async (req, res) => {
   const { excId } = req.params;
   const { date_debut, date_fin, motif_modification } = req.body;
+  const client = await tenantPool.connect();
   try {
-    const { rows } = await tenantPool.query(
+    await client.query("BEGIN");
+
+    // Etat anterieur, pour que la trace dise ce qui a change et non seulement
+    // qu'une modification a eu lieu.
+    const { rows: avant } = await client.query(
+      `SELECT id_utilisateur, id_permission, id_societe, type,
+              date_debut::text AS date_debut, date_fin::text AS date_fin, motif_modification
+         FROM exception_droit WHERE id = $1 AND date_suppression IS NULL`, [excId]);
+    if (!avant.length) { await client.query("ROLLBACK"); return res.status(404).json({ error: "Exception introuvable" }); }
+
+    const { rows } = await client.query(
       `UPDATE exception_droit
        SET date_debut = COALESCE($2, date_debut), date_fin = COALESCE($3, date_fin), motif_modification = COALESCE($4, motif_modification)
        WHERE id = $1 AND date_suppression IS NULL
        RETURNING id, id_utilisateur AS idutilisateur, id_permission AS idpermission,
-                 id_societe AS idsociete, type, motif, date_debut AS datedebut, date_fin AS datefin,
+                 id_societe AS idsociete, type, motif,
+                 date_debut::text AS datedebut, date_fin::text AS datefin,
                  motif_modification`,
       [excId, date_debut, date_fin, motif_modification]
     );
-    if (!rows.length) return res.status(404).json({ error: "Exception introuvable" });
+    if (!rows.length) { await client.query("ROLLBACK"); return res.status(404).json({ error: "Exception introuvable" }); }
+
+    const { rows: p } = await client.query(`SELECT label, code FROM permission WHERE id = $1`, [avant[0].id_permission]);
+    const { rows: s } = avant[0].id_societe
+      ? await client.query(`SELECT raison_sociale FROM societe WHERE id = $1`, [avant[0].id_societe])
+      : { rows: [{ raison_sociale: null }] };
+
+    await log(client, "UPDATE", "exception_droit", excId,
+      `Exception "${p[0]?.label || p[0]?.code || avant[0].id_permission}" modifiee`,
+      { date_debut: rows[0].datedebut, date_fin: rows[0].datefin });
+
+    // code_retour: 2023
+    await auditer(client, req, {
+      action: "EXCEPTION_MODIFIEE",
+      entiteId: avant[0].id_utilisateur,
+      avant: { date_debut: avant[0].date_debut, date_fin: avant[0].date_fin },
+      apres: {
+        permission: p[0]?.label || p[0]?.code || null,
+        portee: s[0]?.raison_sociale || "toutes sociétés",
+        date_debut: rows[0].datedebut,
+        date_fin: rows[0].datefin,
+        motif_modification: rows[0].motif_modification || null,
+      },
+    });
+
+    await client.query("COMMIT");
     res.json(rows[0]);
   } catch (err) {
+    await client.query("ROLLBACK");
     console.error("PATCH /utilisateurs/:id/exceptions/:excId error", err);
     res.status(500).json({ error: "Erreur serveur" });
+  } finally {
+    client.release();
   }
 });
 
@@ -138,6 +195,18 @@ router.delete("/utilisateurs/:id/exceptions/:excId", async (req, res) => {
     const { rows: p } = await client.query(`SELECT label, code FROM permission WHERE id = $1`, [e[0]?.id_permission]);
     const { rows: s } = e[0]?.id_societe ? await client.query(`SELECT raison_sociale FROM societe WHERE id = $1`, [e[0].id_societe]) : { rows: [{ raison_sociale: null }] };
     await log(client, "SOFT_DELETE", "exception_droit", excId, `Exception "${p[0]?.label || p[0]?.code || e[0]?.id_permission}" supprimée pour ${u[0]?.prenom || ''} ${u[0]?.nom || ''} sur ${s[0]?.raison_sociale || e[0]?.id_societe || 'toutes sociétés'}`, null);
+    // e[0] est lu avant l'UPDATE : le compte porteur est connu meme apres le
+    // retrait. id n'existe pas dans cette portee, seul excId est destructure.
+    // code_retour: 2024
+    await auditer(client, req, {
+      action: "EXCEPTION_SUPPRIMEE",
+      entiteId: e[0]?.id_utilisateur,
+      avant: {
+        permission: p[0]?.label || p[0]?.code || null,
+        portee: s[0]?.raison_sociale || "toutes sociétés",
+        id_exception: excId,
+      },
+    });
     await client.query("COMMIT");
     res.status(204).end();
   } catch (err) {

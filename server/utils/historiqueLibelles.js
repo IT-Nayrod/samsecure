@@ -112,6 +112,31 @@ export function traduireEvenement(ligne, idCompteCible) {
       details = { groupe: av.profil ?? null, portee: av.societe ?? "tenant" };
       break;
 
+    case "EXCEPTION_AJOUTEE": {
+      // Le type de l'exception est nomme en clair : "accorde" et "retire" sont
+      // le vocabulaire de la base, pas celui d'un lecteur.
+      const sens = ap.type === "retire" ? "de retrait" : "d'accord";
+      libelle = `Exception ${sens} sur "${ap.permission || "inconnue"}" ajoutée sur ${ap.portee || "toutes sociétés"}${parActeur}`;
+      details = { permission: ap.permission ?? null, type: ap.type ?? null,
+                  portee: ap.portee ?? null, motif: ap.motif ?? null };
+      break;
+    }
+
+    case "EXCEPTION_MODIFIEE":
+      libelle = `Exception sur "${ap.permission || "inconnue"}" modifiée${parActeur}`;
+      details = {
+        permission: ap.permission ?? null,
+        portee: ap.portee ?? null,
+        date_debut: ap.date_debut ?? null,
+        date_fin: ap.date_fin ?? null,
+      };
+      break;
+
+    case "EXCEPTION_SUPPRIMEE":
+      libelle = `Exception sur "${av.permission || "inconnue"}" supprimée sur ${av.portee || "toutes sociétés"}${parActeur}`;
+      details = { permission: av.permission ?? null, portee: av.portee ?? null };
+      break;
+
     case "CONNEXION":
       libelle = ip ? `Connexion depuis ${ip}${parActeur}` : `Connexion${parActeur}`;
       details = ip ? { ip } : null;
