@@ -48,15 +48,16 @@ export function diff(avant, apres) {
 
 // entiteType par defaut 'utilisateur' : cette tache ne trace que
 // l'administration des comptes. Les autres modules passent leur propre type.
-export async function auditer(client, req, { action, entiteId, avant = null, apres = null, entiteType = "utilisateur" }) {
+export async function auditer(client, req, { action, entiteId, avant = null, apres = null, entiteType = "utilisateur", acteurId }) {
   await client.query(
     `INSERT INTO audit_log (id_utilisateur, action, entite_type, entite_id,
                             valeur_avant, valeur_apres, ip_address)
      VALUES ($1, $2, $3, $4, $5, $6, $7)`,
     [
-      // Acteur de la session. Nullable en base : une execution sans acteur
-      // humain reste tracable sans inventer d'utilisateur systeme.
-      req?.user?.id || null,
+      // Acteur de la session par defaut. acteurId le force pour les routes
+      // publiques, ou l'utilisateur agit sans session ouverte : c'est le cas
+      // de la reinitialisation par lien, dont l'acteur est le titulaire.
+      acteurId ?? req?.user?.id ?? null,
       action,
       entiteType,
       entiteId,      (() => { const f = filtrerSensibles(avant); return f ? JSON.stringify(f) : null; })(),

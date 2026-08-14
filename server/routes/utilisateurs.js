@@ -6,6 +6,7 @@ import { auditer, diff } from "../utils/audit.js";
 import { traduireEvenement } from "../utils/historiqueLibelles.js";
 import { verifierPolitique, genererMotDePasse, POLITIQUE } from "../utils/motDePasse.js";
 import { verifierOrigine, origineAppel } from "../utils/origine.js";
+import { genererJeton, hacherJeton, DUREE_VALIDITE_HEURES } from "../utils/reinitialisation.js";
 
 const router = express.Router();
 
@@ -543,6 +544,91 @@ router.post("/utilisateurs/:id/mot-de-passe/generer", async (req, res) => {
     avertissement: "Cette valeur ne sera plus jamais affichée. Transmettez-la maintenant.",
     sessions_revoquees: resultat.sessionsRevoquees,
   });
+});
+
+// POST /api/utilisateurs/:id/mot-de-passe/reinitialisation
+// Emet un lien de reinitialisation a destination du titulaire du compte.
+router.post("/utilisateurs/:id/mot-de-passe/reinitialisation", async (req, res) => {
+  const { id } = req.params;
+
+  const refusOrigine = verifierOrigine(req);
+  if (refusOrigine) return res.status(refusOrigine.status).json({ error: refusOrigine.error });
+
+  const scope = await getAdminScope(req.user.id);
+  if (!(await isUserInScope(id, scope))) {
+    // code_retour: 2051
+    return res.status(403).json({ error: "Cet utilisateur n'est pas dans votre périmètre." });
+  }
+
+  const client = await tenantPool.connect();
+  try {
+    await client.query("BEGIN");
+
+    const { rows: cible } = await client.query(
+      `SELECT id, prenom, nom, email, actif FROM utilisateur WHERE id = $1`, [id]);
+    // code_retour: 2050
+    if (!cible.length) { await client.query("ROLLBACK"); return res.status(404).json({ error: "Utilisateur introuvable" }); }
+    // code_retour: 2029
+    if (!cible[0].actif) {
+      await client.query("ROLLBACK");
+      return res.status(409).json({ error: "Ce compte est désactivé : réactivez-le avant d'envoyer un lien." });
+    }
+
+    // Les liens anterieurs non consommes sont neutralises : deux liens valides
+    // en circulation doublent la surface d'attaque sans rien apporter.
+    await client.query(
+      `UPDATE reset_password_token SET utilise = true
+        WHERE id_utilisateur = $1 AND utilise = false`, [id]);
+
+    const jeton = genererJeton();
+    await client.query(
+      `INSERT INTO reset_password_token (id_utilisateur, token_hash, expires_at)
+       VALUES ($1, $2, now() + ($3 || ' hours')::interval)`,
+      [id, hacherJeton(jeton), String(DUREE_VALIDITE_HEURES)]
+    );
+
+    const lien = `${process.env.URL_PUBLIQUE || ""}/reinitialisation/${jeton}`;
+
+    // ---------------------------------------------------------------------
+    // POINT D'ACCROCHE DU MAIL, story #15.
+    // Le socle d'envoi n'existe pas a ce jour : aucune dependance, aucun code
+    // d'envoi, aucune variable SMTP. Le lien est donc renvoye dans la reponse
+    // et transite par l'ecran de l'administrateur. Acceptable en staging,
+    // A NE PAS LIVRER EN PRODUCTION EN L'ETAT.
+    // Le jour ou la #15 existe, une seule ligne remplace ce commentaire :
+    //   await envoyerMail(cible[0].email, "reinitialisation", { lien, prenom: cible[0].prenom });
+    // et le champ "lien" disparait de la reponse ci-dessous.
+    // ---------------------------------------------------------------------
+
+    await log(client, "UPDATE", "utilisateur", id,
+      `Lien de réinitialisation émis pour "${cible[0].prenom} ${cible[0].nom}"`, null);
+
+    // Ni le jeton, ni le lien, ni aucune valeur : seul le fait qu'une demande
+    // a ete emise, par qui, et pour quel compte.
+    // code_retour: 2028
+    await auditer(client, req, {
+      action: "REINITIALISATION_DEMANDEE",
+      entiteId: id,
+      apres: { expiration_heures: DUREE_VALIDITE_HEURES, origine: origineAppel(req) },
+    });
+
+    await client.query("COMMIT");
+
+    // code_retour: 2019
+    res.json({
+      message: "Lien de réinitialisation généré.",
+      expire_dans_heures: DUREE_VALIDITE_HEURES,
+      // TEMPORAIRE, disparait avec le branchement du mail (#15).
+      lien,
+    });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("POST /utilisateurs/:id/mot-de-passe/reinitialisation error", err);
+    // code_retour: 2099
+    res.status(500).json({ error: "Erreur serveur" });
+  } finally {
+    client.release();
+  }
 });
 
 export default router;

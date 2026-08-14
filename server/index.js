@@ -21,6 +21,7 @@ import commandesRouter from "./routes/commandes.js";
 import referentielsRouter from "./routes/referentiels.js";
 import preuvesRouter from "./routes/preuves.js";
 import facturesRouter from "./routes/factures.js";
+import reinitialisationPubliqueRouter from "./routes/reinitialisationPublique.js";
 import validationRouter from "./routes/validation.js";
 
 const app = express();
@@ -28,6 +29,10 @@ app.use(cors());
 app.use(express.json());
 
 app.use("/api/auth", authRouter);
+// Monte AVANT authMiddleware : le visiteur d'un lien de reinitialisation n'a
+// par definition aucune session. Ce routeur ne traverse donc ni
+// l'authentification ni le controle des permissions, et c'est voulu.
+app.use("/api", reinitialisationPubliqueRouter);
 
 app.use("/api", authMiddleware);
 // Jeton valide ne vaut pas droit d'agir : le controle des permissions est

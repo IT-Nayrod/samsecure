@@ -28,11 +28,23 @@ resoudre comme les autres.
 | 2010 | trace | Mot de passe defini par un administrateur | POST /api/utilisateurs |
 | 2011 | reserve | [PREREQUIS] Mail de reinitialisation envoye. Route inexistante | - |
 | 2012 | reserve | [PREREQUIS] Mot de passe reinitialise par lien. Route inexistante | - |
+| 2013 | succes | Mot de passe defini | PUT /api/utilisateurs/:id/mot-de-passe |
+| 2014 | succes | Mot de passe genere | POST /api/utilisateurs/:id/mot-de-passe/generer |
+| 2015 | erreur | Le mot de passe ne respecte pas la politique | PUT /api/utilisateurs/:id/mot-de-passe |
+| 2016 | erreur | Le mot de passe est obligatoire | PUT /api/utilisateurs/:id/mot-de-passe |
+| 2017 | erreur | Cette action doit etre effectuee depuis l'interface | les deux |
+| 2018 | trace | Mot de passe genere par un administrateur | POST /api/utilisateurs/:id/mot-de-passe/generer |
+| 2019 | succes | Lien de reinitialisation genere | POST /api/utilisateurs/:id/mot-de-passe/reinitialisation |
 | 2020 | trace | Groupe attribue | POST /api/utilisateurs/:id/profils |
 | 2021 | trace | Groupe retire | DELETE /api/utilisateurs/:id/profils/:attribId |
 | 2022 | trace | Exception de droit ajoutee | POST /api/utilisateurs/:id/exceptions |
 | 2023 | trace | Exception de droit modifiee | PATCH /api/utilisateurs/:id/exceptions/:excId |
 | 2024 | trace | Exception de droit supprimee | DELETE /api/utilisateurs/:id/exceptions/:excId |
+| 2025 | succes | Lien de reinitialisation valide | GET /api/mot-de-passe/reinitialisation/:jeton |
+| 2026 | succes | Mot de passe reinitialise | POST /api/mot-de-passe/reinitialisation/:jeton |
+| 2027 | erreur | Ce lien n'est plus valide | GET, POST /api/mot-de-passe/reinitialisation/:jeton |
+| 2028 | trace | Lien de reinitialisation emis par un administrateur | POST /api/utilisateurs/:id/mot-de-passe/reinitialisation |
+| 2029 | erreur | Compte desactive, reactivation requise | POST /api/utilisateurs/:id/mot-de-passe/reinitialisation |
 | 2030 | trace | Connexion reussie | POST /api/auth/login |
 | 2040 | reserve | [PREREQUIS] Execution d'une planification a l'echeance. Aucun ordonnanceur n'existe | - |
 | 2041 | reserve | [PREREQUIS] Activation de la double authentification. Aucune route serveur | - |
@@ -51,6 +63,29 @@ a le dire.
 
 Les codes 2011, 2012, 2040 et 2041 sont reserves et non emis : les routes
 correspondantes n'existent pas. Voir les STOP remontes avec la #79.
+
+Le 2015 renvoie la liste des exigences non satisfaites dans
+exigences_non_satisfaites, en plus du message : le front peut ainsi signaler
+chaque regle manquante sans reimplementer la politique.
+
+Aucune reponse ne contient de mot de passe ni de hash, a la seule exception du
+2014 qui renvoie la valeur generee une fois. Elle n'est stockee nulle part
+ailleurs qu'en hash bcrypt et ne peut plus etre relue ensuite.
+
+Le 2017 depend de ORIGINE_STRICTE. Ce controle n'arrete pas un attaquant, un
+en-tete Origin se falsifie : l'authentification passant par un jeton Bearer et
+non par un cookie, il n'existe pas de scenario ou un site tiers forge cet
+appel. Il interdit les appels hors interface et les rend visibles.
+
+Le 2027 est volontairement unique pour trois causes distinctes : jeton
+inexistant, expire, deja consomme. Les distinguer indiquerait a un visiteur
+qu'un compte existe, ou qu'un lien a deja servi. Il repond 410 et non 404 : la
+ressource a existe et n'existe plus, c'est exactement ce que dit ce statut.
+
+Le champ "lien" de la reponse 2019 est TEMPORAIRE. Il compense l'absence du
+socle d'envoi de mails (#15) : le lien transite par l'ecran de
+l'administrateur au lieu de la boite du titulaire. A retirer au branchement du
+mail, et a ne pas livrer en production en l'etat.
 
 ## Contrats (#41)
 
