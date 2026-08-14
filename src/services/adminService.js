@@ -46,6 +46,12 @@ export const usersService = {
   // Historique probant d'un compte, lecture seule. La pagination est portee
   // par l'API, 20 evenements par page.
   historique: (id, page = 1) => http.get(`/utilisateurs/${id}/historique?page=${page}`),
+  // Trois actions de la story mot de passe. Aucune ne renvoie de hash, et
+  // seule la generation renvoie une valeur, une seule fois.
+  definirMotDePasse: (id, motDePasse) =>
+    http.put(`/utilisateurs/${id}/mot-de-passe`, { mot_de_passe: motDePasse }),
+  genererMotDePasse: (id) => http.post(`/utilisateurs/${id}/mot-de-passe/generer`),
+  envoyerLienReinitialisation: (id) => http.post(`/utilisateurs/${id}/mot-de-passe/reinitialisation`),
   listSocietes: (id) =>
     http.get(`/utilisateurs/${id}/societes`).then((rows) =>
       rows.map((r) => ({ id: r.id, id_utilisateur: r.idutilisateur, id_societe: r.idsociete }))

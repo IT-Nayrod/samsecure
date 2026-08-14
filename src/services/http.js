@@ -115,6 +115,7 @@ export const http = {
   post: (path, body) => request(path, { method: 'POST', body }),
   patch: (path, body) => request(path, { method: 'PATCH', body }),
   delete: (path) => request(path, { method: 'DELETE' }),
+  put: (path, body) => request(path, { method: 'PUT', body }),
 };
 
 // Envoi multipart. Le Content-Type n'est deliberement pas pose : le navigateur
