@@ -4,6 +4,8 @@ import { tenantPool } from "../db.js";
 import { getAdminScope, isUserInScope, scopeWhereClause } from "../utils/scope.js";
 import { auditer, diff } from "../utils/audit.js";
 import { traduireEvenement } from "../utils/historiqueLibelles.js";
+import { verifierPolitique, genererMotDePasse, POLITIQUE } from "../utils/motDePasse.js";
+import { verifierOrigine, origineAppel } from "../utils/origine.js";
 
 const router = express.Router();
 
@@ -426,6 +428,121 @@ router.delete("/utilisateurs/:id/societes/:societeId", async (req, res) => {
     console.error(err);
     res.status(500).json({ error: "Erreur serveur" });
   }
+});
+
+// Coeur commun aux deux endpoints : la difference tient a l'origine de la
+// valeur, saisie ou generee. Tout le reste, politique, hachage, revocation et
+// trace, est identique et ne doit exister qu'en un exemplaire.
+async function appliquerMotDePasse(req, res, { valeur, action }) {
+  const { id } = req.params;
+
+  const refusOrigine = verifierOrigine(req);
+  if (refusOrigine) return res.status(refusOrigine.status).json({ error: refusOrigine.error });
+
+  const scope = await getAdminScope(req.user.id);
+  if (!(await isUserInScope(id, scope))) {
+    // code_retour: 2051
+    return res.status(403).json({ error: "Cet utilisateur n'est pas dans votre périmètre." });
+  }
+
+  const client = await tenantPool.connect();
+  try {
+    await client.query("BEGIN");
+
+    const { rows: cible } = await client.query(
+      `SELECT id, prenom, nom FROM utilisateur WHERE id = $1`, [id]);
+    // code_retour: 2050
+    if (!cible.length) { await client.query("ROLLBACK"); return res.status(404).json({ error: "Utilisateur introuvable" }); }
+
+    const hash = await bcrypt.hash(valeur, 10);
+    await client.query(`UPDATE utilisateur SET mot_de_passe_hash = $2 WHERE id = $1`, [id, hash]);
+
+    // Revocation des sessions ouvertes du compte cible. Sans elle, un mot de
+    // passe redefini pour reprendre la main sur un compte compromis ne protege
+    // de rien : les jetons en cours restent valides jusqu'a sept jours.
+    const { rowCount: sessionsRevoquees } = await client.query(
+      `UPDATE session_token SET revoked = true
+        WHERE id_utilisateur = $1 AND revoked = false`, [id]);
+
+    await log(client, "UPDATE", "utilisateur", id,
+      `Mot de passe de "${cible[0].prenom} ${cible[0].nom}" redéfini`, null);
+
+    // Aucune valeur, aucun hash, aucune longueur : l'action et son acteur
+    // suffisent. filtrerSensibles retirerait de toute facon toute cle portant
+    // mot_de_passe ou hash, ceci est la premiere barriere.
+    // code_retour: 2010
+    // code_retour: 2018
+    await auditer(client, req, {
+      action,
+      entiteId: id,
+      apres: { sessions_revoquees: sessionsRevoquees, origine: origineAppel(req) },
+    });
+
+    await client.query("COMMIT");
+    return { sessionsRevoquees };
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error(`${req.method} ${req.path} error`, err);
+    // code_retour: 2099
+    res.status(500).json({ error: "Erreur serveur" });
+    return null;
+  } finally {
+    client.release();
+  }
+}
+
+// PUT /api/utilisateurs/:id/mot-de-passe
+// Definition par un administrateur d'une valeur qu'il a choisie.
+router.put("/utilisateurs/:id/mot-de-passe", async (req, res) => {
+  const { mot_de_passe } = req.body || {};
+
+  // code_retour: 2016
+  if (!mot_de_passe || typeof mot_de_passe !== "string") {
+    return res.status(400).json({ error: "Le mot de passe est obligatoire." });
+  }
+
+  // La politique est appliquee ici et non seulement dans le formulaire : un
+  // appel direct doit se heurter a la meme regle, avec le detail de ce qui
+  // manque plutot qu'un refus muet.
+  const manques = verifierPolitique(mot_de_passe);
+  // code_retour: 2015
+  if (manques.length) {
+    return res.status(400).json({
+      error: `Le mot de passe doit comporter ${manques.join(", ")}.`,
+      exigences_non_satisfaites: manques,
+    });
+  }
+
+  const resultat = await appliquerMotDePasse(req, res, {
+    valeur: mot_de_passe,
+    action: "MOT_DE_PASSE_DEFINI_PAR_ADMIN",
+  });
+  if (!resultat) return;
+
+  // Jamais la valeur, jamais le hash, meme en confirmation.
+  // code_retour: 2013
+  res.json({ message: "Mot de passe défini.", sessions_revoquees: resultat.sessionsRevoquees });
+});
+
+// POST /api/utilisateurs/:id/mot-de-passe/generer
+// Genere une valeur conforme, l'applique, et la renvoie UNE SEULE FOIS : elle
+// n'est stockee nulle part ailleurs qu'en hash bcrypt et ne sera jamais
+// relisible.
+router.post("/utilisateurs/:id/mot-de-passe/generer", async (req, res) => {
+  const valeur = genererMotDePasse();
+
+  const resultat = await appliquerMotDePasse(req, res, {
+    valeur,
+    action: "MOT_DE_PASSE_GENERE_PAR_ADMIN",
+  });
+  if (!resultat) return;
+
+  // code_retour: 2014
+  res.json({
+    mot_de_passe: valeur,
+    avertissement: "Cette valeur ne sera plus jamais affichée. Transmettez-la maintenant.",
+    sessions_revoquees: resultat.sessionsRevoquees,
+  });
 });
 
 export default router;

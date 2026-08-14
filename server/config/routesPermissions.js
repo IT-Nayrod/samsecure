@@ -94,6 +94,8 @@ export const ROUTES_PERMISSIONS = [
   ["DELETE", "/utilisateurs/:id/exceptions/:excId",      "gerer_exceptions_droit"],
 
   // ---- Administration : utilisateurs, profils, attributions ----------------
+  ["POST",   "/utilisateurs/:id/mot-de-passe/generer",   "gerer_utilisateurs"],
+  ["PUT",    "/utilisateurs/:id/mot-de-passe",           "gerer_utilisateurs"],
   ["GET",    "/utilisateurs/:id/historique",             "gerer_utilisateurs"],
   ["GET",    "/utilisateurs/:id/droits-effectifs",       "gerer_utilisateurs"],
   ["GET",    "/utilisateurs/:id/profils",                "gerer_utilisateurs"],
