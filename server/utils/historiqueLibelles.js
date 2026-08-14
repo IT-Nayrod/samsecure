@@ -74,6 +74,19 @@ export function traduireEvenement(ligne, idCompteCible) {
       libelle = `Mot de passe défini${parActeur}`;
       break;
 
+    case "MOT_DE_PASSE_GENERE_PAR_ADMIN":
+      libelle = `Mot de passe généré${parActeur}`;
+      break;
+    
+    case "REINITIALISATION_DEMANDEE":
+      libelle = `Lien de réinitialisation envoyé${parActeur}`;
+      details = { expiration_heures: ap.expiration_heures ?? null };
+      break;
+
+    case "MOT_DE_PASSE_REINITIALISE":
+      libelle = `Mot de passe réinitialisé${parActeur}`;
+      break;
+
     case "UTILISATEUR_MODIFIE":
       libelle = `Compte modifié : ${champsLisibles}${parActeur}`;
       details = { champs_modifies: champs.map((c) => NOMS_CHAMPS[c] || c) };
