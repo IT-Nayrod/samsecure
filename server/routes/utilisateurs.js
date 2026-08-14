@@ -4,7 +4,7 @@ import { tenantPool } from "../db.js";
 import { getAdminScope, isUserInScope, scopeWhereClause } from "../utils/scope.js";
 import { auditer, diff } from "../utils/audit.js";
 import { traduireEvenement } from "../utils/historiqueLibelles.js";
-import { verifierPolitique, genererMotDePasse, POLITIQUE } from "../utils/motDePasse.js";
+import { verifierPolitique, genererMotDePasse } from "../utils/motDePasse.js";
 import { verifierOrigine, origineAppel } from "../utils/origine.js";
 import { genererJeton, hacherJeton, DUREE_VALIDITE_HEURES } from "../utils/reinitialisation.js";
 
@@ -68,13 +68,15 @@ router.post("/utilisateurs", async (req, res) => {
       placeholders.push(`$${values.length}`);
     }
 
+    // Rien n'est pose si l'administrateur ne demande rien : la colonne reste a
+    // NULL. Elle valait CURRENT_DATE par defaut, ce qui remplissait la colonne
+    // Mise en fonction de tous les comptes avec leur date de creation, sans
+    // qu'aucune mise en fonction ait ete programmee. Une date d'echeance ne
+    // doit exister que si quelqu'un l'a voulue.
     if (date_mise_en_fonction !== undefined && date_mise_en_fonction !== null && date_mise_en_fonction !== "") {
       fields.push("date_mise_en_fonction");
       values.push(date_mise_en_fonction);
       placeholders.push(`$${values.length}`);
-    } else {
-      fields.push("date_mise_en_fonction");
-      placeholders.push("CURRENT_DATE");
     }
 
     const sql = `INSERT INTO utilisateur (${fields.join(", ")}) VALUES (${placeholders.join(", ")})
