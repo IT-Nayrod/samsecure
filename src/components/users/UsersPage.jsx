@@ -1,12 +1,13 @@
 // UsersPage - administration des utilisateurs réels (données API, plus de mocks)
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Pencil, UserX, UserCheck, UserPlus, Eye, History } from 'lucide-react';
+import { Pencil, UserX, UserCheck, UserPlus, Eye, History, KeyRound } from 'lucide-react';
 import DataTable from '../ui/DataTable';
 import Badge from '../ui/Badge';
 import Button from '../ui/Button';
 import DesactivationModal from './DesactivationModal';
 import HistoriqueModal from './HistoriqueModal';
+import MotDePasseModal from './MotDePasseModal';
 import ProfileBadge from './ProfileBadge';
 import DroitsViewer from '../admin/DroitsViewer';
 import UserFormModal from './UserFormModal';
@@ -57,6 +58,7 @@ export default function UsersPage() {
   const [droitsModal, setDroitsModal] = useState(null);
   const [desactivation, setDesactivation] = useState(null);
   const [historique, setHistorique] = useState(null);
+  const [motDePasse, setMotDePasse] = useState(null);
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -220,20 +222,23 @@ export default function UsersPage() {
     {
       key: 'actions', label: 'Actions', render: r => (
         <div className="flex items-center gap-1">
-          <button onClick={() => setDroitsModal(r)} aria-label="Voir les droits" className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-blue-700 transition-colors">
+          <button onClick={() => setDroitsModal(r)} aria-label="Voir les droits" title="Consulter les droits effectifs" className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-blue-700 transition-colors">
             <Eye size={14} />
           </button>
-          <button onClick={() => setFormModal({ open: true, user: r })} aria-label="Modifier" className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors">
+          <button onClick={() => setFormModal({ open: true, user: r })} aria-label="Modifier" title="Modifier l'identité, les groupes et les rattachements" className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors">
             <Pencil size={14} />
           </button>
-          <button onClick={() => setHistorique(r)} aria-label="Voir l'historique" className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-blue-700 transition-colors">
+          <button onClick={() => setHistorique(r)} aria-label="Voir l'historique" title="Consulter l'historique des actions sur ce compte" className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-blue-700 transition-colors">
             <History size={14} />
           </button>
+          <button onClick={() => setMotDePasse(r)} aria-label="Gérer le mot de passe" title="Définir, générer ou réinitialiser le mot de passe" className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-amber-600 transition-colors">
+            <KeyRound size={14} />
+          </button>
           {r.actif
-            ? <button onClick={() => setDesactivation(r)} aria-label="Désactiver" className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-orange-600 transition-colors">
+            ? <button onClick={() => setDesactivation(r)} aria-label="Désactiver" title="Désactiver le compte, immédiatement ou à une date" className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-orange-600 transition-colors">
                 <UserX size={14} />
               </button>
-            : <button onClick={() => handleReactiver(r)} aria-label="Réactiver" className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-green-600 transition-colors">
+            : <button onClick={() => handleReactiver(r)} aria-label="Réactiver" title="Réactiver le compte et lever son échéance" className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-green-600 transition-colors">
                 <UserCheck size={14} />
               </button>
           }
@@ -308,6 +313,12 @@ export default function UsersPage() {
           userSocieteIds={userSocietes[droitsModal.id] || []}
         />
       )}
+
+      <MotDePasseModal
+        isOpen={!!motDePasse}
+        utilisateur={motDePasse}
+        onClose={() => setMotDePasse(null)}
+      />
 
       <HistoriqueModal
         isOpen={!!historique}
