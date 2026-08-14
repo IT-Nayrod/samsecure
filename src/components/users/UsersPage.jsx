@@ -5,7 +5,7 @@ import { Pencil, UserX, UserCheck, UserPlus, Eye, History, KeyRound } from 'luci
 import DataTable from '../ui/DataTable';
 import Badge from '../ui/Badge';
 import Button from '../ui/Button';
-import DesactivationModal from './DesactivationModal';
+import StatutCompteModal from './StatutCompteModal';
 import HistoriqueModal from './HistoriqueModal';
 import MotDePasseModal from './MotDePasseModal';
 import ProfileBadge from './ProfileBadge';
@@ -56,7 +56,7 @@ export default function UsersPage() {
   const debouncedSearch = useDebounce(search, 300);
   const [formModal, setFormModal] = useState({ open: false, user: null });
   const [droitsModal, setDroitsModal] = useState(null);
-  const [desactivation, setDesactivation] = useState(null);
+  const [statutModal, setStatutModal] = useState(null); // { user, sens }
   const [historique, setHistorique] = useState(null);
   const [motDePasse, setMotDePasse] = useState(null);
 
@@ -174,30 +174,23 @@ export default function UsersPage() {
     await load();
   }
 
-  // Reactivation : actif = true ne suffit pas, une echeance depassee continuerait
-  // de bloquer la connexion. Elle est effacee dans le meme geste.
-  async function handleReactiver(u) {
-    try {
-      await usersService.update(u.id, { actif: true, date_finale: null });
-      addToast({ type: 'success', message: 'Utilisateur réactivé.' });
-      await load();
-    } catch (err) {
-      addToast({ type: 'error', message: err.message });
-    }
+  // Les quatre cas passent par le meme appel : la modale a deja construit le
+  // payload, ne reste que le message a choisir.
+  function messageStatut(payload) {
+    if (payload.actif === false) return { type: 'info', message: 'Utilisateur désactivé.' };
+    if (payload.date_finale) return { type: 'info', message: `Désactivation programmée au ${formatDate(payload.date_finale)}.` };
+    if (payload.date_mise_en_fonction) return { type: 'success', message: `Activation programmée au ${formatDate(payload.date_mise_en_fonction)}.` };
+    return { type: 'success', message: 'Utilisateur réactivé.' };
   }
 
-  async function handleDesactiver(payload) {
+  async function handleStatut(payload) {
     try {
-      await usersService.update(desactivation.id, payload);
-      addToast({
-        type: 'info',
-        message: payload.actif === false
-          ? 'Utilisateur désactivé.'
-          : `Désactivation programmée au ${formatDate(payload.date_finale)}.`,
-      });
+      await usersService.update(statutModal.user.id, payload);
+      addToast(messageStatut(payload));
       await load();
     } catch (err) {
       addToast({ type: 'error', message: err.message });
+      // Relance : la modale garde alors sa saisie au lieu de se fermer sur un echec.
       throw err;
     }
   }
@@ -235,10 +228,10 @@ export default function UsersPage() {
             <KeyRound size={14} />
           </button>
           {r.actif
-            ? <button onClick={() => setDesactivation(r)} aria-label="Désactiver" title="Désactiver le compte, immédiatement ou à une date" className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-orange-600 transition-colors">
+            ? <button onClick={() => setStatutModal({ user: r, sens: 'desactivation' })} aria-label="Désactiver" title="Désactiver le compte, immédiatement ou à une date" className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-orange-600 transition-colors">
                 <UserX size={14} />
               </button>
-            : <button onClick={() => handleReactiver(r)} aria-label="Réactiver" title="Réactiver le compte et lever son échéance" className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-green-600 transition-colors">
+            : <button onClick={() => setStatutModal({ user: r, sens: 'activation' })} aria-label="Réactiver" title="Réactiver le compte, immédiatement ou à une date" className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-green-600 transition-colors">
                 <UserCheck size={14} />
               </button>
           }
@@ -326,11 +319,12 @@ export default function UsersPage() {
         onClose={() => setHistorique(null)}
       />
 
-      <DesactivationModal
-        isOpen={!!desactivation}
-        utilisateur={desactivation}
-        onClose={() => setDesactivation(null)}
-        onConfirm={handleDesactiver}
+      <StatutCompteModal
+        isOpen={!!statutModal}
+        utilisateur={statutModal?.user}
+        sens={statutModal?.sens}
+        onClose={() => setStatutModal(null)}
+        onConfirm={handleStatut}
       />
 
     </div>
