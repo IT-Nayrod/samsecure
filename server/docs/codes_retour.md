@@ -373,7 +373,7 @@ chargement de l'entite et la lecture du statut courant.
 ## Affectations, usage declare et revalidation (#106, M3-B)
 
 Plage 4000-4099, premiere plage des modules 3 et 4 (reservee par la 024),
-seedee par la migration Commune 028. Les affectations passent par le circuit
+seedee par la migration Commune 029. Les affectations passent par le circuit
 de validation unique du module 2 : la validation et le refus repondent sous les
 codes 3300 et 3301 de `POST /api/validation/affectation/:id/...`, aucun code
 propre. Le hook `apresTraitement` du catalogue ouvre le cycle de revalidation
@@ -506,7 +506,7 @@ passent pas par le workflow de validation (#53).
 
 ## Inventaire, import et ecarts (#111, module 3)
 
-Plage 4000-4099, seedee par la migration 028. Routeur server/routes/inventaire.js,
+Plage 4000-4099, seedee par la migration 030. Routeur server/routes/inventaire.js,
 stockage server/utils/stockageInventaire.js (meme pattern que les preuves :
 nom neutre <uuid>.csv, hash SHA-256, mode 0640, sous-repertoire inventaire/
 de PREUVES_DIR ou INVENTAIRE_DIR). Aucune modification du schema v4 :
@@ -564,4 +564,4 @@ reouvrir : rapproche, ecart_detecte ou rejete vers en_attente.
 Permissions (server/config/routesPermissions.js) : consulter_inventaire en
 lecture (Admin, Manager DSI, IT Ops, Financier), rapprocher_inventaire sur les
 quatre transitions (Admin, Manager DSI, IT Ops), importer_inventaire sur
-l'import (Admin, Manager DSI ; migrations 029 Commune et 030 Tenant).
+l'import (Admin, Manager DSI ; migrations 031 Commune et 032 Tenant).

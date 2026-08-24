@@ -1,12 +1,12 @@
 -- ============================================================================
--- SamSecure - BDD Commune - Migration 028
--- Fichier   : 028_commune_code_retour_affectations.sql
+-- SamSecure - BDD Commune - Migration 029
+-- Fichier   : 029_commune_code_retour_affectations.sql
 -- Objet     : seed des codes retour du module 3, bloc affectations, usage
 --             declare et revalidation (US #106, M3-B). Plage 4000-4099,
 --             premiere plage "modules 3 et 4" reservee par la 024.
 --             Aucune modification de schema : donnees de referentiel
 --             technique, meme famille que la 025.
--- Cible     : PostgreSQL 16 - base Commune (mot "commune" dans le nom, route
+-- Cible     : PostgreSQL 16 - base Commune, apres 028 (mot "commune" dans le nom, route
 --             vers commonPool par migrate.js)
 -- Exécution : npm run migrate:dev / migrate:staging
 -- Depend    : 024 (table code_retour), story #68 (helper d'enveloppe).

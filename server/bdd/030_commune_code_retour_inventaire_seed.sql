@@ -1,12 +1,12 @@
 -- ============================================================================
--- SamSecure - BDD Commune - Migration 028
--- Fichier   : 028_commune_code_retour_inventaire_seed.sql
+-- SamSecure - BDD Commune - Migration 030
+-- Fichier   : 030_commune_code_retour_inventaire_seed.sql
 -- Objet     : seed de code_retour pour le module 3, inventaire (US #111) :
 --             plage 4000-4099, ouverte conformement a l'en-tete de 024
 --             ("4000 et plus modules 3 et 4"). Libelles repris du
 --             pre-catalogue server/docs/codes_retour.md, section Inventaire.
 --             Aucun DDL : migration de donnees uniquement.
--- Cible     : PostgreSQL 16 - base Commune (mot "commune" dans le nom)
+-- Cible     : PostgreSQL 16 - base Commune, apres 029 (mot "commune" dans le nom)
 -- Exécution : npm run migrate:dev / migrate:staging
 -- Rejouable : ON CONFLICT (code) DO UPDATE sur type et libelle, meme motif
 --             que 025. Un code ne change jamais de sens.

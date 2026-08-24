@@ -106,7 +106,7 @@ export const ROUTES_PERMISSIONS = [
   // ---- Inventaire (#111, module 3) ------------------------------------------
   // Les chemins litteraux /inventaire/ecarts et /inventaire/affectations
   // passent avant /inventaire/releves/:id. L'import exige un droit propre,
-  // importer_inventaire (migrations 029 et 030), detenu par admin_sam et
+  // importer_inventaire (migrations 031 et 032), detenu par admin_sam et
   // manager_dsi : consulter et rapprocher ne suffisent pas a introduire des
   // donnees dans le parc. Le rapprochement ne touche jamais une affectation.
   ["GET",    "/inventaire/imports",                       "consulter_inventaire"],

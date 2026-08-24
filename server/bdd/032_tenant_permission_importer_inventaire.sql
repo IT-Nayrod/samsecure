@@ -1,11 +1,11 @@
 -- ============================================================================
--- SamSecure - BDD Tenant - Migration 030
--- Fichier   : 030_tenant_permission_importer_inventaire.sql
+-- SamSecure - BDD Tenant - Migration 032
+-- Fichier   : 032_tenant_permission_importer_inventaire.sql
 -- Objet     : permission importer_inventaire (module deploiement, US #111)
 --             dans le referentiel du tenant (permission) et la matrice des
 --             groupes (profil_permission) : admin_sam et manager_dsi.
 --             IT Ops conserve consulter_inventaire + rapprocher_inventaire,
---             Financier consulter_inventaire seule. Pendant Commune : 029.
+--             Financier consulter_inventaire seule. Pendant Commune : 031.
 --             Aucun DDL : migration de donnees uniquement.
 -- Cible     : PostgreSQL 16 - base Tenant, a jouer sur dev ET staging
 -- Rejouable : ON CONFLICT DO NOTHING / DO UPDATE, meme motif que 007 et 021.

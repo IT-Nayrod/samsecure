@@ -1,6 +1,6 @@
 -- ============================================================================
--- SamSecure - BDD Commune - Migration 029
--- Fichier   : 029_commune_permission_importer_inventaire.sql
+-- SamSecure - BDD Commune - Migration 031
+-- Fichier   : 031_commune_permission_importer_inventaire.sql
 -- Objet     : permission importer_inventaire (module deploiement, US #111)
 --             dans les defauts SamSecure : default_permission et matrice
 --             default_profil_permission pour admin_sam et manager_dsi.
@@ -9,8 +9,8 @@
 --             separent pas Manager DSI (import autorise) d'IT Ops (lecture et
 --             rapprochement seulement). Regle 021 respectee : le droit
 --             d'import implique consulter_inventaire, deja detenu.
---             Aucun DDL : migration de donnees uniquement. Pendant Tenant : 030.
--- Cible     : PostgreSQL 16 - base Commune, apres 027
+--             Aucun DDL : migration de donnees uniquement. Pendant Tenant : 032.
+-- Cible     : PostgreSQL 16 - base Commune, apres 030
 -- Rejouable : ON CONFLICT DO NOTHING / DO UPDATE, meme motif que 027.
 -- ============================================================================
 
