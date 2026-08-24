@@ -8,12 +8,17 @@ import {
 const router = express.Router();
 
 // Convention du projet : helper de journalisation local a chaque routeur.
-async function log(client, action, entite_type, entite_id, description, payload) {
+// id_auteur est lu dans req.user (session JWT), comme le fait audit() : les
+// quatre routeurs de saisie sont montes apres authMiddleware, req.user est
+// donc toujours renseigne. Jamais un id arbitraire : la FK vers utilisateur
+// ferait avorter la transaction en cours.
+async function log(client, req, action, entite_type, entite_id, description, payload) {
   try {
     await client.query(
-      `INSERT INTO journal_ecriture (action, entite_type, entite_id, description, payload)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [action, entite_type, entite_id || null, description, payload ? JSON.stringify(payload) : null]
+      `INSERT INTO journal_ecriture (action, entite_type, entite_id, description, id_auteur, payload)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [action, entite_type, entite_id || null, description, req?.user?.id || null,
+       payload ? JSON.stringify(payload) : null]
     );
   } catch (e) {
     console.error("[journal] log failed:", e.message);
@@ -373,7 +378,7 @@ router.post("/commandes", async (req, res) => {
     // l'ecriture metier.
     await soumettre(client, "commande", creee.id, req.user?.id);
 
-    await log(client, "CREATE", "commande", creee.id, `Creation de la commande "${label}"`, corps);
+    await log(client, req, "CREATE", "commande", creee.id, `Creation de la commande "${label}"`, corps);
     await client.query("COMMIT");
 
     const { rows } = await tenantPool.query(`${SELECT_COMMANDE} WHERE c.id = $1`, [creee.id]);
@@ -441,7 +446,7 @@ router.patch("/commandes/:id", async (req, res) => {
     // Une modification est une saisie : retour en attente, motif de refus efface.
     await soumettre(client, "commande", id, req.user?.id);
 
-    await log(client, "UPDATE", "commande", id, `Modification de la commande "${label}"`, patch);
+    await log(client, req, "UPDATE", "commande", id, `Modification de la commande "${label}"`, patch);
     await client.query("COMMIT");
 
     const { rows } = await tenantPool.query(`${SELECT_COMMANDE} WHERE c.id = $1`, [id]);
@@ -499,7 +504,7 @@ router.delete("/commandes/:id", async (req, res) => {
     // applicatif, dans la meme transaction que la suppression.
     await purgerValidations(client, "commande", id);
     await client.query(`DELETE FROM commande WHERE id = $1`, [id]);
-    await log(client, "DELETE", "commande", id, `Suppression de la commande "${existant[0].label}"`, null);
+    await log(client, req, "DELETE", "commande", id, `Suppression de la commande "${existant[0].label}"`, null);
     await client.query("COMMIT");
     succes(res, 3104, null);
   } catch (err) {

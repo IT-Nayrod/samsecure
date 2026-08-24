@@ -11,12 +11,17 @@ import {
 const router = express.Router();
 
 // Convention du projet : helper de journalisation local a chaque routeur.
-async function log(client, action, entite_type, entite_id, description, payload) {
+// id_auteur est lu dans req.user (session JWT), comme le fait audit() : les
+// quatre routeurs de saisie sont montes apres authMiddleware, req.user est
+// donc toujours renseigne. Jamais un id arbitraire : la FK vers utilisateur
+// ferait avorter la transaction en cours.
+async function log(client, req, action, entite_type, entite_id, description, payload) {
   try {
     await client.query(
-      `INSERT INTO journal_ecriture (action, entite_type, entite_id, description, payload)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [action, entite_type, entite_id || null, description, payload ? JSON.stringify(payload) : null]
+      `INSERT INTO journal_ecriture (action, entite_type, entite_id, description, id_auteur, payload)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [action, entite_type, entite_id || null, description, req?.user?.id || null,
+       payload ? JSON.stringify(payload) : null]
     );
   } catch (e) {
     console.error("[journal] log failed:", e.message);
@@ -217,10 +222,10 @@ async function deposerFacture(req, res) {
     await audit(client, req, "CREATE", "facture", facture.id,
       { label, id_commande: idCommande, id_preuve: preuve.id, hash_sha256: ecrit.hash });
 
-    await log(client, "CREATE", "preuve", preuve.id,
+    await log(client, req, "CREATE", "preuve", preuve.id,
       `Creation de la preuve "${labelPreuve}" au depot de la facture "${label}"`,
       { nom_origine: ecrit.nomOrigine, hash_sha256: ecrit.hash });
-    await log(client, "CREATE", "facture", facture.id,
+    await log(client, req, "CREATE", "facture", facture.id,
       `Creation de la facture "${label}" avec son justificatif`, { id_preuve: preuve.id });
 
     await client.query("COMMIT");
@@ -293,7 +298,7 @@ router.post("/factures", async (req, res) => {
     // l'ecriture metier.
     await soumettre(client, "facture", creee.id, req.user?.id);
 
-    await log(client, "CREATE", "facture", creee.id, `Creation de la facture "${label}"`, corps);
+    await log(client, req, "CREATE", "facture", creee.id, `Creation de la facture "${label}"`, corps);
     await client.query("COMMIT");
 
     const { rows } = await tenantPool.query(`${SELECT_FACTURE} WHERE f.id = $1`, [creee.id]);
@@ -349,7 +354,7 @@ router.patch("/factures/:id", async (req, res) => {
     // Une modification est une saisie : retour en attente, motif de refus efface.
     await soumettre(client, "facture", id, req.user?.id);
 
-    await log(client, "UPDATE", "facture", id, `Modification de la facture "${label}"`, patch);
+    await log(client, req, "UPDATE", "facture", id, `Modification de la facture "${label}"`, patch);
     await client.query("COMMIT");
 
     const { rows } = await tenantPool.query(`${SELECT_FACTURE} WHERE f.id = $1`, [id]);
@@ -387,7 +392,7 @@ router.delete("/factures/:id", async (req, res) => {
     // applicatif, dans la meme transaction que la suppression.
     await purgerValidations(client, "facture", id);
     await client.query(`DELETE FROM facture WHERE id = $1`, [id]);
-    await log(client, "DELETE", "facture", id, `Suppression de la facture "${existant[0].label}"`, null);
+    await log(client, req, "DELETE", "facture", id, `Suppression de la facture "${existant[0].label}"`, null);
     await client.query("COMMIT");
     succes(res, 3244, null);
   } catch (err) {

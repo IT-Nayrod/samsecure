@@ -8,12 +8,17 @@ import {
 const router = express.Router();
 
 // Convention du projet : helper de journalisation local a chaque routeur.
-async function log(client, action, entite_type, entite_id, description, payload) {
+// id_auteur est lu dans req.user (session JWT), comme le fait audit() : les
+// quatre routeurs de saisie sont montes apres authMiddleware, req.user est
+// donc toujours renseigne. Jamais un id arbitraire : la FK vers utilisateur
+// ferait avorter la transaction en cours.
+async function log(client, req, action, entite_type, entite_id, description, payload) {
   try {
     await client.query(
-      `INSERT INTO journal_ecriture (action, entite_type, entite_id, description, payload)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [action, entite_type, entite_id || null, description, payload ? JSON.stringify(payload) : null]
+      `INSERT INTO journal_ecriture (action, entite_type, entite_id, description, id_auteur, payload)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [action, entite_type, entite_id || null, description, req?.user?.id || null,
+       payload ? JSON.stringify(payload) : null]
     );
   } catch (e) {
     console.error("[journal] log failed:", e.message);
@@ -262,7 +267,7 @@ router.post("/contrats", async (req, res) => {
     // invisible du controle, donc jamais validable.
     await soumettre(client, "contrat", cree.id, req.user?.id);
 
-    await log(client, "CREATE", "contrat", cree.id, `Creation du contrat "${label}"`, corps);
+    await log(client, req, "CREATE", "contrat", cree.id, `Creation du contrat "${label}"`, corps);
 
     const { rows } = await client.query(`${SELECT_CONTRAT} WHERE c.id = $1`, [cree.id]);
     await client.query("COMMIT");
@@ -340,7 +345,7 @@ router.patch("/contrats/:id", async (req, res) => {
     // attente, sans comparaison avant/apres. Decision de la #53.
     await soumettre(client, "contrat", id, req.user?.id);
 
-    await log(client, "UPDATE", "contrat", id, `Modification du contrat "${label}"`, patch);
+    await log(client, req, "UPDATE", "contrat", id, `Modification du contrat "${label}"`, patch);
 
     const { rows } = await client.query(`${SELECT_CONTRAT} WHERE c.id = $1`, [id]);
     await client.query("COMMIT");
@@ -395,7 +400,7 @@ router.delete("/contrats/:id", async (req, res) => {
     // applicatif, dans la meme transaction que la suppression.
     await purgerValidations(client, "contrat", id);
     await client.query(`DELETE FROM contrat WHERE id = $1`, [id]);
-    await log(client, "DELETE", "contrat", id, `Suppression du contrat "${existant[0].label}"`, null);
+    await log(client, req, "DELETE", "contrat", id, `Suppression du contrat "${existant[0].label}"`, null);
     await client.query("COMMIT");
     succes(res, 3004, null);
   } catch (err) {

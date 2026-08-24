@@ -6,8 +6,9 @@ import { ENTITES_VALIDABLES, lireStatutCourant } from "../utils/validationWorkfl
 const router = express.Router();
 
 // Convention du projet : helper de journalisation local a chaque routeur.
-// Celui-ci renseigne id_auteur, contrairement a ceux des routeurs de saisie :
-// sur un traitement de validation, l'auteur est l'information centrale.
+// Celui-ci recoit id_auteur en parametre ; les routeurs de saisie le lisent
+// dans req.user (aligne le 24/08, #68). Sur un traitement de validation,
+// l'auteur est l'information centrale.
 async function log(client, action, entite_type, entite_id, description, id_auteur, payload) {
   try {
     await client.query(

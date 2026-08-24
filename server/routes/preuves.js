@@ -14,12 +14,17 @@ import {
 const router = express.Router();
 
 // Convention du projet : helper de journalisation local a chaque routeur.
-async function log(client, action, entite_type, entite_id, description, payload) {
+// id_auteur est lu dans req.user (session JWT), comme le fait audit() : les
+// quatre routeurs de saisie sont montes apres authMiddleware, req.user est
+// donc toujours renseigne. Jamais un id arbitraire : la FK vers utilisateur
+// ferait avorter la transaction en cours.
+async function log(client, req, action, entite_type, entite_id, description, payload) {
   try {
     await client.query(
-      `INSERT INTO journal_ecriture (action, entite_type, entite_id, description, payload)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [action, entite_type, entite_id || null, description, payload ? JSON.stringify(payload) : null]
+      `INSERT INTO journal_ecriture (action, entite_type, entite_id, description, id_auteur, payload)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [action, entite_type, entite_id || null, description, req?.user?.id || null,
+       payload ? JSON.stringify(payload) : null]
     );
   } catch (e) {
     console.error("[journal] log failed:", e.message);
@@ -203,7 +208,7 @@ router.post("/preuves", async (req, res) => {
     // l'ecriture metier.
     await soumettre(client, "preuve", creee.id, req.user?.id);
 
-    await log(client, "CREATE", "preuve", creee.id, `Creation de la preuve "${label}"`, corps);
+    await log(client, req, "CREATE", "preuve", creee.id, `Creation de la preuve "${label}"`, corps);
     await client.query("COMMIT");
 
     const { rows } = await tenantPool.query(`${SELECT_PREUVE} WHERE p.id = $1`, [creee.id]);
@@ -265,7 +270,7 @@ router.patch("/preuves/:id", async (req, res) => {
     // Une modification est une saisie : retour en attente, motif de refus efface.
     await soumettre(client, "preuve", id, req.user?.id);
 
-    await log(client, "UPDATE", "preuve", id, `Modification de la preuve "${label}"`, patch);
+    await log(client, req, "UPDATE", "preuve", id, `Modification de la preuve "${label}"`, patch);
     await client.query("COMMIT");
 
     const { rows } = await tenantPool.query(`${SELECT_PREUVE} WHERE p.id = $1`, [id]);
@@ -315,7 +320,7 @@ router.delete("/preuves/:id", async (req, res) => {
     // applicatif, dans la meme transaction que la suppression.
     await purgerValidations(client, "preuve", id);
     await client.query(`DELETE FROM preuve WHERE id = $1`, [id]);
-    await log(client, "DELETE", "preuve", id, `Suppression de la preuve "${existant[0].label}"`, null);
+    await log(client, req, "DELETE", "preuve", id, `Suppression de la preuve "${existant[0].label}"`, null);
     await client.query("COMMIT");
 
     // Le fichier physique ne survit pas a sa preuve : sans cela le stockage
@@ -396,7 +401,7 @@ async function deposerFichier(req, res) {
         : null,
       { url_fichier: ecrit.nomPhysique, hash_sha256: ecrit.hash, nom_origine: ecrit.nomOrigine, taille: req.file.size });
 
-    await log(client, "UPDATE", "preuve", id,
+    await log(client, req, "UPDATE", "preuve", id,
       `${remplacement ? "Remplacement" : "Depot"} du fichier de la preuve "${avant.label}"`,
       { nom_origine: ecrit.nomOrigine, hash_sha256: ecrit.hash });
 
