@@ -1,5 +1,6 @@
 import express from "express";
 import { tenantPool } from "../db.js";
+import { succes, erreur, erreurPivot } from "../utils/reponse.js";
 import {
   jointureStatut, COLONNES_STATUT, soumettre, purgerValidations,
 } from "../utils/validationWorkflow.js";
@@ -97,29 +98,22 @@ async function existe(client, table, id) {
 async function validerContrat(client, body) {
   const { label, id_type_contrat, id_editeur, id_societe, id_revendeur, date_debut, date_fin } = body;
 
-  // code_retour: 3011
   if (!label || !label.trim())
-    return { status: 400, error: "Le libelle est obligatoire." };
-  // code_retour: 3012
+    return { status: 400, code: 3011, error: "Le libelle est obligatoire." };
   if (!id_type_contrat)
-    return { status: 400, error: "Le type de contrat est obligatoire." };
-  // code_retour: 3013
+    return { status: 400, code: 3012, error: "Le type de contrat est obligatoire." };
   // Doublon volontaire de ck_contrat_dates : la contrainte base produirait une
   // 23514 en 500, on veut un 400 lisible.
   if (date_debut && date_fin && date_debut > date_fin)
-    return { status: 400, error: "La date de debut doit preceder la date de fin." };
-  // code_retour: 3014
+    return { status: 400, code: 3013, error: "La date de debut doit preceder la date de fin." };
   if (!(await existe(client, "type_contrat", id_type_contrat)))
-    return { status: 400, error: "Type de contrat introuvable." };
-  // code_retour: 3015
+    return { status: 400, code: 3014, error: "Type de contrat introuvable." };
   if (!(await existe(client, "editeur", id_editeur)))
-    return { status: 400, error: "Editeur introuvable." };
-  // code_retour: 3016
+    return { status: 400, code: 3015, error: "Editeur introuvable." };
   if (!(await existe(client, "societe", id_societe)))
-    return { status: 400, error: "Societe signataire introuvable." };
-  // code_retour: 3017
+    return { status: 400, code: 3016, error: "Societe signataire introuvable." };
   if (!(await existe(client, "revendeur", id_revendeur)))
-    return { status: 400, error: "Revendeur signataire introuvable." };
+    return { status: 400, code: 3017, error: "Revendeur signataire introuvable." };
   return null;
 }
 
@@ -130,9 +124,8 @@ async function validerContrat(client, body) {
 async function verifierParent(client, idParent, idContrat) {
   if (!idParent) return {};
 
-  // code_retour: 3019
   if (idContrat && idParent === idContrat) {
-    return { erreur: { status: 409, error: "Un contrat ne peut pas etre son propre parent." } };
+    return { erreur: { status: 409, code: 3019, error: "Un contrat ne peut pas etre son propre parent." } };
   }
 
   const { rows } = await client.query(
@@ -140,9 +133,8 @@ async function verifierParent(client, idParent, idContrat) {
      FROM contrat c LEFT JOIN type_contrat tc ON tc.id = c.id_type_contrat
      WHERE c.id = $1`, [idParent]);
 
-  // code_retour: 3018
   if (!rows.length) {
-    return { erreur: { status: 400, error: "Contrat parent introuvable." } };
+    return { erreur: { status: 400, code: 3018, error: "Contrat parent introuvable." } };
   }
 
   // Cycle : on remonte la chaine des parents depuis le parent vise. Si l'on
@@ -159,9 +151,8 @@ async function verifierParent(client, idParent, idContrat) {
        SELECT 1 FROM chaine WHERE id = $2 LIMIT 1`,
       [idParent, idContrat]);
 
-    // code_retour: 3019
     if (cycle.length) {
-      return { erreur: { status: 409,
+      return { erreur: { status: 409, code: 3019,
         error: "Ce rattachement creerait un cycle dans la hierarchie des contrats." } };
     }
   }
@@ -204,24 +195,20 @@ async function resoudreAnomalieParent(client, idContrat) {
 router.get("/contrats", async (req, res) => {
   try {
     const { rows } = await tenantPool.query(`${SELECT_CONTRAT} ORDER BY c.label`);
-    // code_retour: 3000
-    res.json(rows);
+    succes(res, 3000, rows);
   } catch (err) {
     console.error("GET /contrats error", err);
-    // code_retour: 3099
-    res.status(500).json({ error: "Erreur serveur" });
+    erreur(res, 3099, { status: 500, message: "Erreur serveur" });
   }
 });
 
 router.get("/contrats/:id", async (req, res) => {
   const { id } = req.params;
   try {
-    // code_retour: 3010
-    if (!UUID_RE.test(id)) return res.status(404).json({ error: "Contrat introuvable." });
+    if (!UUID_RE.test(id)) return erreur(res, 3010, { status: 404, message: "Contrat introuvable." });
 
     const { rows } = await tenantPool.query(`${SELECT_CONTRAT} WHERE c.id = $1`, [id]);
-    // code_retour: 3010
-    if (!rows.length) return res.status(404).json({ error: "Contrat introuvable." });
+    if (!rows.length) return erreur(res, 3010, { status: 404, message: "Contrat introuvable." });
 
     // Memes compteurs que le garde-fou de suppression : la fiche detail affiche
     // le nombre reel de rattachements sans dependre des modules non branches.
@@ -231,12 +218,10 @@ router.get("/contrats/:id", async (req, res) => {
               (SELECT count(*) FROM contrat  WHERE id_contrat_parent = $1)::int AS nb_sous_contrats`,
       [id]);
 
-    // code_retour: 3001
-    res.json({ ...rows[0], ...liens });
+    succes(res, 3001, { ...rows[0], ...liens });
   } catch (err) {
     console.error("GET /contrats/:id error", err);
-    // code_retour: 3099
-    res.status(500).json({ error: "Erreur serveur" });
+    erreur(res, 3099, { status: 500, message: "Erreur serveur" });
   }
 });
 
@@ -249,13 +234,13 @@ router.post("/contrats", async (req, res) => {
     const invalide = await validerContrat(client, corps);
     if (invalide) {
       await client.query("ROLLBACK");
-      return res.status(invalide.status).json({ error: invalide.error });
+      return erreurPivot(res, invalide);
     }
 
     const parent = await verifierParent(client, corps.id_contrat_parent, null);
     if (parent.erreur) {
       await client.query("ROLLBACK");
-      return res.status(parent.erreur.status).json({ error: parent.erreur.error });
+      return erreurPivot(res, parent.erreur);
     }
 
     const label = corps.label.trim();
@@ -282,13 +267,11 @@ router.post("/contrats", async (req, res) => {
     const { rows } = await client.query(`${SELECT_CONTRAT} WHERE c.id = $1`, [cree.id]);
     await client.query("COMMIT");
 
-    // code_retour: 3002
-    res.status(201).json(rows[0]);
+    succes(res, 3002, rows[0], { status: 201 });
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("POST /contrats error", err);
-    // code_retour: 3099
-    res.status(500).json({ error: "Erreur serveur" });
+    erreur(res, 3099, { status: 500, message: "Erreur serveur" });
   } finally {
     client.release();
   }
@@ -300,10 +283,9 @@ router.patch("/contrats/:id", async (req, res) => {
   try {
     await client.query("BEGIN");
 
-    // code_retour: 3010
     if (!UUID_RE.test(id)) {
       await client.query("ROLLBACK");
-      return res.status(404).json({ error: "Contrat introuvable." });
+      return erreur(res, 3010, { status: 404, message: "Contrat introuvable." });
     }
 
     // Dates lues en texte : validerContrat compare des chaines ISO, un objet
@@ -313,10 +295,9 @@ router.patch("/contrats/:id", async (req, res) => {
               date_debut::text AS date_debut, date_fin::text AS date_fin,
               a_renouveler, duree_resiliation
        FROM contrat WHERE id = $1`, [id]);
-    // code_retour: 3010
     if (!existant.length) {
       await client.query("ROLLBACK");
-      return res.status(404).json({ error: "Contrat introuvable." });
+      return erreur(res, 3010, { status: 404, message: "Contrat introuvable." });
     }
 
     // Fusion avant validation : un PATCH partiel ne doit pas echouer sur un
@@ -330,13 +311,13 @@ router.patch("/contrats/:id", async (req, res) => {
     const invalide = await validerContrat(client, corps);
     if (invalide) {
       await client.query("ROLLBACK");
-      return res.status(invalide.status).json({ error: invalide.error });
+      return erreurPivot(res, invalide);
     }
 
     const parent = await verifierParent(client, corps.id_contrat_parent, id);
     if (parent.erreur) {
       await client.query("ROLLBACK");
-      return res.status(parent.erreur.status).json({ error: parent.erreur.error });
+      return erreurPivot(res, parent.erreur);
     }
 
     const label = corps.label.trim();
@@ -364,13 +345,11 @@ router.patch("/contrats/:id", async (req, res) => {
     const { rows } = await client.query(`${SELECT_CONTRAT} WHERE c.id = $1`, [id]);
     await client.query("COMMIT");
 
-    // code_retour: 3003
-    res.json(rows[0]);
+    succes(res, 3003, rows[0]);
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("PATCH /contrats/:id error", err);
-    // code_retour: 3099
-    res.status(500).json({ error: "Erreur serveur" });
+    erreur(res, 3099, { status: 500, message: "Erreur serveur" });
   } finally {
     client.release();
   }
@@ -385,8 +364,7 @@ router.delete("/contrats/:id", async (req, res) => {
     const { rows: existant } = await client.query(`SELECT label FROM contrat WHERE id = $1`, [id]);
     if (!existant.length) {
       await client.query("ROLLBACK");
-      // code_retour: 3010
-      return res.status(404).json({ error: "Contrat introuvable." });
+      return erreur(res, 3010, { status: 404, message: "Contrat introuvable." });
     }
 
     // Les 3 FK entrantes du DDL v4. licence.id_contrat a ete supprimee par la
@@ -405,9 +383,9 @@ router.delete("/contrats/:id", async (req, res) => {
 
     if (bloquants.length) {
       await client.query("ROLLBACK");
-      // code_retour: 3020
-      return res.status(409).json({
-        error: `Suppression impossible : ce contrat porte ${bloquants.join(", ")}.`,
+      return erreur(res, 3020, {
+        status: 409,
+        message: `Suppression impossible : ce contrat porte ${bloquants.join(", ")}.`,
         details: liens,
       });
     }
@@ -419,13 +397,11 @@ router.delete("/contrats/:id", async (req, res) => {
     await client.query(`DELETE FROM contrat WHERE id = $1`, [id]);
     await log(client, "DELETE", "contrat", id, `Suppression du contrat "${existant[0].label}"`, null);
     await client.query("COMMIT");
-    // code_retour: 3004
-    res.status(204).end();
+    succes(res, 3004, null);
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("DELETE /contrats/:id error", err);
-    // code_retour: 3099
-    res.status(500).json({ error: "Erreur serveur" });
+    erreur(res, 3099, { status: 500, message: "Erreur serveur" });
   } finally {
     client.release();
   }
