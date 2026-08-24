@@ -57,7 +57,7 @@ resoudre comme les autres.
 | 2006 | trace | Mise en fonction planifiee | PATCH /api/utilisateurs/:id |
 | 2007 | erreur | Cet email est deja utilise | POST, PATCH /api/utilisateurs |
 | 2010 | trace | Mot de passe defini par un administrateur | POST /api/utilisateurs |
-| 2011 | reserve | [PREREQUIS] Mail de reinitialisation envoye. Route inexistante | - |
+| 2011 | trace | Mail de reinitialisation envoye via le socle #87 (etat 1000 a 1003 joint) | POST /api/utilisateurs/:id/mot-de-passe/reinitialisation |
 | 2012 | reserve | [PREREQUIS] Mot de passe reinitialise par lien. Route inexistante | - |
 | 2013 | succes | Mot de passe defini | PUT /api/utilisateurs/:id/mot-de-passe |
 | 2014 | succes | Mot de passe genere | POST /api/utilisateurs/:id/mot-de-passe/generer |
@@ -65,7 +65,7 @@ resoudre comme les autres.
 | 2016 | erreur | Le mot de passe est obligatoire | PUT /api/utilisateurs/:id/mot-de-passe |
 | 2017 | erreur | Cette action doit etre effectuee depuis l'interface | les deux |
 | 2018 | trace | Mot de passe genere par un administrateur | POST /api/utilisateurs/:id/mot-de-passe/generer |
-| 2019 | succes | Lien de reinitialisation genere | POST /api/utilisateurs/:id/mot-de-passe/reinitialisation |
+| 2019 | succes | Mail de reinitialisation envoye, ou lien genere mais mail non envoye (mail_envoye, erreur_mail, code_mail) | POST /api/utilisateurs/:id/mot-de-passe/reinitialisation |
 | 2020 | trace | Groupe attribue | POST /api/utilisateurs/:id/profils |
 | 2021 | trace | Groupe retire | DELETE /api/utilisateurs/:id/profils/:attribId |
 | 2022 | trace | Exception de droit ajoutee | POST /api/utilisateurs/:id/exceptions |
@@ -92,8 +92,10 @@ ligne, un jeton reste rejouable. La cle est retiree entierement plutot que
 caviardee, sa seule presence revelerait deja le changement, et l'action suffit
 a le dire.
 
-Les codes 2011, 2012, 2040 et 2041 sont reserves et non emis : les routes
-correspondantes n'existent pas. Voir les STOP remontes avec la #79.
+Les codes 2012, 2040 et 2041 sont reserves et non emis : les routes
+correspondantes n'existent pas. Voir les STOP remontes avec la #79. Le 2011
+est emis depuis le branchement du socle mail (#87) : la reinitialisation par
+lien correspondant au 2012 est portee par le 2026.
 
 Le 2015 renvoie la liste des exigences non satisfaites dans
 exigences_non_satisfaites, en plus du message : le front peut ainsi signaler
@@ -113,10 +115,13 @@ inexistant, expire, deja consomme. Les distinguer indiquerait a un visiteur
 qu'un compte existe, ou qu'un lien a deja servi. Il repond 410 et non 404 : la
 ressource a existe et n'existe plus, c'est exactement ce que dit ce statut.
 
-Le champ "lien" de la reponse 2019 est TEMPORAIRE. Il compense l'absence du
-socle d'envoi de mails (#15) : le lien transite par l'ecran de
-l'administrateur au lieu de la boite du titulaire. A retirer au branchement du
-mail, et a ne pas livrer en production en l'etat.
+La reponse 2019 ne contient plus le lien : depuis le branchement du socle
+mail (#87), il ne transite que par le mail du titulaire. Elle porte
+mail_envoye, et en cas d'echec erreur_mail et code_mail (1001 a 1003). La
+demande reste un succes meme si le mail n'est pas parti : le jeton existe,
+l'administrateur voit l'etat et peut relancer, ce qui invalide le precedent.
+La trace 2028 porte mail_envoye dans valeur_apres, sans jeton ni lien ; le
+motif technique d'un echec est dans log_serveur, jamais dans audit_log.
 
 ## Contrats (#41)
 
