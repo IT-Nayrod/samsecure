@@ -276,7 +276,7 @@ router.get("/affectations/historique", async (req, res) => {
          LEFT JOIN utilisateur u ON u.id = h.id_utilisateur
         WHERE h.entite_type = 'affectation'
           AND ($1::uuid IS NULL OR h.id_societe = $1::uuid)
-          AND ($2::uuid IS NULL OR (h.detail->>'id_affectation')::uuid = $2::uuid)
+          AND ($2::uuid IS NULL OR h.detail->>'id_affectation' = $2::text)
         ORDER BY h.created_at DESC
         LIMIT 500`,
       [societe, affectation]);
