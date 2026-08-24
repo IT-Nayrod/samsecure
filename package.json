@@ -18,6 +18,8 @@
     "provision:staging": "APP_ENV=staging node server/bdd/manual/provision-admin.js",
     "seed:referentiels:dev": "APP_ENV=dev node server/bdd/manual/seed-referentiels.js",
     "seed:referentiels:staging": "APP_ENV=staging node server/bdd/manual/seed-referentiels.js",
+    "seed:licences:dev": "APP_ENV=dev node server/bdd/manual/seed-licences-test.js",
+    "seed:licences:staging": "APP_ENV=staging node server/bdd/manual/seed-licences-test.js",
     "precalcul:dev": "APP_ENV=dev node server/bdd/manual/amorcer-precalcul.js",
     "precalcul:staging": "APP_ENV=staging node server/bdd/manual/amorcer-precalcul.js"
   },
