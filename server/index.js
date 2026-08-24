@@ -2,6 +2,7 @@
 import express from "express";
 import cors from "cors";
 import { APP_ENV } from "./db.js";
+import { chargerCatalogueCodes } from "./utils/reponse.js";
 
 import authRouter from "./routes/auth.js";
 import { authMiddleware } from "./middleware/auth.js";
@@ -69,6 +70,12 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 3001;
+// Catalogue code_retour (BDD Commune) : un echec de chargement ne bloque pas
+// le demarrage, les reponses sortent alors avec libelle null et l'ecart est
+// visible en console.
+chargerCatalogueCodes()
+  .then((n) => console.log(`Catalogue code_retour charge : ${n} codes`))
+  .catch((err) => console.error("[code_retour] chargement impossible :", err.message));
 app.listen(PORT, () => {
   console.log(
     `API SamSecure [${APP_ENV}] sur http://localhost:${PORT}` +
