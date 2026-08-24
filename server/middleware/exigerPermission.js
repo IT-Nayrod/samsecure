@@ -10,6 +10,7 @@
 // config/routesPermissions.js est la seule source.
 import { ROUTES_PERMISSIONS } from "../config/routesPermissions.js";
 import { permissionsEffectives } from "../utils/droitsUtilisateur.js";
+import { erreur } from "../utils/reponse.js";
 
 // RBAC_STRICT=false journalise le refus sans bloquer : sert a observer les
 // refus reels sur un environnement avant de couper. Toute autre valeur, y
@@ -43,8 +44,8 @@ export function controlePermissions(req, res, next) {
   if (!regle) {
     console.error(`[rbac] route non declaree : ${req.method} ${req.path}`);
     if (!STRICT) return next();
-    return res.status(403).json({
-      error: "Cette action n'est pas permise pour votre niveau de droit.",
+    return erreur(res, 3400, {
+      status: 403, message: "Cette action n'est pas permise pour votre niveau de droit.",
     });
   }
 
@@ -61,19 +62,18 @@ export function controlePermissions(req, res, next) {
         return next();
       }
       console.warn(refus);
-      // code_retour: 3400
       // Le droit manquant est nomme : le support et le simulateur de droits
       // doivent pouvoir dire quelle permission attribuer, sans lire les logs.
-      res.status(403).json({
-        error: "Cette action n'est pas permise pour votre niveau de droit. " +
-               `Permission requise : ${regle.permission}.`,
-        permission_requise: regle.permission,
+      erreur(res, 3400, {
+        status: 403,
+        message: "Cette action n'est pas permise pour votre niveau de droit. " +
+                 `Permission requise : ${regle.permission}.`,
+        details: { permission_requise: regle.permission },
       });
     })
     .catch((err) => {
       // Une panne du calcul des droits ne doit jamais valoir autorisation.
       console.error("[rbac] calcul des droits impossible", err);
-      // code_retour: 3499
-      res.status(500).json({ error: "Erreur serveur" });
+      erreur(res, 3499, { status: 500, message: "Erreur serveur" });
     });
 }
