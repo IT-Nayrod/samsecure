@@ -71,7 +71,26 @@ export const ROUTES_PERMISSIONS = [
   ["POST",   "/validation/:type/:id/valider", "valider_saisie"],
   ["POST",   "/validation/:type/:id/refuser", "valider_saisie"],
 
+  // ---- Deploiement : licences (#102) ---------------------------------------
+  // Le droit de lire un montant est distinct du droit de lire la licence :
+  // consulter_kpi_financiers est evalue dans le routeur (masquage des couts),
+  // pas ici. Les sous-routes de maintenance suivent les memes deux droits.
+  ["GET",    "/licences",                              "consulter_licences"],
+  ["GET",    "/licences/:id",                          "consulter_licences"],
+  ["GET",    "/licences/:id/maintenance",              "consulter_licences"],
+  ["POST",   "/licences",                              "saisir_licence"],
+  ["PATCH",  "/licences/:id",                          "saisir_licence"],
+  ["DELETE", "/licences/:id",                          "saisir_licence"],
+  ["POST",   "/licences/:id/maintenance",              "saisir_licence"],
+  ["PATCH",  "/licences/:id/maintenance/:mid",         "saisir_licence"],
+  ["DELETE", "/licences/:id/maintenance/:mid",         "saisir_licence"],
+  ["POST",   "/licences/:id/arret-maintenance",        "saisir_licence"],
+  ["POST",   "/licences/:id/reprise-maintenance",      "saisir_licence"],
+
   // ---- Referentiels en lecture ---------------------------------------------
+  ["GET",    "/produits",                    "consulter_referentiels"],
+  ["GET",    "/unites-mesure",               "consulter_referentiels"],
+  ["GET",    "/mainteneurs",                 "consulter_referentiels"],
   ["GET",    "/types-contrat",               "consulter_referentiels"],
   ["GET",    "/editeurs",                    "consulter_referentiels"],
   ["GET",    "/revendeurs",                  "consulter_referentiels"],

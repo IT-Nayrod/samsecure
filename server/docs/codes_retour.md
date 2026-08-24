@@ -28,7 +28,7 @@ derniers), 404 et 500 globaux de index.js.
 
 Plages : transverse 1000-1999 | administration 2000-2999 | contrats 3000-3099 |
 commandes 3100-3199 | documents 3200-3299 | validation 3300-3399 |
-droits 3400-3499
+droits 3400-3499 | licences 4000-4099 (module 3, partie A)
 
 ## Transverse : socle d'envoi de mails (#87)
 
@@ -400,3 +400,60 @@ de "false", elle vaut strict et le refus est un 403. A "false", le refus est
 journalise sans bloquer, pour observer les refus reels d'un environnement avant
 de couper. Un defaut permissif aurait ete un piege : un .env incomplet aurait
 silencieusement desactive le controle.
+
+## Licences (#102, module 3 partie A)
+
+Plage 4000-4099, seedee par la migration 028. Routeur `server/routes/licences.js`
+et referentiels du module `server/routes/referentielsLicences.js`. Lecture sur
+`consulter_licences`, ecriture sur `saisir_licence`, montants (cout_licence,
+cout de maintenance) servis a null avec `montants_masques: true` sans
+`consulter_kpi_financiers`.
+
+| Code | Type | Libelle propose | Route |
+|------|------|-----------------|-------|
+| 4000 | succes | Liste des licences | GET /api/licences |
+| 4001 | succes | Detail de la licence | GET /api/licences/:id |
+| 4002 | succes | Licence creee | POST /api/licences |
+| 4003 | succes | Licence modifiee | PATCH /api/licences/:id |
+| 4004 | succes | Licence supprimee | DELETE /api/licences/:id |
+| 4005 | succes | Historique de maintenance de la licence | GET /api/licences/:id/maintenance |
+| 4006 | succes | Periode de maintenance ajoutee | POST /api/licences/:id/maintenance |
+| 4007 | succes | Periode de maintenance modifiee | PATCH /api/licences/:id/maintenance/:mid |
+| 4008 | succes | Periode de maintenance supprimee | DELETE /api/licences/:id/maintenance/:mid |
+| 4009 | succes | Maintenance arretee, version figee | POST /api/licences/:id/arret-maintenance |
+| 4010 | erreur | Licence introuvable | GET/PATCH/DELETE /api/licences/:id et sous-routes (400 sur un filtre invalide de la liste) |
+| 4011 | erreur | Le produit est obligatoire | POST, PATCH /api/licences |
+| 4012 | erreur | Produit introuvable au catalogue | POST, PATCH /api/licences |
+| 4013 | erreur | Edition introuvable ou etrangere au produit | POST, PATCH /api/licences |
+| 4014 | erreur | Version introuvable ou etrangere au produit | POST, PATCH /api/licences |
+| 4015 | erreur | Commande introuvable | POST, PATCH /api/licences |
+| 4016 | erreur | Revendeur introuvable | POST, PATCH /api/licences et maintenance |
+| 4017 | erreur | Unite de mesure introuvable | POST, PATCH /api/licences |
+| 4018 | erreur | Le type de licence doit etre perpetuelle ou souscription | POST, PATCH /api/licences, GET /api/licences?type= |
+| 4019 | erreur | La quantite doit etre un entier positif ou nul | POST, PATCH /api/licences |
+| 4020 | erreur | Le cout doit etre un montant positif ou nul | POST, PATCH /api/licences |
+| 4021 | erreur | La date de fin de souscription est obligatoire pour une souscription | POST, PATCH /api/licences |
+| 4022 | erreur | Mainteneur introuvable | POST, PATCH /api/licences et maintenance |
+| 4023 | erreur | Suppression impossible : elements lies | DELETE /api/licences/:id (409, details = compteurs affectations et budgets) |
+| 4024 | erreur | Date invalide | POST, PATCH /api/licences et maintenance |
+| 4030 | erreur | Periode de maintenance introuvable | PATCH/DELETE /api/licences/:id/maintenance/:mid |
+| 4031 | erreur | La date de debut est obligatoire | POST, PATCH .../maintenance |
+| 4032 | erreur | La date de fin doit etre posterieure a la date de debut | POST, PATCH .../maintenance |
+| 4033 | erreur | Le cout de maintenance doit etre un montant positif ou nul | POST, PATCH .../maintenance |
+| 4040 | erreur | La maintenance de cette licence est deja arretee | POST .../arret-maintenance (409) |
+| 4041 | erreur | La date d'arret est invalide | POST .../arret-maintenance |
+| 4042 | erreur | Version a figer introuvable ou etrangere au produit | POST .../arret-maintenance |
+| 4043 | erreur | Cette licence ne porte aucune maintenance a arreter | POST .../arret-maintenance (409) |
+| 4044 | succes | Maintenance reprise, version liberee | POST .../reprise-maintenance |
+| 4045 | erreur | La maintenance de cette licence n'est pas arretee | POST .../reprise-maintenance (409) |
+| 4050 | succes | Catalogue des produits (versions et editions incluses) | GET /api/produits |
+| 4051 | succes | Liste des unites de mesure | GET /api/unites-mesure |
+| 4052 | succes | Liste des mainteneurs | GET /api/mainteneurs |
+| 4059 | erreur | Erreur serveur inattendue (referentiels du module licences) | les trois |
+| 4099 | erreur | Erreur serveur inattendue (module licences) | toutes |
+
+Regles v0.5 assumees : une souscription est `expire` le jour meme de sa date
+de fin, sans tolerance, et sort de la balance droits/usage ; l'arret de
+maintenance fige `version_figee_id` (par defaut la version courante) et
+`date_arret_maintenance` sans retirer de droit quantitatif ; les licences ne
+passent pas par le workflow de validation (#53).
