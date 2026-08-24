@@ -3,7 +3,9 @@
 // /api/factures. Le front les assemble pour l'ecran unifie, il ne fusionne pas
 // les modeles. Meme convention que commandesService : aucun fetch direct,
 // http.js porte le Bearer, le refresh sur 401 et la normalisation des erreurs
-// en ApiError dont le message est le champ "error" du serveur, affiche tel quel.
+// en ApiError (message = champ "error" affiche tel quel, code = code_retour,
+// #68) et le deballage de l'enveloppe { code, type, libelle, data }. Le
+// telechargement de fichier (3206) reste un blob, code en en-tete X-Code-Retour.
 import { http } from './http';
 
 // Les trois filtres sont communs aux deux ressources, pour que l'ecran unifie

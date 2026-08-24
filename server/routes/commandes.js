@@ -1,5 +1,6 @@
 import express from "express";
 import { tenantPool } from "../db.js";
+import { succes, erreur, erreurPivot } from "../utils/reponse.js";
 import {
   jointureStatut, COLONNES_STATUT, soumettre, purgerValidations,
 } from "../utils/validationWorkflow.js";
@@ -7,12 +8,17 @@ import {
 const router = express.Router();
 
 // Convention du projet : helper de journalisation local a chaque routeur.
-async function log(client, action, entite_type, entite_id, description, payload) {
+// id_auteur est lu dans req.user (session JWT), comme le fait audit() : les
+// quatre routeurs de saisie sont montes apres authMiddleware, req.user est
+// donc toujours renseigne. Jamais un id arbitraire : la FK vers utilisateur
+// ferait avorter la transaction en cours.
+async function log(client, req, action, entite_type, entite_id, description, payload) {
   try {
     await client.query(
-      `INSERT INTO journal_ecriture (action, entite_type, entite_id, description, payload)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [action, entite_type, entite_id || null, description, payload ? JSON.stringify(payload) : null]
+      `INSERT INTO journal_ecriture (action, entite_type, entite_id, description, id_auteur, payload)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [action, entite_type, entite_id || null, description, req?.user?.id || null,
+       payload ? JSON.stringify(payload) : null]
     );
   } catch (e) {
     console.error("[journal] log failed:", e.message);
@@ -99,43 +105,32 @@ async function validerCommande(client, body) {
   const { label, id_contrat, id_societe, id_revendeur, id_mode_commande,
           montant, date_commande, date_fin } = body;
 
-  // code_retour: 3111
   if (!label || !label.trim())
-    return { status: 400, error: "Le libelle est obligatoire." };
-  // code_retour: 3112
+    return { status: 400, code: 3111, error: "Le libelle est obligatoire." };
   if (!id_contrat)
-    return { status: 400, error: "Le contrat est obligatoire." };
-  // code_retour: 3113
+    return { status: 400, code: 3112, error: "Le contrat est obligatoire." };
   if (!(await existe(client, "contrat", id_contrat)))
-    return { status: 400, error: "Contrat introuvable." };
-  // code_retour: 3114
+    return { status: 400, code: 3113, error: "Contrat introuvable." };
   if (!id_societe)
-    return { status: 400, error: "La societe acheteuse est obligatoire." };
-  // code_retour: 3115
+    return { status: 400, code: 3114, error: "La societe acheteuse est obligatoire." };
   if (!(await existe(client, "societe", id_societe)))
-    return { status: 400, error: "Societe acheteuse introuvable." };
-  // code_retour: 3116
+    return { status: 400, code: 3115, error: "Societe acheteuse introuvable." };
   if (!(await existe(client, "revendeur", id_revendeur)))
-    return { status: 400, error: "Revendeur introuvable." };
-  // code_retour: 3117
+    return { status: 400, code: 3116, error: "Revendeur introuvable." };
   if (!(await existe(client, "mode_commande", id_mode_commande)))
-    return { status: 400, error: "Mode de commande introuvable." };
-  // code_retour: 3118
+    return { status: 400, code: 3117, error: "Mode de commande introuvable." };
   if (montant === null || montant === undefined)
-    return { status: 400, error: "Le montant est obligatoire." };
-  // code_retour: 3119
+    return { status: 400, code: 3118, error: "Le montant est obligatoire." };
   // Couvre le zero, le negatif et la saisie non numerique d'un seul message :
   // dans les trois cas le montant n'est pas un montant valide.
   if (!Number.isFinite(montant) || montant <= 0)
-    return { status: 400, error: "Le montant doit etre strictement positif." };
-  // code_retour: 3120
+    return { status: 400, code: 3119, error: "Le montant doit etre strictement positif." };
   if (!date_commande)
-    return { status: 400, error: "La date de commande est obligatoire." };
-  // code_retour: 3121
+    return { status: 400, code: 3120, error: "La date de commande est obligatoire." };
   // Doublon volontaire de ck_commande_dates : la contrainte base produirait
   // une 23514 en 500, on veut un 400 lisible.
   if (date_fin && date_fin < date_commande)
-    return { status: 400, error: "La date de fin doit etre posterieure a la date de commande." };
+    return { status: 400, code: 3121, error: "La date de fin doit etre posterieure a la date de commande." };
   return null;
 }
 
@@ -160,12 +155,10 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 router.get("/commandes", async (req, res) => {
   try {
     const { rows } = await tenantPool.query(`${SELECT_COMMANDE} ORDER BY c.date_commande DESC NULLS LAST, c.label`);
-    // code_retour: 3100
-    res.json(rows);
+    succes(res, 3100, rows);
   } catch (err) {
     console.error("GET /commandes error", err);
-    // code_retour: 3199
-    res.status(500).json({ error: "Erreur serveur" });
+    erreur(res, 3199, { status: 500, message: "Erreur serveur" });
   }
 });
 
@@ -182,32 +175,27 @@ router.get("/commandes/agregats", async (req, res) => {
 
     let moisDebut, moisFin;
     if (date_debut || date_fin) {
-      // code_retour: 3144
       if (!DATE_RE.test(date_debut || "") || !DATE_RE.test(date_fin || ""))
-        return res.status(400).json({ error: "La periode demandee est invalide." });
+        return erreur(res, 3144, { status: 400, message: "La periode demandee est invalide." });
       moisDebut = date_debut.slice(0, 7);
       moisFin = date_fin.slice(0, 7);
-      // code_retour: 3144
       if (moisFin < moisDebut)
-        return res.status(400).json({ error: "La periode demandee est invalide." });
+        return erreur(res, 3144, { status: 400, message: "La periode demandee est invalide." });
     } else {
       const an = annee ? Number(annee) : new Date().getFullYear();
-      // code_retour: 3141
       if (!Number.isInteger(an) || an < 1970 || an > 2999)
-        return res.status(400).json({ error: "L'annee demandee est invalide." });
+        return erreur(res, 3141, { status: 400, message: "L'annee demandee est invalide." });
       moisDebut = `${an}-01`;
       moisFin = `${an}-12`;
     }
 
     const societe = id_societe || null;
-    // code_retour: 3142
     if (societe && !UUID_RE.test(societe))
-      return res.status(400).json({ error: "Identifiant de societe invalide." });
+      return erreur(res, 3142, { status: 400, message: "Identifiant de societe invalide." });
 
     const editeur = id_editeur || null;
-    // code_retour: 3143
     if (editeur && !UUID_RE.test(editeur))
-      return res.status(400).json({ error: "Identifiant d'editeur invalide." });
+      return erreur(res, 3143, { status: 400, message: "Identifiant d'editeur invalide." });
 
     // Sommes en numeric cote SQL, cast en float8 a la sortie seulement :
     // additionner des flottants des le depart ferait deriver le centime.
@@ -244,8 +232,7 @@ router.get("/commandes/agregats", async (req, res) => {
     const totaux = {};
     for (const c of CLES) totaux[c] = Math.round(mois.reduce((t, m) => t + m[c], 0) * 100) / 100;
 
-    // code_retour: 3140
-    res.json({
+    succes(res, 3140, {
       periode_debut: moisDebut,
       periode_fin: moisFin,
       filtres: { id_societe: societe, id_editeur: editeur },
@@ -254,8 +241,7 @@ router.get("/commandes/agregats", async (req, res) => {
     });
   } catch (err) {
     console.error("GET /commandes/agregats error", err);
-    // code_retour: 3199
-    res.status(500).json({ error: "Erreur serveur" });
+    erreur(res, 3199, { status: 500, message: "Erreur serveur" });
   }
 });
 
@@ -281,21 +267,18 @@ router.get("/commandes/agregats", async (req, res) => {
 router.get("/commandes/manques", async (req, res) => {
   try {
     const societe = req.query.id_societe || null;
-    // code_retour: 3281
     if (societe && !UUID_RE.test(societe))
-      return res.status(400).json({ error: "Identifiant de societe invalide." });
+      return erreur(res, 3281, { status: 400, message: "Identifiant de societe invalide." });
 
     const contrat = req.query.id_contrat || null;
-    // code_retour: 3282
     if (contrat && !UUID_RE.test(contrat))
-      return res.status(400).json({ error: "Identifiant de contrat invalide." });
+      return erreur(res, 3282, { status: 400, message: "Identifiant de contrat invalide." });
 
     let annee = null;
     if (req.query.annee) {
       annee = Number(req.query.annee);
-      // code_retour: 3283
       if (!Number.isInteger(annee) || annee < 1970 || annee > 2999)
-        return res.status(400).json({ error: "L'annee demandee est invalide." });
+        return erreur(res, 3283, { status: 400, message: "L'annee demandee est invalide." });
     }
 
     // Deux anti-jointures, pas de boucle applicative.
@@ -332,8 +315,7 @@ router.get("/commandes/manques", async (req, res) => {
     const total_sans_facture = rows.filter((r) => r.facture_manquante).length;
     const total_sans_preuve = rows.filter((r) => r.preuve_manquante).length;
 
-    // code_retour: 3280
-    res.json({
+    succes(res, 3280, {
       filtres: { id_societe: societe, id_contrat: contrat, annee },
       total: rows.length,
       total_sans_facture,
@@ -342,8 +324,7 @@ router.get("/commandes/manques", async (req, res) => {
     });
   } catch (err) {
     console.error("GET /commandes/manques error", err);
-    // code_retour: 3299
-    res.status(500).json({ error: "Erreur serveur" });
+    erreur(res, 3299, { status: 500, message: "Erreur serveur" });
   }
 });
 
@@ -351,12 +332,10 @@ router.get("/commandes/manques", async (req, res) => {
 router.get("/commandes/:id", async (req, res) => {
   const { id } = req.params;
   try {
-    // code_retour: 3110
-    if (!UUID_RE.test(id)) return res.status(404).json({ error: "Commande introuvable." });
+    if (!UUID_RE.test(id)) return erreur(res, 3110, { status: 404, message: "Commande introuvable." });
 
     const { rows } = await tenantPool.query(`${SELECT_COMMANDE} WHERE c.id = $1`, [id]);
-    // code_retour: 3110
-    if (!rows.length) return res.status(404).json({ error: "Commande introuvable." });
+    if (!rows.length) return erreur(res, 3110, { status: 404, message: "Commande introuvable." });
 
     // Memes compteurs que le garde-fou de suppression : la fiche detail affiche
     // le nombre reel de rattachements sans dependre des modules non branches.
@@ -366,12 +345,10 @@ router.get("/commandes/:id", async (req, res) => {
               (SELECT count(*) FROM licence WHERE id_commande = $1)::int AS nb_licences`,
       [id]);
 
-    // code_retour: 3101
-    res.json({ ...rows[0], ...liens });
+    succes(res, 3101, { ...rows[0], ...liens });
   } catch (err) {
     console.error("GET /commandes/:id error", err);
-    // code_retour: 3199
-    res.status(500).json({ error: "Erreur serveur" });
+    erreur(res, 3199, { status: 500, message: "Erreur serveur" });
   }
 });
 
@@ -384,7 +361,7 @@ router.post("/commandes", async (req, res) => {
     const invalide = await validerCommande(client, corps);
     if (invalide) {
       await client.query("ROLLBACK");
-      return res.status(invalide.status).json({ error: invalide.error });
+      return erreurPivot(res, invalide);
     }
 
     const label = corps.label.trim();
@@ -401,17 +378,15 @@ router.post("/commandes", async (req, res) => {
     // l'ecriture metier.
     await soumettre(client, "commande", creee.id, req.user?.id);
 
-    await log(client, "CREATE", "commande", creee.id, `Creation de la commande "${label}"`, corps);
+    await log(client, req, "CREATE", "commande", creee.id, `Creation de la commande "${label}"`, corps);
     await client.query("COMMIT");
 
     const { rows } = await tenantPool.query(`${SELECT_COMMANDE} WHERE c.id = $1`, [creee.id]);
-    // code_retour: 3102
-    res.status(201).json(rows[0]);
+    succes(res, 3102, rows[0], { status: 201 });
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("POST /commandes error", err);
-    // code_retour: 3199
-    res.status(500).json({ error: "Erreur serveur" });
+    erreur(res, 3199, { status: 500, message: "Erreur serveur" });
   } finally {
     client.release();
   }
@@ -423,10 +398,9 @@ router.patch("/commandes/:id", async (req, res) => {
   try {
     await client.query("BEGIN");
 
-    // code_retour: 3110
     if (!UUID_RE.test(id)) {
       await client.query("ROLLBACK");
-      return res.status(404).json({ error: "Commande introuvable." });
+      return erreur(res, 3110, { status: 404, message: "Commande introuvable." });
     }
 
     // Dates lues en texte : validerCommande compare des chaines ISO, un objet
@@ -438,10 +412,9 @@ router.patch("/commandes/:id", async (req, res) => {
               date_commande::text AS date_commande, date_fin::text AS date_fin,
               a_renouveler
        FROM commande WHERE id = $1`, [id]);
-    // code_retour: 3110
     if (!existant.length) {
       await client.query("ROLLBACK");
-      return res.status(404).json({ error: "Commande introuvable." });
+      return erreur(res, 3110, { status: 404, message: "Commande introuvable." });
     }
 
     // Fusion avant validation : un PATCH partiel ne doit pas echouer sur un
@@ -455,7 +428,7 @@ router.patch("/commandes/:id", async (req, res) => {
     const invalide = await validerCommande(client, corps);
     if (invalide) {
       await client.query("ROLLBACK");
-      return res.status(invalide.status).json({ error: invalide.error });
+      return erreurPivot(res, invalide);
     }
 
     const label = corps.label.trim();
@@ -473,17 +446,15 @@ router.patch("/commandes/:id", async (req, res) => {
     // Une modification est une saisie : retour en attente, motif de refus efface.
     await soumettre(client, "commande", id, req.user?.id);
 
-    await log(client, "UPDATE", "commande", id, `Modification de la commande "${label}"`, patch);
+    await log(client, req, "UPDATE", "commande", id, `Modification de la commande "${label}"`, patch);
     await client.query("COMMIT");
 
     const { rows } = await tenantPool.query(`${SELECT_COMMANDE} WHERE c.id = $1`, [id]);
-    // code_retour: 3103
-    res.json(rows[0]);
+    succes(res, 3103, rows[0]);
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("PATCH /commandes/:id error", err);
-    // code_retour: 3199
-    res.status(500).json({ error: "Erreur serveur" });
+    erreur(res, 3199, { status: 500, message: "Erreur serveur" });
   } finally {
     client.release();
   }
@@ -495,17 +466,15 @@ router.delete("/commandes/:id", async (req, res) => {
   try {
     await client.query("BEGIN");
 
-    // code_retour: 3110
     if (!UUID_RE.test(id)) {
       await client.query("ROLLBACK");
-      return res.status(404).json({ error: "Commande introuvable." });
+      return erreur(res, 3110, { status: 404, message: "Commande introuvable." });
     }
 
     const { rows: existant } = await client.query(`SELECT label FROM commande WHERE id = $1`, [id]);
     if (!existant.length) {
       await client.query("ROLLBACK");
-      // code_retour: 3110
-      return res.status(404).json({ error: "Commande introuvable." });
+      return erreur(res, 3110, { status: 404, message: "Commande introuvable." });
     }
 
     // Les 3 FK entrantes du DDL v4. Depuis le drop de licence.id_contrat par la
@@ -524,9 +493,9 @@ router.delete("/commandes/:id", async (req, res) => {
 
     if (bloquants.length) {
       await client.query("ROLLBACK");
-      // code_retour: 3130
-      return res.status(409).json({
-        error: `Suppression impossible : cette commande porte ${bloquants.join(", ")}.`,
+      return erreur(res, 3130, {
+        status: 409,
+        message: `Suppression impossible : cette commande porte ${bloquants.join(", ")}.`,
         details: liens,
       });
     }
@@ -535,15 +504,13 @@ router.delete("/commandes/:id", async (req, res) => {
     // applicatif, dans la meme transaction que la suppression.
     await purgerValidations(client, "commande", id);
     await client.query(`DELETE FROM commande WHERE id = $1`, [id]);
-    await log(client, "DELETE", "commande", id, `Suppression de la commande "${existant[0].label}"`, null);
+    await log(client, req, "DELETE", "commande", id, `Suppression de la commande "${existant[0].label}"`, null);
     await client.query("COMMIT");
-    // code_retour: 3104
-    res.status(204).end();
+    succes(res, 3104, null);
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("DELETE /commandes/:id error", err);
-    // code_retour: 3199
-    res.status(500).json({ error: "Erreur serveur" });
+    erreur(res, 3199, { status: 500, message: "Erreur serveur" });
   } finally {
     client.release();
   }

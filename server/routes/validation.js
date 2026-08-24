@@ -1,12 +1,14 @@
 import express from "express";
 import { tenantPool } from "../db.js";
+import { succes, erreur } from "../utils/reponse.js";
 import { ENTITES_VALIDABLES, lireStatutCourant } from "../utils/validationWorkflow.js";
 
 const router = express.Router();
 
 // Convention du projet : helper de journalisation local a chaque routeur.
-// Celui-ci renseigne id_auteur, contrairement a ceux des routeurs de saisie :
-// sur un traitement de validation, l'auteur est l'information centrale.
+// Celui-ci recoit id_auteur en parametre ; les routeurs de saisie le lisent
+// dans req.user (aligne le 24/08, #68). Sur un traitement de validation,
+// l'auteur est l'information centrale.
 async function log(client, action, entite_type, entite_id, description, id_auteur, payload) {
   try {
     await client.query(
@@ -38,12 +40,10 @@ async function traiter(req, res, statutCible, motif) {
   const cible = Object.prototype.hasOwnProperty.call(ENTITES_VALIDABLES, entiteType)
     ? ENTITES_VALIDABLES[entiteType]
     : null;
-  // code_retour: 3310
   if (!cible) {
-    return res.status(404).json({ error: "Type d'entite inconnu du workflow de validation." });
+    return erreur(res, 3310, { status: 404, message: "Type d'entite inconnu du workflow de validation." });
   }
-  // code_retour: 3311
-  if (!UUID_RE.test(entiteId)) return res.status(404).json({ error: cible.introuvable });
+  if (!UUID_RE.test(entiteId)) return erreur(res, 3311, { status: 404, message: cible.introuvable });
 
   const client = await tenantPool.connect();
   try {
@@ -52,27 +52,26 @@ async function traiter(req, res, statutCible, motif) {
     // Le nom de table vient du catalogue, jamais du parametre de route.
     const { rows: existant } = await client.query(
       `SELECT label FROM ${cible.table} WHERE id = $1`, [entiteId]);
-    // code_retour: 3311
     if (!existant.length) {
       await client.query("ROLLBACK");
-      return res.status(404).json({ error: cible.introuvable });
+      return erreur(res, 3311, { status: 404, message: cible.introuvable });
     }
 
     const courant = await lireStatutCourant(client, entiteType, entiteId, true);
-    // code_retour: 3312
     // Cas residuel apres la migration 020 : une entite creee par un chemin qui
     // ne soumet pas. Refus explicite plutot que creation implicite, un
     // traitement ne doit pas fabriquer la demande qu'il traite.
     if (!courant) {
       await client.query("ROLLBACK");
-      return res.status(409).json({ error: "Cette saisie ne porte aucune demande de validation." });
+      return erreur(res, 3312, { status: 409, message: "Cette saisie ne porte aucune demande de validation." });
     }
-    // code_retour: 3313
     if (courant.statut !== "en_attente") {
       await client.query("ROLLBACK");
-      return res.status(409).json({
-        error: `Seule une saisie en attente peut etre traitee. Statut courant : ${courant.statut_label || courant.statut}.`,
-        statut_validation: courant.statut,
+      // Le statut courant est joint (details) pour resynchroniser le front sans second appel.
+      return erreur(res, 3313, {
+        status: 409,
+        message: `Seule une saisie en attente peut etre traitee. Statut courant : ${courant.statut_label || courant.statut}.`,
+        details: { statut_validation: courant.statut },
       });
     }
 
@@ -91,6 +90,12 @@ async function traiter(req, res, statutCible, motif) {
         WHERE id = $4`,
       [statut.id, req.user?.id || null, motif, courant.id]);
 
+    // Hook propre a l'entite (revalidation des affectations, #106) : meme
+    // transaction, un echec annule le traitement avec elle.
+    if (cible.apresTraitement) {
+      await cible.apresTraitement(client, req, entiteId, statutCible, motif);
+    }
+
     const label = existant[0].label;
     await log(client,
       statutCible === "valide" ? "VALIDATION" : "REFUS",
@@ -103,9 +108,7 @@ async function traiter(req, res, statutCible, motif) {
 
     await client.query("COMMIT");
 
-    // code_retour: 3300
-    // code_retour: 3301
-    res.json({
+    succes(res, statutCible === "valide" ? 3300 : 3301, {
       entite_type: entiteType,
       entite_id: entiteId,
       statut_validation: statutCible,
@@ -115,8 +118,7 @@ async function traiter(req, res, statutCible, motif) {
   } catch (err) {
     await client.query("ROLLBACK").catch(() => {});
     console.error(`POST /validation/${entiteType}/${entiteId} error`, err);
-    // code_retour: 3399
-    res.status(500).json({ error: "Erreur serveur" });
+    erreur(res, 3399, { status: 500, message: "Erreur serveur" });
   } finally {
     client.release();
   }
@@ -129,11 +131,10 @@ router.post("/validation/:entite_type/:entite_id/valider", (req, res) => {
 router.post("/validation/:entite_type/:entite_id/refuser", (req, res) => {
   const brut = req.body?.message_refus;
   const motif = typeof brut === "string" ? brut.trim() : "";
-  // code_retour: 3314
   // Controle avant toute connexion : un refus sans motif est irrecevable quelle
   // que soit l'entite visee.
   if (!motif) {
-    return res.status(400).json({ error: "Le motif de refus est obligatoire." });
+    return erreur(res, 3314, { status: 400, message: "Le motif de refus est obligatoire." });
   }
   traiter(req, res, "refuse", motif);
 });

@@ -1,12 +1,67 @@
 # Pre-catalogue des codes retour
 
-Fichier transitoire alimente au fil du developpement. La story #68 fera les
-INSERT en base a partir de ce tableau et remplacera les retours commentes par
-le helper d'enveloppe. Ne pas implementer de resolution de code ici.
+Fichier transitoire alimente au fil du developpement. Les codes sont en base
+(BDD Commune, table code_retour, migrations 024 et 025) et la story #68 a
+remplace les retours commentes du module 2 par le helper d'enveloppe
+`server/utils/reponse.js` (24/08/2026). Ce fichier reste la source de
+redaction des nouveaux codes : tout nouveau code y est ajoute puis seede par
+migration avant d'etre emis.
 
-Plages : administration 2000-2999 | contrats 3000-3099 |
+Enveloppe (#68) :
+- succes : `{ code, type: "succes", libelle, data }`
+- erreur : `{ code, type: "erreur", libelle, error, details? }` ; `error` est
+  le message rendu (par defaut le libelle du catalogue, surcharge par la route
+  quand le message est interpole : 3020, 3130, 3230, 3313, 3400), `details` le
+  complement structure (bloquants, permission_requise, statut_validation).
+- en-tete `X-Code-Retour: <code>` sur toute reponse, seul vecteur du 3206
+  (telechargement binaire).
+- le statut HTTP reste decide route par route ; les suppressions repondent
+  200 avec `data: null` (plus de 204 sans corps).
+- catalogue charge au demarrage de l'API ; un code absent du catalogue est
+  emis avec `libelle: null` et signale en console.
+
+Perimetre enveloppe au 24/08 : contrats, commandes, preuves, factures,
+validation, stockagePreuves, controle des permissions (3400, 3499),
+inventaire (#111, 4000-4099). Non
+enveloppes : routes d'administration (2000-2999), auth, mails, referentiels,
+permissions, droits-effectifs (aucun code au catalogue pour ces trois
+derniers), 404 et 500 globaux de index.js.
+
+Plages : transverse 1000-1999 | administration 2000-2999 | contrats 3000-3099 |
 commandes 3100-3199 | documents 3200-3299 | validation 3300-3399 |
-droits 3400-3499
+droits 3400-3499 | licences 4000-4099 (module 3, partie A) |
+affectations 4100-4199 (module 3, partie B) | inventaire 4200-4299 (module 3, #111)
+
+## Transverse : socle d'envoi de mails (#87)
+
+Plage transverse 1000-1999. Le socle est server/utils/mail.js, point de
+passage unique de tout mail de l'application. Les codes 1000 a 1003 sont des
+etats renvoyes par envoyerMail() a l'appelant, pas des reponses HTTP : la route
+appelante repond son propre code et joint l'etat du mail.
+
+| Code | Type | Libelle propose | Route |
+|------|------|-----------------|-------|
+| 1000 | succes | Mail envoye | envoyerMail(), toutes routes appelantes |
+| 1001 | erreur | L'envoi de mails n'est pas configure sur ce serveur | envoyerMail(), toutes routes appelantes |
+| 1002 | erreur | Adresse de destinataire absente ou invalide | envoyerMail(), toutes routes appelantes |
+| 1003 | erreur | Le mail n'a pas pu etre envoye. L'incident a ete journalise | envoyerMail(), toutes routes appelantes |
+| 1010 | succes | Mail de test envoye | POST /api/mails/test |
+| 1011 | erreur | Mail de test non envoye (etat 1001 a 1003 joint) | POST /api/mails/test |
+| 1099 | erreur | Erreur serveur inattendue (module mails) | POST /api/mails/test |
+
+Un echec d'envoi ne fait jamais echouer l'action appelante : envoyerMail() ne
+leve pas, elle renvoie { envoye: false, code, erreur } et l'action repond en
+succes avec cet etat joint. Le motif technique (code SMTP, reponse du serveur,
+variables manquantes) est ecrit dans log_serveur (niveau error, source mail)
+et jamais renvoye au client.
+
+La configuration est lue exclusivement dans SMTP_HOST, SMTP_PORT, SMTP_SECURE,
+SMTP_USER, SMTP_PASS, MAIL_FROM, MAIL_FROM_NAME et MAIL_REPLY_TO (optionnelle).
+Aucune adresse ni valeur de repli dans le code : variables absentes = 1001.
+
+POST /api/mails/test exige gerer_connecteurs, detenue par le seul groupe
+admin_sam dans la matrice (011, 021) : la route est reservee au profil
+administrateur sans qu'un nom de profil soit code dans l'API.
 
 ## Administration des comptes, trace probante (#79)
 
@@ -26,7 +81,7 @@ resoudre comme les autres.
 | 2006 | trace | Mise en fonction planifiee | PATCH /api/utilisateurs/:id |
 | 2007 | erreur | Cet email est deja utilise | POST, PATCH /api/utilisateurs |
 | 2010 | trace | Mot de passe defini par un administrateur | POST /api/utilisateurs |
-| 2011 | reserve | [PREREQUIS] Mail de reinitialisation envoye. Route inexistante | - |
+| 2011 | trace | Mail de reinitialisation envoye via le socle #87 (etat 1000 a 1003 joint) | POST /api/utilisateurs/:id/mot-de-passe/reinitialisation |
 | 2012 | reserve | [PREREQUIS] Mot de passe reinitialise par lien. Route inexistante | - |
 | 2013 | succes | Mot de passe defini | PUT /api/utilisateurs/:id/mot-de-passe |
 | 2014 | succes | Mot de passe genere | POST /api/utilisateurs/:id/mot-de-passe/generer |
@@ -34,7 +89,7 @@ resoudre comme les autres.
 | 2016 | erreur | Le mot de passe est obligatoire | PUT /api/utilisateurs/:id/mot-de-passe |
 | 2017 | erreur | Cette action doit etre effectuee depuis l'interface | les deux |
 | 2018 | trace | Mot de passe genere par un administrateur | POST /api/utilisateurs/:id/mot-de-passe/generer |
-| 2019 | succes | Lien de reinitialisation genere | POST /api/utilisateurs/:id/mot-de-passe/reinitialisation |
+| 2019 | succes | Mail de reinitialisation envoye, ou lien genere mais mail non envoye (mail_envoye, erreur_mail, code_mail) | POST /api/utilisateurs/:id/mot-de-passe/reinitialisation |
 | 2020 | trace | Groupe attribue | POST /api/utilisateurs/:id/profils |
 | 2021 | trace | Groupe retire | DELETE /api/utilisateurs/:id/profils/:attribId |
 | 2022 | trace | Exception de droit ajoutee | POST /api/utilisateurs/:id/exceptions |
@@ -61,8 +116,10 @@ ligne, un jeton reste rejouable. La cle est retiree entierement plutot que
 caviardee, sa seule presence revelerait deja le changement, et l'action suffit
 a le dire.
 
-Les codes 2011, 2012, 2040 et 2041 sont reserves et non emis : les routes
-correspondantes n'existent pas. Voir les STOP remontes avec la #79.
+Les codes 2012, 2040 et 2041 sont reserves et non emis : les routes
+correspondantes n'existent pas. Voir les STOP remontes avec la #79. Le 2011
+est emis depuis le branchement du socle mail (#87) : la reinitialisation par
+lien correspondant au 2012 est portee par le 2026.
 
 Le 2015 renvoie la liste des exigences non satisfaites dans
 exigences_non_satisfaites, en plus du message : le front peut ainsi signaler
@@ -82,10 +139,13 @@ inexistant, expire, deja consomme. Les distinguer indiquerait a un visiteur
 qu'un compte existe, ou qu'un lien a deja servi. Il repond 410 et non 404 : la
 ressource a existe et n'existe plus, c'est exactement ce que dit ce statut.
 
-Le champ "lien" de la reponse 2019 est TEMPORAIRE. Il compense l'absence du
-socle d'envoi de mails (#15) : le lien transite par l'ecran de
-l'administrateur au lieu de la boite du titulaire. A retirer au branchement du
-mail, et a ne pas livrer en production en l'etat.
+La reponse 2019 ne contient plus le lien : depuis le branchement du socle
+mail (#87), il ne transite que par le mail du titulaire. Elle porte
+mail_envoye, et en cas d'echec erreur_mail et code_mail (1001 a 1003). La
+demande reste un succes meme si le mail n'est pas parti : le jeton existe,
+l'administrateur voit l'etat et peut relancer, ce qui invalide le precedent.
+La trace 2028 porte mail_envoye dans valeur_apres, sans jeton ni lien ; le
+motif technique d'un echec est dans log_serveur, jamais dans audit_log.
 
 ## Contrats (#41)
 
@@ -310,6 +370,50 @@ utilisateur authentifie soumet et traite, y compris ses propres saisies. La
 restriction arrive avec la story Droits et se branchera dans traiter(), entre le
 chargement de l'entite et la lecture du statut courant.
 
+## Affectations, usage declare et revalidation (#106, M3-B)
+
+Plage 4100-4199, deuxieme plage des modules 3 et 4 (reserves par la 024, licences en 4000-4099),
+seedee par la migration Commune 029. Les affectations passent par le circuit
+de validation unique du module 2 : la validation et le refus repondent sous les
+codes 3300 et 3301 de `POST /api/validation/affectation/:id/...`, aucun code
+propre. Le hook `apresTraitement` du catalogue ouvre le cycle de revalidation
+dans la transaction du traitement.
+
+| Code | Type | Libelle propose | Route |
+|------|------|-----------------|-------|
+| 4100 | succes | Liste des affectations | GET /api/affectations |
+| 4101 | succes | Detail de l'affectation | GET /api/affectations/:id |
+| 4102 | succes | Affectation declaree et soumise a validation | POST /api/affectations (201) |
+| 4103 | succes | Affectation modifiee et resoumise a validation | PATCH /api/affectations/:id |
+| 4104 | succes | Affectation supprimee | DELETE /api/affectations/:id (200, data null) |
+| 4105 | succes | Affectation revalidee, nouveau cycle ouvert | POST /api/affectations/:id/revalider |
+| 4106 | succes | Decompte des usages declares pour la conformite | GET /api/affectations/decompte |
+| 4107 | succes | Historique des declarations | GET /api/affectations/historique |
+| 4110 | erreur | Affectation introuvable | routes /affectations/:id (404) |
+| 4111 | erreur | La licence est obligatoire | POST, PATCH |
+| 4112 | erreur | Licence introuvable | POST, PATCH |
+| 4113 | erreur | La societe est obligatoire | POST, PATCH |
+| 4114 | erreur | Societe introuvable | POST, PATCH |
+| 4115 | erreur | La quantite doit etre un entier strictement positif | POST, PATCH |
+| 4116 | erreur | La reference client est obligatoire | POST, PATCH |
+| 4117 | erreur | Identifiant de societe invalide | filtres GET |
+| 4118 | erreur | Identifiant de produit invalide | filtres GET |
+| 4119 | erreur | Identifiant de licence invalide | filtre GET /affectations |
+| 4130 | erreur | Seule une affectation validee peut etre revalidee | POST .../revalider (409, `details.statut_validation`) |
+| 4132 | erreur | Suppression impossible : affectation rapprochee d'un inventaire | DELETE (409, `details.inventaires`) |
+| 4199 | erreur | Erreur serveur inattendue (module affectations) | toutes |
+
+Statuts servis par les GET : `statut_validation` est la derniere entree
+`workflow_validation`, reecrite a la lecture en `a_revalider` quand elle vaut
+`valide` et que `date_prochaine_revalidation` est depassee (jamais persistee) ;
+`statut_revalidation` vaut `a_jour`, `a_revalider` (echeance a 15 jours ou
+moins) ou `depasse`, et n'est servi que sur une affectation validee.
+
+Decompte (4106) : somme brute des quantites des affectations dont la derniere
+entree du workflow est `valide` (donc `valide` + `a_revalider` de lecture),
+par produit et societe, sans deduplication par reference (hypothese v0.5
+assumee), avec `droits_total` par produit (somme `licence.quantite`).
+
 ## Controle des permissions (transverse)
 
 Plage droits 3400-3499. Le controle est central, monte une seule fois dans
@@ -342,3 +446,122 @@ de "false", elle vaut strict et le refus est un 403. A "false", le refus est
 journalise sans bloquer, pour observer les refus reels d'un environnement avant
 de couper. Un defaut permissif aurait ete un piege : un .env incomplet aurait
 silencieusement desactive le controle.
+
+## Licences (#102, module 3 partie A)
+
+Plage 4000-4099, seedee par la migration 028. Routeur `server/routes/licences.js`
+et referentiels du module `server/routes/referentielsLicences.js`. Lecture sur
+`consulter_licences`, ecriture sur `saisir_licence`, montants (cout_licence,
+cout de maintenance) servis a null avec `montants_masques: true` sans
+`consulter_kpi_financiers`.
+
+| Code | Type | Libelle propose | Route |
+|------|------|-----------------|-------|
+| 4000 | succes | Liste des licences | GET /api/licences |
+| 4001 | succes | Detail de la licence | GET /api/licences/:id |
+| 4002 | succes | Licence creee | POST /api/licences |
+| 4003 | succes | Licence modifiee | PATCH /api/licences/:id |
+| 4004 | succes | Licence supprimee | DELETE /api/licences/:id |
+| 4005 | succes | Historique de maintenance de la licence | GET /api/licences/:id/maintenance |
+| 4006 | succes | Periode de maintenance ajoutee | POST /api/licences/:id/maintenance |
+| 4007 | succes | Periode de maintenance modifiee | PATCH /api/licences/:id/maintenance/:mid |
+| 4008 | succes | Periode de maintenance supprimee | DELETE /api/licences/:id/maintenance/:mid |
+| 4009 | succes | Maintenance arretee, version figee | POST /api/licences/:id/arret-maintenance |
+| 4010 | erreur | Licence introuvable | GET/PATCH/DELETE /api/licences/:id et sous-routes (400 sur un filtre invalide de la liste) |
+| 4011 | erreur | Le produit est obligatoire | POST, PATCH /api/licences |
+| 4012 | erreur | Produit introuvable au catalogue | POST, PATCH /api/licences |
+| 4013 | erreur | Edition introuvable ou etrangere au produit | POST, PATCH /api/licences |
+| 4014 | erreur | Version introuvable ou etrangere au produit | POST, PATCH /api/licences |
+| 4015 | erreur | Commande introuvable | POST, PATCH /api/licences |
+| 4016 | erreur | Revendeur introuvable | POST, PATCH /api/licences et maintenance |
+| 4017 | erreur | Unite de mesure introuvable | POST, PATCH /api/licences |
+| 4018 | erreur | Le type de licence doit etre perpetuelle ou souscription | POST, PATCH /api/licences, GET /api/licences?type= |
+| 4019 | erreur | La quantite doit etre un entier positif ou nul | POST, PATCH /api/licences |
+| 4020 | erreur | Le cout doit etre un montant positif ou nul | POST, PATCH /api/licences |
+| 4021 | erreur | La date de fin de souscription est obligatoire pour une souscription | POST, PATCH /api/licences |
+| 4022 | erreur | Mainteneur introuvable | POST, PATCH /api/licences et maintenance |
+| 4023 | erreur | Suppression impossible : elements lies | DELETE /api/licences/:id (409, details = compteurs affectations et budgets) |
+| 4024 | erreur | Date invalide | POST, PATCH /api/licences et maintenance |
+| 4030 | erreur | Periode de maintenance introuvable | PATCH/DELETE /api/licences/:id/maintenance/:mid |
+| 4031 | erreur | La date de debut est obligatoire | POST, PATCH .../maintenance |
+| 4032 | erreur | La date de fin doit etre posterieure a la date de debut | POST, PATCH .../maintenance |
+| 4033 | erreur | Le cout de maintenance doit etre un montant positif ou nul | POST, PATCH .../maintenance |
+| 4040 | erreur | La maintenance de cette licence est deja arretee | POST .../arret-maintenance (409) |
+| 4041 | erreur | La date d'arret est invalide | POST .../arret-maintenance |
+| 4042 | erreur | Version a figer introuvable ou etrangere au produit | POST .../arret-maintenance |
+| 4043 | erreur | Cette licence ne porte aucune maintenance a arreter | POST .../arret-maintenance (409) |
+| 4044 | succes | Maintenance reprise, version liberee | POST .../reprise-maintenance |
+| 4045 | erreur | La maintenance de cette licence n'est pas arretee | POST .../reprise-maintenance (409) |
+| 4050 | succes | Catalogue des produits (versions et editions incluses) | GET /api/produits |
+| 4051 | succes | Liste des unites de mesure | GET /api/unites-mesure |
+| 4052 | succes | Liste des mainteneurs | GET /api/mainteneurs |
+| 4059 | erreur | Erreur serveur inattendue (referentiels du module licences) | les trois |
+| 4099 | erreur | Erreur serveur inattendue (module licences) | toutes |
+
+Regles v0.5 assumees : une souscription est `expire` le jour meme de sa date
+de fin, sans tolerance, et sort de la balance droits/usage ; l'arret de
+maintenance fige `version_figee_id` (par defaut la version courante) et
+`date_arret_maintenance` sans retirer de droit quantitatif ; les licences ne
+passent pas par le workflow de validation (#53).
+
+## Inventaire, import et ecarts (#111, module 3)
+
+Plage 4200-4299, seedee par la migration 030. Routeur server/routes/inventaire.js,
+stockage server/utils/stockageInventaire.js (meme pattern que les preuves :
+nom neutre <uuid>.csv, hash SHA-256, mode 0640, sous-repertoire inventaire/
+de PREUVES_DIR ou INVENTAIRE_DIR). Aucune modification du schema v4 :
+inventaire_raw porte un pointeur "<fichier>#L<n>" vers la ligne du fichier
+archive, log_import.type_import vaut "inventaire_csv:<fichier>", les erreurs
+ligne a ligne sont des lignes anomalie_qualite (entite log_import).
+
+Doctrine actee : l'outil constate et alerte, il ne cree ni ne modifie jamais
+une affectation. Le rapprochement est manuel.
+
+| Code | Type | Libelle propose | Route |
+|------|------|-----------------|-------|
+| 4200 | succes | Liste des imports d'inventaire | GET /api/inventaire/imports |
+| 4201 | succes | Detail de l'import | GET /api/inventaire/imports/:id |
+| 4202 | succes | Import d'inventaire effectue | POST /api/inventaire/imports (201, statut succes) |
+| 4203 | succes | Liste des releves d'inventaire | GET /api/inventaire/releves |
+| 4204 | succes | Detail du releve | GET /api/inventaire/releves/:id |
+| 4205 | succes | Ecarts d'inventaire | GET /api/inventaire/ecarts |
+| 4206 | succes | Releve rapproche de l'affectation | POST /api/inventaire/releves/:id/rapprocher |
+| 4207 | succes | Releve marque en ecart assume | POST /api/inventaire/releves/:id/ecart-assume |
+| 4208 | succes | Releve rejete | POST /api/inventaire/releves/:id/rejeter |
+| 4209 | succes | Releve remis en attente | POST /api/inventaire/releves/:id/reouvrir |
+| 4210 | succes | Liste des affectations rapprochables | GET /api/inventaire/affectations |
+| 4211 | avertissement | Import effectue avec des lignes en erreur | POST /api/inventaire/imports (201, statut succes_partiel, erreurs jointes) |
+| 4220 | erreur | Import introuvable | GET /api/inventaire/imports/:id |
+| 4221 | erreur | Releve introuvable | GET, POST /api/inventaire/releves/:id/... |
+| 4222 | erreur | Aucun fichier n'a ete transmis | POST /api/inventaire/imports |
+| 4223 | erreur | Extension non admise, format accepte csv | POST /api/inventaire/imports |
+| 4224 | erreur | Le fichier depasse la taille maximale de 20 Mo (413) | POST /api/inventaire/imports |
+| 4225 | erreur | Un seul fichier peut etre depose | POST /api/inventaire/imports |
+| 4226 | erreur | Fichier vide ou illisible, encodage UTF-8 attendu | POST /api/inventaire/imports |
+| 4227 | erreur | Colonnes obligatoires absentes : produit, reference, quantite (details.colonnes_manquantes) | POST /api/inventaire/imports |
+| 4228 | erreur | Aucune ligne exploitable, import en echec (422, import trace en echec, erreurs dans details) | POST /api/inventaire/imports |
+| 4229 | erreur | Societe introuvable | POST /api/inventaire/imports |
+| 4230 | erreur | Valeur de filtre invalide | GET /api/inventaire/releves |
+| 4231 | erreur | L'affectation est obligatoire | POST .../rapprocher |
+| 4232 | erreur | Affectation introuvable | POST .../rapprocher |
+| 4233 | erreur | Transition de statut non permise pour ce releve (409, details.statut_rapprochement) | POST .../rapprocher, ecart-assume, rejeter, reouvrir |
+| 4234 | erreur | Le motif de rejet est obligatoire | POST .../rejeter |
+| 4235 | reserve | Fichier archive introuvable, contenu du releve indisponible. Non emis : la liste sert la ligne avec fichier_absent true | GET /api/inventaire/releves |
+| 4236 | erreur | Le fichier depasse le nombre maximal de lignes (10000) | POST /api/inventaire/imports |
+| 4250 | trace | Inventaire importe (audit_log INVENTAIRE_IMPORTE) | POST /api/inventaire/imports |
+| 4251 | trace | Releve rapproche (audit_log RELEVE_RAPPROCHE) | POST .../rapprocher |
+| 4252 | trace | Releve marque en ecart assume (audit_log RELEVE_ECART_ASSUME) | POST .../ecart-assume |
+| 4253 | trace | Releve rejete (audit_log RELEVE_REJETE) | POST .../rejeter |
+| 4254 | trace | Releve remis en attente (audit_log RELEVE_REOUVERT) | POST .../reouvrir |
+| 4299 | erreur | Erreur serveur inattendue (module inventaire) | toutes |
+
+Transitions de statut (inventaire_raw.statut_rapprochement) :
+rapprocher : en_attente ou ecart_detecte vers rapproche (id_affectation ecrit) ;
+ecart-assume : en_attente ou rapproche vers ecart_detecte (id_affectation NULL) ;
+rejeter : en_attente ou ecart_detecte vers rejete (motif obligatoire) ;
+reouvrir : rapproche, ecart_detecte ou rejete vers en_attente.
+
+Permissions (server/config/routesPermissions.js) : consulter_inventaire en
+lecture (Admin, Manager DSI, IT Ops, Financier), rapprocher_inventaire sur les
+quatre transitions (Admin, Manager DSI, IT Ops), importer_inventaire sur
+l'import (Admin, Manager DSI ; migrations 031 Commune et 032 Tenant).

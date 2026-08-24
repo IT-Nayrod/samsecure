@@ -7,6 +7,7 @@ import { traduireEvenement } from "../utils/historiqueLibelles.js";
 import { verifierPolitique, genererMotDePasse } from "../utils/motDePasse.js";
 import { verifierOrigine, origineAppel } from "../utils/origine.js";
 import { genererJeton, hacherJeton, DUREE_VALIDITE_HEURES } from "../utils/reinitialisation.js";
+import { envoyerMail } from "../utils/mail.js";
 
 const router = express.Router();
 
@@ -589,39 +590,50 @@ router.post("/utilisateurs/:id/mot-de-passe/reinitialisation", async (req, res) 
       [id, hacherJeton(jeton), String(DUREE_VALIDITE_HEURES)]
     );
 
-    const lien = `${process.env.URL_PUBLIQUE || ""}/reinitialisation/${jeton}`;
+    // Le chemin est celui de la route publique du front (AppRouter.jsx :
+    // /reset-password/:token), la seule qui existe pour cette page.
+    const lien = `${process.env.URL_PUBLIQUE || ""}/reset-password/${jeton}`;
 
-    // ---------------------------------------------------------------------
-    // POINT D'ACCROCHE DU MAIL, story #15.
-    // Le socle d'envoi n'existe pas a ce jour : aucune dependance, aucun code
-    // d'envoi, aucune variable SMTP. Le lien est donc renvoye dans la reponse
-    // et transite par l'ecran de l'administrateur. Acceptable en staging,
-    // A NE PAS LIVRER EN PRODUCTION EN L'ETAT.
-    // Le jour ou la #15 existe, une seule ligne remplace ce commentaire :
-    //   await envoyerMail(cible[0].email, "reinitialisation", { lien, prenom: cible[0].prenom });
-    // et le champ "lien" disparait de la reponse ci-dessous.
-    // ---------------------------------------------------------------------
+    // Envoi par le socle #15 (tache #87). Le lien ne transite que par ce mail :
+    // il n'est ni journalise, ni renvoye a l'administrateur. Un echec d'envoi
+    // ne fait pas echouer la demande : le jeton reste valable, l'etat est
+    // rendu a l'administrateur qui peut relancer (le lien precedent sera
+    // alors invalide).
+    // code_retour: 2011
+    const mail = await envoyerMail({
+      destinataire: cible[0].email,
+      sujet: "Réinitialisation de votre mot de passe SamSecure",
+      contenu:
+        `Bonjour ${cible[0].prenom},\n\n` +
+        "Un administrateur a demandé la réinitialisation de votre mot de passe SamSecure. " +
+        "Pour choisir un nouveau mot de passe, ouvrez le lien suivant :\n\n" +
+        `${lien}\n\n` +
+        `Ce lien est valable ${DUREE_VALIDITE_HEURES} heure et ne peut servir qu'une seule fois. ` +
+        "Si vous n'êtes pas à l'origine de cette demande, vous pouvez ignorer ce message : votre mot de passe actuel reste inchangé.",
+    });
 
     await log(client, "UPDATE", "utilisateur", id,
-      `Lien de réinitialisation émis pour "${cible[0].prenom} ${cible[0].nom}"`, null);
+      `Lien de réinitialisation ${mail.envoye ? "envoyé" : "émis, mail non envoyé"} pour "${cible[0].prenom} ${cible[0].nom}"`, null);
 
     // Ni le jeton, ni le lien, ni aucune valeur : seul le fait qu'une demande
-    // a ete emise, par qui, et pour quel compte.
+    // a ete emise, par qui, pour quel compte, et si le mail est parti.
     // code_retour: 2028
     await auditer(client, req, {
       action: "REINITIALISATION_DEMANDEE",
       entiteId: id,
-      apres: { expiration_heures: DUREE_VALIDITE_HEURES, origine: origineAppel(req) },
+      apres: { expiration_heures: DUREE_VALIDITE_HEURES, origine: origineAppel(req), mail_envoye: mail.envoye },
     });
 
     await client.query("COMMIT");
 
     // code_retour: 2019
     res.json({
-      message: "Lien de réinitialisation généré.",
+      message: mail.envoye
+        ? "Mail de réinitialisation envoyé."
+        : `Lien généré mais mail non envoyé : ${mail.erreur}`,
       expire_dans_heures: DUREE_VALIDITE_HEURES,
-      // TEMPORAIRE, disparait avec le branchement du mail (#15).
-      lien,
+      mail_envoye: mail.envoye,
+      ...(mail.envoye ? {} : { erreur_mail: mail.erreur, code_mail: mail.code }),
     });
   } catch (err) {
     await client.query("ROLLBACK");
