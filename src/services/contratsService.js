@@ -1,7 +1,8 @@
 // contratsService - acces API du module contrats.
 // Meme convention que adminService : aucun fetch direct, aucune gestion de token,
 // http.js porte deja le Bearer, le refresh sur 401 et la normalisation des
-// erreurs en ApiError dont le message est le champ "error" du serveur.
+// erreurs en ApiError (message = champ "error", code = code_retour, #68) et
+// le deballage de l'enveloppe { code, type, libelle, data }.
 // La projection /contrats est deja en snake_case : pas de normalizeX ici,
 // contrairement a /societes.
 import { http } from './http';
