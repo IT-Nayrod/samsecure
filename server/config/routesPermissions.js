@@ -125,6 +125,12 @@ export const ROUTES_PERMISSIONS = [
   ["DELETE", "/profils/:id",                             "gerer_utilisateurs"],
   ["GET",    "/permissions",                             "gerer_utilisateurs"],
 
+  // ---- Mails (#87) ---------------------------------------------------------
+  // Test de la configuration SMTP. gerer_connecteurs n'est detenue que par le
+  // groupe admin_sam (matrice 011/021) : la route est de fait reservee au
+  // profil administrateur, sans nommer de profil ici.
+  ["POST",   "/mails/test",                  "gerer_connecteurs"],
+
   // ---- Journal -------------------------------------------------------------
   // La lecture du journal est une consultation d'audit. L'ecriture reste
   // ouverte a tout utilisateur authentifie : c'est une trace produite par ses
