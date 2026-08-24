@@ -4,9 +4,40 @@ Fichier transitoire alimente au fil du developpement. La story #68 fera les
 INSERT en base a partir de ce tableau et remplacera les retours commentes par
 le helper d'enveloppe. Ne pas implementer de resolution de code ici.
 
-Plages : administration 2000-2999 | contrats 3000-3099 |
+Plages : transverse 1000-1999 | administration 2000-2999 | contrats 3000-3099 |
 commandes 3100-3199 | documents 3200-3299 | validation 3300-3399 |
 droits 3400-3499
+
+## Transverse : socle d'envoi de mails (#87)
+
+Plage transverse 1000-1999. Le socle est server/utils/mail.js, point de
+passage unique de tout mail de l'application. Les codes 1000 a 1003 sont des
+etats renvoyes par envoyerMail() a l'appelant, pas des reponses HTTP : la route
+appelante repond son propre code et joint l'etat du mail.
+
+| Code | Type | Libelle propose | Route |
+|------|------|-----------------|-------|
+| 1000 | succes | Mail envoye | envoyerMail(), toutes routes appelantes |
+| 1001 | erreur | L'envoi de mails n'est pas configure sur ce serveur | envoyerMail(), toutes routes appelantes |
+| 1002 | erreur | Adresse de destinataire absente ou invalide | envoyerMail(), toutes routes appelantes |
+| 1003 | erreur | Le mail n'a pas pu etre envoye. L'incident a ete journalise | envoyerMail(), toutes routes appelantes |
+| 1010 | succes | Mail de test envoye | POST /api/mails/test |
+| 1011 | erreur | Mail de test non envoye (etat 1001 a 1003 joint) | POST /api/mails/test |
+| 1099 | erreur | Erreur serveur inattendue (module mails) | POST /api/mails/test |
+
+Un echec d'envoi ne fait jamais echouer l'action appelante : envoyerMail() ne
+leve pas, elle renvoie { envoye: false, code, erreur } et l'action repond en
+succes avec cet etat joint. Le motif technique (code SMTP, reponse du serveur,
+variables manquantes) est ecrit dans log_serveur (niveau error, source mail)
+et jamais renvoye au client.
+
+La configuration est lue exclusivement dans SMTP_HOST, SMTP_PORT, SMTP_SECURE,
+SMTP_USER, SMTP_PASS, MAIL_FROM, MAIL_FROM_NAME et MAIL_REPLY_TO (optionnelle).
+Aucune adresse ni valeur de repli dans le code : variables absentes = 1001.
+
+POST /api/mails/test exige gerer_connecteurs, detenue par le seul groupe
+admin_sam dans la matrice (011, 021) : la route est reservee au profil
+administrateur sans qu'un nom de profil soit code dans l'API.
 
 ## Administration des comptes, trace probante (#79)
 
