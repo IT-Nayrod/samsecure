@@ -1977,10 +1977,12 @@ window.sauverModificationUtilisateur = async function(userId) {
     /* 3. Supprimer les anciens rattachements et recréer les nouveaux */
     for (const socId of anciennes) {
       await api.removeUtilisateurSociete(userId, socId);
+      const sR = state.societes.find(x => x.id === socId);
       pushAdminLog(`Rattachement de ${prenom} ${nom} à la société "${sR?.raisonsociale || sR?.raison_sociale || socId}" supprimé`);
     }
     for (const socId of nouvellesSocietes) {
       await api.addUtilisateurSociete(userId, socId);
+      const sRa = state.societes.find(x => x.id === socId);
       pushAdminLog(`Rattachement de ${prenom} ${nom} à la société "${sRa?.raisonsociale || sRa?.raison_sociale || socId}" ajouté`);
     }
 
