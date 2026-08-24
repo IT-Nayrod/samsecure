@@ -25,6 +25,7 @@ import facturesRouter from "./routes/factures.js";
 import reinitialisationPubliqueRouter from "./routes/reinitialisationPublique.js";
 import validationRouter from "./routes/validation.js";
 import mailsRouter from "./routes/mails.js";
+import inventaireRouter from "./routes/inventaire.js";
 
 const app = express();
 app.use(cors());
@@ -57,6 +58,7 @@ app.use("/api", preuvesRouter);
 app.use("/api", facturesRouter);
 app.use("/api", validationRouter);
 app.use("/api", mailsRouter);
+app.use("/api", inventaireRouter);
 
 app.use("/api", (req, res) => {
   res.status(404).json({ error: "Ressource introuvable." });
