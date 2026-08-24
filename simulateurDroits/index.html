@@ -497,6 +497,11 @@
       </div>
     </div>
     <div class="card">
+      <h2>Corbeille des groupes (restauration possible pendant 90 jours)</h2>
+      <div id="liste-corbeille-groupes"></div>
+      <div><span class="form-hint">Corbeille locale au navigateur (localStorage ss_sim_corbeille_groupes) ; restauration par POST /api/profils puis réapplication des permissions, diffusions et attributions</span></div>
+    </div>
+    <div class="card">
       <h2>Droits du groupe (hérités par tous ses utilisateurs)</h2>
       <label class="field"><span>Groupe à configurer</span><select id="sel-adm-profil-droits"></select></label>
       <div id="matrice-droits"></div>
@@ -1444,7 +1449,7 @@ function showFatal(err) { state.loading = false; state.error = err?.message || S
 
 function renderAdmin() {
   if (state.mode !== "admin") return;
-  renderListeUtilisateurs(); renderListeProfils(); renderListeAttributions();
+  renderListeUtilisateurs(); renderListeProfils(); renderCorbeilleGroupes(); renderListeAttributions();
   renderListeExceptions(); renderListeSocietes(); renderMatriceDroits(); renderJournal();
 }
 
@@ -1624,6 +1629,87 @@ function renderListeProfils() {
     </div>`;
   }).join("");
 }
+
+/* ---------- Corbeille des groupes (ticket #64) ---------- */
+const CORBEILLE_GROUPES_KEY = "ss_sim_corbeille_groupes";
+const CORBEILLE_GROUPES_JOURS = 90;
+
+function lireCorbeilleGroupes() {
+  let arr = [];
+  try { arr = JSON.parse(localStorage.getItem(CORBEILLE_GROUPES_KEY) || "[]"); } catch (e) { arr = []; }
+  if (!Array.isArray(arr)) arr = [];
+  const limite = Date.now() - CORBEILLE_GROUPES_JOURS * 86400000;
+  const conservees = arr.filter(g => g && g.supprimeLe && new Date(g.supprimeLe).getTime() >= limite);
+  if (conservees.length !== arr.length) ecrireCorbeilleGroupes(conservees);
+  return conservees;
+}
+function ecrireCorbeilleGroupes(arr) { localStorage.setItem(CORBEILLE_GROUPES_KEY, JSON.stringify(arr)); }
+
+function renderCorbeilleGroupes() {
+  const el = $("liste-corbeille-groupes"); if (!el) return;
+  const corbeille = lireCorbeilleGroupes();
+  if (!corbeille.length) { el.innerHTML = "<em>Corbeille vide.</em>"; return; }
+  el.innerHTML = corbeille.map(g => {
+    const supprimeLe = new Date(g.supprimeLe);
+    const joursRestants = Math.max(0, CORBEILLE_GROUPES_JOURS - Math.floor((Date.now() - supprimeLe.getTime()) / 86400000));
+    const detail = [
+      `${(g.permissions || []).length} permission(s)`,
+      `${(g.societes || []).length} diffusion(s)`,
+      `${(g.attributions || []).length} attribution(s)`
+    ].join(", ");
+    return `<div class="list-item">
+      <div class="li-corps">
+        <div class="li-titre">${esc(g.label || g.code)}</div>
+        <div class="li-sous">${esc(g.code)} · supprimé le ${esc(supprimeLe.toLocaleDateString())} · ${joursRestants} jour(s) restant(s) · ${esc(detail)}</div>
+      </div>
+      <div class="li-actions">
+        <button class="btn btn-mini" onclick="restaurerGroupe('${esc(g.cle)}')">Restaurer</button>
+        <button class="btn-danger btn-mini" onclick="purgerGroupeCorbeille('${esc(g.cle)}')">Supprimer définitivement</button>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+window.restaurerGroupe = async function (cle) {
+  const corbeille = lireCorbeilleGroupes();
+  const g = corbeille.find(x => x.cle === cle);
+  if (!g) return toast("Élément introuvable dans la corbeille", false);
+  if (!confirm(`Restaurer le groupe "${g.label}" avec ses permissions, diffusions et attributions ?`)) return;
+  try {
+    /* Le code est UNIQUE en base et l'ancien profil n'est que soft-supprimé : on tente le code d'origine puis un code dérivé */
+    let profil;
+    try {
+      profil = await api.createProfil({ code: g.code, label: g.label, description: g.description || null });
+    } catch (e1) {
+      profil = await api.createProfil({ code: `${g.code}-r${Date.now().toString(36)}`, label: g.label, description: g.description || null });
+    }
+    const echecs = [];
+    for (const idPerm of (g.permissions || [])) {
+      try { await api.addProfilPermission(profil.id, { id_permission: idPerm }); } catch (e) { echecs.push(`permission ${idPerm}`); }
+    }
+    for (const idSoc of (g.societes || [])) {
+      try { await api.addProfilSociete(profil.id, idSoc); } catch (e) { echecs.push(`diffusion ${idSoc}`); }
+    }
+    for (const a of (g.attributions || [])) {
+      try { await api.addProfilToUtilisateur(a.idutilisateur, { id_profil: profil.id, id_societe: a.idsociete || null }); } catch (e) { echecs.push(`attribution ${a.idutilisateur}`); }
+    }
+    ecrireCorbeilleGroupes(corbeille.filter(x => x.cle !== cle));
+    pushAdminLog(`Groupe "${g.label}" restauré depuis la corbeille (nouvel id ${profil.id}${profil.code !== g.code ? `, code ${profil.code}` : ""})`);
+    if (echecs.length) toast(`Groupe restauré, ${echecs.length} élément(s) non réappliqué(s) : ${echecs.join(", ")}`, false);
+    else toast("Groupe restauré");
+    await init();
+  } catch (e) { alert(e.message); }
+};
+
+window.purgerGroupeCorbeille = function (cle) {
+  const corbeille = lireCorbeilleGroupes();
+  const g = corbeille.find(x => x.cle === cle);
+  if (!g) return;
+  if (!confirm(`Retirer définitivement "${g.label}" de la corbeille ? Il ne pourra plus être restauré.`)) return;
+  ecrireCorbeilleGroupes(corbeille.filter(x => x.cle !== cle));
+  pushAdminLog(`Groupe "${g.label}" retiré définitivement de la corbeille`);
+  renderCorbeilleGroupes();
+};
 
 function renderListeAttributions() {
   const el = $("liste-attributions"); if (!el) return;
@@ -2075,15 +2161,32 @@ window.supprimerProfil = async function (id) {
         msg += impact.societes.map(s => `  • ${s.raisonsociale || s.raison_sociale || s.id}`).join("\n");
         msg += "\n\n";
       }
-      msg += "La suppression retirera ces attributions et diffusions. Continuer ?";
+      msg += "La suppression retirera ces attributions et diffusions. Le groupe restera restaurable depuis la corbeille pendant 90 jours. Continuer ?";
       if (!confirm(msg)) return;
     } else {
-      if (!confirm("Supprimer ce groupe ?")) return;
+      if (!confirm("Supprimer ce groupe ? Il restera restaurable depuis la corbeille pendant 90 jours.")) return;
     }
     const pDel = state.profils.find(x => x.id === id);
+    /* Snapshot pour la corbeille, pris avant la suppression */
+    const [permsSnap, socsSnap] = await Promise.all([
+      api.getProfilPermissions(id).catch(() => []),
+      api.getProfilSocietes(id).catch(() => [])
+    ]);
+    const snapshot = {
+      cle: `${id}-${Date.now()}`,
+      id,
+      code: pDel?.code || "",
+      label: pDel?.label || pDel?.code || id,
+      description: pDel?.description || null,
+      permissions: (permsSnap || []).map(x => x.id).filter(Boolean),
+      societes: (socsSnap || []).map(x => x.idsociete).filter(Boolean),
+      attributions: (state.allAttributions || []).filter(a => a.idprofil === id).map(a => ({ idutilisateur: a.idutilisateur, idsociete: a.idsociete || null })),
+      supprimeLe: new Date().toISOString()
+    };
     await api.deleteProfil(id);
-    pushAdminLog(`Groupe "${pDel?.label || pDel?.code || id}" supprimé`);
-    toast("Groupe supprimé");
+    ecrireCorbeilleGroupes([snapshot, ...lireCorbeilleGroupes()]);
+    pushAdminLog(`Groupe "${pDel?.label || pDel?.code || id}" supprimé (placé dans la corbeille)`);
+    toast("Groupe supprimé, restaurable depuis la corbeille pendant 90 jours");
     await init();
   } catch (e) { alert(e.message); }
 };
