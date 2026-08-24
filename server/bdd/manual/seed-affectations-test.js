@@ -94,7 +94,7 @@ try {
     const { rows: existantes } = await client.query(
       `SELECT a.id FROM affectation a
         WHERE a.reference_client = $1 AND a.id_licence = $2 AND a.id_societe = $3
-          AND ($4::text = 'depasse') = (a.date_revalidation < CURRENT_DATE)`,
+          AND ($4::text = 'depasse') = COALESCE(a.date_revalidation < CURRENT_DATE, false)`,
       [ref, licences[iL], societes[iS], etat]);
     if (existantes.length) continue;
 
