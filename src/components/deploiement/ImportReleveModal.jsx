@@ -42,9 +42,9 @@ export default function ImportReleveModal({ isOpen, onClose, onImported }) {
           ? `Import effectue : ${data.import.nb_releves} releve(s).`
           : `Import partiel : ${data.import.nb_releves} releve(s), ${data.erreurs.length} ligne(s) en erreur.` });
     } catch (err) {
-      // 4028 : aucune ligne exploitable, l'import est trace en echec et les
+      // 4228 : aucune ligne exploitable, l'import est trace en echec et les
       // erreurs sont jointes dans details.
-      if (err.code === 4028 && err.details) {
+      if (err.code === 4228 && err.details) {
         setResultat({ import: err.details.import, erreurs: err.details.erreurs });
         onImported?.({ type: 'error', message: err.message });
       } else {

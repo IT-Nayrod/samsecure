@@ -49,7 +49,7 @@ export default function AffectationFormModal({ isOpen, onClose, onSaved, affecta
   useEffect(() => { if (isOpen) saveDraft(draftKey, form); }, [form, isOpen, draftKey]);
 
   // Confort de saisie seulement : le controle de fond est celui de l'API
-  // (codes 4011 a 4016), dont le message est affiche tel quel.
+  // (codes 4111 a 4116), dont le message est affiche tel quel.
   const complet = form.id_licence && form.id_societe && form.reference_client.trim() && Number(form.quantite) > 0;
 
   async function handleSave() {

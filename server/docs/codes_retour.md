@@ -30,7 +30,7 @@ derniers), 404 et 500 globaux de index.js.
 Plages : transverse 1000-1999 | administration 2000-2999 | contrats 3000-3099 |
 commandes 3100-3199 | documents 3200-3299 | validation 3300-3399 |
 droits 3400-3499 | licences 4000-4099 (module 3, partie A) |
-affectations 4000-4099 (module 3, partie B) | inventaire 4000-4099 (module 3, #111)
+affectations 4100-4199 (module 3, partie B) | inventaire 4200-4299 (module 3, #111)
 
 ## Transverse : socle d'envoi de mails (#87)
 
@@ -372,7 +372,7 @@ chargement de l'entite et la lecture du statut courant.
 
 ## Affectations, usage declare et revalidation (#106, M3-B)
 
-Plage 4000-4099, premiere plage des modules 3 et 4 (reservee par la 024),
+Plage 4100-4199, deuxieme plage des modules 3 et 4 (reserves par la 024, licences en 4000-4099),
 seedee par la migration Commune 029. Les affectations passent par le circuit
 de validation unique du module 2 : la validation et le refus repondent sous les
 codes 3300 et 3301 de `POST /api/validation/affectation/:id/...`, aucun code
@@ -381,27 +381,27 @@ dans la transaction du traitement.
 
 | Code | Type | Libelle propose | Route |
 |------|------|-----------------|-------|
-| 4000 | succes | Liste des affectations | GET /api/affectations |
-| 4001 | succes | Detail de l'affectation | GET /api/affectations/:id |
-| 4002 | succes | Affectation declaree et soumise a validation | POST /api/affectations (201) |
-| 4003 | succes | Affectation modifiee et resoumise a validation | PATCH /api/affectations/:id |
-| 4004 | succes | Affectation supprimee | DELETE /api/affectations/:id (200, data null) |
-| 4005 | succes | Affectation revalidee, nouveau cycle ouvert | POST /api/affectations/:id/revalider |
-| 4006 | succes | Decompte des usages declares pour la conformite | GET /api/affectations/decompte |
-| 4007 | succes | Historique des declarations | GET /api/affectations/historique |
-| 4010 | erreur | Affectation introuvable | routes /affectations/:id (404) |
-| 4011 | erreur | La licence est obligatoire | POST, PATCH |
-| 4012 | erreur | Licence introuvable | POST, PATCH |
-| 4013 | erreur | La societe est obligatoire | POST, PATCH |
-| 4014 | erreur | Societe introuvable | POST, PATCH |
-| 4015 | erreur | La quantite doit etre un entier strictement positif | POST, PATCH |
-| 4016 | erreur | La reference client est obligatoire | POST, PATCH |
-| 4017 | erreur | Identifiant de societe invalide | filtres GET |
-| 4018 | erreur | Identifiant de produit invalide | filtres GET |
-| 4019 | erreur | Identifiant de licence invalide | filtre GET /affectations |
-| 4030 | erreur | Seule une affectation validee peut etre revalidee | POST .../revalider (409, `details.statut_validation`) |
-| 4032 | erreur | Suppression impossible : affectation rapprochee d'un inventaire | DELETE (409, `details.inventaires`) |
-| 4099 | erreur | Erreur serveur inattendue (module affectations) | toutes |
+| 4100 | succes | Liste des affectations | GET /api/affectations |
+| 4101 | succes | Detail de l'affectation | GET /api/affectations/:id |
+| 4102 | succes | Affectation declaree et soumise a validation | POST /api/affectations (201) |
+| 4103 | succes | Affectation modifiee et resoumise a validation | PATCH /api/affectations/:id |
+| 4104 | succes | Affectation supprimee | DELETE /api/affectations/:id (200, data null) |
+| 4105 | succes | Affectation revalidee, nouveau cycle ouvert | POST /api/affectations/:id/revalider |
+| 4106 | succes | Decompte des usages declares pour la conformite | GET /api/affectations/decompte |
+| 4107 | succes | Historique des declarations | GET /api/affectations/historique |
+| 4110 | erreur | Affectation introuvable | routes /affectations/:id (404) |
+| 4111 | erreur | La licence est obligatoire | POST, PATCH |
+| 4112 | erreur | Licence introuvable | POST, PATCH |
+| 4113 | erreur | La societe est obligatoire | POST, PATCH |
+| 4114 | erreur | Societe introuvable | POST, PATCH |
+| 4115 | erreur | La quantite doit etre un entier strictement positif | POST, PATCH |
+| 4116 | erreur | La reference client est obligatoire | POST, PATCH |
+| 4117 | erreur | Identifiant de societe invalide | filtres GET |
+| 4118 | erreur | Identifiant de produit invalide | filtres GET |
+| 4119 | erreur | Identifiant de licence invalide | filtre GET /affectations |
+| 4130 | erreur | Seule une affectation validee peut etre revalidee | POST .../revalider (409, `details.statut_validation`) |
+| 4132 | erreur | Suppression impossible : affectation rapprochee d'un inventaire | DELETE (409, `details.inventaires`) |
+| 4199 | erreur | Erreur serveur inattendue (module affectations) | toutes |
 
 Statuts servis par les GET : `statut_validation` est la derniere entree
 `workflow_validation`, reecrite a la lecture en `a_revalider` quand elle vaut
@@ -409,7 +409,7 @@ Statuts servis par les GET : `statut_validation` est la derniere entree
 `statut_revalidation` vaut `a_jour`, `a_revalider` (echeance a 15 jours ou
 moins) ou `depasse`, et n'est servi que sur une affectation validee.
 
-Decompte (4006) : somme brute des quantites des affectations dont la derniere
+Decompte (4106) : somme brute des quantites des affectations dont la derniere
 entree du workflow est `valide` (donc `valide` + `a_revalider` de lecture),
 par produit et societe, sans deduplication par reference (hypothese v0.5
 assumee), avec `droits_total` par produit (somme `licence.quantite`).
@@ -506,7 +506,7 @@ passent pas par le workflow de validation (#53).
 
 ## Inventaire, import et ecarts (#111, module 3)
 
-Plage 4000-4099, seedee par la migration 030. Routeur server/routes/inventaire.js,
+Plage 4200-4299, seedee par la migration 030. Routeur server/routes/inventaire.js,
 stockage server/utils/stockageInventaire.js (meme pattern que les preuves :
 nom neutre <uuid>.csv, hash SHA-256, mode 0640, sous-repertoire inventaire/
 de PREUVES_DIR ou INVENTAIRE_DIR). Aucune modification du schema v4 :
@@ -519,41 +519,41 @@ une affectation. Le rapprochement est manuel.
 
 | Code | Type | Libelle propose | Route |
 |------|------|-----------------|-------|
-| 4000 | succes | Liste des imports d'inventaire | GET /api/inventaire/imports |
-| 4001 | succes | Detail de l'import | GET /api/inventaire/imports/:id |
-| 4002 | succes | Import d'inventaire effectue | POST /api/inventaire/imports (201, statut succes) |
-| 4003 | succes | Liste des releves d'inventaire | GET /api/inventaire/releves |
-| 4004 | succes | Detail du releve | GET /api/inventaire/releves/:id |
-| 4005 | succes | Ecarts d'inventaire | GET /api/inventaire/ecarts |
-| 4006 | succes | Releve rapproche de l'affectation | POST /api/inventaire/releves/:id/rapprocher |
-| 4007 | succes | Releve marque en ecart assume | POST /api/inventaire/releves/:id/ecart-assume |
-| 4008 | succes | Releve rejete | POST /api/inventaire/releves/:id/rejeter |
-| 4009 | succes | Releve remis en attente | POST /api/inventaire/releves/:id/reouvrir |
-| 4010 | succes | Liste des affectations rapprochables | GET /api/inventaire/affectations |
-| 4011 | avertissement | Import effectue avec des lignes en erreur | POST /api/inventaire/imports (201, statut succes_partiel, erreurs jointes) |
-| 4020 | erreur | Import introuvable | GET /api/inventaire/imports/:id |
-| 4021 | erreur | Releve introuvable | GET, POST /api/inventaire/releves/:id/... |
-| 4022 | erreur | Aucun fichier n'a ete transmis | POST /api/inventaire/imports |
-| 4023 | erreur | Extension non admise, format accepte csv | POST /api/inventaire/imports |
-| 4024 | erreur | Le fichier depasse la taille maximale de 20 Mo (413) | POST /api/inventaire/imports |
-| 4025 | erreur | Un seul fichier peut etre depose | POST /api/inventaire/imports |
-| 4026 | erreur | Fichier vide ou illisible, encodage UTF-8 attendu | POST /api/inventaire/imports |
-| 4027 | erreur | Colonnes obligatoires absentes : produit, reference, quantite (details.colonnes_manquantes) | POST /api/inventaire/imports |
-| 4028 | erreur | Aucune ligne exploitable, import en echec (422, import trace en echec, erreurs dans details) | POST /api/inventaire/imports |
-| 4029 | erreur | Societe introuvable | POST /api/inventaire/imports |
-| 4030 | erreur | Valeur de filtre invalide | GET /api/inventaire/releves |
-| 4031 | erreur | L'affectation est obligatoire | POST .../rapprocher |
-| 4032 | erreur | Affectation introuvable | POST .../rapprocher |
-| 4033 | erreur | Transition de statut non permise pour ce releve (409, details.statut_rapprochement) | POST .../rapprocher, ecart-assume, rejeter, reouvrir |
-| 4034 | erreur | Le motif de rejet est obligatoire | POST .../rejeter |
-| 4035 | reserve | Fichier archive introuvable, contenu du releve indisponible. Non emis : la liste sert la ligne avec fichier_absent true | GET /api/inventaire/releves |
-| 4036 | erreur | Le fichier depasse le nombre maximal de lignes (10000) | POST /api/inventaire/imports |
-| 4050 | trace | Inventaire importe (audit_log INVENTAIRE_IMPORTE) | POST /api/inventaire/imports |
-| 4051 | trace | Releve rapproche (audit_log RELEVE_RAPPROCHE) | POST .../rapprocher |
-| 4052 | trace | Releve marque en ecart assume (audit_log RELEVE_ECART_ASSUME) | POST .../ecart-assume |
-| 4053 | trace | Releve rejete (audit_log RELEVE_REJETE) | POST .../rejeter |
-| 4054 | trace | Releve remis en attente (audit_log RELEVE_REOUVERT) | POST .../reouvrir |
-| 4099 | erreur | Erreur serveur inattendue (module inventaire) | toutes |
+| 4200 | succes | Liste des imports d'inventaire | GET /api/inventaire/imports |
+| 4201 | succes | Detail de l'import | GET /api/inventaire/imports/:id |
+| 4202 | succes | Import d'inventaire effectue | POST /api/inventaire/imports (201, statut succes) |
+| 4203 | succes | Liste des releves d'inventaire | GET /api/inventaire/releves |
+| 4204 | succes | Detail du releve | GET /api/inventaire/releves/:id |
+| 4205 | succes | Ecarts d'inventaire | GET /api/inventaire/ecarts |
+| 4206 | succes | Releve rapproche de l'affectation | POST /api/inventaire/releves/:id/rapprocher |
+| 4207 | succes | Releve marque en ecart assume | POST /api/inventaire/releves/:id/ecart-assume |
+| 4208 | succes | Releve rejete | POST /api/inventaire/releves/:id/rejeter |
+| 4209 | succes | Releve remis en attente | POST /api/inventaire/releves/:id/reouvrir |
+| 4210 | succes | Liste des affectations rapprochables | GET /api/inventaire/affectations |
+| 4211 | avertissement | Import effectue avec des lignes en erreur | POST /api/inventaire/imports (201, statut succes_partiel, erreurs jointes) |
+| 4220 | erreur | Import introuvable | GET /api/inventaire/imports/:id |
+| 4221 | erreur | Releve introuvable | GET, POST /api/inventaire/releves/:id/... |
+| 4222 | erreur | Aucun fichier n'a ete transmis | POST /api/inventaire/imports |
+| 4223 | erreur | Extension non admise, format accepte csv | POST /api/inventaire/imports |
+| 4224 | erreur | Le fichier depasse la taille maximale de 20 Mo (413) | POST /api/inventaire/imports |
+| 4225 | erreur | Un seul fichier peut etre depose | POST /api/inventaire/imports |
+| 4226 | erreur | Fichier vide ou illisible, encodage UTF-8 attendu | POST /api/inventaire/imports |
+| 4227 | erreur | Colonnes obligatoires absentes : produit, reference, quantite (details.colonnes_manquantes) | POST /api/inventaire/imports |
+| 4228 | erreur | Aucune ligne exploitable, import en echec (422, import trace en echec, erreurs dans details) | POST /api/inventaire/imports |
+| 4229 | erreur | Societe introuvable | POST /api/inventaire/imports |
+| 4230 | erreur | Valeur de filtre invalide | GET /api/inventaire/releves |
+| 4231 | erreur | L'affectation est obligatoire | POST .../rapprocher |
+| 4232 | erreur | Affectation introuvable | POST .../rapprocher |
+| 4233 | erreur | Transition de statut non permise pour ce releve (409, details.statut_rapprochement) | POST .../rapprocher, ecart-assume, rejeter, reouvrir |
+| 4234 | erreur | Le motif de rejet est obligatoire | POST .../rejeter |
+| 4235 | reserve | Fichier archive introuvable, contenu du releve indisponible. Non emis : la liste sert la ligne avec fichier_absent true | GET /api/inventaire/releves |
+| 4236 | erreur | Le fichier depasse le nombre maximal de lignes (10000) | POST /api/inventaire/imports |
+| 4250 | trace | Inventaire importe (audit_log INVENTAIRE_IMPORTE) | POST /api/inventaire/imports |
+| 4251 | trace | Releve rapproche (audit_log RELEVE_RAPPROCHE) | POST .../rapprocher |
+| 4252 | trace | Releve marque en ecart assume (audit_log RELEVE_ECART_ASSUME) | POST .../ecart-assume |
+| 4253 | trace | Releve rejete (audit_log RELEVE_REJETE) | POST .../rejeter |
+| 4254 | trace | Releve remis en attente (audit_log RELEVE_REOUVERT) | POST .../reouvrir |
+| 4299 | erreur | Erreur serveur inattendue (module inventaire) | toutes |
 
 Transitions de statut (inventaire_raw.statut_rapprochement) :
 rapprocher : en_attente ou ecart_detecte vers rapproche (id_affectation ecrit) ;

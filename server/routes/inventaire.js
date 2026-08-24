@@ -198,16 +198,16 @@ router.post("/inventaire/imports", (req, res) => {
       const pivot = erreurReception(err);
       if (pivot) return erreurPivot(res, pivot);
       console.error(err);
-      return erreur(res, 4099, { status: 500, message: "Erreur serveur" });
+      return erreur(res, 4299, { status: 500, message: "Erreur serveur" });
     }
-    if (!req.file) return erreur(res, 4022, { status: 400, message: "Aucun fichier n'a ete transmis." });
+    if (!req.file) return erreur(res, 4222, { status: 400, message: "Aucun fichier n'a ete transmis." });
     const invalide = validerFichier(req.file);
     if (invalide) return erreurPivot(res, invalide);
 
     const decoupe = decouperCsv(req.file.buffer);
     if (decoupe.erreur) return erreurPivot(res, decoupe.erreur);
     if (decoupe.releves.length > NB_LIGNES_MAX)
-      return erreur(res, 4036, { status: 400, message: `Le fichier depasse le nombre maximal de lignes (${NB_LIGNES_MAX}).` });
+      return erreur(res, 4236, { status: 400, message: `Le fichier depasse le nombre maximal de lignes (${NB_LIGNES_MAX}).` });
 
     const client = await tenantPool.connect();
     let nomPhysique = null;
@@ -216,10 +216,10 @@ router.post("/inventaire/imports", (req, res) => {
       // colonne societe du csv prime ligne a ligne.
       const idSocieteDefaut = (req.body?.id_societe || "").trim() || null;
       if (idSocieteDefaut && !UUID_RE.test(idSocieteDefaut))
-        return erreur(res, 4029, { status: 400, message: "Societe introuvable." });
+        return erreur(res, 4229, { status: 400, message: "Societe introuvable." });
       const { rows: societes } = await client.query(`SELECT id, raison_sociale FROM societe`);
       if (idSocieteDefaut && !societes.some((s) => s.id === idSocieteDefaut))
-        return erreur(res, 4029, { status: 400, message: "Societe introuvable." });
+        return erreur(res, 4229, { status: 400, message: "Societe introuvable." });
       const societeParId = new Map(societes.map((s) => [s.id, s]));
       const societeParNom = new Map(societes.map((s) => [cleRef(s.raison_sociale), s]));
 
@@ -306,9 +306,9 @@ router.post("/inventaire/imports", (req, res) => {
       await client.query("COMMIT");
 
       const { rows: [detail] } = await tenantPool.query(`${SELECT_IMPORT} AND li.id = $1`, [imp.id]);
-      const code = statut === "succes" ? 4002 : statut === "succes_partiel" ? 4011 : 4028;
+      const code = statut === "succes" ? 4202 : statut === "succes_partiel" ? 4211 : 4228;
       if (statut === "echec")
-        return erreur(res, 4028, {
+        return erreur(res, 4228, {
           status: 422, message: "Aucune ligne exploitable : import en echec, erreurs jointes.",
           details: { import: projeterImport(detail), erreurs },
         });
@@ -317,7 +317,7 @@ router.post("/inventaire/imports", (req, res) => {
       await client.query("ROLLBACK").catch(() => {});
       if (nomPhysique) await supprimerFichier(nomPhysique);
       console.error(e);
-      return erreur(res, 4099, { status: 500, message: "Erreur serveur" });
+      return erreur(res, 4299, { status: 500, message: "Erreur serveur" });
     } finally {
       client.release();
     }
@@ -327,19 +327,19 @@ router.post("/inventaire/imports", (req, res) => {
 router.get("/inventaire/imports", async (req, res) => {
   try {
     const { rows } = await tenantPool.query(`${SELECT_IMPORT} ORDER BY li.created_at DESC`);
-    return succes(res, 4000, rows.map(projeterImport));
+    return succes(res, 4200, rows.map(projeterImport));
   } catch (e) {
     console.error(e);
-    return erreur(res, 4099, { status: 500, message: "Erreur serveur" });
+    return erreur(res, 4299, { status: 500, message: "Erreur serveur" });
   }
 });
 
 router.get("/inventaire/imports/:id", async (req, res) => {
   const { id } = req.params;
-  if (!UUID_RE.test(id)) return erreur(res, 4020, { status: 404, message: "Import introuvable." });
+  if (!UUID_RE.test(id)) return erreur(res, 4220, { status: 404, message: "Import introuvable." });
   try {
     const { rows } = await tenantPool.query(`${SELECT_IMPORT} AND li.id = $1`, [id]);
-    if (!rows.length) return erreur(res, 4020, { status: 404, message: "Import introuvable." });
+    if (!rows.length) return erreur(res, 4220, { status: 404, message: "Import introuvable." });
     const imp = projeterImport(rows[0]);
     const [{ rows: erreurs }, { rows: releves }] = await Promise.all([
       tenantPool.query(
@@ -355,10 +355,10 @@ router.get("/inventaire/imports/:id", async (req, res) => {
     // d'insertion (meme horodatage) ni alphabetique ("Ligne 10" avant "Ligne 4").
     const numero = (e) => Number(/^Ligne (\d+)/.exec(e.description)?.[1] ?? 0);
     erreurs.sort((a, b) => numero(a) - numero(b));
-    return succes(res, 4001, { ...imp, erreurs, releves: enrichis });
+    return succes(res, 4201, { ...imp, erreurs, releves: enrichis });
   } catch (e) {
     console.error(e);
-    return erreur(res, 4099, { status: 500, message: "Erreur serveur" });
+    return erreur(res, 4299, { status: 500, message: "Erreur serveur" });
   }
 });
 
@@ -367,14 +367,14 @@ router.get("/inventaire/imports/:id", async (req, res) => {
 // ---------------------------------------------------------------------------
 router.get("/inventaire/releves", async (req, res) => {
   const filtres = construireFiltres(req.query);
-  if (filtres.erreur) return erreur(res, 4030, { status: 400, message: filtres.erreur });
+  if (filtres.erreur) return erreur(res, 4230, { status: 400, message: filtres.erreur });
   try {
     const { rows } = await tenantPool.query(
       `${SELECT_RELEVE} ${filtres.clause} ORDER BY ir.created_at DESC, ir.url_fichier`, filtres.params);
-    return succes(res, 4003, await enrichirReleves(rows));
+    return succes(res, 4203, await enrichirReleves(rows));
   } catch (e) {
     console.error(e);
-    return erreur(res, 4099, { status: 500, message: "Erreur serveur" });
+    return erreur(res, 4299, { status: 500, message: "Erreur serveur" });
   }
 });
 
@@ -382,10 +382,10 @@ router.get("/inventaire/releves", async (req, res) => {
 // choix manuel. Lecture seule, sous consulter_inventaire.
 router.get("/inventaire/affectations", async (req, res) => {
   try {
-    return succes(res, 4010, await chargerAffectations());
+    return succes(res, 4210, await chargerAffectations());
   } catch (e) {
     console.error(e);
-    return erreur(res, 4099, { status: 500, message: "Erreur serveur" });
+    return erreur(res, 4299, { status: 500, message: "Erreur serveur" });
   }
 });
 
@@ -449,26 +449,26 @@ router.get("/inventaire/ecarts", async (req, res) => {
       .map((s) => ({ ...s, ecart_declare_constate: s.constate - s.declare }))
       .sort((a, b) => a.produit.localeCompare(b.produit));
 
-    return succes(res, 4005, {
+    return succes(res, 4205, {
       compteurs, constates_sans_affectation, affectations_non_constatees, synthese_produits,
     });
   } catch (e) {
     console.error(e);
-    return erreur(res, 4099, { status: 500, message: "Erreur serveur" });
+    return erreur(res, 4299, { status: 500, message: "Erreur serveur" });
   }
 });
 
 router.get("/inventaire/releves/:id", async (req, res) => {
   const { id } = req.params;
-  if (!UUID_RE.test(id)) return erreur(res, 4021, { status: 404, message: "Releve introuvable." });
+  if (!UUID_RE.test(id)) return erreur(res, 4221, { status: 404, message: "Releve introuvable." });
   try {
     const { rows } = await tenantPool.query(`${SELECT_RELEVE} WHERE ir.id = $1`, [id]);
-    if (!rows.length) return erreur(res, 4021, { status: 404, message: "Releve introuvable." });
+    if (!rows.length) return erreur(res, 4221, { status: 404, message: "Releve introuvable." });
     const [releve] = await enrichirReleves(rows);
-    return succes(res, 4004, releve);
+    return succes(res, 4204, releve);
   } catch (e) {
     console.error(e);
-    return erreur(res, 4099, { status: 500, message: "Erreur serveur" });
+    return erreur(res, 4299, { status: 500, message: "Erreur serveur" });
   }
 });
 
@@ -481,16 +481,16 @@ router.get("/inventaire/releves/:id", async (req, res) => {
 //   reouvrir     : rapproche | ecart_detecte | rejete -> en_attente
 // ---------------------------------------------------------------------------
 const TRANSITIONS = {
-  rapprocher:     { depuis: ["en_attente", "ecart_detecte"], vers: "rapproche",     code: 4006, action: "RELEVE_RAPPROCHE",     journal: "rapprochement" },
-  "ecart-assume": { depuis: ["en_attente", "rapproche"],     vers: "ecart_detecte", code: 4007, action: "RELEVE_ECART_ASSUME",  journal: "ecart_assume" },
-  rejeter:        { depuis: ["en_attente", "ecart_detecte"], vers: "rejete",        code: 4008, action: "RELEVE_REJETE",        journal: "rejet" },
-  reouvrir:       { depuis: ["rapproche", "ecart_detecte", "rejete"], vers: "en_attente", code: 4009, action: "RELEVE_REOUVERT", journal: "reouverture" },
+  rapprocher:     { depuis: ["en_attente", "ecart_detecte"], vers: "rapproche",     code: 4206, action: "RELEVE_RAPPROCHE",     journal: "rapprochement" },
+  "ecart-assume": { depuis: ["en_attente", "rapproche"],     vers: "ecart_detecte", code: 4207, action: "RELEVE_ECART_ASSUME",  journal: "ecart_assume" },
+  rejeter:        { depuis: ["en_attente", "ecart_detecte"], vers: "rejete",        code: 4208, action: "RELEVE_REJETE",        journal: "rejet" },
+  reouvrir:       { depuis: ["rapproche", "ecart_detecte", "rejete"], vers: "en_attente", code: 4209, action: "RELEVE_REOUVERT", journal: "reouverture" },
 };
 
 async function transition(req, res, nom) {
   const regle = TRANSITIONS[nom];
   const { id } = req.params;
-  if (!UUID_RE.test(id)) return erreur(res, 4021, { status: 404, message: "Releve introuvable." });
+  if (!UUID_RE.test(id)) return erreur(res, 4221, { status: 404, message: "Releve introuvable." });
   const motif = (req.body?.motif || "").trim() || null;
   const idAffectation = (req.body?.id_affectation || "").trim() || null;
 
@@ -501,12 +501,12 @@ async function transition(req, res, nom) {
       `SELECT id, url_fichier, statut_rapprochement, id_affectation FROM inventaire_raw WHERE id = $1 FOR UPDATE`, [id]);
     if (!rows.length) {
       await client.query("ROLLBACK");
-      return erreur(res, 4021, { status: 404, message: "Releve introuvable." });
+      return erreur(res, 4221, { status: 404, message: "Releve introuvable." });
     }
     const avant = rows[0];
     if (!regle.depuis.includes(avant.statut_rapprochement)) {
       await client.query("ROLLBACK");
-      return erreur(res, 4033, {
+      return erreur(res, 4233, {
         status: 409,
         message: `Transition non permise : le releve est ${avant.statut_rapprochement}.`,
         details: { statut_rapprochement: avant.statut_rapprochement, transition: nom },
@@ -516,7 +516,7 @@ async function transition(req, res, nom) {
     if (nom === "rapprocher") {
       if (!idAffectation) {
         await client.query("ROLLBACK");
-        return erreur(res, 4031, { status: 400, message: "L'affectation est obligatoire." });
+        return erreur(res, 4231, { status: 400, message: "L'affectation est obligatoire." });
       }
       if (UUID_RE.test(idAffectation)) {
         const r = await client.query(`SELECT id, label, reference_client FROM affectation WHERE id = $1`, [idAffectation]);
@@ -524,12 +524,12 @@ async function transition(req, res, nom) {
       }
       if (!affectation) {
         await client.query("ROLLBACK");
-        return erreur(res, 4032, { status: 400, message: "Affectation introuvable." });
+        return erreur(res, 4232, { status: 400, message: "Affectation introuvable." });
       }
     }
     if (nom === "rejeter" && !motif) {
       await client.query("ROLLBACK");
-      return erreur(res, 4034, { status: 400, message: "Le motif de rejet est obligatoire." });
+      return erreur(res, 4234, { status: 400, message: "Le motif de rejet est obligatoire." });
     }
 
     const apres = {
@@ -562,7 +562,7 @@ async function transition(req, res, nom) {
   } catch (e) {
     await client.query("ROLLBACK").catch(() => {});
     console.error(e);
-    return erreur(res, 4099, { status: 500, message: "Erreur serveur" });
+    return erreur(res, 4299, { status: 500, message: "Erreur serveur" });
   } finally {
     client.release();
   }

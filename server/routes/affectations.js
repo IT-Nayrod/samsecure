@@ -109,19 +109,19 @@ function normaliserCorps(body = {}) {
 async function validerAffectation(client, corps) {
   const { id_licence, id_societe, quantite, reference_client } = corps;
   if (!id_licence)
-    return { status: 400, code: 4011, error: "La licence est obligatoire." };
+    return { status: 400, code: 4111, error: "La licence est obligatoire." };
   if (!UUID_RE.test(id_licence) || !(await existe(client, "licence", id_licence)))
-    return { status: 400, code: 4012, error: "Licence introuvable." };
+    return { status: 400, code: 4112, error: "Licence introuvable." };
   if (!id_societe)
-    return { status: 400, code: 4013, error: "La societe est obligatoire." };
+    return { status: 400, code: 4113, error: "La societe est obligatoire." };
   if (!UUID_RE.test(id_societe) || !(await existe(client, "societe", id_societe)))
-    return { status: 400, code: 4014, error: "Societe introuvable." };
+    return { status: 400, code: 4114, error: "Societe introuvable." };
   // Doublon volontaire du CHECK quantite > 0 : un 400 lisible plutot qu'une
   // 23514 en 500.
   if (!Number.isInteger(quantite) || quantite <= 0)
-    return { status: 400, code: 4015, error: "La quantite doit etre un entier strictement positif." };
+    return { status: 400, code: 4115, error: "La quantite doit etre un entier strictement positif." };
   if (!reference_client)
-    return { status: 400, code: 4016, error: "La reference client est obligatoire." };
+    return { status: 400, code: 4116, error: "La reference client est obligatoire." };
   return null;
 }
 
@@ -146,13 +146,13 @@ router.get("/affectations", async (req, res) => {
   try {
     const societe = req.query.id_societe || null;
     if (societe && !UUID_RE.test(societe))
-      return erreur(res, 4017, { status: 400, message: "Identifiant de societe invalide." });
+      return erreur(res, 4117, { status: 400, message: "Identifiant de societe invalide." });
     const produit = req.query.id_produit || null;
     if (produit && !UUID_RE.test(produit))
-      return erreur(res, 4018, { status: 400, message: "Identifiant de produit invalide." });
+      return erreur(res, 4118, { status: 400, message: "Identifiant de produit invalide." });
     const licence = req.query.id_licence || null;
     if (licence && !UUID_RE.test(licence))
-      return erreur(res, 4019, { status: 400, message: "Identifiant de licence invalide." });
+      return erreur(res, 4119, { status: 400, message: "Identifiant de licence invalide." });
 
     const { rows } = await tenantPool.query(
       `${SELECT_AFFECTATION}
@@ -169,10 +169,10 @@ router.get("/affectations", async (req, res) => {
       (!cycle || r.statut_revalidation === cycle));
 
     const produits = await libellesProduits(filtrees.map((r) => r.id_produit));
-    succes(res, 4000, joindreProduits(filtrees, produits));
+    succes(res, 4100, joindreProduits(filtrees, produits));
   } catch (err) {
     console.error("GET /affectations error", err);
-    erreur(res, 4099, { status: 500, message: "Erreur serveur" });
+    erreur(res, 4199, { status: 500, message: "Erreur serveur" });
   }
 });
 
@@ -186,10 +186,10 @@ router.get("/affectations/decompte", async (req, res) => {
   try {
     const societe = req.query.id_societe || null;
     if (societe && !UUID_RE.test(societe))
-      return erreur(res, 4017, { status: 400, message: "Identifiant de societe invalide." });
+      return erreur(res, 4117, { status: 400, message: "Identifiant de societe invalide." });
     const produit = req.query.id_produit || null;
     if (produit && !UUID_RE.test(produit))
-      return erreur(res, 4018, { status: 400, message: "Identifiant de produit invalide." });
+      return erreur(res, 4118, { status: 400, message: "Identifiant de produit invalide." });
 
     const { rows } = await tenantPool.query(
       `SELECT l.id_produit, a.id_societe, s.raison_sociale AS societe_label,
@@ -227,7 +227,7 @@ router.get("/affectations/decompte", async (req, res) => {
       parProduit.set(r.id_produit, p);
     }
 
-    succes(res, 4006, {
+    succes(res, 4106, {
       filtres: { id_societe: societe, id_produit: produit },
       regle: "somme brute des quantites, statuts valide et a_revalider, sans deduplication par reference",
       lignes,
@@ -235,7 +235,7 @@ router.get("/affectations/decompte", async (req, res) => {
     });
   } catch (err) {
     console.error("GET /affectations/decompte error", err);
-    erreur(res, 4099, { status: 500, message: "Erreur serveur" });
+    erreur(res, 4199, { status: 500, message: "Erreur serveur" });
   }
 });
 
@@ -244,10 +244,10 @@ router.get("/affectations/historique", async (req, res) => {
   try {
     const societe = req.query.id_societe || null;
     if (societe && !UUID_RE.test(societe))
-      return erreur(res, 4017, { status: 400, message: "Identifiant de societe invalide." });
+      return erreur(res, 4117, { status: 400, message: "Identifiant de societe invalide." });
     const affectation = req.query.id_affectation || null;
     if (affectation && !UUID_RE.test(affectation))
-      return erreur(res, 4010, { status: 404, message: "Affectation introuvable." });
+      return erreur(res, 4110, { status: 404, message: "Affectation introuvable." });
 
     const { rows } = await tenantPool.query(
       `SELECT h.id, h.id_societe, s.raison_sociale AS societe_label,
@@ -262,19 +262,19 @@ router.get("/affectations/historique", async (req, res) => {
         ORDER BY h.created_at DESC
         LIMIT 500`,
       [societe, affectation]);
-    succes(res, 4007, rows);
+    succes(res, 4107, rows);
   } catch (err) {
     console.error("GET /affectations/historique error", err);
-    erreur(res, 4099, { status: 500, message: "Erreur serveur" });
+    erreur(res, 4199, { status: 500, message: "Erreur serveur" });
   }
 });
 
 router.get("/affectations/:id", async (req, res) => {
   const { id } = req.params;
   try {
-    if (!UUID_RE.test(id)) return erreur(res, 4010, { status: 404, message: "Affectation introuvable." });
+    if (!UUID_RE.test(id)) return erreur(res, 4110, { status: 404, message: "Affectation introuvable." });
     const aff = await chargerUne(id);
-    if (!aff) return erreur(res, 4010, { status: 404, message: "Affectation introuvable." });
+    if (!aff) return erreur(res, 4110, { status: 404, message: "Affectation introuvable." });
 
     const { rows: cycles } = await tenantPool.query(
       `SELECT date_derniere_validation::text AS date_derniere_validation,
@@ -293,10 +293,10 @@ router.get("/affectations/:id", async (req, res) => {
         WHERE w.entite_type = 'affectation' AND w.entite_id = $1
         ORDER BY w.created_at DESC, w.id DESC`, [id]);
 
-    succes(res, 4001, { ...aff, cycles, soumissions });
+    succes(res, 4101, { ...aff, cycles, soumissions });
   } catch (err) {
     console.error("GET /affectations/:id error", err);
-    erreur(res, 4099, { status: 500, message: "Erreur serveur" });
+    erreur(res, 4199, { status: 500, message: "Erreur serveur" });
   }
 });
 
@@ -335,11 +335,11 @@ router.post("/affectations", async (req, res) => {
       `Declaration de l'affectation "${corps.reference_client}"`, corps);
     await client.query("COMMIT");
 
-    succes(res, 4002, await chargerUne(creee.id), { status: 201 });
+    succes(res, 4102, await chargerUne(creee.id), { status: 201 });
   } catch (err) {
     await client.query("ROLLBACK").catch(() => {});
     console.error("POST /affectations error", err);
-    erreur(res, 4099, { status: 500, message: "Erreur serveur" });
+    erreur(res, 4199, { status: 500, message: "Erreur serveur" });
   } finally {
     client.release();
   }
@@ -353,12 +353,12 @@ router.patch("/affectations/:id", async (req, res) => {
 
     if (!UUID_RE.test(id)) {
       await client.query("ROLLBACK");
-      return erreur(res, 4010, { status: 404, message: "Affectation introuvable." });
+      return erreur(res, 4110, { status: 404, message: "Affectation introuvable." });
     }
     const avant = await lireAffectation(client, id);
     if (!avant) {
       await client.query("ROLLBACK");
-      return erreur(res, 4010, { status: 404, message: "Affectation introuvable." });
+      return erreur(res, 4110, { status: 404, message: "Affectation introuvable." });
     }
 
     const patch = normaliserCorps(req.body);
@@ -411,11 +411,11 @@ router.patch("/affectations/:id", async (req, res) => {
       `Modification de l'affectation "${corps.reference_client}"`, delta.apres);
     await client.query("COMMIT");
 
-    succes(res, 4003, await chargerUne(id));
+    succes(res, 4103, await chargerUne(id));
   } catch (err) {
     await client.query("ROLLBACK").catch(() => {});
     console.error("PATCH /affectations/:id error", err);
-    erreur(res, 4099, { status: 500, message: "Erreur serveur" });
+    erreur(res, 4199, { status: 500, message: "Erreur serveur" });
   } finally {
     client.release();
   }
@@ -429,12 +429,12 @@ router.delete("/affectations/:id", async (req, res) => {
 
     if (!UUID_RE.test(id)) {
       await client.query("ROLLBACK");
-      return erreur(res, 4010, { status: 404, message: "Affectation introuvable." });
+      return erreur(res, 4110, { status: 404, message: "Affectation introuvable." });
     }
     const avant = await lireAffectation(client, id);
     if (!avant) {
       await client.query("ROLLBACK");
-      return erreur(res, 4010, { status: 404, message: "Affectation introuvable." });
+      return erreur(res, 4110, { status: 404, message: "Affectation introuvable." });
     }
 
     // inventaire_raw.id_affectation est une FK sans cascade : un rapprochement
@@ -443,7 +443,7 @@ router.delete("/affectations/:id", async (req, res) => {
       `SELECT count(*)::int AS inventaires FROM inventaire_raw WHERE id_affectation = $1`, [id]);
     if (inventaires) {
       await client.query("ROLLBACK");
-      return erreur(res, 4032, {
+      return erreur(res, 4132, {
         status: 409,
         message: `Suppression impossible : cette affectation est rapprochee de ${inventaires} ligne(s) d'inventaire.`,
         details: { inventaires },
@@ -468,11 +468,11 @@ router.delete("/affectations/:id", async (req, res) => {
     await log(client, req, "DELETE", "affectation", id,
       `Suppression de l'affectation "${avant.reference_client}"`, null);
     await client.query("COMMIT");
-    succes(res, 4004, null);
+    succes(res, 4104, null);
   } catch (err) {
     await client.query("ROLLBACK").catch(() => {});
     console.error("DELETE /affectations/:id error", err);
-    erreur(res, 4099, { status: 500, message: "Erreur serveur" });
+    erreur(res, 4199, { status: 500, message: "Erreur serveur" });
   } finally {
     client.release();
   }
@@ -490,18 +490,18 @@ router.post("/affectations/:id/revalider", async (req, res) => {
 
     if (!UUID_RE.test(id)) {
       await client.query("ROLLBACK");
-      return erreur(res, 4010, { status: 404, message: "Affectation introuvable." });
+      return erreur(res, 4110, { status: 404, message: "Affectation introuvable." });
     }
     const aff = await lireAffectation(client, id);
     if (!aff) {
       await client.query("ROLLBACK");
-      return erreur(res, 4010, { status: 404, message: "Affectation introuvable." });
+      return erreur(res, 4110, { status: 404, message: "Affectation introuvable." });
     }
 
     const courant = await lireStatutCourant(client, "affectation", id, true);
     if (!courant || courant.statut !== "valide") {
       await client.query("ROLLBACK");
-      return erreur(res, 4030, {
+      return erreur(res, 4130, {
         status: 409,
         message: "Seule une affectation validee peut etre revalidee. Statut courant : " +
                  `${courant?.statut_label || courant?.statut || "aucune demande"}.`,
@@ -524,11 +524,11 @@ router.post("/affectations/:id/revalider", async (req, res) => {
       `Revalidation de l'affectation "${aff.reference_client}"`, cycle);
     await client.query("COMMIT");
 
-    succes(res, 4005, await chargerUne(id));
+    succes(res, 4105, await chargerUne(id));
   } catch (err) {
     await client.query("ROLLBACK").catch(() => {});
     console.error("POST /affectations/:id/revalider error", err);
-    erreur(res, 4099, { status: 500, message: "Erreur serveur" });
+    erreur(res, 4199, { status: 500, message: "Erreur serveur" });
   } finally {
     client.release();
   }

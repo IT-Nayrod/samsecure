@@ -42,7 +42,7 @@ function dansFile(a) {
 }
 
 // Revalidable : validee (a jour, en alerte ou depassee). Une saisie en attente
-// ou refusee ne l'est pas, l'API repond 4030.
+// ou refusee ne l'est pas, l'API repond 4130.
 function revalidable(a) {
   return a.statut_validation === 'valide' || a.statut_validation === 'a_revalider';
 }

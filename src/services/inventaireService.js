@@ -1,7 +1,7 @@
 // inventaireService - acces API du module inventaire (#111).
 // Meme convention que documentsService : aucun fetch direct, http.js porte le
 // Bearer, le refresh sur 401, la normalisation des erreurs en ApiError
-// (message = champ "error", code = code_retour 4000-4099) et le deballage de
+// (message = champ "error", code = code_retour 4200-4299) et le deballage de
 // l'enveloppe { code, type, libelle, data }.
 //
 // Doctrine actee : l'outil constate et alerte, il ne cree ni ne modifie jamais

@@ -48,9 +48,9 @@ export function recevoirUnFichier(champ) {
 
 export function erreurReception(err) {
   if (err.code === "LIMIT_FILE_SIZE")
-    return { status: 413, code: 4024, error: "Le fichier depasse la taille maximale de 20 Mo." };
+    return { status: 413, code: 4224, error: "Le fichier depasse la taille maximale de 20 Mo." };
   if (err.code === "LIMIT_FILE_COUNT" || err.code === "LIMIT_UNEXPECTED_FILE")
-    return { status: 400, code: 4025, error: "Un seul fichier peut etre depose." };
+    return { status: 400, code: 4225, error: "Un seul fichier peut etre depose." };
   return null;
 }
 
@@ -60,13 +60,13 @@ export function erreurReception(err) {
 export function validerFichier(file) {
   const extension = path.extname(file?.originalname || "").toLowerCase();
   if (extension !== ".csv")
-    return { status: 400, code: 4023, error: "Extension non admise. Format accepte : csv." };
+    return { status: 400, code: 4223, error: "Extension non admise. Format accepte : csv." };
   if (!file.buffer.length)
-    return { status: 400, code: 4026, error: "Le fichier est vide." };
+    return { status: 400, code: 4226, error: "Le fichier est vide." };
   try {
     new TextDecoder("utf-8", { fatal: true }).decode(file.buffer);
   } catch {
-    return { status: 400, code: 4026, error: "Le fichier n'est pas lisible : encodage UTF-8 attendu." };
+    return { status: 400, code: 4226, error: "Le fichier n'est pas lisible : encodage UTF-8 attendu." };
   }
   return null;
 }
@@ -170,7 +170,7 @@ export function decouperCsv(buffer) {
   if (texte.charCodeAt(0) === 0xfeff) texte = texte.slice(1);
   const premiereLigne = texte.split(/\r?\n/, 1)[0] || "";
   if (!premiereLigne.trim())
-    return { erreur: { status: 400, code: 4026, error: "Le fichier est vide." } };
+    return { erreur: { status: 400, code: 4226, error: "Le fichier est vide." } };
 
   const delimiteur = devinerDelimiteur(premiereLigne);
   const enregistrements = analyser(texte, delimiteur);
@@ -184,7 +184,7 @@ export function decouperCsv(buffer) {
   const manquantes = COLONNES_OBLIGATOIRES.filter((c) => colonnes[c] === undefined);
   if (manquantes.length)
     return { erreur: {
-      status: 400, code: 4027,
+      status: 400, code: 4227,
       error: `Colonnes obligatoires absentes : ${manquantes.join(", ")}. ` +
              "Attendu : produit (identifiant ou libelle), reference, quantite.",
       details: { colonnes_manquantes: manquantes, entete },
