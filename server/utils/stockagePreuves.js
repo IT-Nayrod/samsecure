@@ -56,12 +56,10 @@ export function recevoirUnFichier(champ) {
 // Traduit les erreurs multer dans le format de reponse du projet. Renvoyer null
 // signifie que l'erreur n'est pas une erreur de reception connue.
 export function erreurReception(err) {
-  // code_retour: 3222
   if (err.code === "LIMIT_FILE_SIZE")
-    return { status: 413, error: "Le fichier depasse la taille maximale de 20 Mo." };
-  // code_retour: 3227
+    return { status: 413, code: 3222, error: "Le fichier depasse la taille maximale de 20 Mo." };
   if (err.code === "LIMIT_FILE_COUNT" || err.code === "LIMIT_UNEXPECTED_FILE")
-    return { status: 400, error: "Un seul fichier peut etre depose." };
+    return { status: 400, code: 3227, error: "Un seul fichier peut etre depose." };
   return null;
 }
 
@@ -69,14 +67,12 @@ export function erreurReception(err) {
 // { status, error } dans la meme convention que les validations de corps.
 export function validerFichier(file) {
   const extension = path.extname(file?.originalname || "").toLowerCase();
-  // code_retour: 3221
   if (!TYPES_ADMIS[extension])
-    return { status: 400, error: "Extension non admise. Formats acceptes : pdf, png, jpg, jpeg." };
+    return { status: 400, code: 3221, error: "Extension non admise. Formats acceptes : pdf, png, jpg, jpeg." };
   const attendue = SIGNATURES[extension];
-  // code_retour: 3223
   if (!attendue || file.buffer.length < attendue.length ||
       !attendue.every((octet, i) => file.buffer[i] === octet))
-    return { status: 400, error: "Le contenu du fichier ne correspond pas a son extension." };
+    return { status: 400, code: 3223, error: "Le contenu du fichier ne correspond pas a son extension." };
   return null;
 }
 
