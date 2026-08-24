@@ -1,5 +1,6 @@
 import express from "express";
 import { tenantPool } from "../db.js";
+import { succes, erreur, erreurPivot } from "../utils/reponse.js";
 import {
   recevoirUnFichier, erreurReception, validerFichier, ecrireFichier, supprimerFichier,
 } from "../utils/stockagePreuves.js";
@@ -94,45 +95,38 @@ function normaliserCorps(body = {}) {
 async function validerFacture(client, body) {
   const { label, id_commande, id_preuve } = body;
 
-  // code_retour: 3251
   if (!label || !label.trim())
-    return { status: 400, error: "Le libelle est obligatoire." };
-  // code_retour: 3252
+    return { status: 400, code: 3251, error: "Le libelle est obligatoire." };
   // Doublon volontaire du NOT NULL de facture.id_commande : la contrainte base
   // produirait une 23502 en 500, on veut un 400 lisible.
   if (!id_commande)
-    return { status: 400, error: "La commande est obligatoire." };
-  // code_retour: 3253
+    return { status: 400, code: 3252, error: "La commande est obligatoire." };
   if (!(await existe(client, "commande", id_commande)))
-    return { status: 400, error: "Commande introuvable." };
+    return { status: 400, code: 3253, error: "Commande introuvable." };
 
   // [ARBITRAGE flux] en attente, daily du 11/08. La regle viendra ici : soit
   // id_preuve devient obligatoire des la creation, avec depot en transaction
   // cote #49 et refus code 3255, soit la facture reste saisissable seule et la
   // preuve est rattachee ensuite. Dans l'attente, le DDL fait foi : la colonne
   // est nullable, on ne verifie que l'existence de la reference fournie.
-  // code_retour: 3254
   if (!(await existe(client, "preuve", id_preuve)))
-    return { status: 400, error: "Preuve introuvable." };
+    return { status: 400, code: 3254, error: "Preuve introuvable." };
   return null;
 }
 
 router.get("/factures", async (req, res) => {
   try {
     const filtres = construireFiltres(req.query);
-    // code_retour: 3259
-    if (filtres.erreur) return res.status(400).json({ error: filtres.erreur });
+    if (filtres.erreur) return erreur(res, 3259, { status: 400, message: filtres.erreur });
 
     const { rows } = await tenantPool.query(
       `${SELECT_FACTURE} ${filtres.clause} ORDER BY f.created_at DESC, f.label`,
       filtres.params
     );
-    // code_retour: 3240
-    res.json(rows);
+    succes(res, 3240, rows);
   } catch (err) {
     console.error("GET /factures error", err);
-    // code_retour: 3299
-    res.status(500).json({ error: "Erreur serveur" });
+    erreur(res, 3299, { status: 500, message: "Erreur serveur" });
   }
 });
 // ---------------------------------------------------------------------------
@@ -161,14 +155,11 @@ async function audit(client, req, action, entiteType, entiteId, apres) {
 }
 
 async function deposerFacture(req, res) {
-  // code_retour: 3256
   if (!req.file)
-    return res.status(400).json({ error: "Le fichier justificatif est obligatoire." });
+    return erreur(res, 3256, { status: 400, message: "Le fichier justificatif est obligatoire." });
 
-  // code_retour: 3221
-  // code_retour: 3223
   const invalideFichier = validerFichier(req.file);
-  if (invalideFichier) return res.status(invalideFichier.status).json({ error: invalideFichier.error });
+  if (invalideFichier) return erreurPivot(res, invalideFichier);
 
   const vide = (v) => (v === "" || v === undefined ? null : v);
   const label = (req.body?.label ?? "").trim();
@@ -183,30 +174,25 @@ async function deposerFacture(req, res) {
   try {
     await client.query("BEGIN");
 
-    // code_retour: 3251
     if (!label) {
       await client.query("ROLLBACK");
-      return res.status(400).json({ error: "Le libelle est obligatoire." });
+      return erreur(res, 3251, { status: 400, message: "Le libelle est obligatoire." });
     }
-    // code_retour: 3252
     if (!idCommande) {
       await client.query("ROLLBACK");
-      return res.status(400).json({ error: "La commande est obligatoire." });
+      return erreur(res, 3252, { status: 400, message: "La commande est obligatoire." });
     }
-    // code_retour: 3253
     if (!(await existe(client, "commande", idCommande))) {
       await client.query("ROLLBACK");
-      return res.status(400).json({ error: "Commande introuvable." });
+      return erreur(res, 3253, { status: 400, message: "Commande introuvable." });
     }
-    // code_retour: 3212
     if (!idTypePreuve) {
       await client.query("ROLLBACK");
-      return res.status(400).json({ error: "Le type de preuve est obligatoire." });
+      return erreur(res, 3212, { status: 400, message: "Le type de preuve est obligatoire." });
     }
-    // code_retour: 3213
     if (!(await existe(client, "type_preuve", idTypePreuve))) {
       await client.query("ROLLBACK");
-      return res.status(400).json({ error: "Type de preuve introuvable." });
+      return erreur(res, 3213, { status: 400, message: "Type de preuve introuvable." });
     }
 
     ecrit = await ecrireFichier(req.file);
@@ -240,16 +226,14 @@ async function deposerFacture(req, res) {
     await client.query("COMMIT");
 
     const { rows } = await tenantPool.query(`${SELECT_FACTURE} WHERE f.id = $1`, [facture.id]);
-    // code_retour: 3245
-    res.status(201).json(rows[0]);
+    succes(res, 3245, rows[0], { status: 201 });
   } catch (err) {
     await client.query("ROLLBACK").catch(() => {});
     // Tout ou rien jusqu'au disque : le fichier ecrit avant l'echec ne doit pas
     // survivre a une transaction annulee.
     if (ecrit) await supprimerFichier(ecrit.nomPhysique);
     console.error("POST /factures/depot error", err);
-    // code_retour: 3299
-    res.status(500).json({ error: "Erreur serveur" });
+    erreur(res, 3299, { status: 500, message: "Erreur serveur" });
   } finally {
     client.release();
   }
@@ -261,10 +245,9 @@ router.post("/factures/depot", (req, res) => {
   recevoirFichier(req, res, (err) => {
     if (err) {
       const connue = erreurReception(err);
-      if (connue) return res.status(connue.status).json({ error: connue.error });
+      if (connue) return erreurPivot(res, connue);
       console.error("POST /factures/depot multipart error", err);
-      // code_retour: 3256
-      return res.status(400).json({ error: "Le fichier justificatif est obligatoire." });
+      return erreur(res, 3256, { status: 400, message: "Le fichier justificatif est obligatoire." });
     }
     deposerFacture(req, res);
   });
@@ -274,19 +257,15 @@ router.post("/factures/depot", (req, res) => {
 router.get("/factures/:id", async (req, res) => {
   const { id } = req.params;
   try {
-    // code_retour: 3250
-    if (!UUID_RE.test(id)) return res.status(404).json({ error: "Facture introuvable." });
+    if (!UUID_RE.test(id)) return erreur(res, 3250, { status: 404, message: "Facture introuvable." });
 
     const { rows } = await tenantPool.query(`${SELECT_FACTURE} WHERE f.id = $1`, [id]);
-    // code_retour: 3250
-    if (!rows.length) return res.status(404).json({ error: "Facture introuvable." });
+    if (!rows.length) return erreur(res, 3250, { status: 404, message: "Facture introuvable." });
 
-    // code_retour: 3241
-    res.json(rows[0]);
+    succes(res, 3241, rows[0]);
   } catch (err) {
     console.error("GET /factures/:id error", err);
-    // code_retour: 3299
-    res.status(500).json({ error: "Erreur serveur" });
+    erreur(res, 3299, { status: 500, message: "Erreur serveur" });
   }
 });
 
@@ -299,7 +278,7 @@ router.post("/factures", async (req, res) => {
     const invalide = await validerFacture(client, corps);
     if (invalide) {
       await client.query("ROLLBACK");
-      return res.status(invalide.status).json({ error: invalide.error });
+      return erreurPivot(res, invalide);
     }
 
     const label = corps.label.trim();
@@ -318,13 +297,11 @@ router.post("/factures", async (req, res) => {
     await client.query("COMMIT");
 
     const { rows } = await tenantPool.query(`${SELECT_FACTURE} WHERE f.id = $1`, [creee.id]);
-    // code_retour: 3242
-    res.status(201).json(rows[0]);
+    succes(res, 3242, rows[0], { status: 201 });
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("POST /factures error", err);
-    // code_retour: 3299
-    res.status(500).json({ error: "Erreur serveur" });
+    erreur(res, 3299, { status: 500, message: "Erreur serveur" });
   } finally {
     client.release();
   }
@@ -336,18 +313,16 @@ router.patch("/factures/:id", async (req, res) => {
   try {
     await client.query("BEGIN");
 
-    // code_retour: 3250
     if (!UUID_RE.test(id)) {
       await client.query("ROLLBACK");
-      return res.status(404).json({ error: "Facture introuvable." });
+      return erreur(res, 3250, { status: 404, message: "Facture introuvable." });
     }
 
     const { rows: existant } = await client.query(
       `SELECT label, id_commande, id_preuve FROM facture WHERE id = $1`, [id]);
-    // code_retour: 3250
     if (!existant.length) {
       await client.query("ROLLBACK");
-      return res.status(404).json({ error: "Facture introuvable." });
+      return erreur(res, 3250, { status: 404, message: "Facture introuvable." });
     }
 
     // Fusion avant validation : un PATCH partiel ne doit pas echouer sur un
@@ -361,7 +336,7 @@ router.patch("/factures/:id", async (req, res) => {
     const invalide = await validerFacture(client, corps);
     if (invalide) {
       await client.query("ROLLBACK");
-      return res.status(invalide.status).json({ error: invalide.error });
+      return erreurPivot(res, invalide);
     }
 
     // Pas de updated_at : la table facture n'en porte pas (002_tenant_schema.sql:356).
@@ -378,13 +353,11 @@ router.patch("/factures/:id", async (req, res) => {
     await client.query("COMMIT");
 
     const { rows } = await tenantPool.query(`${SELECT_FACTURE} WHERE f.id = $1`, [id]);
-    // code_retour: 3243
-    res.json(rows[0]);
+    succes(res, 3243, rows[0]);
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("PATCH /factures/:id error", err);
-    // code_retour: 3299
-    res.status(500).json({ error: "Erreur serveur" });
+    erreur(res, 3299, { status: 500, message: "Erreur serveur" });
   } finally {
     client.release();
   }
@@ -396,17 +369,15 @@ router.delete("/factures/:id", async (req, res) => {
   try {
     await client.query("BEGIN");
 
-    // code_retour: 3250
     if (!UUID_RE.test(id)) {
       await client.query("ROLLBACK");
-      return res.status(404).json({ error: "Facture introuvable." });
+      return erreur(res, 3250, { status: 404, message: "Facture introuvable." });
     }
 
     const { rows: existant } = await client.query(`SELECT label FROM facture WHERE id = $1`, [id]);
-    // code_retour: 3250
     if (!existant.length) {
       await client.query("ROLLBACK");
-      return res.status(404).json({ error: "Facture introuvable." });
+      return erreur(res, 3250, { status: 404, message: "Facture introuvable." });
     }
 
     // Aucun garde-fou de suppression : dans le DDL v4, aucune table ne
@@ -418,13 +389,11 @@ router.delete("/factures/:id", async (req, res) => {
     await client.query(`DELETE FROM facture WHERE id = $1`, [id]);
     await log(client, "DELETE", "facture", id, `Suppression de la facture "${existant[0].label}"`, null);
     await client.query("COMMIT");
-    // code_retour: 3244
-    res.status(204).end();
+    succes(res, 3244, null);
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("DELETE /factures/:id error", err);
-    // code_retour: 3299
-    res.status(500).json({ error: "Erreur serveur" });
+    erreur(res, 3299, { status: 500, message: "Erreur serveur" });
   } finally {
     client.release();
   }
