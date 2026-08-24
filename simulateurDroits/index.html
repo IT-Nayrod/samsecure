@@ -487,13 +487,7 @@
         <h2>Créer un groupe (profil)</h2>
         <label class="field"><span>Libellé</span><input class="inp" id="inp-prof-label" type="text" placeholder="Responsable achats"></label>
         <label class="field"><span>Description</span><textarea class="inp" id="inp-prof-desc" placeholder="Responsabilités du rôle"></textarea></label>
-        <div class="field"><span>Diffusion du groupe</span>
-          <div class="radio-ligne">
-            <label><input type="radio" name="prof-portee" value="tenant" checked> Échelle du tenant (toutes sociétés)</label>
-            <label><input type="radio" name="prof-portee" value="societes"> Sociétés spécifiques</label>
-          </div>
-          <div id="chk-prof-societes" class="hidden"></div>
-        </div>
+        <p class="explorer-hint">Un groupe définit uniquement des droits sur les fonctionnalités. Le périmètre de données (sociétés) se fixe au moment de l'attribution du groupe à un utilisateur.</p>
         <button type="button" class="btn" id="btn-creer-profil">Créer le groupe</button>
         <div><span class="form-hint">POST /api/profils</span></div>
       </div>
@@ -501,6 +495,11 @@
         <h2>Groupes existants</h2>
         <div id="liste-profils"></div>
       </div>
+    </div>
+    <div class="card">
+      <h2>Corbeille des groupes (restauration possible pendant 90 jours)</h2>
+      <div id="liste-corbeille-groupes"></div>
+      <div><span class="form-hint">Corbeille locale au navigateur (localStorage ss_sim_corbeille_groupes) ; restauration par POST /api/profils puis réapplication des permissions, diffusions et attributions</span></div>
     </div>
     <div class="card">
       <h2>Droits du groupe (hérités par tous ses utilisateurs)</h2>
@@ -1012,7 +1011,7 @@ function bindGlobalEvents() {
   $("inp-journal-search")?.addEventListener("keydown", (e) => { if (e.key === "Enter") renderJournal(); });
   $("btn-journal-dl-full")?.addEventListener("click", downloadFullJournal);
 
-  [{ n: "usr-portee", c: "chk-usr-societes" }, { n: "prof-portee", c: "chk-prof-societes" }, { n: "att-portee", c: "chk-att-societes" }].forEach(({ n, c }) =>
+  [{ n: "usr-portee", c: "chk-usr-societes" }, { n: "att-portee", c: "chk-att-societes" }].forEach(({ n, c }) =>
     document.querySelectorAll("input[name='" + n + "']").forEach(r => r.addEventListener("change", () => {
       const val = document.querySelector("input[name='" + n + "']:checked")?.value;
       $(c)?.classList.toggle("hidden", val !== "societes");
@@ -1450,7 +1449,7 @@ function showFatal(err) { state.loading = false; state.error = err?.message || S
 
 function renderAdmin() {
   if (state.mode !== "admin") return;
-  renderListeUtilisateurs(); renderListeProfils(); renderListeAttributions();
+  renderListeUtilisateurs(); renderListeProfils(); renderCorbeilleGroupes(); renderListeAttributions();
   renderListeExceptions(); renderListeSocietes(); renderMatriceDroits(); renderJournal();
 }
 
@@ -1513,7 +1512,6 @@ function remplirSelectsAdmin() {
   }
 
   renderMultiSelectSocietes("chk-usr-societes");
-  renderMultiSelectSocietes("chk-prof-societes");
   refreshAttributionSocietes();
 }
 
@@ -1611,13 +1609,9 @@ function renderListeProfils() {
               <span>Libellé</span>
               <input class="inp" id="edit-prof-label-${p.id}" type="text" value="${esc(p.label)}">
             </label>
-            <label class="field" style="margin-bottom:8px;">
+            <label class="field" style="margin-bottom:4px;">
               <span>Description</span>
               <textarea class="inp" id="edit-prof-desc-${p.id}" placeholder="Responsabilités du rôle">${esc(p.description || "")}</textarea>
-            </label>
-            <label class="field" style="margin-bottom:4px;">
-              <span>Sociétés de diffusion</span>
-              <div id="edit-prof-soc-container-${p.id}"></div>
             </label>
           </div>
           <div style="display:flex;gap:8px;">
@@ -1634,25 +1628,111 @@ function renderListeProfils() {
       </div>
     </div>`;
   }).join("");
-
-  if (editState) {
-    const p = state.profils.find(x => x.id === editState.profilId);
-    if (p) {
-      const selectedIds = (editState.societes || []).map(s => s.idsociete).filter(Boolean);
-      renderMultiSelectSocietes(`edit-prof-soc-container-${p.id}`, state.societes, selectedIds);
-    }
-  }
 }
+
+/* ---------- Corbeille des groupes (ticket #64) ---------- */
+const CORBEILLE_GROUPES_KEY = "ss_sim_corbeille_groupes";
+const CORBEILLE_GROUPES_JOURS = 90;
+
+function lireCorbeilleGroupes() {
+  let arr = [];
+  try { arr = JSON.parse(localStorage.getItem(CORBEILLE_GROUPES_KEY) || "[]"); } catch (e) { arr = []; }
+  if (!Array.isArray(arr)) arr = [];
+  const limite = Date.now() - CORBEILLE_GROUPES_JOURS * 86400000;
+  const conservees = arr.filter(g => g && g.supprimeLe && new Date(g.supprimeLe).getTime() >= limite);
+  if (conservees.length !== arr.length) ecrireCorbeilleGroupes(conservees);
+  return conservees;
+}
+function ecrireCorbeilleGroupes(arr) { localStorage.setItem(CORBEILLE_GROUPES_KEY, JSON.stringify(arr)); }
+
+function renderCorbeilleGroupes() {
+  const el = $("liste-corbeille-groupes"); if (!el) return;
+  const corbeille = lireCorbeilleGroupes();
+  if (!corbeille.length) { el.innerHTML = "<em>Corbeille vide.</em>"; return; }
+  el.innerHTML = corbeille.map(g => {
+    const supprimeLe = new Date(g.supprimeLe);
+    const joursRestants = Math.max(0, CORBEILLE_GROUPES_JOURS - Math.floor((Date.now() - supprimeLe.getTime()) / 86400000));
+    const detail = [
+      `${(g.permissions || []).length} permission(s)`,
+      `${(g.societes || []).length} diffusion(s)`,
+      `${(g.attributions || []).length} attribution(s)`
+    ].join(", ");
+    return `<div class="list-item">
+      <div class="li-corps">
+        <div class="li-titre">${esc(g.label || g.code)}</div>
+        <div class="li-sous">${esc(g.code)} · supprimé le ${esc(supprimeLe.toLocaleDateString())} · ${joursRestants} jour(s) restant(s) · ${esc(detail)}</div>
+      </div>
+      <div class="li-actions">
+        <button class="btn btn-mini" onclick="restaurerGroupe('${esc(g.cle)}')">Restaurer</button>
+        <button class="btn-danger btn-mini" onclick="purgerGroupeCorbeille('${esc(g.cle)}')">Supprimer définitivement</button>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+window.restaurerGroupe = async function (cle) {
+  const corbeille = lireCorbeilleGroupes();
+  const g = corbeille.find(x => x.cle === cle);
+  if (!g) return toast("Élément introuvable dans la corbeille", false);
+  if (!confirm(`Restaurer le groupe "${g.label}" avec ses permissions, diffusions et attributions ?`)) return;
+  try {
+    /* Le code est UNIQUE en base et l'ancien profil n'est que soft-supprimé : on tente le code d'origine puis un code dérivé */
+    let profil;
+    try {
+      profil = await api.createProfil({ code: g.code, label: g.label, description: g.description || null });
+    } catch (e1) {
+      profil = await api.createProfil({ code: `${g.code}-r${Date.now().toString(36)}`, label: g.label, description: g.description || null });
+    }
+    const echecs = [];
+    for (const idPerm of (g.permissions || [])) {
+      try { await api.addProfilPermission(profil.id, { id_permission: idPerm }); } catch (e) { echecs.push(`permission ${idPerm}`); }
+    }
+    for (const idSoc of (g.societes || [])) {
+      try { await api.addProfilSociete(profil.id, idSoc); } catch (e) { echecs.push(`diffusion ${idSoc}`); }
+    }
+    for (const a of (g.attributions || [])) {
+      try { await api.addProfilToUtilisateur(a.idutilisateur, { id_profil: profil.id, id_societe: a.idsociete || null }); } catch (e) { echecs.push(`attribution ${a.idutilisateur}`); }
+    }
+    ecrireCorbeilleGroupes(corbeille.filter(x => x.cle !== cle));
+    pushAdminLog(`Groupe "${g.label}" restauré depuis la corbeille (nouvel id ${profil.id}${profil.code !== g.code ? `, code ${profil.code}` : ""})`);
+    if (echecs.length) toast(`Groupe restauré, ${echecs.length} élément(s) non réappliqué(s) : ${echecs.join(", ")}`, false);
+    else toast("Groupe restauré");
+    await init();
+  } catch (e) { alert(e.message); }
+};
+
+window.purgerGroupeCorbeille = function (cle) {
+  const corbeille = lireCorbeilleGroupes();
+  const g = corbeille.find(x => x.cle === cle);
+  if (!g) return;
+  if (!confirm(`Retirer définitivement "${g.label}" de la corbeille ? Il ne pourra plus être restauré.`)) return;
+  ecrireCorbeilleGroupes(corbeille.filter(x => x.cle !== cle));
+  pushAdminLog(`Groupe "${g.label}" retiré définitivement de la corbeille`);
+  renderCorbeilleGroupes();
+};
 
 function renderListeAttributions() {
   const el = $("liste-attributions"); if (!el) return;
   const attrs = state.allAttributions || [];
   if (!attrs.length) { el.innerHTML = "<em>Aucune attribution.</em>"; return; }
-  el.innerHTML = attrs.map(a => {
-    const u = state.utilisateurs.find(x => x.id === a.idutilisateur);
-    const p = state.profils.find(x => x.id === a.idprofil);
-    const s = state.societes.find(x => x.id === a.idsociete);
-    return `<div class="list-item"><div class="li-corps"><div class="li-titre">${esc(u ? `${u.prenom} ${u.nom}` : a.idutilisateur)}</div><div class="li-sous">${esc(p?.label || p?.code || '')} · ${esc(s?.raisonsociale || s?.raison_sociale || 'Échelle tenant')}</div></div><div class="li-actions"><button class="btn-danger btn-mini" onclick="supprimerAttribution('${a.idutilisateur}','${a.id}')">Supprimer</button></div></div>`;
+  /* Regroupement par utilisateur : un bloc par utilisateur, une ligne et un bouton Supprimer par attribution */
+  const parUtilisateur = new Map();
+  for (const a of attrs) {
+    if (!parUtilisateur.has(a.idutilisateur)) parUtilisateur.set(a.idutilisateur, []);
+    parUtilisateur.get(a.idutilisateur).push(a);
+  }
+  const libUser = id => { const u = state.utilisateurs.find(x => x.id === id); return u ? `${u.prenom} ${u.nom}` : id; };
+  const groupes = Array.from(parUtilisateur.entries()).sort((a, b) => libUser(a[0]).localeCompare(libUser(b[0]), "fr"));
+  el.innerHTML = groupes.map(([userId, liste]) => {
+    const lignes = liste.map(a => {
+      const p = state.profils.find(x => x.id === a.idprofil);
+      const s = state.societes.find(x => x.id === a.idsociete);
+      return `<div class="list-item" style="padding-left:14px;"><div class="li-corps"><div class="li-sous">${esc(p?.label || p?.code || '')} · ${esc(s?.raisonsociale || s?.raison_sociale || 'Échelle tenant')}</div></div><div class="li-actions"><button class="btn-danger btn-mini" onclick="supprimerAttribution('${a.idutilisateur}','${a.id}')">Supprimer</button></div></div>`;
+    }).join("");
+    return `<div class="list-item" style="flex-direction:column;align-items:stretch;gap:0;">
+      <div class="li-titre">${esc(libUser(userId))} <span class="li-sous">(${liste.length} attribution${liste.length > 1 ? "s" : ""})</span></div>
+      ${lignes}
+    </div>`;
   }).join("");
 }
 
@@ -1811,13 +1891,7 @@ async function handleCreateProfil() {
   const code = slugify(label);
   if (!code) return alert("Le libellé ne permet pas de générer un code technique valide.");
   try {
-    const profil = await api.createProfil({ code, label, description });
-    const portee = document.querySelector('input[name="prof-portee"]:checked')?.value;
-    if (portee === "societes") {
-      const ids = getMultiSelectValues("chk-prof-societes");
-      if (ids.length === 0) return alert("Sélectionnez au moins une société.");
-      for (const idS of ids) await api.addProfilSociete(profil.id, idS);
-    }
+    await api.createProfil({ code, label, description });
     pushAdminLog(`Groupe "${label}" créé`); toast("Groupe créé"); await init();
   } catch (e) { alert(e.message); }
 }
@@ -1859,9 +1933,15 @@ async function handleAddAttribution() {
     const userId = $("sel-att-utilisateur")?.value, profilId = $("sel-att-profil")?.value;
     if (!userId || !profilId) return alert("Utilisateur et groupe requis.");
     const portee = document.querySelector('input[name="att-portee"]:checked')?.value;
+    /* Une attribution s'ajoute aux attributions existantes de l'utilisateur ; un doublon exact (même groupe, même société) est ignoré */
+    const dejaPresente = idS => (state.allAttributions || []).some(a => a.idutilisateur === userId && a.idprofil === profilId && (a.idsociete || null) === (idS || null));
     if (portee === "societes") {
-      const ids = getMultiSelectValues("chk-att-societes");
+      let ids = getMultiSelectValues("chk-att-societes");
       if (ids.length === 0) return alert("Sélectionnez au moins une société.");
+      const doublons = ids.filter(dejaPresente);
+      ids = ids.filter(idS => !dejaPresente(idS));
+      if (ids.length === 0) return toast("Cet utilisateur a déjà cette attribution sur les sociétés choisies", false);
+      if (doublons.length) toast(`${doublons.length} attribution(s) déjà existante(s) ignorée(s)`, false);
       const uA = state.utilisateurs.find(x => x.id === userId);
       const pA = state.profils.find(x => x.id === profilId);
       for (const idS of ids) {
@@ -1870,6 +1950,7 @@ async function handleAddAttribution() {
         pushAdminLog(`Attribution du groupe "${pA?.label || pA?.code || profilId}" à ${uA?.prenom || ''} ${uA?.nom || ''} sur ${sA?.raisonsociale || sA?.raison_sociale || idS}`);
       }
     } else {
+      if (dejaPresente(null)) return toast("Cet utilisateur a déjà ce groupe à l'échelle du tenant", false);
       await api.addProfilToUtilisateur(userId, { id_profil: profilId, id_societe: null });
       const uAt = state.utilisateurs.find(x => x.id === userId);
       const pAt = state.profils.find(x => x.id === profilId);
@@ -1977,10 +2058,12 @@ window.sauverModificationUtilisateur = async function(userId) {
     /* 3. Supprimer les anciens rattachements et recréer les nouveaux */
     for (const socId of anciennes) {
       await api.removeUtilisateurSociete(userId, socId);
+      const sR = state.societes.find(x => x.id === socId);
       pushAdminLog(`Rattachement de ${prenom} ${nom} à la société "${sR?.raisonsociale || sR?.raison_sociale || socId}" supprimé`);
     }
     for (const socId of nouvellesSocietes) {
       await api.addUtilisateurSociete(userId, socId);
+      const sRa = state.societes.find(x => x.id === socId);
       pushAdminLog(`Rattachement de ${prenom} ${nom} à la société "${sRa?.raisonsociale || sRa?.raison_sociale || socId}" ajouté`);
     }
 
@@ -1992,14 +2075,9 @@ window.sauverModificationUtilisateur = async function(userId) {
   }
 };
 
-window.editerProfil = async function(profilId) {
-  try {
-    const societes = await api.getProfilSocietes(profilId);
-    window._editProfilData = { profilId, societes: societes || [] };
-    renderListeProfils();
-  } catch (e) {
-    toast("Erreur chargement des diffusions", false);
-  }
+window.editerProfil = function(profilId) {
+  window._editProfilData = { profilId };
+  renderListeProfils();
 };
 
 window.annulerEditProfil = function() {
@@ -2010,35 +2088,15 @@ window.annulerEditProfil = function() {
 window.sauverModificationProfil = async function(profilId) {
   const label = $(`edit-prof-label-${profilId}`)?.value?.trim();
   const description = $(`edit-prof-desc-${profilId}`)?.value?.trim() || null;
-  const nouvellesSocietes = getMultiSelectValues(`edit-prof-soc-container-${profilId}`);
 
   if (!label) {
     toast("Libellé requis", false);
     return;
   }
 
-  const anciennes = (window._editProfilData?.societes || []).map(s => s.idsociete).filter(Boolean);
-  const retirees = anciennes.filter(id => !nouvellesSocietes.includes(id));
-  const ajoutees = nouvellesSocietes.filter(id => !anciennes.includes(id));
-
   try {
     await api.updateProfil(profilId, { label, description });
     pushAdminLog(`Groupe "${label}" modifié`);
-
-    for (const ps of (window._editProfilData?.societes || [])) {
-      if (retirees.includes(ps.idsociete)) {
-        await api.removeProfilSociete(profilId, ps.id);
-        const sP = state.societes.find(x => x.id === ps.idsociete);
-        pushAdminLog(`Diffusion du groupe "${label}" retirée de la société "${sP?.raisonsociale || sP?.raison_sociale || ps.idsociete}"`);
-      }
-    }
-
-    for (const socId of ajoutees) {
-      await api.addProfilSociete(profilId, socId);
-      const sPa = state.societes.find(x => x.id === socId);
-      pushAdminLog(`Diffusion du groupe "${label}" ajoutée à la société "${sPa?.raisonsociale || sPa?.raison_sociale || socId}"`);
-    }
-
     window._editProfilData = null;
     toast("Groupe modifié", true);
     await init();
@@ -2103,15 +2161,32 @@ window.supprimerProfil = async function (id) {
         msg += impact.societes.map(s => `  • ${s.raisonsociale || s.raison_sociale || s.id}`).join("\n");
         msg += "\n\n";
       }
-      msg += "La suppression retirera ces attributions et diffusions. Continuer ?";
+      msg += "La suppression retirera ces attributions et diffusions. Le groupe restera restaurable depuis la corbeille pendant 90 jours. Continuer ?";
       if (!confirm(msg)) return;
     } else {
-      if (!confirm("Supprimer ce groupe ?")) return;
+      if (!confirm("Supprimer ce groupe ? Il restera restaurable depuis la corbeille pendant 90 jours.")) return;
     }
     const pDel = state.profils.find(x => x.id === id);
+    /* Snapshot pour la corbeille, pris avant la suppression */
+    const [permsSnap, socsSnap] = await Promise.all([
+      api.getProfilPermissions(id).catch(() => []),
+      api.getProfilSocietes(id).catch(() => [])
+    ]);
+    const snapshot = {
+      cle: `${id}-${Date.now()}`,
+      id,
+      code: pDel?.code || "",
+      label: pDel?.label || pDel?.code || id,
+      description: pDel?.description || null,
+      permissions: (permsSnap || []).map(x => x.id).filter(Boolean),
+      societes: (socsSnap || []).map(x => x.idsociete).filter(Boolean),
+      attributions: (state.allAttributions || []).filter(a => a.idprofil === id).map(a => ({ idutilisateur: a.idutilisateur, idsociete: a.idsociete || null })),
+      supprimeLe: new Date().toISOString()
+    };
     await api.deleteProfil(id);
-    pushAdminLog(`Groupe "${pDel?.label || pDel?.code || id}" supprimé`);
-    toast("Groupe supprimé");
+    ecrireCorbeilleGroupes([snapshot, ...lireCorbeilleGroupes()]);
+    pushAdminLog(`Groupe "${pDel?.label || pDel?.code || id}" supprimé (placé dans la corbeille)`);
+    toast("Groupe supprimé, restaurable depuis la corbeille pendant 90 jours");
     await init();
   } catch (e) { alert(e.message); }
 };
