@@ -90,6 +90,12 @@ async function traiter(req, res, statutCible, motif) {
         WHERE id = $4`,
       [statut.id, req.user?.id || null, motif, courant.id]);
 
+    // Hook propre a l'entite (revalidation des affectations, #106) : meme
+    // transaction, un echec annule le traitement avec elle.
+    if (cible.apresTraitement) {
+      await cible.apresTraitement(client, req, entiteId, statutCible, motif);
+    }
+
     const label = existant[0].label;
     await log(client,
       statutCible === "valide" ? "VALIDATION" : "REFUS",

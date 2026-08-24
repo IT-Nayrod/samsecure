@@ -1,4 +1,7 @@
-// StatutRevalidationBadge - statut du cycle de revalidation d'une affectation
+// StatutRevalidationBadge - statut du cycle de revalidation d'une affectation.
+// Le statut est evalue par l'API a la lecture (statut_revalidation : a_jour,
+// a_revalider, depasse), jamais recalcule ici. Accepte soit l'objet
+// { statut } soit directement le code.
 import Badge from '../ui/Badge';
 
 const CONFIG = {
@@ -8,7 +11,8 @@ const CONFIG = {
 };
 
 export default function StatutRevalidationBadge({ revalidation }) {
-  if (!revalidation) return <Badge variant="neutral" label="Non revalidee" />;
-  const cfg = CONFIG[revalidation.statut] ?? CONFIG.a_jour;
+  const statut = typeof revalidation === 'string' ? revalidation : revalidation?.statut;
+  if (!statut) return <Badge variant="neutral" label="Non revalidee" />;
+  const cfg = CONFIG[statut] ?? CONFIG.a_jour;
   return <Badge variant={cfg.variant} label={cfg.label} />;
 }

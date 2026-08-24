@@ -21,7 +21,8 @@
     "seed:licences:dev": "APP_ENV=dev node server/bdd/manual/seed-licences-test.js",
     "seed:licences:staging": "APP_ENV=staging node server/bdd/manual/seed-licences-test.js",
     "precalcul:dev": "APP_ENV=dev node server/bdd/manual/amorcer-precalcul.js",
-    "precalcul:staging": "APP_ENV=staging node server/bdd/manual/amorcer-precalcul.js"
+    "precalcul:staging": "APP_ENV=staging node server/bdd/manual/amorcer-precalcul.js",
+    "seed:affectations:dev": "APP_ENV=dev node server/bdd/manual/seed-affectations-test.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
