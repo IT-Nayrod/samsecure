@@ -487,13 +487,7 @@
         <h2>Créer un groupe (profil)</h2>
         <label class="field"><span>Libellé</span><input class="inp" id="inp-prof-label" type="text" placeholder="Responsable achats"></label>
         <label class="field"><span>Description</span><textarea class="inp" id="inp-prof-desc" placeholder="Responsabilités du rôle"></textarea></label>
-        <div class="field"><span>Diffusion du groupe</span>
-          <div class="radio-ligne">
-            <label><input type="radio" name="prof-portee" value="tenant" checked> Échelle du tenant (toutes sociétés)</label>
-            <label><input type="radio" name="prof-portee" value="societes"> Sociétés spécifiques</label>
-          </div>
-          <div id="chk-prof-societes" class="hidden"></div>
-        </div>
+        <p class="explorer-hint">Un groupe définit uniquement des droits sur les fonctionnalités. Le périmètre de données (sociétés) se fixe au moment de l'attribution du groupe à un utilisateur.</p>
         <button type="button" class="btn" id="btn-creer-profil">Créer le groupe</button>
         <div><span class="form-hint">POST /api/profils</span></div>
       </div>
@@ -1012,7 +1006,7 @@ function bindGlobalEvents() {
   $("inp-journal-search")?.addEventListener("keydown", (e) => { if (e.key === "Enter") renderJournal(); });
   $("btn-journal-dl-full")?.addEventListener("click", downloadFullJournal);
 
-  [{ n: "usr-portee", c: "chk-usr-societes" }, { n: "prof-portee", c: "chk-prof-societes" }, { n: "att-portee", c: "chk-att-societes" }].forEach(({ n, c }) =>
+  [{ n: "usr-portee", c: "chk-usr-societes" }, { n: "att-portee", c: "chk-att-societes" }].forEach(({ n, c }) =>
     document.querySelectorAll("input[name='" + n + "']").forEach(r => r.addEventListener("change", () => {
       const val = document.querySelector("input[name='" + n + "']:checked")?.value;
       $(c)?.classList.toggle("hidden", val !== "societes");
@@ -1513,7 +1507,6 @@ function remplirSelectsAdmin() {
   }
 
   renderMultiSelectSocietes("chk-usr-societes");
-  renderMultiSelectSocietes("chk-prof-societes");
   refreshAttributionSocietes();
 }
 
@@ -1611,13 +1604,9 @@ function renderListeProfils() {
               <span>Libellé</span>
               <input class="inp" id="edit-prof-label-${p.id}" type="text" value="${esc(p.label)}">
             </label>
-            <label class="field" style="margin-bottom:8px;">
+            <label class="field" style="margin-bottom:4px;">
               <span>Description</span>
               <textarea class="inp" id="edit-prof-desc-${p.id}" placeholder="Responsabilités du rôle">${esc(p.description || "")}</textarea>
-            </label>
-            <label class="field" style="margin-bottom:4px;">
-              <span>Sociétés de diffusion</span>
-              <div id="edit-prof-soc-container-${p.id}"></div>
             </label>
           </div>
           <div style="display:flex;gap:8px;">
@@ -1634,14 +1623,6 @@ function renderListeProfils() {
       </div>
     </div>`;
   }).join("");
-
-  if (editState) {
-    const p = state.profils.find(x => x.id === editState.profilId);
-    if (p) {
-      const selectedIds = (editState.societes || []).map(s => s.idsociete).filter(Boolean);
-      renderMultiSelectSocietes(`edit-prof-soc-container-${p.id}`, state.societes, selectedIds);
-    }
-  }
 }
 
 function renderListeAttributions() {
@@ -1811,13 +1792,7 @@ async function handleCreateProfil() {
   const code = slugify(label);
   if (!code) return alert("Le libellé ne permet pas de générer un code technique valide.");
   try {
-    const profil = await api.createProfil({ code, label, description });
-    const portee = document.querySelector('input[name="prof-portee"]:checked')?.value;
-    if (portee === "societes") {
-      const ids = getMultiSelectValues("chk-prof-societes");
-      if (ids.length === 0) return alert("Sélectionnez au moins une société.");
-      for (const idS of ids) await api.addProfilSociete(profil.id, idS);
-    }
+    await api.createProfil({ code, label, description });
     pushAdminLog(`Groupe "${label}" créé`); toast("Groupe créé"); await init();
   } catch (e) { alert(e.message); }
 }
@@ -1994,14 +1969,9 @@ window.sauverModificationUtilisateur = async function(userId) {
   }
 };
 
-window.editerProfil = async function(profilId) {
-  try {
-    const societes = await api.getProfilSocietes(profilId);
-    window._editProfilData = { profilId, societes: societes || [] };
-    renderListeProfils();
-  } catch (e) {
-    toast("Erreur chargement des diffusions", false);
-  }
+window.editerProfil = function(profilId) {
+  window._editProfilData = { profilId };
+  renderListeProfils();
 };
 
 window.annulerEditProfil = function() {
@@ -2012,35 +1982,15 @@ window.annulerEditProfil = function() {
 window.sauverModificationProfil = async function(profilId) {
   const label = $(`edit-prof-label-${profilId}`)?.value?.trim();
   const description = $(`edit-prof-desc-${profilId}`)?.value?.trim() || null;
-  const nouvellesSocietes = getMultiSelectValues(`edit-prof-soc-container-${profilId}`);
 
   if (!label) {
     toast("Libellé requis", false);
     return;
   }
 
-  const anciennes = (window._editProfilData?.societes || []).map(s => s.idsociete).filter(Boolean);
-  const retirees = anciennes.filter(id => !nouvellesSocietes.includes(id));
-  const ajoutees = nouvellesSocietes.filter(id => !anciennes.includes(id));
-
   try {
     await api.updateProfil(profilId, { label, description });
     pushAdminLog(`Groupe "${label}" modifié`);
-
-    for (const ps of (window._editProfilData?.societes || [])) {
-      if (retirees.includes(ps.idsociete)) {
-        await api.removeProfilSociete(profilId, ps.id);
-        const sP = state.societes.find(x => x.id === ps.idsociete);
-        pushAdminLog(`Diffusion du groupe "${label}" retirée de la société "${sP?.raisonsociale || sP?.raison_sociale || ps.idsociete}"`);
-      }
-    }
-
-    for (const socId of ajoutees) {
-      await api.addProfilSociete(profilId, socId);
-      const sPa = state.societes.find(x => x.id === socId);
-      pushAdminLog(`Diffusion du groupe "${label}" ajoutée à la société "${sPa?.raisonsociale || sPa?.raison_sociale || socId}"`);
-    }
-
     window._editProfilData = null;
     toast("Groupe modifié", true);
     await init();
