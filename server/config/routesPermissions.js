@@ -71,6 +71,21 @@ export const ROUTES_PERMISSIONS = [
   ["POST",   "/validation/:type/:id/valider", "valider_saisie"],
   ["POST",   "/validation/:type/:id/refuser", "valider_saisie"],
 
+  // ---- Module 3 : affectations, usage declare et revalidation (#106) --------
+  // Lecture : consulter_inventaire (Financier, IT Ops, Manager DSI). Saisie :
+  // saisir_affectation (IT Ops, IT Data input, et Manager DSI par la matrice
+  // 011). Revalidation : valider_saisie, comme le traitement du circuit unique.
+  // Les chemins litteraux decompte et historique passent avant /affectations/:id.
+  ["GET",    "/licences",                     "consulter_licences"],
+  ["GET",    "/affectations/decompte",        "consulter_inventaire"],
+  ["GET",    "/affectations/historique",      "consulter_inventaire"],
+  ["GET",    "/affectations",                 "consulter_inventaire"],
+  ["GET",    "/affectations/:id",             "consulter_inventaire"],
+  ["POST",   "/affectations/:id/revalider",   "valider_saisie"],
+  ["POST",   "/affectations",                 "saisir_affectation"],
+  ["PATCH",  "/affectations/:id",             "saisir_affectation"],
+  ["DELETE", "/affectations/:id",             "saisir_affectation"],
+
   // ---- Referentiels en lecture ---------------------------------------------
   ["GET",    "/types-contrat",               "consulter_referentiels"],
   ["GET",    "/editeurs",                    "consulter_referentiels"],

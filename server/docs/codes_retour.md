@@ -28,7 +28,7 @@ derniers), 404 et 500 globaux de index.js.
 
 Plages : transverse 1000-1999 | administration 2000-2999 | contrats 3000-3099 |
 commandes 3100-3199 | documents 3200-3299 | validation 3300-3399 |
-droits 3400-3499
+droits 3400-3499 | affectations 4000-4099
 
 ## Transverse : socle d'envoi de mails (#87)
 
@@ -367,6 +367,51 @@ Aucun controle de profil dans cette tache, decision de sequencement actee : tout
 utilisateur authentifie soumet et traite, y compris ses propres saisies. La
 restriction arrive avec la story Droits et se branchera dans traiter(), entre le
 chargement de l'entite et la lecture du statut courant.
+
+## Affectations, usage declare et revalidation (#106, M3-B)
+
+Plage 4000-4099, premiere plage des modules 3 et 4 (reservee par la 024),
+seedee par la migration Commune 028. Les affectations passent par le circuit
+de validation unique du module 2 : la validation et le refus repondent sous les
+codes 3300 et 3301 de `POST /api/validation/affectation/:id/...`, aucun code
+propre. Le hook `apresTraitement` du catalogue ouvre le cycle de revalidation
+dans la transaction du traitement.
+
+| Code | Type | Libelle propose | Route |
+|------|------|-----------------|-------|
+| 4000 | succes | Liste des affectations | GET /api/affectations |
+| 4001 | succes | Detail de l'affectation | GET /api/affectations/:id |
+| 4002 | succes | Affectation declaree et soumise a validation | POST /api/affectations (201) |
+| 4003 | succes | Affectation modifiee et resoumise a validation | PATCH /api/affectations/:id |
+| 4004 | succes | Affectation supprimee | DELETE /api/affectations/:id (200, data null) |
+| 4005 | succes | Affectation revalidee, nouveau cycle ouvert | POST /api/affectations/:id/revalider |
+| 4006 | succes | Decompte des usages declares pour la conformite | GET /api/affectations/decompte |
+| 4007 | succes | Historique des declarations | GET /api/affectations/historique |
+| 4008 | succes | Liste des licences | GET /api/licences |
+| 4010 | erreur | Affectation introuvable | routes /affectations/:id (404) |
+| 4011 | erreur | La licence est obligatoire | POST, PATCH |
+| 4012 | erreur | Licence introuvable | POST, PATCH |
+| 4013 | erreur | La societe est obligatoire | POST, PATCH |
+| 4014 | erreur | Societe introuvable | POST, PATCH |
+| 4015 | erreur | La quantite doit etre un entier strictement positif | POST, PATCH |
+| 4016 | erreur | La reference client est obligatoire | POST, PATCH |
+| 4017 | erreur | Identifiant de societe invalide | filtres GET |
+| 4018 | erreur | Identifiant de produit invalide | filtres GET |
+| 4019 | erreur | Identifiant de licence invalide | filtre GET /affectations |
+| 4030 | erreur | Seule une affectation validee peut etre revalidee | POST .../revalider (409, `details.statut_validation`) |
+| 4032 | erreur | Suppression impossible : affectation rapprochee d'un inventaire | DELETE (409, `details.inventaires`) |
+| 4099 | erreur | Erreur serveur inattendue (module affectations) | toutes |
+
+Statuts servis par les GET : `statut_validation` est la derniere entree
+`workflow_validation`, reecrite a la lecture en `a_revalider` quand elle vaut
+`valide` et que `date_prochaine_revalidation` est depassee (jamais persistee) ;
+`statut_revalidation` vaut `a_jour`, `a_revalider` (echeance a 15 jours ou
+moins) ou `depasse`, et n'est servi que sur une affectation validee.
+
+Decompte (4006) : somme brute des quantites des affectations dont la derniere
+entree du workflow est `valide` (donc `valide` + `a_revalider` de lecture),
+par produit et societe, sans deduplication par reference (hypothese v0.5
+assumee), avec `droits_total` par produit (somme `licence.quantite`).
 
 ## Controle des permissions (transverse)
 

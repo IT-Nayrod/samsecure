@@ -6,15 +6,23 @@
 // modification, insere une entree en_attente ; le traitement met a jour cette
 // entree. L'historique des soumissions en decoule sans table supplementaire.
 
+import { apresTraitementAffectation } from "./revalidation.js";
+
 // Catalogue des entites soumises au workflow. entite_id est polymorphe et ne
 // porte aucune FK SQL : ce catalogue est la seule barriere entre un
 // entite_type recu en parametre de route et un nom de table reel. Il ne doit
 // jamais etre etendu a partir d'une entree utilisateur.
+// apresTraitement (optionnel) : hook execute par validation.js dans la
+// transaction du traitement, apres la mise a jour de l'entree. C'est par lui
+// que le module 3 branche son cycle de revalidation sur le circuit unique,
+// sans second workflow ni seconde file (#106).
 export const ENTITES_VALIDABLES = {
-  contrat:  { table: "contrat",  introuvable: "Contrat introuvable." },
-  commande: { table: "commande", introuvable: "Commande introuvable." },
-  facture:  { table: "facture",  introuvable: "Facture introuvable." },
-  preuve:   { table: "preuve",   introuvable: "Preuve introuvable." },
+  contrat:     { table: "contrat",     introuvable: "Contrat introuvable." },
+  commande:    { table: "commande",    introuvable: "Commande introuvable." },
+  facture:     { table: "facture",     introuvable: "Facture introuvable." },
+  preuve:      { table: "preuve",      introuvable: "Preuve introuvable." },
+  affectation: { table: "affectation", introuvable: "Affectation introuvable.",
+                 apresTraitement: apresTraitementAffectation },
 };
 
 // Fragment a coller dans les projections de liste et de detail. Le LATERAL sert
