@@ -1629,11 +1629,24 @@ function renderListeAttributions() {
   const el = $("liste-attributions"); if (!el) return;
   const attrs = state.allAttributions || [];
   if (!attrs.length) { el.innerHTML = "<em>Aucune attribution.</em>"; return; }
-  el.innerHTML = attrs.map(a => {
-    const u = state.utilisateurs.find(x => x.id === a.idutilisateur);
-    const p = state.profils.find(x => x.id === a.idprofil);
-    const s = state.societes.find(x => x.id === a.idsociete);
-    return `<div class="list-item"><div class="li-corps"><div class="li-titre">${esc(u ? `${u.prenom} ${u.nom}` : a.idutilisateur)}</div><div class="li-sous">${esc(p?.label || p?.code || '')} · ${esc(s?.raisonsociale || s?.raison_sociale || 'Échelle tenant')}</div></div><div class="li-actions"><button class="btn-danger btn-mini" onclick="supprimerAttribution('${a.idutilisateur}','${a.id}')">Supprimer</button></div></div>`;
+  /* Regroupement par utilisateur : un bloc par utilisateur, une ligne et un bouton Supprimer par attribution */
+  const parUtilisateur = new Map();
+  for (const a of attrs) {
+    if (!parUtilisateur.has(a.idutilisateur)) parUtilisateur.set(a.idutilisateur, []);
+    parUtilisateur.get(a.idutilisateur).push(a);
+  }
+  const libUser = id => { const u = state.utilisateurs.find(x => x.id === id); return u ? `${u.prenom} ${u.nom}` : id; };
+  const groupes = Array.from(parUtilisateur.entries()).sort((a, b) => libUser(a[0]).localeCompare(libUser(b[0]), "fr"));
+  el.innerHTML = groupes.map(([userId, liste]) => {
+    const lignes = liste.map(a => {
+      const p = state.profils.find(x => x.id === a.idprofil);
+      const s = state.societes.find(x => x.id === a.idsociete);
+      return `<div class="list-item" style="padding-left:14px;"><div class="li-corps"><div class="li-sous">${esc(p?.label || p?.code || '')} · ${esc(s?.raisonsociale || s?.raison_sociale || 'Échelle tenant')}</div></div><div class="li-actions"><button class="btn-danger btn-mini" onclick="supprimerAttribution('${a.idutilisateur}','${a.id}')">Supprimer</button></div></div>`;
+    }).join("");
+    return `<div class="list-item" style="flex-direction:column;align-items:stretch;gap:0;">
+      <div class="li-titre">${esc(libUser(userId))} <span class="li-sous">(${liste.length} attribution${liste.length > 1 ? "s" : ""})</span></div>
+      ${lignes}
+    </div>`;
   }).join("");
 }
 
@@ -1834,9 +1847,15 @@ async function handleAddAttribution() {
     const userId = $("sel-att-utilisateur")?.value, profilId = $("sel-att-profil")?.value;
     if (!userId || !profilId) return alert("Utilisateur et groupe requis.");
     const portee = document.querySelector('input[name="att-portee"]:checked')?.value;
+    /* Une attribution s'ajoute aux attributions existantes de l'utilisateur ; un doublon exact (même groupe, même société) est ignoré */
+    const dejaPresente = idS => (state.allAttributions || []).some(a => a.idutilisateur === userId && a.idprofil === profilId && (a.idsociete || null) === (idS || null));
     if (portee === "societes") {
-      const ids = getMultiSelectValues("chk-att-societes");
+      let ids = getMultiSelectValues("chk-att-societes");
       if (ids.length === 0) return alert("Sélectionnez au moins une société.");
+      const doublons = ids.filter(dejaPresente);
+      ids = ids.filter(idS => !dejaPresente(idS));
+      if (ids.length === 0) return toast("Cet utilisateur a déjà cette attribution sur les sociétés choisies", false);
+      if (doublons.length) toast(`${doublons.length} attribution(s) déjà existante(s) ignorée(s)`, false);
       const uA = state.utilisateurs.find(x => x.id === userId);
       const pA = state.profils.find(x => x.id === profilId);
       for (const idS of ids) {
@@ -1845,6 +1864,7 @@ async function handleAddAttribution() {
         pushAdminLog(`Attribution du groupe "${pA?.label || pA?.code || profilId}" à ${uA?.prenom || ''} ${uA?.nom || ''} sur ${sA?.raisonsociale || sA?.raison_sociale || idS}`);
       }
     } else {
+      if (dejaPresente(null)) return toast("Cet utilisateur a déjà ce groupe à l'échelle du tenant", false);
       await api.addProfilToUtilisateur(userId, { id_profil: profilId, id_societe: null });
       const uAt = state.utilisateurs.find(x => x.id === userId);
       const pAt = state.profils.find(x => x.id === profilId);
