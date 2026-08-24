@@ -21,14 +21,15 @@ Enveloppe (#68) :
   emis avec `libelle: null` et signale en console.
 
 Perimetre enveloppe au 24/08 : contrats, commandes, preuves, factures,
-validation, stockagePreuves, controle des permissions (3400, 3499). Non
+validation, stockagePreuves, controle des permissions (3400, 3499),
+inventaire (#111, 4000-4099). Non
 enveloppes : routes d'administration (2000-2999), auth, mails, referentiels,
 permissions, droits-effectifs (aucun code au catalogue pour ces trois
 derniers), 404 et 500 globaux de index.js.
 
 Plages : transverse 1000-1999 | administration 2000-2999 | contrats 3000-3099 |
 commandes 3100-3199 | documents 3200-3299 | validation 3300-3399 |
-droits 3400-3499
+droits 3400-3499 | inventaire 4000-4099 (module 3, #111)
 
 ## Transverse : socle d'envoi de mails (#87)
 
@@ -400,3 +401,65 @@ de "false", elle vaut strict et le refus est un 403. A "false", le refus est
 journalise sans bloquer, pour observer les refus reels d'un environnement avant
 de couper. Un defaut permissif aurait ete un piege : un .env incomplet aurait
 silencieusement desactive le controle.
+
+## Inventaire, import et ecarts (#111, module 3)
+
+Plage 4000-4099, seedee par la migration 028. Routeur server/routes/inventaire.js,
+stockage server/utils/stockageInventaire.js (meme pattern que les preuves :
+nom neutre <uuid>.csv, hash SHA-256, mode 0640, sous-repertoire inventaire/
+de PREUVES_DIR ou INVENTAIRE_DIR). Aucune modification du schema v4 :
+inventaire_raw porte un pointeur "<fichier>#L<n>" vers la ligne du fichier
+archive, log_import.type_import vaut "inventaire_csv:<fichier>", les erreurs
+ligne a ligne sont des lignes anomalie_qualite (entite log_import).
+
+Doctrine actee : l'outil constate et alerte, il ne cree ni ne modifie jamais
+une affectation. Le rapprochement est manuel.
+
+| Code | Type | Libelle propose | Route |
+|------|------|-----------------|-------|
+| 4000 | succes | Liste des imports d'inventaire | GET /api/inventaire/imports |
+| 4001 | succes | Detail de l'import | GET /api/inventaire/imports/:id |
+| 4002 | succes | Import d'inventaire effectue | POST /api/inventaire/imports (201, statut succes) |
+| 4003 | succes | Liste des releves d'inventaire | GET /api/inventaire/releves |
+| 4004 | succes | Detail du releve | GET /api/inventaire/releves/:id |
+| 4005 | succes | Ecarts d'inventaire | GET /api/inventaire/ecarts |
+| 4006 | succes | Releve rapproche de l'affectation | POST /api/inventaire/releves/:id/rapprocher |
+| 4007 | succes | Releve marque en ecart assume | POST /api/inventaire/releves/:id/ecart-assume |
+| 4008 | succes | Releve rejete | POST /api/inventaire/releves/:id/rejeter |
+| 4009 | succes | Releve remis en attente | POST /api/inventaire/releves/:id/reouvrir |
+| 4010 | succes | Liste des affectations rapprochables | GET /api/inventaire/affectations |
+| 4011 | avertissement | Import effectue avec des lignes en erreur | POST /api/inventaire/imports (201, statut succes_partiel, erreurs jointes) |
+| 4020 | erreur | Import introuvable | GET /api/inventaire/imports/:id |
+| 4021 | erreur | Releve introuvable | GET, POST /api/inventaire/releves/:id/... |
+| 4022 | erreur | Aucun fichier n'a ete transmis | POST /api/inventaire/imports |
+| 4023 | erreur | Extension non admise, format accepte csv | POST /api/inventaire/imports |
+| 4024 | erreur | Le fichier depasse la taille maximale de 20 Mo (413) | POST /api/inventaire/imports |
+| 4025 | erreur | Un seul fichier peut etre depose | POST /api/inventaire/imports |
+| 4026 | erreur | Fichier vide ou illisible, encodage UTF-8 attendu | POST /api/inventaire/imports |
+| 4027 | erreur | Colonnes obligatoires absentes : produit, reference, quantite (details.colonnes_manquantes) | POST /api/inventaire/imports |
+| 4028 | erreur | Aucune ligne exploitable, import en echec (422, import trace en echec, erreurs dans details) | POST /api/inventaire/imports |
+| 4029 | erreur | Societe introuvable | POST /api/inventaire/imports |
+| 4030 | erreur | Valeur de filtre invalide | GET /api/inventaire/releves |
+| 4031 | erreur | L'affectation est obligatoire | POST .../rapprocher |
+| 4032 | erreur | Affectation introuvable | POST .../rapprocher |
+| 4033 | erreur | Transition de statut non permise pour ce releve (409, details.statut_rapprochement) | POST .../rapprocher, ecart-assume, rejeter, reouvrir |
+| 4034 | erreur | Le motif de rejet est obligatoire | POST .../rejeter |
+| 4035 | reserve | Fichier archive introuvable, contenu du releve indisponible. Non emis : la liste sert la ligne avec fichier_absent true | GET /api/inventaire/releves |
+| 4036 | erreur | Le fichier depasse le nombre maximal de lignes (10000) | POST /api/inventaire/imports |
+| 4050 | trace | Inventaire importe (audit_log INVENTAIRE_IMPORTE) | POST /api/inventaire/imports |
+| 4051 | trace | Releve rapproche (audit_log RELEVE_RAPPROCHE) | POST .../rapprocher |
+| 4052 | trace | Releve marque en ecart assume (audit_log RELEVE_ECART_ASSUME) | POST .../ecart-assume |
+| 4053 | trace | Releve rejete (audit_log RELEVE_REJETE) | POST .../rejeter |
+| 4054 | trace | Releve remis en attente (audit_log RELEVE_REOUVERT) | POST .../reouvrir |
+| 4099 | erreur | Erreur serveur inattendue (module inventaire) | toutes |
+
+Transitions de statut (inventaire_raw.statut_rapprochement) :
+rapprocher : en_attente ou ecart_detecte vers rapproche (id_affectation ecrit) ;
+ecart-assume : en_attente ou rapproche vers ecart_detecte (id_affectation NULL) ;
+rejeter : en_attente ou ecart_detecte vers rejete (motif obligatoire) ;
+reouvrir : rapproche, ecart_detecte ou rejete vers en_attente.
+
+Permissions (server/config/routesPermissions.js) : consulter_inventaire en
+lecture (Admin, Manager DSI, IT Ops, Financier), rapprocher_inventaire sur les
+quatre transitions (Admin, Manager DSI, IT Ops), importer_inventaire sur
+l'import (Admin, Manager DSI ; migrations 029 Commune et 030 Tenant).

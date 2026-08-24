@@ -18,7 +18,8 @@
 //   droits_usage   : consulter_contrats, consulter_factures, saisir_contrat,
 //                    saisir_commande, deposer_facture_preuve
 //   deploiement    : valider_saisie, consulter_licences, consulter_inventaire,
-//                    saisir_licence, saisir_affectation, rapprocher_inventaire
+//                    saisir_licence, saisir_affectation, rapprocher_inventaire,
+//                    importer_inventaire (#111, 28e code)
 //   organisation   : consulter_referentiels, gerer_referentiels, gerer_contacts
 //   budget         : consulter_budget, saisir_budget, consulter_kpi_financiers
 //   rapports, dashboards : non encore branches sur l'API
@@ -70,6 +71,24 @@ export const ROUTES_PERMISSIONS = [
   // c'est le sens de la story Droits annoncee a la #53.
   ["POST",   "/validation/:type/:id/valider", "valider_saisie"],
   ["POST",   "/validation/:type/:id/refuser", "valider_saisie"],
+
+  // ---- Inventaire (#111, module 3) ------------------------------------------
+  // Les chemins litteraux /inventaire/ecarts et /inventaire/affectations
+  // passent avant /inventaire/releves/:id. L'import exige un droit propre,
+  // importer_inventaire (migrations 029 et 030), detenu par admin_sam et
+  // manager_dsi : consulter et rapprocher ne suffisent pas a introduire des
+  // donnees dans le parc. Le rapprochement ne touche jamais une affectation.
+  ["GET",    "/inventaire/imports",                       "consulter_inventaire"],
+  ["POST",   "/inventaire/imports",                       "importer_inventaire"],
+  ["GET",    "/inventaire/imports/:id",                   "consulter_inventaire"],
+  ["GET",    "/inventaire/ecarts",                        "consulter_inventaire"],
+  ["GET",    "/inventaire/affectations",                  "consulter_inventaire"],
+  ["GET",    "/inventaire/releves",                       "consulter_inventaire"],
+  ["GET",    "/inventaire/releves/:id",                   "consulter_inventaire"],
+  ["POST",   "/inventaire/releves/:id/rapprocher",        "rapprocher_inventaire"],
+  ["POST",   "/inventaire/releves/:id/ecart-assume",      "rapprocher_inventaire"],
+  ["POST",   "/inventaire/releves/:id/rejeter",           "rapprocher_inventaire"],
+  ["POST",   "/inventaire/releves/:id/reouvrir",          "rapprocher_inventaire"],
 
   // ---- Referentiels en lecture ---------------------------------------------
   ["GET",    "/types-contrat",               "consulter_referentiels"],
