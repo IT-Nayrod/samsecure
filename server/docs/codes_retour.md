@@ -1,8 +1,30 @@
 # Pre-catalogue des codes retour
 
-Fichier transitoire alimente au fil du developpement. La story #68 fera les
-INSERT en base a partir de ce tableau et remplacera les retours commentes par
-le helper d'enveloppe. Ne pas implementer de resolution de code ici.
+Fichier transitoire alimente au fil du developpement. Les codes sont en base
+(BDD Commune, table code_retour, migrations 024 et 025) et la story #68 a
+remplace les retours commentes du module 2 par le helper d'enveloppe
+`server/utils/reponse.js` (24/08/2026). Ce fichier reste la source de
+redaction des nouveaux codes : tout nouveau code y est ajoute puis seede par
+migration avant d'etre emis.
+
+Enveloppe (#68) :
+- succes : `{ code, type: "succes", libelle, data }`
+- erreur : `{ code, type: "erreur", libelle, error, details? }` ; `error` est
+  le message rendu (par defaut le libelle du catalogue, surcharge par la route
+  quand le message est interpole : 3020, 3130, 3230, 3313, 3400), `details` le
+  complement structure (bloquants, permission_requise, statut_validation).
+- en-tete `X-Code-Retour: <code>` sur toute reponse, seul vecteur du 3206
+  (telechargement binaire).
+- le statut HTTP reste decide route par route ; les suppressions repondent
+  200 avec `data: null` (plus de 204 sans corps).
+- catalogue charge au demarrage de l'API ; un code absent du catalogue est
+  emis avec `libelle: null` et signale en console.
+
+Perimetre enveloppe au 24/08 : contrats, commandes, preuves, factures,
+validation, stockagePreuves, controle des permissions (3400, 3499). Non
+enveloppes : routes d'administration (2000-2999), auth, mails, referentiels,
+permissions, droits-effectifs (aucun code au catalogue pour ces trois
+derniers), 404 et 500 globaux de index.js.
 
 Plages : transverse 1000-1999 | administration 2000-2999 | contrats 3000-3099 |
 commandes 3100-3199 | documents 3200-3299 | validation 3300-3399 |
