@@ -347,7 +347,7 @@ export default function ContratDetailPage() {
         </button>
         {budgetOpen && (
           <div className="p-4 border-t border-gray-100 dark:border-gray-700">
-            <BudgetEmbeddedSection mode="contrat" id={contrat.id} />
+            <BudgetEmbeddedSection mode="contrat" id={contrat.id} contrat={contrat} />
           </div>
         )}
       </section>
