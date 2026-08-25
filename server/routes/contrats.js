@@ -135,7 +135,8 @@ async function verifierParent(client, idParent, idContrat) {
   }
 
   const { rows } = await client.query(
-    `SELECT c.label, tc.code
+    `SELECT c.label, tc.code,
+            c.date_debut::text AS date_debut, c.date_fin::text AS date_fin
      FROM contrat c LEFT JOIN type_contrat tc ON tc.id = c.id_type_contrat
      WHERE c.id = $1`, [idParent]);
 
@@ -165,8 +166,41 @@ async function verifierParent(client, idParent, idContrat) {
 
   // Test sur le code, jamais sur le label : celui-ci est personnalisable
   // (copy-on-write sur type_contrat).
-  if (rows[0].code !== "cadre") return { anomalie: { parentLabel: rows[0].label } };
-  return {};
+  const parent = { label: rows[0].label, date_debut: rows[0].date_debut, date_fin: rows[0].date_fin };
+  if (rows[0].code !== "cadre") return { anomalie: { parentLabel: rows[0].label }, parent };
+  return { parent };
+}
+
+// Plage du parent : un enfant qui en sort n'est jamais refuse, il est trace dans
+// anomalie_qualite sous un type propre, distinct de l'incoherence de type cadre
+// pour que les deux signalements coexistent et se resolvent independamment.
+function horsPlageParent(corps, parent) {
+  if (!parent) return false;
+  const debutAvant = parent.date_debut && corps.date_debut && corps.date_debut < parent.date_debut;
+  const finApres = parent.date_fin && (!corps.date_fin || corps.date_fin > parent.date_fin);
+  return !!(debutAvant || finApres);
+}
+
+async function signalerHorsPlageParent(client, idContrat, labelContrat, labelParent) {
+  await client.query(
+    `INSERT INTO anomalie_qualite (entite_type, entite_id, type_anomalie, gravite, description)
+     SELECT 'contrat', $1, 'hors_plage_parent', 'attention', $2
+     WHERE NOT EXISTS (
+       SELECT 1 FROM anomalie_qualite
+       WHERE entite_type = 'contrat' AND entite_id = $1
+         AND type_anomalie = 'hors_plage_parent' AND resolu = false
+     )`,
+    [idContrat, `Contrat "${labelContrat}" hors de la periode de son contrat parent "${labelParent}"`]
+  );
+}
+
+async function resoudreHorsPlageParent(client, idContrat) {
+  await client.query(
+    `UPDATE anomalie_qualite SET resolu = true
+     WHERE entite_type = 'contrat' AND entite_id = $1
+       AND type_anomalie = 'hors_plage_parent' AND resolu = false`,
+    [idContrat]
+  );
 }
 
 // Premiere ecriture applicative dans anomalie_qualite : la table existe depuis
@@ -262,6 +296,9 @@ router.post("/contrats", async (req, res) => {
     if (parent.anomalie) {
       await signalerParentNonCadre(client, cree.id, label, parent.anomalie.parentLabel);
     }
+    if (horsPlageParent(corps, parent.parent)) {
+      await signalerHorsPlageParent(client, cree.id, label, parent.parent.label);
+    }
 
     // Toute saisie part en attente de validation, dans la meme transaction que
     // l'ecriture metier : un contrat cree sans son entree de workflow serait
@@ -341,6 +378,8 @@ router.patch("/contrats/:id", async (req, res) => {
     // Rattachement a un cadre ou detachement : l'anomalie eventuelle n'a plus lieu d'etre.
     if (parent.anomalie) await signalerParentNonCadre(client, id, label, parent.anomalie.parentLabel);
     else await resoudreAnomalieParent(client, id);
+    if (horsPlageParent(corps, parent.parent)) await signalerHorsPlageParent(client, id, label, parent.parent.label);
+    else await resoudreHorsPlageParent(client, id);
 
     // Une modification est une saisie : un contrat valide qui change repasse en
     // attente, sans comparaison avant/apres. Decision de la #53.

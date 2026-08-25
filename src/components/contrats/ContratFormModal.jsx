@@ -107,6 +107,19 @@ export default function ContratFormModal({
     }
   }
 
+  // Choisir un parent aligne les dates de l'enfant sur les siennes : valeurs par
+  // defaut, modifiables ensuite. Le serveur n'impose pas la plage du parent, il
+  // signale seulement une anomalie qualite quand l'enfant en sort.
+  function choisirParent(idParent) {
+    const parent = contrats.find(c => c.id === idParent) ?? null;
+    setForm(v => ({
+      ...v,
+      id_contrat_parent: idParent,
+      date_debut: parent ? (parent.date_debut ?? v.date_debut) : v.date_debut,
+      date_fin: parent ? (parent.date_fin ?? v.date_fin) : v.date_fin,
+    }));
+  }
+
   const excludedIds = contrat ? getDescendantIds(contrats, contrat.id) : new Set();
   // L'API accepte un parent non cadre et trace une anomalie qualite. Le
   // formulaire ne le propose pas : l'anomalie ne couvre que les cas herites des imports.
@@ -166,8 +179,8 @@ export default function ContratFormModal({
             </select>
           </FormField>
         </div>
-        <FormField label="Contrat cadre parent" hint="Optionnel, seuls les contrats de type cadre sont proposes">
-          <select className={INPUT_CLS} value={form.id_contrat_parent} onChange={e => setForm(v => ({ ...v, id_contrat_parent: e.target.value }))}>
+        <FormField label="Contrat cadre parent" hint="Optionnel, seuls les contrats de type cadre sont proposés ; ses dates sont reprises, modifiables ensuite">
+          <select className={INPUT_CLS} value={form.id_contrat_parent} onChange={e => choisirParent(e.target.value)}>
             <option value="">Aucun</option>
             {parentOptions.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
           </select>
