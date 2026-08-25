@@ -114,7 +114,7 @@ export default function ContratFormModal({
       if (isEdit) await contratsService.update(contrat.id, payload);
       else await contratsService.create(payload);
       clearDraft(draftKey);
-      addToast({ type: 'success', message: isEdit ? 'Contrat mis a jour.' : 'Contrat cree.' });
+      addToast({ type: 'success', message: isEdit ? 'Contrat mis à jour.' : 'Contrat créé.' });
       await onSaved?.();
       onClose();
     } catch (err) {
@@ -153,7 +153,7 @@ export default function ContratFormModal({
       size="md"
       banner={draftRestaure && (
         <p className="text-xs text-blue-700 dark:text-blue-300 flex items-center justify-between gap-2">
-          Brouillon restaure depuis votre derniere saisie.
+          Brouillon restauré depuis votre dernière saisie.
           <button onClick={() => { clearDraft(draftKey); setForm(EMPTY_FORM); setDraftRestaure(false); }} className="underline hover:no-underline flex-shrink-0">Vider le brouillon</button>
         </p>
       )}
@@ -170,7 +170,7 @@ export default function ContratFormModal({
             {erreurApi}
           </p>
         )}
-        <FormField label="Label" required error={erreurs.label}>
+        <FormField label="Libellé" required error={erreurs.label}>
           <input className={INPUT_CLS} value={form.label} onChange={e => setForm(v => ({ ...v, label: e.target.value }))} />
         </FormField>
         <FormField label="Type de contrat" required error={erreurs.id_type_contrat}>
@@ -179,14 +179,14 @@ export default function ContratFormModal({
             {typesContrat.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
           </select>
         </FormField>
-        <FormField label="Editeur" required error={erreurs.id_editeur}>
+        <FormField label="Éditeur" required error={erreurs.id_editeur}>
           <select className={INPUT_CLS} value={form.id_editeur} onChange={e => setForm(v => ({ ...v, id_editeur: e.target.value }))}>
             <option value="">Choisir...</option>
             {editeurs.map(ed => <option key={ed.id} value={ed.id}>{ed.raison_sociale}</option>)}
           </select>
         </FormField>
         <div className="grid grid-cols-2 gap-4">
-          <FormField label="Societe signataire" required hint="Signataire client" error={erreurs.id_societe}>
+          <FormField label="Société signataire" required hint="Signataire client" error={erreurs.id_societe}>
             <select className={INPUT_CLS} value={form.id_societe} onChange={e => setForm(v => ({ ...v, id_societe: e.target.value }))}>
               <option value="">Choisir...</option>
               {societes.map(s => <option key={s.id} value={s.id}>{s.raison_sociale}</option>)}
@@ -206,18 +206,18 @@ export default function ContratFormModal({
           </select>
         </FormField>
         <div className="grid grid-cols-2 gap-4">
-          <FormField label="Date de debut" required error={erreurs.date_debut}>
+          <FormField label="Date de début" required error={erreurs.date_debut}>
             <input type="date" className={INPUT_CLS} value={form.date_debut} onChange={e => setForm(v => ({ ...v, date_debut: e.target.value }))} />
           </FormField>
-          <FormField label="Date de fin" hint="Optionnelle (perpetuel si vide)">
+          <FormField label="Date de fin" hint="Optionnelle (perpétuel si vide)">
             <input type="date" className={INPUT_CLS} value={form.date_fin} onChange={e => setForm(v => ({ ...v, date_fin: e.target.value }))} />
           </FormField>
         </div>
         <div className="grid grid-cols-2 gap-4 items-end">
-          <FormField label="Preavis de resiliation (jours)" hint="Optionnel">
+          <FormField label="Préavis de résiliation (jours)" hint="Optionnel">
             <input type="number" min={0} className={INPUT_CLS} value={form.duree_resiliation} onChange={e => setForm(v => ({ ...v, duree_resiliation: e.target.value }))} />
           </FormField>
-          <FormField label="A renouveler">
+          <FormField label="À renouveler">
             <label className="flex items-center gap-3 pt-1 cursor-pointer">
               <div
                 onClick={() => setForm(v => ({ ...v, a_renouveler: !v.a_renouveler }))}

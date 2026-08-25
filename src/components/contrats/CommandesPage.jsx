@@ -177,13 +177,13 @@ export default function CommandesPage() {
   const hasActiveFiltres = !!(filterContrat || filterSociete || filterRevendeur || filterRenouvellement || activeKpi);
 
   const columns = [
-    { key: 'label', label: 'Label', sortable: true, render: r => (
+    { key: 'label', label: 'Libellé', sortable: true, render: r => (
       <button onClick={() => navigate(`/contrats/commandes/${r.id}`)} className="font-medium text-blue-800 hover:underline text-left">{r.label}</button>
     ) },
     { key: 'numero_devis', label: 'Devis', sortable: true, render: r => r.numero_devis ?? '-' },
-    { key: 'reference_interne', label: 'Reference', sortable: true, render: r => r.reference_interne ?? '-' },
+    { key: 'reference_interne', label: 'Référence', sortable: true, render: r => r.reference_interne ?? '-' },
     { key: 'contrat_label', label: 'Contrat', sortable: true, render: r => r.contrat_label ?? '-' },
-    { key: 'societe_label', label: 'Societe acheteuse', sortable: true, render: r => r.societe_label ?? '-' },
+    { key: 'societe_label', label: 'Société acheteuse', sortable: true, render: r => r.societe_label ?? '-' },
     { key: 'revendeur_label', label: 'Revendeur', sortable: true, render: r => r.revendeur_label ?? '-' },
     { key: 'mode_label', label: 'Mode', sortable: true, render: r => r.mode_label ?? '-' },
     { key: 'montant', label: 'Montant', sortable: true, getValue: r => r.montant, render: r => euros(r.montant) },
@@ -272,8 +272,8 @@ export default function CommandesPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <DeploiementKpiCard label="Montant total commande" value={euros(totaux.montant_commande)} icon={Wallet} color="#7C6FCD" />
         <DeploiementKpiCard label="Nombre de commandes" value={totaux.nb_commandes ?? 0} icon={Hash} color="#1F4E79" />
-        <DeploiementKpiCard label="Commandes a renouveler" value={totaux.nb_a_renouveler ?? 0} icon={RefreshCw} color="#F59E0B" onClick={() => toggleKpi('a_renouveler')} active={activeKpi === 'a_renouveler'} />
-        <DeploiementKpiCard label="Montant a renouveler" value={euros(totaux.montant_a_renouveler)} icon={TrendingUp} color="#EF4444" />
+        <DeploiementKpiCard label="Commandes à renouveler" value={totaux.nb_a_renouveler ?? 0} icon={RefreshCw} color="#F59E0B" onClick={() => toggleKpi('a_renouveler')} active={activeKpi === 'a_renouveler'} />
+        <DeploiementKpiCard label="Montant à renouveler" value={euros(totaux.montant_a_renouveler)} icon={TrendingUp} color="#EF4444" />
       </div>
 
       <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
@@ -291,17 +291,17 @@ export default function CommandesPage() {
 
       <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
         <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-          Budget vs commandes {agregats && <span className="font-normal text-gray-500">- {agregats.periode_debut} a {agregats.periode_fin}</span>}
+          Budget vs commandes {agregats && <span className="font-normal text-gray-500">- {agregats.periode_debut} à {agregats.periode_fin}</span>}
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <p className="text-xs text-gray-500 mb-1">Realise (commandes)</p>
+            <p className="text-xs text-gray-500 mb-1">Réalisé (commandes)</p>
             <p className="text-lg font-semibold text-gray-900 dark:text-white">{euros(totaux.montant_commande)}</p>
           </div>
           <div>
             <p className="text-xs text-gray-500 mb-1">Budget</p>
-            <p className="text-lg font-semibold text-gray-400">A venir</p>
-            <p className="text-xs text-gray-400 mt-1">Le volet budget sera branche avec le module 4.</p>
+            <p className="text-lg font-semibold text-gray-400">À venir</p>
+            <p className="text-xs text-gray-400 mt-1">Le volet budget sera branché avec le module 4.</p>
           </div>
         </div>
       </section>
@@ -309,7 +309,7 @@ export default function CommandesPage() {
 
       <div className="flex flex-wrap gap-3 bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
         <select value={filterSociete} onChange={e => setFilterSociete(e.target.value)} className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-          <option value="">Toutes les societes</option>
+          <option value="">Toutes les sociétés</option>
           {societes.map(s => <option key={s.id} value={s.id}>{s.raison_sociale}</option>)}
         </select>
         <select value={filterRevendeur} onChange={e => setFilterRevendeur(e.target.value)} className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -322,12 +322,12 @@ export default function CommandesPage() {
         </select>
         <select value={filterRenouvellement} onChange={e => setFilterRenouvellement(e.target.value)} className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="">Renouvellement : tous</option>
-          <option value="oui">A renouveler</option>
+          <option value="oui">À renouveler</option>
           <option value="non">Sans renouvellement</option>
         </select>
         {hasActiveFiltres && (
           <button onClick={resetFiltres} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 px-3 py-2">
-            <X size={14} /> Reinitialiser les filtres
+            <X size={14} /> Réinitialiser les filtres
           </button>
         )}
       </div>
@@ -337,7 +337,7 @@ export default function CommandesPage() {
           columns={columns}
           data={filtrees}
           filename="commandes"
-          emptyState={{ message: commandes.length === 0 ? 'Aucune commande enregistree.' : 'Aucune commande ne correspond aux filtres.' }}
+          emptyState={{ message: commandes.length === 0 ? 'Aucune commande enregistrée.' : 'Aucune commande ne correspond aux filtres.' }}
         />
       </div>
 

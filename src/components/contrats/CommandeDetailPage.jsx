@@ -108,7 +108,7 @@ export default function CommandeDetailPage() {
   async function handleDelete() {
     try {
       await commandesService.remove(commande.id);
-      addToast({ type: 'success', message: 'Commande supprimee.' });
+      addToast({ type: 'success', message: 'Commande supprimée.' });
       navigate('/contrats/commandes');
     } catch (err) {
       // Message du serveur affiche tel quel : "Suppression impossible : ..."
@@ -134,7 +134,7 @@ export default function CommandeDetailPage() {
     return (
       <div className="flex flex-col gap-6">
         <Breadcrumb items={[{ label: 'Droits d\'usage', to: '/contrats/commandes' }, { label: 'Commandes', to: '/contrats/commandes' }, { label: 'Introuvable' }]} />
-        <EmptyState title="Commande introuvable" description="Cette commande n'existe pas ou a ete supprimee." ctaLabel="Retour a la liste" onCta={() => navigate('/contrats/commandes')} />
+        <EmptyState title="Commande introuvable" description="Cette commande n'existe pas ou a été supprimée." ctaLabel="Retour à la liste" onCta={() => navigate('/contrats/commandes')} />
       </div>
     );
   }
@@ -174,7 +174,7 @@ export default function CommandeDetailPage() {
             <Button variant="primary" size="sm" onClick={() => setPreuveModal(true)}><Plus size={14} /> Ajouter une preuve</Button>
           )}
           {canWrite && (
-            <Button variant="secondary" size="sm" onClick={() => setFormOpen(true)}><Pencil size={14} /> Editer</Button>
+            <Button variant="secondary" size="sm" onClick={() => setFormOpen(true)}><Pencil size={14} /> Éditer</Button>
           )}
           {canDelete && (
             <Button variant="destructive" size="sm" onClick={() => setDeleteOpen(true)}><Trash2 size={14} /> Supprimer</Button>
@@ -186,7 +186,7 @@ export default function CommandeDetailPage() {
         <div className="flex items-start gap-2 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
           <XCircle size={16} className="text-red-600 flex-shrink-0 mt-0.5" />
           <div>
-            <p className="text-sm font-medium text-red-800 dark:text-red-300">Saisie refusee</p>
+            <p className="text-sm font-medium text-red-800 dark:text-red-300">Saisie refusée</p>
             <p className="text-sm text-red-700 dark:text-red-400 mt-0.5">{commande.message_refus}</p>
           </div>
         </div>
@@ -202,7 +202,7 @@ export default function CommandeDetailPage() {
               : <p className="text-sm text-gray-500">-</p>}
           </div>
           <div>
-            <p className="text-xs text-gray-500 mb-1">Societe acheteuse</p>
+            <p className="text-xs text-gray-500 mb-1">Société acheteuse</p>
             <p className="text-sm text-gray-800 dark:text-gray-200">{commande.societe_label ?? '-'}</p>
           </div>
           <div>
@@ -217,7 +217,7 @@ export default function CommandeDetailPage() {
       </section>
 
       <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Financier et echeance</h2>
+        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Financier et échéance</h2>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div>
             <p className="text-xs text-gray-500 mb-1">Montant</p>
@@ -228,25 +228,25 @@ export default function CommandeDetailPage() {
             <p className="text-sm text-gray-800 dark:text-gray-200">{formatDate(commande.date_commande)}</p>
           </div>
           <div>
-            <p className="text-xs text-gray-500 mb-1">A renouveler</p>
+            <p className="text-xs text-gray-500 mb-1">À renouveler</p>
             <p className="text-sm text-gray-800 dark:text-gray-200">{commande.a_renouveler ? 'Oui' : 'Non'}</p>
           </div>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4">
           <div>
-            <p className="text-xs text-gray-500 mb-1">Numero de devis</p>
+            <p className="text-xs text-gray-500 mb-1">Numéro de devis</p>
             <p className="text-sm text-gray-800 dark:text-gray-200">{commande.numero_devis ?? '-'}</p>
           </div>
           <div>
-            <p className="text-xs text-gray-500 mb-1">Reference interne</p>
+            <p className="text-xs text-gray-500 mb-1">Référence interne</p>
             <p className="text-sm text-gray-800 dark:text-gray-200">{commande.reference_interne ?? '-'}</p>
           </div>
         </div>
         {(commande.statut_echeance === 'expire' || commande.statut_echeance === 'a_renouveler') && commande.jours_restants !== null && (
           <p className="text-sm mt-3" style={{ color: commande.statut_echeance === 'expire' ? '#EF4444' : '#F59E0B' }}>
             {commande.statut_echeance === 'expire'
-              ? `Echu depuis ${-commande.jours_restants} jours`
-              : `Echeance dans ${commande.jours_restants} jours`}
+              ? `Échu depuis ${-commande.jours_restants} jours`
+              : `Échéance dans ${commande.jours_restants} jours`}
           </p>
         )}
       </section>
@@ -329,7 +329,7 @@ export default function CommandeDetailPage() {
         title="Supprimer la commande"
         isDestructive
         confirmLabel="Supprimer"
-        message={`Supprimer definitivement ${commande.label} ? Cette action est irreversible.`}
+        message={`Supprimer définitivement ${commande.label} ? Cette action est irréversible.`}
       />
     </div>
   );

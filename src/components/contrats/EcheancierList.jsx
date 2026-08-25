@@ -23,7 +23,7 @@ export default function EcheancierList({ contrats }) {
   if (echeances.length === 0) {
     return (
       <div className="flex items-center gap-2 text-sm text-gray-500 py-4">
-        <CheckCircle2 size={16} className="text-green-500" /> Aucun contrat proche de son echeance. Tout est a jour.
+        <CheckCircle2 size={16} className="text-green-500" /> Aucun contrat proche de son échéance. Tout est à jour.
       </div>
     );
   }
@@ -41,12 +41,12 @@ export default function EcheancierList({ contrats }) {
             <div className="flex items-center gap-2 flex-shrink-0">
               <span className="text-xs text-gray-500">
                 {contrat.statut_echeance === 'expire'
-                  ? `Echu depuis ${-contrat.jours_restants} jours`
-                  : `Echeance dans ${contrat.jours_restants} jours`
+                  ? `Échu depuis ${-contrat.jours_restants} jours`
+                  : `Échéance dans ${contrat.jours_restants} jours`
                 }
               </span>
               <StatutEcheanceBadge statut={contrat.statut_echeance} />
-              <button onClick={() => navigate(`/contrats/liste/${contrat.id}`)} aria-label="Voir le detail" className="p-1.5 text-gray-400 hover:text-gray-700">
+              <button onClick={() => navigate(`/contrats/liste/${contrat.id}`)} aria-label="Voir le détail" className="p-1.5 text-gray-400 hover:text-gray-700">
                 <ArrowRight size={14} />
               </button>
             </div>

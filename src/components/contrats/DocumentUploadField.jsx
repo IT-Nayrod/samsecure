@@ -48,7 +48,7 @@ export default function DocumentUploadField({ file, onChange, disabled = false }
       <div className="flex-1 min-w-0">
         {file
           ? <p className="text-sm text-gray-800 dark:text-gray-200 truncate">{file.name}</p>
-          : <p className="text-sm text-gray-500">Cliquez ou glissez-deposez un fichier</p>
+          : <p className="text-sm text-gray-500">Cliquez ou glissez-déposez un fichier</p>
         }
         <p className="text-xs text-gray-400">{file ? taille(file.size) : FORMATS}</p>
       </div>
