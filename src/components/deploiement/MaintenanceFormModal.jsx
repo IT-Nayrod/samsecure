@@ -30,9 +30,9 @@ export default function MaintenanceFormModal({ isOpen, onClose, onSaved, licence
 
   function validate() {
     const e = {};
-    if (!form.date_debut) e.date_debut = 'La date de debut est requise';
-    if (form.date_fin && form.date_fin < form.date_debut) e.date_fin = 'La date de fin doit etre posterieure a la date de debut';
-    if (form.cout !== '' && Number(form.cout) < 0) e.cout = 'Le cout ne peut pas etre negatif';
+    if (!form.date_debut) e.date_debut = 'La date de début est requise';
+    if (form.date_fin && form.date_fin < form.date_debut) e.date_fin = 'La date de fin doit être postérieure à la date de début';
+    if (form.cout !== '' && Number(form.cout) < 0) e.cout = 'Le coût ne peut pas être négatif';
     return e;
   }
 
@@ -48,7 +48,7 @@ export default function MaintenanceFormModal({ isOpen, onClose, onSaved, licence
       const saved = isEdit
         ? await licencesService.maintenance.update(licenceId, periode.id, payload)
         : await licencesService.maintenance.create(licenceId, payload);
-      addToast({ type: 'success', message: isEdit ? 'Periode de maintenance mise a jour.' : 'Periode de maintenance ajoutee.' });
+      addToast({ type: 'success', message: isEdit ? 'Période de maintenance mise à jour.' : 'Période de maintenance ajoutée.' });
       onSaved(saved);
       onClose();
     } catch (err) {
@@ -64,7 +64,7 @@ export default function MaintenanceFormModal({ isOpen, onClose, onSaved, licence
     <SlideOver
       isOpen={isOpen}
       onClose={onClose}
-      title={isEdit ? 'Modifier la periode de maintenance' : 'Nouvelle periode de maintenance'}
+      title={isEdit ? 'Modifier la période de maintenance' : 'Nouvelle période de maintenance'}
       size="sm"
       footer={
         <>
@@ -75,7 +75,7 @@ export default function MaintenanceFormModal({ isOpen, onClose, onSaved, licence
     >
       <div className="flex flex-col gap-4">
         <div className="grid grid-cols-2 gap-4">
-          <FormField label="Date de debut" required error={errors.date_debut}>
+          <FormField label="Date de début" required error={errors.date_debut}>
             <input type="date" className={INPUT_CLS} value={form.date_debut} onChange={e => { setForm(v => ({ ...v, date_debut: e.target.value })); setErrors(v => ({ ...v, date_debut: null })); }} />
           </FormField>
           <FormField label="Date de fin" hint="Vide = en cours" error={errors.date_fin}>
@@ -84,18 +84,18 @@ export default function MaintenanceFormModal({ isOpen, onClose, onSaved, licence
         </div>
         <FormField label="Mainteneur">
           <select className={INPUT_CLS} value={form.id_mainteneur} onChange={e => setForm(v => ({ ...v, id_mainteneur: e.target.value }))}>
-            <option value="">Non renseigne</option>
+            <option value="">Non renseigné</option>
             {mainteneurs.map(m => <option key={m.id} value={m.id}>{m.raison_sociale}</option>)}
           </select>
         </FormField>
         <FormField label="Revendeur">
           <select className={INPUT_CLS} value={form.id_revendeur} onChange={e => setForm(v => ({ ...v, id_revendeur: e.target.value }))}>
-            <option value="">Non renseigne</option>
+            <option value="">Non renseigné</option>
             {revendeurs.map(r => <option key={r.id} value={r.id}>{r.raison_sociale}</option>)}
           </select>
         </FormField>
         {montantsVisibles && (
-          <FormField label="Cout (EUR)" error={errors.cout}>
+          <FormField label="Coût (EUR)" error={errors.cout}>
             <input type="number" min={0} step="0.01" className={INPUT_CLS} value={form.cout} onChange={e => { setForm(v => ({ ...v, cout: e.target.value })); setErrors(v => ({ ...v, cout: null })); }} />
           </FormField>
         )}

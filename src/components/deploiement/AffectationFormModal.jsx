@@ -16,7 +16,7 @@ const EMPTY_FORM = { id_licence: '', id_societe: '', quantite: 1, reference_clie
 
 function licenceLabel(l) {
   const produit = l.produit_label ? `${l.produit_label} - ` : '';
-  return `${produit}${l.label ?? 'Licence sans libelle'} (${l.quantite} droits)`;
+  return `${produit}${l.label ?? 'Licence sans libellé'} (${l.quantite} droits)`;
 }
 
 export default function AffectationFormModal({ isOpen, onClose, onSaved, affectation, licences = [], societes = [] }) {
@@ -60,7 +60,7 @@ export default function AffectationFormModal({ isOpen, onClose, onSaved, affecta
       if (isEdit) await affectationsService.update(affectation.id, payload);
       else await affectationsService.create(payload);
       clearDraft(draftKey);
-      addToast({ type: 'success', message: isEdit ? 'Affectation modifiee et resoumise a validation.' : 'Affectation declaree et soumise a validation.' });
+      addToast({ type: 'success', message: isEdit ? 'Affectation modifiée et resoumise à validation.' : 'Affectation déclarée et soumise à validation.' });
       await onSaved?.();
       onClose();
     } catch (err) {
@@ -80,7 +80,7 @@ export default function AffectationFormModal({ isOpen, onClose, onSaved, affecta
       size="sm"
       banner={draftRestaure && (
         <p className="text-xs text-blue-700 dark:text-blue-300 flex items-center justify-between gap-2">
-          Brouillon restaure depuis votre derniere saisie.
+          Brouillon restauré depuis votre dernière saisie.
           <button onClick={() => { clearDraft(draftKey); setForm(EMPTY_FORM); setDraftRestaure(false); }} className="underline hover:no-underline flex-shrink-0">Vider le brouillon</button>
         </p>
       )}
@@ -88,7 +88,7 @@ export default function AffectationFormModal({ isOpen, onClose, onSaved, affecta
         <>
           <Button variant="secondary" onClick={onClose}>Annuler</Button>
           <Button variant="primary" onClick={handleSave} isLoading={loading} disabled={!complet}>
-            {isEdit ? 'Enregistrer et resoumettre' : 'Declarer'}
+            {isEdit ? 'Enregistrer et resoumettre' : 'Déclarer'}
           </Button>
         </>
       }
@@ -102,23 +102,23 @@ export default function AffectationFormModal({ isOpen, onClose, onSaved, affecta
         {isEdit && (
           <p className="text-xs text-gray-500">Toute modification resoumet l&apos;affectation au circuit de validation.</p>
         )}
-        <FormField label="Licence" required hint="Le produit decoule de la licence">
+        <FormField label="Licence" required hint="Le produit découle de la licence">
           <select className={INPUT_CLS} value={form.id_licence} onChange={e => setForm(v => ({ ...v, id_licence: e.target.value }))}>
             <option value="">Choisir...</option>
             {licences.map(l => <option key={l.id} value={l.id}>{licenceLabel(l)}</option>)}
             {licenceInconnue && <option value={form.id_licence}>{affectation?.licence_label ?? 'Licence actuelle'}</option>}
           </select>
         </FormField>
-        <FormField label="Societe" required>
+        <FormField label="Société" required>
           <select className={INPUT_CLS} value={form.id_societe} onChange={e => setForm(v => ({ ...v, id_societe: e.target.value }))}>
             <option value="">Choisir...</option>
             {societes.map(s => <option key={s.id} value={s.id}>{s.raison_sociale}</option>)}
           </select>
         </FormField>
-        <FormField label="Reference client" required hint="Asset materiel ou utilisateur nomme">
+        <FormField label="Référence client" required hint="Asset matériel ou utilisateur nommé">
           <input className={INPUT_CLS} value={form.reference_client} onChange={e => setForm(v => ({ ...v, reference_client: e.target.value }))} />
         </FormField>
-        <FormField label="Quantite" required>
+        <FormField label="Quantité" required>
           <input type="number" min={1} step={1} className={INPUT_CLS} value={form.quantite} onChange={e => setForm(v => ({ ...v, quantite: e.target.value }))} />
         </FormField>
       </div>

@@ -113,7 +113,7 @@ export default function AffectationsPage() {
     try {
       const fraiche = await affectationsService.revalider(id);
       setAffectations(prev => prev.map(a => a.id === id ? fraiche : a));
-      addToast({ type: 'success', message: `Revalidation effectuee, prochaine echeance le ${formatDate(fraiche.date_prochaine_revalidation)}.` });
+      addToast({ type: 'success', message: `Revalidation effectuée, prochaine échéance le ${formatDate(fraiche.date_prochaine_revalidation)}.` });
     } catch (err) {
       addToast({ type: 'error', message: err.message, persistent: true });
     } finally {
@@ -162,9 +162,9 @@ export default function AffectationsPage() {
         {r.produit_label ?? r.licence_label ?? 'Produit inconnu'}
       </button>
     ) },
-    { key: 'societe_label', label: 'Societe', sortable: true, render: r => r.societe_label ?? '-' },
-    { key: 'reference_client', label: 'Reference client', sortable: true },
-    { key: 'quantite', label: 'Quantite', sortable: true },
+    { key: 'societe_label', label: 'Société', sortable: true, render: r => r.societe_label ?? '-' },
+    { key: 'reference_client', label: 'Référence client', sortable: true },
+    { key: 'quantite', label: 'Quantité', sortable: true },
     { key: 'statut_validation', label: 'Validation', sortable: true, render: r => <ValidationCell statut={r.statut_validation} motif={r.message_refus} /> },
     { key: 'revalidation', label: 'Revalidation', getValue: r => r.date_prochaine_revalidation ?? '', render: r => (
       <div className="flex items-center gap-2">
@@ -211,9 +211,9 @@ export default function AffectationsPage() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <DeploiementKpiCard label="A valider" value={kpis.aValider} icon={Clock} color="#8B9099" />
-        <DeploiementKpiCard label="A revalider" value={kpis.aRevalider} icon={AlertTriangle} color="#F59E0B" />
-        <DeploiementKpiCard label="Revalidations depassees" value={kpis.depassees} icon={AlertTriangle} color="#EF4444" />
+        <DeploiementKpiCard label="À valider" value={kpis.aValider} icon={Clock} color="#8B9099" />
+        <DeploiementKpiCard label="À revalider" value={kpis.aRevalider} icon={AlertTriangle} color="#F59E0B" />
+        <DeploiementKpiCard label="Revalidations dépassées" value={kpis.depassees} icon={AlertTriangle} color="#EF4444" />
       </div>
 
       {/* File de travail - signature de la page */}
@@ -221,7 +221,7 @@ export default function AffectationsPage() {
         <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">File de travail</h2>
         {file.length === 0 ? (
           <div className="flex items-center gap-2 text-sm text-gray-500 py-4">
-            <CheckCircle2 size={16} className="text-green-500" /> Aucune action en attente. Tout est a jour.
+            <CheckCircle2 size={16} className="text-green-500" /> Aucune action en attente. Tout est à jour.
           </div>
         ) : (
           <div className="flex flex-col gap-2">
@@ -231,7 +231,7 @@ export default function AffectationsPage() {
                 <div key={a.id} className="flex items-center justify-between gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-900/40" style={{ borderLeft: `3px solid ${couleur}` }}>
                   <button onClick={() => navigate(`/conformite/affectations/${a.id}`)} className="flex flex-col items-start text-left min-w-0">
                     <span className="text-sm font-medium text-gray-900 dark:text-white truncate">{a.produit_label ?? a.licence_label ?? 'Produit inconnu'} - {a.reference_client}</span>
-                    <span className="text-xs text-gray-500">{a.societe_label ?? 'Societe non renseignee'} · {a.quantite} · soumis par {a.soumis_par ?? 'inconnu'}</span>
+                    <span className="text-xs text-gray-500">{a.societe_label ?? 'Société non renseignée'} · {a.quantite} · soumis par {a.soumis_par ?? 'inconnu'}</span>
                   </button>
                   <div className="flex items-center gap-2 flex-shrink-0">
                     {a.statut_validation === 'en_attente'
@@ -241,14 +241,14 @@ export default function AffectationsPage() {
                           <StatutRevalidationBadge revalidation={a.statut_revalidation} />
                           {a.date_prochaine_revalidation && (
                             <span className="text-xs text-gray-400">
-                              {a.jours_restants >= 0 ? `echeance le ${formatDate(a.date_prochaine_revalidation)}` : `depassee depuis ${-a.jours_restants} j`}
+                              {a.jours_restants >= 0 ? `échéance le ${formatDate(a.date_prochaine_revalidation)}` : `dépassée depuis ${-a.jours_restants} j`}
                             </span>
                           )}
                         </span>
                       )
                     }
                     {actions(a)}
-                    <button onClick={() => navigate(`/conformite/affectations/${a.id}`)} aria-label="Voir le detail" className="p-1.5 text-gray-400 hover:text-gray-700">
+                    <button onClick={() => navigate(`/conformite/affectations/${a.id}`)} aria-label="Voir le détail" className="p-1.5 text-gray-400 hover:text-gray-700">
                       <ArrowRight size={14} />
                     </button>
                   </div>
@@ -261,7 +261,7 @@ export default function AffectationsPage() {
 
       <div className="flex flex-wrap gap-3 bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
         <select value={filterSociete} onChange={e => setFilterSociete(e.target.value)} className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-          <option value="">Toutes les societes</option>
+          <option value="">Toutes les sociétés</option>
           {societes.map(s => <option key={s.id} value={s.id}>{s.raison_sociale}</option>)}
         </select>
         <select value={filterProduit} onChange={e => setFilterProduit(e.target.value)} className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -271,15 +271,15 @@ export default function AffectationsPage() {
         <select value={filterStatutValidation} onChange={e => setFilterStatutValidation(e.target.value)} className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="">Statut validation : tous</option>
           <option value="en_attente">En attente</option>
-          <option value="valide">Valide</option>
-          <option value="a_revalider">A revalider</option>
-          <option value="refuse">Refuse</option>
+          <option value="valide">Validé</option>
+          <option value="a_revalider">À revalider</option>
+          <option value="refuse">Refusé</option>
         </select>
         <select value={filterStatutRevalidation} onChange={e => setFilterStatutRevalidation(e.target.value)} className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="">Statut revalidation : tous</option>
-          <option value="a_jour">A jour</option>
-          <option value="a_revalider">A revalider</option>
-          <option value="depasse">Depasse</option>
+          <option value="a_jour">À jour</option>
+          <option value="a_revalider">À revalider</option>
+          <option value="depasse">Dépassé</option>
         </select>
       </div>
 
@@ -296,7 +296,7 @@ export default function AffectationsPage() {
       {societeActive && (
         <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
           <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
-            <History size={14} /> Historique des declarations de {societes.find(s => s.id === societeActive)?.raison_sociale ?? 'la societe'}
+            <History size={14} /> Historique des déclarations de {societes.find(s => s.id === societeActive)?.raison_sociale ?? 'la société'}
           </h2>
           <HistoriqueDeclarations filtres={{ id_societe: societeActive }} />
         </section>

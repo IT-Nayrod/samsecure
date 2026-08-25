@@ -26,9 +26,9 @@ import { useToast } from '../../hooks/useToast';
 import { formatDateTime } from '../../utils/dateUtils';
 
 const CONNECTEUR_STATUT = {
-  ok: { variant: 'success', label: 'Operationnel' },
-  defaillant: { variant: 'error', label: 'Defaillant' },
-  non_configure: { variant: 'neutral', label: 'Non configure' },
+  ok: { variant: 'success', label: 'Opérationnel' },
+  defaillant: { variant: 'error', label: 'Défaillant' },
+  non_configure: { variant: 'neutral', label: 'Non configuré' },
 };
 
 const selectCls = 'text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500';
@@ -101,7 +101,7 @@ export default function InventairePage() {
 
   function apresTransition(data, mode) {
     setReleves(liste => liste.map(r => r.id === data.id ? data : r));
-    addToast({ type: 'success', message: { rapprocher: 'Releve rapproche.', 'ecart-assume': 'Ecart assume.', rejeter: 'Releve rejete.', reouvrir: 'Releve remis en attente.' }[mode] });
+    addToast({ type: 'success', message: { rapprocher: 'Relevé rapproché.', 'ecart-assume': 'Écart assumé.', rejeter: 'Relevé rejeté.', reouvrir: 'Relevé remis en attente.' }[mode] });
     // Compteurs et listes d'ecarts sont une vue calculee : rechargement.
     optionnel(inventaireService.ecarts(), null).then(setEcarts);
   }
@@ -118,11 +118,11 @@ export default function InventairePage() {
 
   const columns = [
     { key: 'produit_label', label: 'Produit', sortable: true, render: r => (
-      <button onClick={() => navigate(`/conformite/inventaire/${r.id}`)} className="font-medium text-blue-800 hover:underline text-left">{r.produit_label ?? (r.fichier_absent ? 'Fichier archive absent' : '-')}</button>
+      <button onClick={() => navigate(`/conformite/inventaire/${r.id}`)} className="font-medium text-blue-800 hover:underline text-left">{r.produit_label ?? (r.fichier_absent ? 'Fichier archivé absent' : '-')}</button>
     ) },
-    { key: 'reference', label: 'Reference constatee', sortable: true, render: r => <span className="font-mono text-xs">{r.reference ?? '-'}</span> },
-    { key: 'quantite', label: 'Quantite', sortable: true, render: r => r.quantite ?? '-' },
-    { key: 'societe_label', label: 'Societe', sortable: true, render: r => r.societe_label ?? '-' },
+    { key: 'reference', label: 'Référence constatée', sortable: true, render: r => <span className="font-mono text-xs">{r.reference ?? '-'}</span> },
+    { key: 'quantite', label: 'Quantité', sortable: true, render: r => r.quantite ?? '-' },
+    { key: 'societe_label', label: 'Société', sortable: true, render: r => r.societe_label ?? '-' },
     { key: 'date_import', label: 'Import', sortable: true, render: r => r.date_import ? formatDateTime(r.date_import) : '-' },
     { key: 'affectation', label: 'Affectation', sortable: true, getValue: r => r.affectation_reference ?? '', render: r => r.id_affectation
       ? <span className="text-sm">{r.affectation_reference ?? r.affectation_label}</span>
@@ -139,7 +139,7 @@ export default function InventairePage() {
           <Button size="sm" variant="secondary" onClick={() => setReleveEnCours(r)}>Rapprocher</Button>
         )}
         {r.statut_rapprochement !== 'en_attente' && (
-          <Button size="sm" variant="ghost" onClick={() => reouvrir(r)}>Reouvrir</Button>
+          <Button size="sm" variant="ghost" onClick={() => reouvrir(r)}>Réouvrir</Button>
         )}
       </div>
     ) });
@@ -151,16 +151,16 @@ export default function InventairePage() {
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Inventaire</h1>
-          <p className="text-sm text-gray-500 mt-0.5">L'usage constate, confronte aux droits et a l'usage declare. L'outil constate et alerte : aucune affectation n'est creee ni modifiee automatiquement.</p>
+          <p className="text-sm text-gray-500 mt-0.5">L'usage constaté, confronté aux droits et à l'usage déclaré. L'outil constate et alerte : aucune affectation n'est créée ni modifiée automatiquement.</p>
         </div>
         {canImport && (
-          <Button onClick={() => setImportModal(true)}><Upload size={15} className="mr-1.5" /> Importer un releve</Button>
+          <Button onClick={() => setImportModal(true)}><Upload size={15} className="mr-1.5" /> Importer un relevé</Button>
         )}
       </div>
 
       <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Connecteurs (apercu)</h2>
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Connecteurs (aperçu)</h2>
           <span className="text-xs font-semibold text-blue-700 bg-blue-100 dark:bg-blue-900/30 px-2.5 py-1 rounded-full">Disponible en v2</span>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 opacity-70">
@@ -177,7 +177,7 @@ export default function InventairePage() {
             );
           })}
         </div>
-        <p className="text-xs text-gray-400 mt-3">Configuration des connecteurs reservee au Manager DSI, disponible en v2. En attendant, les releves sont importes manuellement au format csv.</p>
+        <p className="text-xs text-gray-400 mt-3">Configuration des connecteurs réservée au Manager DSI, disponible en v2. En attendant, les relevés sont importés manuellement au format csv.</p>
       </section>
 
       {error ? (
@@ -188,20 +188,20 @@ export default function InventairePage() {
         <>
           {c && (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-              <DeploiementKpiCard label="Releves" value={c.releves_total} icon={ClipboardList} onClick={() => setFilterStatut('')} active={filterStatut === ''} />
+              <DeploiementKpiCard label="Relevés" value={c.releves_total} icon={ClipboardList} onClick={() => setFilterStatut('')} active={filterStatut === ''} />
               <DeploiementKpiCard label="En attente" value={c.en_attente} icon={Clock} color="#2563EB" onClick={() => setFilterStatut('en_attente')} active={filterStatut === 'en_attente'} />
-              <DeploiementKpiCard label="Rapproches" value={c.rapproche} icon={Link2} color="#16A34A" onClick={() => setFilterStatut('rapproche')} active={filterStatut === 'rapproche'} />
-              <DeploiementKpiCard label="Ecarts detectes" value={c.ecart_detecte} icon={AlertTriangle} color="#EA580C" onClick={() => setFilterStatut('ecart_detecte')} active={filterStatut === 'ecart_detecte'} />
-              <DeploiementKpiCard label="Rejetes" value={c.rejete} icon={CircleSlash} color="#6B7280" onClick={() => setFilterStatut('rejete')} active={filterStatut === 'rejete'} />
-              <DeploiementKpiCard label="Affectations jamais constatees" value={`${c.affectations_non_constatees} / ${c.affectations_total}`} icon={AlertTriangle} color="#7C3AED" />
+              <DeploiementKpiCard label="Rapprochés" value={c.rapproche} icon={Link2} color="#16A34A" onClick={() => setFilterStatut('rapproche')} active={filterStatut === 'rapproche'} />
+              <DeploiementKpiCard label="Écarts détectés" value={c.ecart_detecte} icon={AlertTriangle} color="#EA580C" onClick={() => setFilterStatut('ecart_detecte')} active={filterStatut === 'ecart_detecte'} />
+              <DeploiementKpiCard label="Rejetés" value={c.rejete} icon={CircleSlash} color="#6B7280" onClick={() => setFilterStatut('rejete')} active={filterStatut === 'rejete'} />
+              <DeploiementKpiCard label="Affectations jamais constatées" value={`${c.affectations_non_constatees} / ${c.affectations_total}`} icon={AlertTriangle} color="#7C3AED" />
             </div>
           )}
 
           {ecarts && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-                <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Usage constate sans affectation declaree ({ecarts.compteurs.constates_sans_affectation})</h2>
-                <p className="text-xs text-gray-500 mb-3">Releves non rejetes qui ne sont rapproches d'aucune affectation.</p>
+                <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Usage constaté sans affectation déclarée ({ecarts.compteurs.constates_sans_affectation})</h2>
+                <p className="text-xs text-gray-500 mb-3">Relevés non rejetés qui ne sont rapprochés d'aucune affectation.</p>
                 {ecarts.constates_sans_affectation.length === 0
                   ? <p className="text-sm text-gray-400">Aucun.</p>
                   : <ul className="divide-y divide-gray-100 dark:divide-gray-700 max-h-72 overflow-y-auto">
@@ -216,8 +216,8 @@ export default function InventairePage() {
                     </ul>}
               </section>
               <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-                <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Affectations declarees jamais constatees ({ecarts.compteurs.affectations_non_constatees})</h2>
-                <p className="text-xs text-gray-500 mb-3">Affectations sans aucun releve rapproche. Les candidates sont les releves en attente de meme reference.</p>
+                <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Affectations déclarées jamais constatées ({ecarts.compteurs.affectations_non_constatees})</h2>
+                <p className="text-xs text-gray-500 mb-3">Affectations sans aucun relevé rapproché. Les candidates sont les relevés en attente de même référence.</p>
                 {ecarts.affectations_non_constatees.length === 0
                   ? <p className="text-sm text-gray-400">Aucune.</p>
                   : <ul className="divide-y divide-gray-100 dark:divide-gray-700 max-h-72 overflow-y-auto">
@@ -227,8 +227,8 @@ export default function InventairePage() {
                             {a.produit_label ?? a.licence_label ?? '-'} <span className="font-mono text-xs text-gray-500">{a.reference_client}</span> x{a.quantite}{a.societe_label ? ` - ${a.societe_label}` : ''}
                           </span>
                           {a.nb_candidats > 0
-                            ? <span className="text-xs text-blue-700 whitespace-nowrap">{a.nb_candidats} releve(s) candidat(s)</span>
-                            : <span className="text-xs text-gray-400 whitespace-nowrap">jamais constatee</span>}
+                            ? <span className="text-xs text-blue-700 whitespace-nowrap">{a.nb_candidats} relevé(s) candidat(s)</span>
+                            : <span className="text-xs text-gray-400 whitespace-nowrap">jamais constatée</span>}
                         </li>
                       ))}
                     </ul>}
@@ -238,16 +238,16 @@ export default function InventairePage() {
 
           {ecarts && ecarts.synthese_produits.length > 0 && (
             <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-              <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 px-4 pt-4 pb-3">Reconciliation par produit - droits, declare, constate</h2>
+              <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 px-4 pt-4 pb-3">Réconciliation par produit - droits, déclaré, constaté</h2>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 dark:bg-gray-900/40">
                     <tr>
                       <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase">Produit</th>
                       <th className="px-4 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase">Droits acquis</th>
-                      <th className="px-4 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase">Usage declare</th>
-                      <th className="px-4 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase">Usage constate</th>
-                      <th className="px-4 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase">Ecart declare / constate</th>
+                      <th className="px-4 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase">Usage déclaré</th>
+                      <th className="px-4 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase">Usage constaté</th>
+                      <th className="px-4 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase">Écart déclaré / constaté</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -272,7 +272,7 @@ export default function InventairePage() {
 
           <div className="flex flex-wrap gap-3 bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
             <select value={filterSociete} onChange={e => setFilterSociete(e.target.value)} className={selectCls}>
-              <option value="">Toutes les societes</option>
+              <option value="">Toutes les sociétés</option>
               {societes.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
             </select>
             <select value={produitActif} onChange={e => setFilterProduit(e.target.value)} className={selectCls}>
@@ -294,7 +294,7 @@ export default function InventairePage() {
               columns={columns}
               data={filtree}
               filename="inventaire"
-              emptyState={{ message: releves.length ? 'Aucun releve ne correspond aux filtres.' : 'Aucun releve importe. Importez un fichier csv pour commencer.' }}
+              emptyState={{ message: releves.length ? 'Aucun relevé ne correspond aux filtres.' : 'Aucun relevé importé. Importez un fichier csv pour commencer.' }}
             />
           </div>
 
@@ -312,7 +312,7 @@ export default function InventairePage() {
                           <Badge variant={cfg.variant} label={cfg.label} />
                           <span className="text-gray-700 dark:text-gray-300">{formatDateTime(i.created_at)}</span>
                           <span className="text-gray-500">{i.auteur_prenom} {i.auteur_nom}</span>
-                          <span className="text-gray-500">{i.nb_lignes_total ?? 0} ligne(s), {i.nb_releves} releve(s), {i.nb_erreurs} erreur(s)</span>
+                          <span className="text-gray-500">{i.nb_lignes_total ?? 0} ligne(s), {i.nb_releves} relevé(s), {i.nb_erreurs} erreur(s)</span>
                         </div>
                         <div className="flex gap-2">
                           <Button size="sm" variant="ghost" onClick={() => { setFilterImport(i.id); setFilterStatut(''); }}>Filtrer</Button>
@@ -342,7 +342,7 @@ export default function InventairePage() {
       <div className="flex items-start gap-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-xl px-4 py-3">
         <Info size={16} className="text-blue-600 flex-shrink-0 mt-0.5" />
         <p className="text-sm text-blue-700 dark:text-blue-400">
-          Chaque import est trace (statut global et erreurs ligne a ligne) et son fichier archive sous un nom neutre avec son empreinte SHA-256. Le rapprochement est une decision humaine : associer un releve a une affectation existante, le marquer en ecart assume, ou le rejeter avec motif.
+          Chaque import est tracé (statut global et erreurs ligne à ligne) et son fichier archivé sous un nom neutre avec son empreinte SHA-256. Le rapprochement est une décision humaine : associer un relevé à une affectation existante, le marquer en écart assumé, ou le rejeter avec motif.
         </p>
       </div>
 

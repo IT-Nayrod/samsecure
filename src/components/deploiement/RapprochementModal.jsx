@@ -12,9 +12,9 @@ import { inventaireService } from '../../services/inventaireService';
 const inputCls = 'w-full text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500';
 
 const MODES = {
-  rapprocher: 'Associer a une affectation',
-  'ecart-assume': 'Marquer en ecart assume',
-  rejeter: 'Rejeter le releve',
+  rapprocher: 'Associer à une affectation',
+  'ecart-assume': 'Marquer en écart assumé',
+  rejeter: 'Rejeter le relevé',
 };
 
 export default function RapprochementModal({ isOpen, onClose, releve, onDone }) {
@@ -82,7 +82,7 @@ export default function RapprochementModal({ isOpen, onClose, releve, onDone }) 
     >
       <form id="rapprochement-form" onSubmit={submit} className="flex flex-col gap-4">
         <p className="text-sm text-gray-600 dark:text-gray-300">
-          Quantite constatee : <span className="font-medium">{releve.quantite ?? '?'}</span>
+          Quantité constatée : <span className="font-medium">{releve.quantite ?? '?'}</span>
           {releve.societe_label ? <> - {releve.societe_label}</> : null}
         </p>
         <div className="flex gap-2 flex-wrap">
@@ -97,7 +97,7 @@ export default function RapprochementModal({ isOpen, onClose, releve, onDone }) 
         {mode === 'rapprocher' && (
           <>
             {candidates.length > 0 && (
-              <FormField label={`Affectation(s) de meme reference (${candidates.length})`}>
+              <FormField label={`Affectation(s) de même référence (${candidates.length})`}>
                 <div className="flex flex-col gap-1.5">
                   {candidates.map(a => (
                     <label key={a.id} className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
@@ -108,21 +108,21 @@ export default function RapprochementModal({ isOpen, onClose, releve, onDone }) 
                 </div>
               </FormField>
             )}
-            <FormField label="Autre affectation" hint="Recherche par reference, libelle, produit ou societe.">
+            <FormField label="Autre affectation" hint="Recherche par référence, libellé, produit ou société.">
               <input value={recherche} onChange={e => setRecherche(e.target.value)} placeholder="Rechercher" className={`${inputCls} mb-2`} />
               <select value={candidates.some(c => c.id === idAffectation) ? '' : idAffectation} onChange={e => setIdAffectation(e.target.value)} className={inputCls} size={Math.min(6, Math.max(2, autres.length + 1))}>
                 <option value="">Choisir une affectation ({autres.length})</option>
                 {autres.map(a => <option key={a.id} value={a.id}>{libelle(a)}</option>)}
               </select>
             </FormField>
-            {affectations.length === 0 && <p className="text-xs text-gray-500">Aucune affectation declaree : ce releve ne peut etre que marque en ecart ou rejete.</p>}
+            {affectations.length === 0 && <p className="text-xs text-gray-500">Aucune affectation déclarée : ce relevé ne peut être que marqué en écart ou rejeté.</p>}
           </>
         )}
 
         {mode !== 'rapprocher' && (
           <FormField label={mode === 'rejeter' ? 'Motif du rejet' : 'Commentaire'} required={mode === 'rejeter'}>
             <textarea value={motif} onChange={e => setMotif(e.target.value)} rows={3} className={inputCls}
-              placeholder={mode === 'rejeter' ? 'Obligatoire : pourquoi ce releve est ecarte' : 'Optionnel : pourquoi cet ecart est assume'} />
+              placeholder={mode === 'rejeter' ? 'Obligatoire : pourquoi ce relevé est écarté' : 'Optionnel : pourquoi cet écart est assumé'} />
           </FormField>
         )}
         {error && <p className="text-sm text-red-600">{error}</p>}

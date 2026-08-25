@@ -81,7 +81,7 @@ export default function AffectationDetailPage() {
     setRevalidationEnCours(true);
     try {
       const fraiche = await affectationsService.revalider(id);
-      addToast({ type: 'success', message: `Revalidation effectuee, prochaine echeance le ${formatDate(fraiche.date_prochaine_revalidation)}.` });
+      addToast({ type: 'success', message: `Revalidation effectuée, prochaine échéance le ${formatDate(fraiche.date_prochaine_revalidation)}.` });
       await load();
     } catch (err) {
       addToast({ type: 'error', message: err.message, persistent: true });
@@ -93,7 +93,7 @@ export default function AffectationDetailPage() {
   async function handleDelete() {
     try {
       await affectationsService.remove(id);
-      addToast({ type: 'success', message: 'Affectation supprimee.' });
+      addToast({ type: 'success', message: 'Affectation supprimée.' });
       navigate('/conformite/affectations');
     } catch (err) {
       addToast({ type: 'error', message: err.message, persistent: true });
@@ -112,7 +112,7 @@ export default function AffectationDetailPage() {
     return (
       <div className="flex flex-col gap-6">
         <Breadcrumb items={[...fil, { label: 'Introuvable' }]} />
-        <EmptyState title="Affectation introuvable" description="Cette affectation n'existe pas ou a ete supprimee." ctaLabel="Retour a la liste" onCta={() => navigate('/conformite/affectations')} />
+        <EmptyState title="Affectation introuvable" description="Cette affectation n'existe pas ou a été supprimée." ctaLabel="Retour à la liste" onCta={() => navigate('/conformite/affectations')} />
       </div>
     );
   }
@@ -133,10 +133,10 @@ export default function AffectationDetailPage() {
             <ValidationCell statut={a.statut_validation} motif={a.message_refus} />
             {validee && <StatutRevalidationBadge revalidation={a.statut_revalidation} />}
           </div>
-          <p className="text-sm text-gray-500 mt-1">{a.produit_label ?? a.licence_label ?? 'Produit inconnu'} - {a.societe_label ?? 'Societe non renseignee'}</p>
+          <p className="text-sm text-gray-500 mt-1">{a.produit_label ?? a.licence_label ?? 'Produit inconnu'} - {a.societe_label ?? 'Société non renseignée'}</p>
           <p className="text-xs text-gray-400 mt-1">
             Soumis par {a.soumis_par ?? 'inconnu'} le {formatDateTime(a.date_soumission)}
-            {a.traite_par ? `, traite par ${a.traite_par}` : ''}
+            {a.traite_par ? `, traité par ${a.traite_par}` : ''}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -151,7 +151,7 @@ export default function AffectationDetailPage() {
             </Button>
           )}
           {canWrite && (
-            <Button variant="secondary" size="sm" onClick={() => setFormOpen(true)}><Pencil size={14} /> Editer</Button>
+            <Button variant="secondary" size="sm" onClick={() => setFormOpen(true)}><Pencil size={14} /> Éditer</Button>
           )}
           {canDelete && (
             <Button variant="destructive" size="sm" onClick={() => setDeleteOpen(true)}><Trash2 size={14} /> Supprimer</Button>
@@ -161,7 +161,7 @@ export default function AffectationDetailPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Identite</h2>
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Identité</h2>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <p className="text-xs text-gray-500 mb-1">Produit</p>
@@ -172,21 +172,21 @@ export default function AffectationDetailPage() {
               <p className="text-sm text-gray-800 dark:text-gray-200">{a.licence_label ?? '-'}{a.licence_quantite != null ? ` (${a.licence_quantite} droits)` : ''}</p>
             </div>
             <div>
-              <p className="text-xs text-gray-500 mb-1">Societe</p>
+              <p className="text-xs text-gray-500 mb-1">Société</p>
               {a.id_societe
                 ? <Link to={`/referentiels/organisation/${a.id_societe}`} className="text-sm text-blue-800 hover:underline">{a.societe_label}</Link>
                 : <p className="text-sm text-gray-500">-</p>}
             </div>
             <div>
-              <p className="text-xs text-gray-500 mb-1">Delai de revalidation</p>
+              <p className="text-xs text-gray-500 mb-1">Délai de revalidation</p>
               <p className="text-sm text-gray-800 dark:text-gray-200">{a.delai_revalidation} jours</p>
             </div>
             <div>
-              <p className="text-xs text-gray-500 mb-1">Quantite</p>
+              <p className="text-xs text-gray-500 mb-1">Quantité</p>
               <p className="text-sm text-gray-800 dark:text-gray-200">{a.quantite}</p>
             </div>
             <div>
-              <p className="text-xs text-gray-500 mb-1">Reference client</p>
+              <p className="text-xs text-gray-500 mb-1">Référence client</p>
               <p className="text-sm text-gray-800 dark:text-gray-200">{a.reference_client}</p>
             </div>
           </div>
@@ -196,14 +196,14 @@ export default function AffectationDetailPage() {
           <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Balance du produit</h2>
           {balance ? (
             <>
-              <ConformiteGaugeBar droits={balance.droits_total} usage={balance.quantite_declaree} niveau={niveau(ratio)} label="Droits acquis vs usage declare" />
+              <ConformiteGaugeBar droits={balance.droits_total} usage={balance.quantite_declaree} niveau={niveau(ratio)} label="Droits acquis vs usage déclaré" />
               <p className="text-xs text-gray-500 mt-2">
-                {balance.nb_affectations} affectation(s) validee(s) ou a revalider, somme brute sans deduplication par reference.
+                {balance.nb_affectations} affectation(s) validée(s) ou à revalider, somme brute sans déduplication par référence.
                 {balance.quantite_a_revalider > 0 && ` Dont ${balance.quantite_a_revalider} en attente de revalidation.`}
               </p>
             </>
           ) : (
-            <p className="text-sm text-gray-500">Aucun usage valide pour ce produit, ou decompte non accessible.</p>
+            <p className="text-sm text-gray-500">Aucun usage valide pour ce produit, ou décompte non accessible.</p>
           )}
         </section>
 
@@ -211,18 +211,18 @@ export default function AffectationDetailPage() {
           <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Cycle de revalidation</h2>
           {validee && a.date_prochaine_revalidation ? (
             <p className="text-sm text-gray-700 dark:text-gray-300 mb-3">
-              Derniere validation le <strong>{formatDate(a.date_derniere_validation)}</strong>, prochaine echeance le <strong>{formatDate(a.date_prochaine_revalidation)}</strong>
-              {' '}({a.jours_restants >= 0 ? `dans ${a.jours_restants} jours` : `depassee depuis ${-a.jours_restants} jours`}).
+              Dernière validation le <strong>{formatDate(a.date_derniere_validation)}</strong>, prochaine échéance le <strong>{formatDate(a.date_prochaine_revalidation)}</strong>
+              {' '}({a.jours_restants >= 0 ? `dans ${a.jours_restants} jours` : `dépassée depuis ${-a.jours_restants} jours`}).
             </p>
           ) : (
-            <p className="text-sm text-gray-500 mb-3">Aucune echeance opposable : l&apos;affectation n&apos;est pas validee.</p>
+            <p className="text-sm text-gray-500 mb-3">Aucune échéance opposable : l&apos;affectation n&apos;est pas validée.</p>
           )}
           {a.cycles?.length > 0 && (
             <ul className="flex flex-col gap-2">
               {a.cycles.map((c, i) => (
                 <li key={c.created_at + i} className="flex items-start gap-3">
                   <span className="mt-1.5 w-2 h-2 rounded-full flex-shrink-0 bg-amber-500" />
-                  <p className="text-xs text-gray-600 dark:text-gray-400">Cycle ouvert le {formatDate(c.date_derniere_validation)}, echeance le {formatDate(c.date_prochaine_revalidation)}</p>
+                  <p className="text-xs text-gray-600 dark:text-gray-400">Cycle ouvert le {formatDate(c.date_derniere_validation)}, échéance le {formatDate(c.date_prochaine_revalidation)}</p>
                 </li>
               ))}
             </ul>
@@ -238,7 +238,7 @@ export default function AffectationDetailPage() {
                   <span className={`mt-1.5 w-2 h-2 rounded-full flex-shrink-0 ${s.statut === 'valide' ? 'bg-green-500' : s.statut === 'refuse' ? 'bg-red-500' : 'bg-gray-400'}`} />
                   <p className="text-sm text-gray-700 dark:text-gray-300">
                     {s.statut_label ?? s.statut}, soumise par <strong>{s.soumis_par ?? 'inconnu'}</strong> le {formatDateTime(s.created_at)}
-                    {s.traite_par ? `, traitee par ${s.traite_par}` : ''}
+                    {s.traite_par ? `, traitée par ${s.traite_par}` : ''}
                     {s.statut === 'refuse' && s.message_refus ? ` : ${s.message_refus}` : ''}
                   </p>
                 </li>
@@ -248,7 +248,7 @@ export default function AffectationDetailPage() {
         </section>
 
         <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 md:col-span-2">
-          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Historique des declarations</h2>
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Historique des déclarations</h2>
           <HistoriqueDeclarations filtres={{ id_affectation: a.id }} />
         </section>
       </div>
@@ -261,7 +261,7 @@ export default function AffectationDetailPage() {
         title="Supprimer l'affectation"
         isDestructive
         confirmLabel="Supprimer"
-        message={`Supprimer definitivement l'affectation "${a.reference_client}" ? Cette action est irreversible.`}
+        message={`Supprimer définitivement l'affectation "${a.reference_client}" ? Cette action est irréversible.`}
       />
     </div>
   );
