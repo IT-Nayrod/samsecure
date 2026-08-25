@@ -75,6 +75,34 @@ ALTER TABLE budget ADD COLUMN IF NOT EXISTS date_debut     DATE;
 ALTER TABLE budget ADD COLUMN IF NOT EXISTS date_fin       DATE;
 ALTER TABLE budget ADD COLUMN IF NOT EXISTS created_at     TIMESTAMP NOT NULL DEFAULT now();
 
+-- Base partielle, suite : les colonnes ajoutees ci-dessus le sont sans
+-- contrainte, celles de la US sont reposees ici sous un nom stable. Sur une
+-- base issue de 002, SET NOT NULL est sans effet, la FK existe deja
+-- (budget_id_licence_fkey) et le CHECK inline budget_type_check est remplace
+-- par ck_budget_type, meme regle.
+ALTER TABLE budget ALTER COLUMN id_licence SET NOT NULL;
+ALTER TABLE budget ALTER COLUMN type       SET NOT NULL;
+ALTER TABLE budget ALTER COLUMN date_debut SET NOT NULL;
+ALTER TABLE budget ALTER COLUMN date_fin   SET NOT NULL;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+     WHERE conrelid = 'budget'::regclass AND contype = 'f'
+       AND conkey = ARRAY[(SELECT attnum FROM pg_attribute
+                            WHERE attrelid = 'budget'::regclass AND attname = 'id_licence')]
+  ) THEN
+    ALTER TABLE budget ADD CONSTRAINT budget_id_licence_fkey
+      FOREIGN KEY (id_licence) REFERENCES licence(id);
+  END IF;
+END $$;
+
+ALTER TABLE budget DROP CONSTRAINT IF EXISTS budget_type_check;
+ALTER TABLE budget DROP CONSTRAINT IF EXISTS ck_budget_type;
+ALTER TABLE budget ADD CONSTRAINT ck_budget_type
+  CHECK (type IN ('previsionnel', 'alloue'));
+
 -- Contraintes absentes du DDL v4. Doublon volontaire des controles de l'API
 -- (codes 5116, 5118 a 5122) : l'invariant tient meme en ecriture SQL directe.
 ALTER TABLE budget DROP CONSTRAINT IF EXISTS ck_budget_periode;
@@ -110,6 +138,13 @@ COMMENT ON COLUMN budget.quantite_opex  IS 'Quantite associee a l''OPEX (droits 
 COMMENT ON COLUMN budget.date_debut     IS 'Debut de la periode budgetaire, en general le premier jour d''un exercice fiscal de la societe payeuse.';
 COMMENT ON COLUMN budget.date_fin       IS 'Fin de la periode budgetaire (>= date_debut).';
 
+-- Semantique lue par le preremplissage budget (#146), hypothese v0.5 a faire
+-- valider : le cout d'une periode de maintenance est un cout annuel. Si la
+-- decision est "cout total de la periode", annualiser dans le routeur budget
+-- et remplacer ce commentaire.
+COMMENT ON COLUMN maintenance_historique.cout IS
+  'Cout de la periode de maintenance. Lu comme un cout ANNUEL par le preremplissage budget (#146, hypothese v0.5 a valider).';
+
 -- ----------------------------------------------------------------------------
 -- 2. Debut d'exercice fiscal de la societe : defaut au 1er janvier
 -- ----------------------------------------------------------------------------
@@ -117,7 +152,7 @@ ALTER TABLE societe ADD COLUMN IF NOT EXISTS debut_exercice_fiscal DATE;
 ALTER TABLE societe ALTER COLUMN debut_exercice_fiscal SET DEFAULT DATE '2000-01-01';
 
 COMMENT ON COLUMN societe.debut_exercice_fiscal IS
-  'Debut d''exercice fiscal de la societe, seuls jour et mois significatifs (annee sentinelle 2000). Defaut 1er janvier (US #146). NULL = defaut du tenant (tenant_config.debut_exercice_fiscal_defaut), resolu par l''API.';
+  'Debut d''exercice fiscal de la societe, seuls jour et mois significatifs (annee sentinelle 2000, un 29/02 vaut 28/02). DEFAULT 1er janvier (US #146) pour une insertion qui omet la colonne ; NULL explicite (cas de POST /societes) = defaut du tenant (tenant_config.debut_exercice_fiscal_defaut, lui-meme 1er janvier par defaut), resolu par l''API et les fonctions exercice_fiscal_*.';
 
 -- ----------------------------------------------------------------------------
 -- 3. Fonctions d'exercice fiscal
@@ -126,6 +161,9 @@ COMMENT ON COLUMN societe.debut_exercice_fiscal IS
 -- Annee civile du premier jour de l'exercice contenant p_date. Un debut
 -- d'exercice NULL vaut 1er janvier : l'appelant passe deja
 -- COALESCE(societe, tenant_config), le repli final est ici.
+-- Regle unique des trois fonctions : un debut au 29 fevrier (sentinelle 2000
+-- bissextile) vaut 28 fevrier, sinon exercice_fiscal_de classerait le
+-- premier jour rendu par exercice_fiscal_debut dans l'exercice precedent.
 CREATE OR REPLACE FUNCTION exercice_fiscal_de(p_date DATE, p_debut_exercice DATE)
 RETURNS INTEGER
 LANGUAGE sql IMMUTABLE AS $$
@@ -133,7 +171,9 @@ LANGUAGE sql IMMUTABLE AS $$
     WHEN p_date IS NULL THEN NULL
     WHEN EXTRACT(MONTH FROM p_date) * 100 + EXTRACT(DAY FROM p_date)
       >= EXTRACT(MONTH FROM COALESCE(p_debut_exercice, DATE '2000-01-01')) * 100
-       + EXTRACT(DAY   FROM COALESCE(p_debut_exercice, DATE '2000-01-01'))
+       + LEAST(
+           EXTRACT(DAY FROM COALESCE(p_debut_exercice, DATE '2000-01-01')),
+           CASE WHEN EXTRACT(MONTH FROM COALESCE(p_debut_exercice, DATE '2000-01-01')) = 2 THEN 28 ELSE 31 END)
     THEN EXTRACT(YEAR FROM p_date)::integer
     ELSE EXTRACT(YEAR FROM p_date)::integer - 1
   END
@@ -142,8 +182,8 @@ $$;
 COMMENT ON FUNCTION exercice_fiscal_de(DATE, DATE) IS
   'Exercice fiscal (annee civile de son premier jour) contenant une date, pour un debut d''exercice donne (jour et mois significatifs). NULL = 1er janvier.';
 
--- Premier jour d'un exercice. Un debut au 29 fevrier (sentinelle 2000
--- bissextile) est ramene au 28 : make_date refuserait le 29/02 d'une annee
+-- Premier jour d'un exercice. Un debut au 29 fevrier est ramene au 28, meme
+-- regle que exercice_fiscal_de : make_date refuserait le 29/02 d'une annee
 -- non bissextile.
 CREATE OR REPLACE FUNCTION exercice_fiscal_debut(p_exercice INTEGER, p_debut_exercice DATE)
 RETURNS DATE

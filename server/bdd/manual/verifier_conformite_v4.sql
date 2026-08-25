@@ -19,7 +19,7 @@
 --             dans le schema public. Hors migrate.js (sous-dossier manual/).
 -- Sortie    : sections numerotees. Les sections 2, 3, 4, 6 et 7 sont
 --             bloquantes (base NON conforme si une ligne apparait), les
---             sections 5, 8 et 9 sont informatives. La section 10 rend le
+--             sections 5, 8, 9 et 9b sont informatives. La section 10 rend le
 --             verdict.
 -- Limites   : compare noms, types de base (uuid, character varying, numeric,
 --             timestamp without time zone...), PK sur id et UNIQUE mono
