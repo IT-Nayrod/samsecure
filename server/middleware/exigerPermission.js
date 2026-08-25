@@ -21,12 +21,19 @@ const STRICT = process.env.RBAC_STRICT !== "false";
 // Un chemin Express devient une expression ancree : /profils/:id/societes
 // accepte /profils/<uuid>/societes et rien d'autre. Ancrage aux deux bouts
 // pour qu'une regle courte ne capture pas un chemin plus long.
+// Insensible a la casse (flag i), comme le routage d'Express 5 (router 2,
+// path-to-regexp 8, caseSensitive false par defaut) : le middleware doit
+// reconnaitre exactement les memes chemins que les routeurs. Sans le flag,
+// /budget/Preremplissage echappait a la regle litterale, tombait sur la
+// regle /budget/:id (droit de lecture) puis etait servi par le handler de
+// preremplissage (droit de saisie) : revue #146, le meme contournement
+// touchait /commandes/Agregats.
 function versRegex(chemin) {
   const motif = chemin
     .split("/")
     .map((seg) => (seg.startsWith(":") ? "[^/]+" : seg.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))
     .join("/");
-  return new RegExp(`^${motif}/?$`);
+  return new RegExp(`^${motif}/?$`, "i");
 }
 
 const REGLES = ROUTES_PERMISSIONS.map(([methode, chemin, permission]) => ({

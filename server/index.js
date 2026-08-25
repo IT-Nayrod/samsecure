@@ -29,6 +29,7 @@ import licencesRouter from "./routes/licences.js";
 import referentielsLicencesRouter from "./routes/referentielsLicences.js";
 import affectationsRouter from "./routes/affectations.js";
 import inventaireRouter from "./routes/inventaire.js";
+import budgetRouter from "./routes/budget.js";
 
 const app = express();
 app.use(cors());
@@ -65,6 +66,7 @@ app.use("/api", licencesRouter);
 app.use("/api", referentielsLicencesRouter);
 app.use("/api", affectationsRouter);
 app.use("/api", inventaireRouter);
+app.use("/api", budgetRouter);
 
 app.use("/api", (req, res) => {
   res.status(404).json({ error: "Ressource introuvable." });
