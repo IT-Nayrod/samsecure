@@ -54,6 +54,8 @@ const SELECT_CONTRAT = `
          c.id_contrat_parent, p.label AS parent_label, ps.raison_sociale AS parent_societe_label,
          c.date_debut::text AS date_debut, c.date_fin::text AS date_fin,
           c.a_renouveler, c.duree_resiliation,
+         c.archive, c.date_archivage, c.id_archive_par,
+         TRIM(CONCAT(ua.prenom, ' ', ua.nom)) AS archive_par_label,
          c.created_at, c.updated_at,
          ${STATUT_ECHEANCE},
          CASE WHEN c.date_fin IS NULL THEN NULL
@@ -66,7 +68,32 @@ const SELECT_CONTRAT = `
   LEFT JOIN revendeur    r  ON r.id  = c.id_revendeur
   LEFT JOIN contrat      p  ON p.id  = c.id_contrat_parent
   LEFT JOIN societe      ps ON ps.id = p.id_societe
+  LEFT JOIN utilisateur  ua ON ua.id = c.id_archive_par
   ${jointureStatut("contrat", "c")}`;
+
+// Trace probante de l'archivage, distincte du journal fonctionnel, meme gabarit
+// que factures.js et preuves.js : elle n'avale pas ses erreurs, une trace
+// manquante doit faire echouer l'operation.
+async function audit(client, req, action, entiteId, avant, apres) {
+  await client.query(
+    `INSERT INTO audit_log (id_utilisateur, action, entite_type, entite_id,
+                            valeur_avant, valeur_apres, ip_address)
+     VALUES ($1, $2, 'contrat', $3, $4, $5, $6)`,
+    [req.user?.id || null, action, entiteId,
+     avant ? JSON.stringify(avant) : null,
+     apres ? JSON.stringify(apres) : null,
+     (req.ip || "").slice(0, 45)]
+  );
+}
+
+// Un contrat est supprimable tant qu'il n'est jamais entre en validation :
+// aucune entree workflow_validation, quel que soit son statut (#96). Au-dela,
+// seul l'archivage retire le contrat de la vue courante.
+async function jamaisSoumis(client, id) {
+  const { rowCount } = await client.query(
+    `SELECT 1 FROM workflow_validation WHERE entite_type = 'contrat' AND entite_id = $1 LIMIT 1`, [id]);
+  return rowCount === 0;
+}
 
 // Colonnes metier ecrivables, dans l'ordre des parametres d'INSERT et d'UPDATE.
 const CHAMPS = [
@@ -245,8 +272,12 @@ async function resoudreAnomalieParent(client, idContrat) {
 }
 router.get("/contrats", async (req, res) => {
   try {
-    const { rows } = await tenantPool.query(`${SELECT_CONTRAT} ORDER BY c.label`);
-    succes(res, 3000, rows);
+    // Les archives sont masques par defaut ; inclure_archives=1 les sert avec
+    // les autres, la colonne archive permettant au front de les distinguer.
+    const inclureArchives = ["1", "true"].includes(String(req.query.inclure_archives ?? ""));
+    const { rows } = await tenantPool.query(
+      `${SELECT_CONTRAT} ${inclureArchives ? "" : "WHERE c.archive = false"} ORDER BY c.label`);
+    succes(res, inclureArchives ? 3007 : 3000, rows);
   } catch (err) {
     console.error("GET /contrats error", err);
     erreur(res, 3099, { status: 500, message: "Erreur serveur" });
@@ -269,7 +300,10 @@ router.get("/contrats/:id", async (req, res) => {
               (SELECT count(*) FROM contrat  WHERE id_contrat_parent = $1)::int AS nb_sous_contrats`,
       [id]);
 
-    succes(res, 3001, { ...rows[0], ...liens });
+    // supprimable : l'API fait foi, le front n'affiche Supprimer que sur sa reponse.
+    const supprimable = await jamaisSoumis(tenantPool, id);
+
+    succes(res, 3001, { ...rows[0], ...liens, supprimable });
   } catch (err) {
     console.error("GET /contrats/:id error", err);
     erreur(res, 3099, { status: 500, message: "Erreur serveur" });
@@ -347,12 +381,20 @@ router.patch("/contrats/:id", async (req, res) => {
     const { rows: existant } = await client.query(
       `SELECT label, id_type_contrat, id_editeur, id_societe, id_revendeur, id_contrat_parent,
               date_debut::text AS date_debut, date_fin::text AS date_fin,
-              a_renouveler, duree_resiliation
+              a_renouveler, duree_resiliation, archive
        FROM contrat WHERE id = $1`, [id]);
     if (!existant.length) {
       await client.query("ROLLBACK");
       return erreur(res, 3010, { status: 404, message: "Contrat introuvable." });
     }
+
+    // Un contrat archive est fige jusqu'a sa restauration (#96).
+    if (existant[0].archive) {
+      await client.query("ROLLBACK");
+      return erreur(res, 3026, { status: 409,
+        message: "Ce contrat est archive : restaurez-le avant de le modifier." });
+    }
+    delete existant[0].archive;
 
     // Fusion avant validation : un PATCH partiel ne doit pas echouer sur un
     // champ obligatoire qui n'a simplement pas ete transmis.
@@ -417,10 +459,24 @@ router.delete("/contrats/:id", async (req, res) => {
   try {
     await client.query("BEGIN");
 
+    if (!UUID_RE.test(id)) {
+      await client.query("ROLLBACK");
+      return erreur(res, 3010, { status: 404, message: "Contrat introuvable." });
+    }
+
     const { rows: existant } = await client.query(`SELECT label FROM contrat WHERE id = $1`, [id]);
     if (!existant.length) {
       await client.query("ROLLBACK");
       return erreur(res, 3010, { status: 404, message: "Contrat introuvable." });
+    }
+
+    // Suppression reservee au contrat jamais entre en validation (#96). Un
+    // contrat deja soumis s'archive : rien n'est efface ici, la transaction
+    // est simplement annulee.
+    if (!(await jamaisSoumis(client, id))) {
+      await client.query("ROLLBACK");
+      return erreur(res, 3027, { status: 409,
+        message: "Suppression impossible : ce contrat est deja entre en validation. Archivez-le." });
     }
 
     // Les 3 FK entrantes du DDL v4. licence.id_contrat a ete supprimee par la
@@ -457,6 +513,91 @@ router.delete("/contrats/:id", async (req, res) => {
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("DELETE /contrats/:id error", err);
+    erreur(res, 3099, { status: 500, message: "Erreur serveur" });
+  } finally {
+    client.release();
+  }
+});
+
+// Archivage (#96) : retire le contrat de la vue courante sans rien effacer.
+// Meme droit que la suppression (saisir_contrat, routesPermissions.js). Aucune
+// cascade : sous-contrats et commandes restent tels quels.
+router.post("/contrats/:id/archiver", async (req, res) => {
+  const { id } = req.params;
+  const client = await tenantPool.connect();
+  try {
+    await client.query("BEGIN");
+
+    if (!UUID_RE.test(id)) {
+      await client.query("ROLLBACK");
+      return erreur(res, 3010, { status: 404, message: "Contrat introuvable." });
+    }
+    const { rows: existant } = await client.query(
+      `SELECT label, archive FROM contrat WHERE id = $1 FOR UPDATE`, [id]);
+    if (!existant.length) {
+      await client.query("ROLLBACK");
+      return erreur(res, 3010, { status: 404, message: "Contrat introuvable." });
+    }
+    if (existant[0].archive) {
+      await client.query("ROLLBACK");
+      return erreur(res, 3028, { status: 409, message: "Ce contrat est deja archive." });
+    }
+
+    await client.query(
+      `UPDATE contrat SET archive = true, date_archivage = now(), id_archive_par = $2, updated_at = now()
+        WHERE id = $1`, [id, req.user?.id || null]);
+
+    const label = existant[0].label;
+    await audit(client, req, "CONTRAT_ARCHIVE", id, { archive: false }, { archive: true, label });
+    await log(client, req, "ARCHIVE", "contrat", id, `Archivage du contrat "${label}"`, null);
+
+    const { rows } = await client.query(`${SELECT_CONTRAT} WHERE c.id = $1`, [id]);
+    await client.query("COMMIT");
+    succes(res, 3005, rows[0]);
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("POST /contrats/:id/archiver error", err);
+    erreur(res, 3099, { status: 500, message: "Erreur serveur" });
+  } finally {
+    client.release();
+  }
+});
+
+router.post("/contrats/:id/restaurer", async (req, res) => {
+  const { id } = req.params;
+  const client = await tenantPool.connect();
+  try {
+    await client.query("BEGIN");
+
+    if (!UUID_RE.test(id)) {
+      await client.query("ROLLBACK");
+      return erreur(res, 3010, { status: 404, message: "Contrat introuvable." });
+    }
+    const { rows: existant } = await client.query(
+      `SELECT label, archive FROM contrat WHERE id = $1 FOR UPDATE`, [id]);
+    if (!existant.length) {
+      await client.query("ROLLBACK");
+      return erreur(res, 3010, { status: 404, message: "Contrat introuvable." });
+    }
+    if (!existant[0].archive) {
+      await client.query("ROLLBACK");
+      return erreur(res, 3029, { status: 409, message: "Ce contrat n'est pas archive." });
+    }
+
+    await client.query(
+      `UPDATE contrat SET archive = false, date_archivage = NULL, id_archive_par = NULL, updated_at = now()
+        WHERE id = $1`, [id]);
+
+    const label = existant[0].label;
+    await audit(client, req, "CONTRAT_RESTAURE", id, { archive: true }, { archive: false, label });
+    await log(client, req, "RESTAURE", "contrat", id, `Restauration du contrat "${label}"`, null);
+
+    const { rows } = await client.query(`${SELECT_CONTRAT} WHERE c.id = $1`, [id]);
+    await client.query("COMMIT");
+    succes(res, 3006, rows[0]);
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("POST /contrats/:id/restaurer error", err);
     erreur(res, 3099, { status: 500, message: "Erreur serveur" });
   } finally {
     client.release();

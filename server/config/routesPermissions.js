@@ -36,6 +36,9 @@ export const ROUTES_PERMISSIONS = [
   ["POST",   "/contrats",                    "saisir_contrat"],
   ["PATCH",  "/contrats/:id",                "saisir_contrat"],
   ["DELETE", "/contrats/:id",                "saisir_contrat"],
+  // Archivage (#96) : meme droit que la suppression qu'il remplace.
+  ["POST",   "/contrats/:id/archiver",       "saisir_contrat"],
+  ["POST",   "/contrats/:id/restaurer",      "saisir_contrat"],
 
   // ---- Droits d'usage : commandes ------------------------------------------
   // Les deux chemins litteraux passent avant /commandes/:id.

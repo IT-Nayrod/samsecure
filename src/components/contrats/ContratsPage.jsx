@@ -47,6 +47,7 @@ function TreeNode({ contrat, depth, enfantsParParent, navigate, onValider, onRef
         <span className="text-xs text-gray-400">{contrat.editeur_label ?? '-'} - {contrat.societe_label ?? '-'}</span>
         {parentHorsFiltre && <span className="text-[10px] text-gray-500 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-full">Rattaché à : {contrat.parent_label ?? '-'}</span>}
         {contrat.type_code === 'cadre' && <span className="text-[10px] font-semibold text-blue-700 bg-blue-100 dark:bg-blue-900/30 px-2 py-0.5 rounded-full">Cadre</span>}
+        {contrat.archive && <span className="text-[10px] font-semibold text-gray-600 bg-gray-200 dark:bg-gray-700 dark:text-gray-300 px-2 py-0.5 rounded-full">Archivé</span>}
         <StatutEcheanceBadge statut={contrat.statut_echeance} />
         <ValidationCell statut={contrat.statut_validation} motif={contrat.message_refus} />
         {/* La ligne entiere navigue au clic (l.32) : sans stopPropagation,
@@ -82,6 +83,7 @@ export default function ContratsPage() {
   const [errorStatus, setErrorStatus] = useState(null);
 
   const [vueArbo, setVueArbo] = useState(true);
+  const [afficherArchives, setAfficherArchives] = useState(false);
   const [filterEditeur, setFilterEditeur] = useState('');
   const [filterType, setFilterType] = useState('');
   const [filterStatut, setFilterStatut] = useState('');
@@ -111,7 +113,7 @@ export default function ContratsPage() {
       // alimentent les filtres et le formulaire : un droit manquant sur eux
       // doit priver de ces commodites, pas de la liste.
       const [c, e, s, t, r] = await Promise.all([
-        contratsService.list(),
+        contratsService.list({ inclureArchives: afficherArchives }),
         optionnel(referentielsContratsService.editeurs()),
         optionnel(societesService.list()),
         optionnel(referentielsContratsService.typesContrat()),
@@ -130,7 +132,7 @@ export default function ContratsPage() {
       setIsLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [afficherArchives]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -205,7 +207,10 @@ export default function ContratsPage() {
 
   const columns = [
     { key: 'label', label: 'Label', sortable: true, render: r => (
-      <button onClick={() => navigate(`/contrats/liste/${r.id}`)} className="font-medium text-blue-800 hover:underline text-left">{r.label}</button>
+      <span className="flex items-center gap-2">
+        <button onClick={() => navigate(`/contrats/liste/${r.id}`)} className="font-medium text-blue-800 hover:underline text-left">{r.label}</button>
+        {r.archive && <span className="text-[10px] font-semibold text-gray-600 bg-gray-200 dark:bg-gray-700 dark:text-gray-300 px-2 py-0.5 rounded-full">Archivé</span>}
+      </span>
     ) },
     { key: 'type_label', label: 'Type', sortable: true, render: r => r.type_code === 'cadre'
       ? <span className="text-xs font-semibold text-blue-700 bg-blue-100 dark:bg-blue-900/30 px-2 py-0.5 rounded-full">Cadre</span>
@@ -318,6 +323,10 @@ export default function ContratsPage() {
           <option value="expire">Expire</option>
           <option value="perpetuel">Perpetuel</option>
         </select>
+        <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300 px-2 cursor-pointer">
+          <input type="checkbox" checked={afficherArchives} onChange={e => setAfficherArchives(e.target.checked)} className="rounded" />
+          Afficher les archivés
+        </label>
         {hasActiveFiltres && (
           <button onClick={resetFiltres} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 px-3 py-2">
             <X size={14} /> Reinitialiser les filtres

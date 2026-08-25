@@ -156,6 +156,9 @@ motif technique d'un echec est dans log_serveur, jamais dans audit_log.
 | 3002 | succes | Contrat cree | POST /api/contrats |
 | 3003 | succes | Contrat modifie | PATCH /api/contrats/:id |
 | 3004 | succes | Contrat supprime | DELETE /api/contrats/:id |
+| 3005 | succes | Contrat archive | POST /api/contrats/:id/archiver (#96) |
+| 3006 | succes | Contrat restaure | POST /api/contrats/:id/restaurer (#96) |
+| 3007 | succes | Liste des contrats, archives inclus | GET /api/contrats?inclure_archives=1 (#96) |
 | 3010 | erreur | Contrat introuvable | GET/PATCH/DELETE /api/contrats/:id |
 | 3011 | erreur | Le libelle est obligatoire | POST, PATCH /api/contrats |
 | 3012 | erreur | Le type de contrat est obligatoire | POST, PATCH /api/contrats |
@@ -172,7 +175,20 @@ motif technique d'un echec est dans log_serveur, jamais dans audit_log.
 | 3023 | erreur | La societe signataire est obligatoire | POST, PATCH /api/contrats (#95) |
 | 3024 | erreur | Le revendeur signataire est obligatoire | POST, PATCH /api/contrats (#95) |
 | 3025 | erreur | La date de debut est obligatoire | POST, PATCH /api/contrats (#95) |
+| 3026 | erreur | Contrat archive : modification impossible, restaurez-le d'abord | PATCH /api/contrats/:id (#96) |
+| 3027 | erreur | Suppression impossible : contrat deja entre en validation, archivez-le | DELETE /api/contrats/:id (#96) |
+| 3028 | erreur | Contrat deja archive | POST /api/contrats/:id/archiver (#96) |
+| 3029 | erreur | Contrat non archive | POST /api/contrats/:id/restaurer (#96) |
 | 3099 | erreur | Erreur serveur inattendue (module contrats) | toutes |
+
+Archivage (#96, migrations 037 et 038) : GET /api/contrats exclut les
+contrats archives sauf `?inclure_archives=1` (repond alors 3007) ; le detail
+sert toujours un contrat archive et porte `supprimable` (aucune entree
+workflow_validation). Un contrat archive refuse toute modification (3026) ;
+la suppression physique n'est possible que pour un contrat jamais entre en
+validation (sinon 3027), le garde-fou 3020 sur les rattachements reste.
+Archiver et restaurer tracent CONTRAT_ARCHIVE et CONTRAT_RESTAURE dans
+audit_log et ARCHIVE / RESTAURE dans journal_ecriture.
 
 Le 3021 n'est pas un refus : le rattachement est accepté. Il est réservé pour que la #68 puisse, si Dorian le décide, remonter l'avertissement au front. Signalez-lui ce cas, la consigne ne prévoit de code que pour les refus.
 

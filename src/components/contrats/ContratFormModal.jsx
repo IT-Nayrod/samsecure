@@ -140,7 +140,10 @@ export default function ContratFormModal({
   const excludedIds = contrat ? getDescendantIds(contrats, contrat.id) : new Set();
   // L'API accepte un parent non cadre et trace une anomalie qualite. Le
   // formulaire ne le propose pas : l'anomalie ne couvre que les cas herites des imports.
-  const parentOptions = contrats.filter(c => c.type_code === 'cadre' && c.id !== contrat?.id && !excludedIds.has(c.id));
+  // Un contrat archive n'est plus propose comme parent (#96) ; celui deja en
+  // place sur le contrat edite reste selectionnable pour ne pas le perdre.
+  const parentOptions = contrats.filter(c => c.type_code === 'cadre' && c.id !== contrat?.id && !excludedIds.has(c.id)
+    && (!c.archive || c.id === form.id_contrat_parent));
 
   return (
     <SlideOver

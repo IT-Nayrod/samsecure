@@ -2,7 +2,7 @@
 // Donnees API. La suppression s'appuie sur le refus du serveur, pas sur un garde-fou local.
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Pencil, Trash2, ChevronDown, XCircle } from 'lucide-react';
+import { Pencil, Trash2, ChevronDown, XCircle, Archive, ArchiveRestore } from 'lucide-react';
 import BudgetEmbeddedSection from '../budget/BudgetEmbeddedSection';
 import { contratsService, referentielsContratsService } from '../../services/contratsService';
 import { optionnel } from '../../services/http';
@@ -42,6 +42,8 @@ export default function ContratDetailPage() {
 
   const [formOpen, setFormOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [archiveOpen, setArchiveOpen] = useState(false);
+  const [restaureEnCours, setRestaureEnCours] = useState(false);
   const [budgetOpen, setBudgetOpen] = useState(true);
 
   const load = useCallback(async () => {
@@ -54,7 +56,9 @@ export default function ContratDetailPage() {
       // referentiels au formulaire d'edition.
       const [c, tous, t, e, s, r] = await Promise.all([
         contratsService.get(id),
-        optionnel(contratsService.list()),
+        // Archives inclus : la hierarchie doit rester complete, un sous-contrat
+        // archive existe toujours. Le formulaire ecarte lui-meme les archives.
+        optionnel(contratsService.list({ inclureArchives: true })),
         optionnel(referentielsContratsService.typesContrat()),
         optionnel(referentielsContratsService.editeurs()),
         optionnel(societesService.list()),
@@ -93,6 +97,31 @@ export default function ContratDetailPage() {
     } catch (err) {
       // Message du serveur affiche tel quel : "Suppression impossible : ce contrat porte ..."
       addToast({ type: 'error', message: err.message, persistent: true });
+    }
+  }
+
+  // Archivage (#96) : le contrat quitte les listes sans rien perdre ; la fiche
+  // reste consultable et affiche le bandeau de restauration.
+  async function handleArchiver() {
+    try {
+      const maj = await contratsService.archiver(contrat.id);
+      setContrat(c => ({ ...c, ...maj }));
+      addToast({ type: 'success', message: 'Contrat archivé.' });
+    } catch (err) {
+      addToast({ type: 'error', message: err.message, persistent: true });
+    }
+  }
+
+  async function handleRestaurer() {
+    setRestaureEnCours(true);
+    try {
+      const maj = await contratsService.restaurer(contrat.id);
+      setContrat(c => ({ ...c, ...maj }));
+      addToast({ type: 'success', message: 'Contrat restauré.' });
+    } catch (err) {
+      addToast({ type: 'error', message: err.message, persistent: true });
+    } finally {
+      setRestaureEnCours(false);
     }
   }
 
@@ -146,29 +175,59 @@ export default function ContratDetailPage() {
             {contrat.type_code === 'cadre' && <span className="text-xs font-semibold text-blue-700 bg-blue-100 dark:bg-blue-900/30 px-2.5 py-1 rounded-full">Cadre</span>}
             <StatutEcheanceBadge statut={contrat.statut_echeance} />
             <StatutValidationBadge statut={contrat.statut_validation} />
+            {contrat.archive && <span className="text-xs font-semibold text-gray-600 bg-gray-200 dark:bg-gray-700 dark:text-gray-300 px-2.5 py-1 rounded-full">Archivé</span>}
           </div>
           <p className="text-sm text-gray-500 mt-1">
             {contrat.type_label ?? '-'}{contrat.editeur_label ? ` - ${contrat.editeur_label}` : ''}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {canValidate && <ValidationActions
+          {/* Un contrat archive est fige : ni traitement, ni edition, ni
+              archivage a nouveau. Seule la restauration, dans le bandeau. */}
+          {!contrat.archive && canValidate && <ValidationActions
             statut={contrat.statut_validation}
             onValidate={() => valider('contrat', contrat.id)}
             onRefuse={motif => refuser('contrat', contrat.id, motif)}
           />}
-          {canWrite && (
+          {!contrat.archive && canWrite && (
             <Button variant="secondary" size="sm" onClick={() => setFormOpen(true)}>
               <Pencil size={14} /> Editer
             </Button>
           )}
-          {canDelete && (
+          {!contrat.archive && canDelete && (
+            <Button variant="secondary" size="sm" onClick={() => setArchiveOpen(true)}>
+              <Archive size={14} /> Archiver
+            </Button>
+          )}
+          {/* Supprimer n'est propose que si l'API declare le contrat supprimable
+              (jamais entre en validation) ; le refus serveur reste la regle. */}
+          {!contrat.archive && canDelete && contrat.supprimable && (
             <Button variant="destructive" size="sm" onClick={() => setDeleteOpen(true)}>
               <Trash2 size={14} /> Supprimer
             </Button>
           )}
         </div>
       </div>
+
+      {contrat.archive && (
+        <div className="flex items-center justify-between gap-3 p-3 rounded-lg bg-gray-100 dark:bg-gray-700/60 border border-gray-300 dark:border-gray-600 flex-wrap">
+          <div className="flex items-start gap-2">
+            <Archive size={16} className="text-gray-600 dark:text-gray-300 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-gray-800 dark:text-gray-200">
+                Contrat archivé le {contrat.date_archivage ? formatDate(contrat.date_archivage) : '-'}
+                {contrat.archive_par_label ? ` par ${contrat.archive_par_label}` : ''}
+              </p>
+              <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">Ce contrat est masqué des listes et ne peut plus être modifié tant qu'il n'est pas restauré.</p>
+            </div>
+          </div>
+          {canDelete && (
+            <Button variant="secondary" size="sm" onClick={handleRestaurer} isLoading={restaureEnCours}>
+              <ArchiveRestore size={14} /> Restaurer
+            </Button>
+          )}
+        </div>
+      )}
 
       {contrat.statut_validation === 'refuse' && contrat.message_refus && (
         <div className="flex items-start gap-2 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
@@ -305,6 +364,14 @@ export default function ContratDetailPage() {
         revendeurs={revendeurs}
       />
 
+      <ConfirmModal
+        isOpen={archiveOpen}
+        onClose={() => setArchiveOpen(false)}
+        onConfirm={handleArchiver}
+        title="Archiver le contrat"
+        confirmLabel="Archiver"
+        message={`Archiver ${contrat.label} ? Il disparaîtra des listes, restera consultable et pourra être restauré. Ses sous-contrats et commandes ne changent pas.`}
+      />
       <ConfirmModal
         isOpen={deleteOpen}
         onClose={() => setDeleteOpen(false)}
