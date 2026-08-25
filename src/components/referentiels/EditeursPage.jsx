@@ -41,7 +41,7 @@ export default function EditeursPage() {
         statut_validation: resoumis ? 'en_attente' : 'valide',
         soumis_par: `${user.prenom} ${user.nom}`,
       } : e));
-      addToast({ type: 'success', message: resoumis ? 'Modification soumise a validation.' : 'Editeur mis a jour.' });
+      addToast({ type: 'success', message: resoumis ? 'Modification soumise à validation.' : 'Éditeur mis à jour.' });
     } else {
       const newEditeur = {
         id: `ed-${Date.now()}`, ...data,
@@ -49,7 +49,7 @@ export default function EditeursPage() {
         soumis_par: `${user.prenom} ${user.nom}`,
       };
       setEditeurs(prev => [...prev, newEditeur]);
-      addToast({ type: 'success', message: submitsForValidation ? 'Editeur soumis a validation.' : 'Editeur cree.' });
+      addToast({ type: 'success', message: submitsForValidation ? 'Éditeur soumis à validation.' : 'Éditeur créé.' });
     }
   }
 
@@ -63,21 +63,21 @@ export default function EditeursPage() {
     { key: 'nb_produits', label: 'Nb produits', sortable: true, getValue: r => getProduitsByEditeur(r.id).length, render: r => getProduitsByEditeur(r.id).length },
     { key: 'nb_contrats', label: 'Nb contrats', sortable: true, getValue: r => getContratsByEditeur(r.id).length, render: r => getContratsByEditeur(r.id).length },
     { key: 'nb_contacts', label: 'Nb contacts', sortable: true, getValue: r => getContactsByRattachement('editeur', r.id).length, render: r => getContactsByRattachement('editeur', r.id).length },
-    { key: 'conformite', label: 'Conformite', render: r => <ConformiteBadge conformite={getConformiteEditeur(r.id)} /> },
+    { key: 'conformite', label: 'Conformité', render: r => <ConformiteBadge conformite={getConformiteEditeur(r.id)} /> },
     { key: 'statut_validation', label: 'Statut', sortable: true, render: r => <StatutValidationBadge statut={r.statut_validation} /> },
   ];
 
   return (
     <div className="flex flex-col gap-6">
-      <Breadcrumb items={[{ label: 'Referentiels' }, { label: 'Editeurs' }]} />
+      <Breadcrumb items={[{ label: 'Référentiels' }, { label: 'Éditeurs' }]} />
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Editeurs</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{editeurs.length} editeur{editeurs.length > 1 ? 's' : ''} au total</p>
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Éditeurs</h1>
+          <p className="text-sm text-gray-500 mt-0.5">{editeurs.length} éditeur{editeurs.length > 1 ? 's' : ''} au total</p>
         </div>
         {canWrite && (
           <Button variant="primary" onClick={() => setFormModal({ open: true, editeur: null })}>
-            <Plus size={15} /> Nouvel editeur
+            <Plus size={15} /> Nouvel éditeur
           </Button>
         )}
       </div>
@@ -98,8 +98,8 @@ export default function EditeursPage() {
           data={filtered}
           filename="editeurs"
           emptyState={{
-            message: 'Aucun editeur ne correspond a la recherche.',
-            ctaLabel: canWrite ? 'Nouvel editeur' : undefined,
+            message: 'Aucun éditeur ne correspond à la recherche.',
+            ctaLabel: canWrite ? 'Nouvel éditeur' : undefined,
             onCta: canWrite ? () => setFormModal({ open: true, editeur: null }) : undefined,
           }}
         />

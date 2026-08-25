@@ -84,7 +84,7 @@ export default function CommandeFormModal({
       if (isEdit) await commandesService.update(commande.id, payload);
       else await commandesService.create(payload);
       clearDraft(draftKey);
-      addToast({ type: 'success', message: isEdit ? 'Commande mise a jour.' : 'Commande creee.' });
+      addToast({ type: 'success', message: isEdit ? 'Commande mise à jour.' : 'Commande créée.' });
       await onSaved?.();
       onClose();
     } catch (err) {
@@ -102,7 +102,7 @@ export default function CommandeFormModal({
       size="md"
       banner={draftRestaure && (
         <p className="text-xs text-blue-700 dark:text-blue-300 flex items-center justify-between gap-2">
-          Brouillon restaure depuis votre derniere saisie.
+          Brouillon restauré depuis votre dernière saisie.
           <button onClick={() => { clearDraft(draftKey); setForm(EMPTY_FORM); setDraftRestaure(false); }} className="underline hover:no-underline flex-shrink-0">Vider le brouillon</button>
         </p>
       )}
@@ -119,14 +119,14 @@ export default function CommandeFormModal({
             {erreurApi}
           </p>
         )}
-        <FormField label="Label" required>
+        <FormField label="Libellé" required>
           <input className={INPUT_CLS} value={form.label} onChange={e => setForm(v => ({ ...v, label: e.target.value }))} />
         </FormField>
         <div className="grid grid-cols-2 gap-4">
-          <FormField label="Numero de devis" hint="Emis par le fournisseur">
+          <FormField label="Numéro de devis" hint="Émis par le fournisseur">
             <input className={INPUT_CLS} value={form.numero_devis} onChange={e => setForm(v => ({ ...v, numero_devis: e.target.value }))} />
           </FormField>
-          <FormField label="Reference interne" hint="Optionnel">
+          <FormField label="Référence interne" hint="Optionnel">
             <input className={INPUT_CLS} value={form.reference_interne} onChange={e => setForm(v => ({ ...v, reference_interne: e.target.value }))} />
           </FormField>
         </div>
@@ -142,7 +142,7 @@ export default function CommandeFormModal({
           </select>
         </FormField>
         <div className="grid grid-cols-2 gap-4">
-          <FormField label="Societe acheteuse" required hint="Proposée d'après le contrat, modifiable">
+          <FormField label="Société acheteuse" required hint="Proposée d'après le contrat, modifiable">
             <select className={INPUT_CLS} value={form.id_societe} onChange={e => setForm(v => ({ ...v, id_societe: e.target.value }))}>
               <option value="">Choisir...</option>
               {societes.map(s => <option key={s.id} value={s.id}>{s.raison_sociale}</option>)}
@@ -170,11 +170,11 @@ export default function CommandeFormModal({
           <FormField label="Date de commande" required>
             <input type="date" className={INPUT_CLS} value={form.date_commande} onChange={e => setForm(v => ({ ...v, date_commande: e.target.value }))} />
           </FormField>
-          <FormField label="Date de fin" hint="Optionnelle (perpetuel si vide)">
+          <FormField label="Date de fin" hint="Optionnelle (perpétuel si vide)">
             <input type="date" className={INPUT_CLS} value={form.date_fin} onChange={e => setForm(v => ({ ...v, date_fin: e.target.value }))} />
           </FormField>
         </div>
-        <FormField label="A renouveler">
+        <FormField label="À renouveler">
           <label className="flex items-center gap-3 pt-1 cursor-pointer">
             <div onClick={() => setForm(v => ({ ...v, a_renouveler: !v.a_renouveler }))}
                  className={`relative w-10 h-5 rounded-full transition-colors ${form.a_renouveler ? 'bg-blue-600' : 'bg-gray-300'}`}>

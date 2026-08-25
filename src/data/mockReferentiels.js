@@ -35,29 +35,29 @@ export const mockFonctions = [
 // --- EDITEURS ----------------------------------------------------------------
 // logo_slug : nom de fichier dans public/logos/{slug}.svg (Simple Icons). Null si aucun logo fiable trouve (repli initiales).
 export const mockEditeurs = [
-  { id: 'ed1',  raison_sociale: 'Microsoft Corporation',      pays: 'Etats-Unis',  logo_slug: 'microsoft',        statut_validation: 'valide',    soumis_par: 'Import initial' },
-  { id: 'ed2',  raison_sociale: 'Adobe Systems',               pays: 'Etats-Unis',  logo_slug: 'adobe',            statut_validation: 'valide',    soumis_par: 'Import initial' },
-  { id: 'ed3',  raison_sociale: 'Oracle Corporation',           pays: 'Etats-Unis',  logo_slug: 'oracle',           statut_validation: 'valide',    soumis_par: 'Import initial' },
+  { id: 'ed1',  raison_sociale: 'Microsoft Corporation',      pays: 'États-Unis',  logo_slug: 'microsoft',        statut_validation: 'valide',    soumis_par: 'Import initial' },
+  { id: 'ed2',  raison_sociale: 'Adobe Systems',               pays: 'États-Unis',  logo_slug: 'adobe',            statut_validation: 'valide',    soumis_par: 'Import initial' },
+  { id: 'ed3',  raison_sociale: 'Oracle Corporation',           pays: 'États-Unis',  logo_slug: 'oracle',           statut_validation: 'valide',    soumis_par: 'Import initial' },
   { id: 'ed4',  raison_sociale: 'SAP SE',                       pays: 'Allemagne',   logo_slug: 'sap',              statut_validation: 'valide',    soumis_par: 'Import initial' },
-  { id: 'ed5',  raison_sociale: 'IBM Corporation',              pays: 'Etats-Unis',  logo_slug: 'ibm',              statut_validation: 'valide',    soumis_par: 'Import initial' },
-  { id: 'ed6',  raison_sociale: 'Autodesk',                     pays: 'Etats-Unis',  logo_slug: 'autodesk',         statut_validation: 'valide',    soumis_par: 'Import initial' },
-  { id: 'ed7',  raison_sociale: 'Citrix Systems',                pays: 'Etats-Unis',  logo_slug: 'citrix',           statut_validation: 'valide',    soumis_par: 'Import initial' },
-  { id: 'ed8',  raison_sociale: 'VMware',                       pays: 'Etats-Unis',  logo_slug: 'vmware',           statut_validation: 'valide',    soumis_par: 'Import initial' },
-  { id: 'ed9',  raison_sociale: 'Salesforce',                   pays: 'Etats-Unis',  logo_slug: 'salesforce',       statut_validation: 'valide',    soumis_par: 'Import initial' },
-  { id: 'ed10', raison_sociale: 'ServiceNow',                   pays: 'Etats-Unis',  logo_slug: null,               statut_validation: 'valide',    soumis_par: 'Import initial' },
+  { id: 'ed5',  raison_sociale: 'IBM Corporation',              pays: 'États-Unis',  logo_slug: 'ibm',              statut_validation: 'valide',    soumis_par: 'Import initial' },
+  { id: 'ed6',  raison_sociale: 'Autodesk',                     pays: 'États-Unis',  logo_slug: 'autodesk',         statut_validation: 'valide',    soumis_par: 'Import initial' },
+  { id: 'ed7',  raison_sociale: 'Citrix Systems',                pays: 'États-Unis',  logo_slug: 'citrix',           statut_validation: 'valide',    soumis_par: 'Import initial' },
+  { id: 'ed8',  raison_sociale: 'VMware',                       pays: 'États-Unis',  logo_slug: 'vmware',           statut_validation: 'valide',    soumis_par: 'Import initial' },
+  { id: 'ed9',  raison_sociale: 'Salesforce',                   pays: 'États-Unis',  logo_slug: 'salesforce',       statut_validation: 'valide',    soumis_par: 'Import initial' },
+  { id: 'ed10', raison_sociale: 'ServiceNow',                   pays: 'États-Unis',  logo_slug: null,               statut_validation: 'valide',    soumis_par: 'Import initial' },
   { id: 'ed11', raison_sociale: 'Atlassian',                    pays: 'Australie',   logo_slug: 'atlassian',        statut_validation: 'valide',    soumis_par: 'Import initial' },
   { id: 'ed12', raison_sociale: 'ESET',                         pays: 'Slovaquie',   logo_slug: null,               statut_validation: 'valide',    soumis_par: 'Import initial' },
-  { id: 'ed13', raison_sociale: 'Symantec (Broadcom)',           pays: 'Etats-Unis',  logo_slug: 'symantec',         statut_validation: 'valide',    soumis_par: 'Import initial' },
+  { id: 'ed13', raison_sociale: 'Symantec (Broadcom)',           pays: 'États-Unis',  logo_slug: 'symantec',         statut_validation: 'valide',    soumis_par: 'Import initial' },
   { id: 'ed14', raison_sociale: 'Dassault Systemes',             pays: 'France',     logo_slug: 'dassaultsystemes', statut_validation: 'valide',    soumis_par: 'Import initial' },
   { id: 'ed15', raison_sociale: 'Sage',                         pays: 'France',     logo_slug: 'sage',             statut_validation: 'valide',    soumis_par: 'Import initial' },
   { id: 'ed16', raison_sociale: 'Cegid',                        pays: 'France',     logo_slug: null,               statut_validation: 'valide',    soumis_par: 'Import initial' },
   { id: 'ed17', raison_sociale: 'Esker',                        pays: 'France',     logo_slug: null,               statut_validation: 'valide',    soumis_par: 'Import initial' },
   { id: 'ed18', raison_sociale: 'Talend',                       pays: 'France',     logo_slug: 'talend',           statut_validation: 'valide',    soumis_par: 'Import initial' },
-  { id: 'ed19', raison_sociale: 'Slack Technologies',            pays: 'Etats-Unis',  logo_slug: 'slack',            statut_validation: 'valide',    soumis_par: 'Import initial' },
-  { id: 'ed20', raison_sociale: 'Zoom Video Communications',     pays: 'Etats-Unis',  logo_slug: 'zoom',             statut_validation: 'en_attente', soumis_par: 'Julie Petit' },
-  { id: 'ed21', raison_sociale: 'Datadog',                      pays: 'Etats-Unis',  logo_slug: 'datadog',          statut_validation: 'en_attente', soumis_par: 'Thomas Bernard' },
-  { id: 'ed22', raison_sociale: 'Snowflake',                    pays: 'Etats-Unis',  logo_slug: 'snowflake',        statut_validation: 'en_attente', soumis_par: 'Julie Petit' },
-  { id: 'ed23', raison_sociale: 'WizzyCorp Solutions',           pays: 'France',     logo_slug: null,               statut_validation: 'refuse',    soumis_par: 'Thomas Bernard', motif_refus: 'Raison sociale introuvable au registre du commerce, a verifier avant nouvelle soumission.' },
+  { id: 'ed19', raison_sociale: 'Slack Technologies',            pays: 'États-Unis',  logo_slug: 'slack',            statut_validation: 'valide',    soumis_par: 'Import initial' },
+  { id: 'ed20', raison_sociale: 'Zoom Video Communications',     pays: 'États-Unis',  logo_slug: 'zoom',             statut_validation: 'en_attente', soumis_par: 'Julie Petit' },
+  { id: 'ed21', raison_sociale: 'Datadog',                      pays: 'États-Unis',  logo_slug: 'datadog',          statut_validation: 'en_attente', soumis_par: 'Thomas Bernard' },
+  { id: 'ed22', raison_sociale: 'Snowflake',                    pays: 'États-Unis',  logo_slug: 'snowflake',        statut_validation: 'en_attente', soumis_par: 'Julie Petit' },
+  { id: 'ed23', raison_sociale: 'WizzyCorp Solutions',           pays: 'France',     logo_slug: null,               statut_validation: 'refuse',    soumis_par: 'Thomas Bernard', motif_refus: 'Raison sociale introuvable au registre du commerce, à vérifier avant nouvelle soumission.' },
   { id: 'ed24', raison_sociale: 'Lansweeper',                   pays: 'Belgique',    logo_slug: null,               statut_validation: 'valide',    soumis_par: 'Import initial' },
 ];
 
@@ -224,11 +224,11 @@ export function isContactActif(contact) {
 export function getRattachementInfo(typeRattachement, idRattachement) {
   if (typeRattachement === 'client') {
     const societe = mockSocietes.find(s => s.id === idRattachement);
-    return { label: societe?.raison_sociale ?? 'Societe inconnue', detailPath: `/referentiels/organisation/${idRattachement}` };
+    return { label: societe?.raison_sociale ?? 'Société inconnue', detailPath: `/referentiels/organisation/${idRattachement}` };
   }
   if (typeRattachement === 'editeur') {
     const editeur = mockEditeurs.find(e => e.id === idRattachement);
-    return { label: editeur?.raison_sociale ?? 'Editeur inconnu', detailPath: `/referentiels/editeurs/${idRattachement}` };
+    return { label: editeur?.raison_sociale ?? 'Éditeur inconnu', detailPath: `/referentiels/editeurs/${idRattachement}` };
   }
   if (typeRattachement === 'revendeur') {
     const revendeur = mockRevendeurs.find(r => r.id === idRattachement);
@@ -242,6 +242,6 @@ export function getConformiteEditeur(idEditeur) {
   const seed = idEditeur.split('').reduce((s, c) => s + c.charCodeAt(0), 0);
   const pct = 55 + (seed % 45);
   if (pct >= 90) return { niveau: 'conforme', label: 'Conforme', pct };
-  if (pct >= 75) return { niveau: 'attention', label: 'A surveiller', pct };
+  if (pct >= 75) return { niveau: 'attention', label: 'À surveiller', pct };
   return { niveau: 'non_conforme', label: 'Non conforme', pct };
 }

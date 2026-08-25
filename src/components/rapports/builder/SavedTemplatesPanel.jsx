@@ -46,7 +46,7 @@ export default function SavedTemplatesPanel({ isOpen, onClose, onCharger, config
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center gap-2">
             <FolderOpen className="w-4 h-4 text-gray-500" />
-            <h2 className="font-semibold text-gray-900 dark:text-white">Modeles sauvegardes</h2>
+            <h2 className="font-semibold text-gray-900 dark:text-white">Modèles sauvegardés</h2>
           </div>
           <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
             <X className="w-5 h-5" />
@@ -62,7 +62,7 @@ export default function SavedTemplatesPanel({ isOpen, onClose, onCharger, config
               value={nomNouveauModele}
               onChange={e => setNomNouveauModele(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && sauvegarder()}
-              placeholder="Nom du modele..."
+              placeholder="Nom du modèle..."
               className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white placeholder-gray-400 min-w-0"
             />
             <button
@@ -80,7 +80,7 @@ export default function SavedTemplatesPanel({ isOpen, onClose, onCharger, config
           {modeles.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-40 gap-2 text-gray-400 dark:text-gray-500">
               <FolderOpen className="w-8 h-8" />
-              <p className="text-sm">Aucun modele sauvegarde</p>
+              <p className="text-sm">Aucun modèle sauvegardé</p>
             </div>
           ) : (
             <div className="space-y-0 divide-y divide-gray-100 dark:divide-gray-700">

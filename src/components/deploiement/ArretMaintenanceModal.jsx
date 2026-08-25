@@ -29,7 +29,7 @@ export default function ArretMaintenanceModal({ isOpen, onClose, onSaved, licenc
         date_arret_maintenance: dateArret,
         version_figee_id: versionFigee || null,
       });
-      addToast({ type: 'success', message: 'Maintenance arretee, version figee.' });
+      addToast({ type: 'success', message: 'Maintenance arrêtée, version figée.' });
       onSaved(saved);
       onClose();
     } catch (err) {
@@ -43,24 +43,24 @@ export default function ArretMaintenanceModal({ isOpen, onClose, onSaved, licenc
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Arreter la maintenance"
+      title="Arrêter la maintenance"
       size="sm"
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>Annuler</Button>
-          <Button variant="primary" onClick={handleConfirm} isLoading={loading} disabled={!dateArret}>Arreter la maintenance</Button>
+          <Button variant="primary" onClick={handleConfirm} isLoading={loading} disabled={!dateArret}>Arrêter la maintenance</Button>
         </>
       }
     >
       <div className="flex flex-col gap-4">
         <p className="text-sm text-gray-600 dark:text-gray-300">
           La licence conserve ses <strong>{licence?.quantite} {licence?.unite_label ?? ''}</strong> de droits acquis.
-          Seul le droit aux montees de version cesse : la version est figee a la date d&apos;arret.
+          Seul le droit aux montées de version cesse : la version est figée à la date d&apos;arrêt.
         </p>
-        <FormField label="Date d'arret" required>
+        <FormField label="Date d'arrêt" required>
           <input type="date" className={INPUT_CLS} value={dateArret} onChange={e => setDateArret(e.target.value)} />
         </FormField>
-        <FormField label="Version figee" hint={versions.length ? 'Par defaut, la version courante de la licence' : 'Aucune version connue pour ce produit'}>
+        <FormField label="Version figée" hint={versions.length ? 'Par défaut, la version courante de la licence' : 'Aucune version connue pour ce produit'}>
           <select className={INPUT_CLS} value={versionFigee} onChange={e => setVersionFigee(e.target.value)} disabled={!versions.length}>
             <option value="">Sans version</option>
             {versions.map(v => <option key={v.id} value={v.id}>{v.label}</option>)}

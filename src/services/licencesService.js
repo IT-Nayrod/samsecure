@@ -41,7 +41,7 @@ export const referentielsLicencesService = {
 // Montant tel que servi par l'API : null vaut "masque" (ou non renseigne),
 // jamais zero. Affichage unique pour toutes les vues du module.
 export function formatMontant(valeur, masque = false) {
-  if (masque) return 'Masque';
+  if (masque) return 'Masqué';
   if (valeur === null || valeur === undefined) return '-';
   return `${Number(valeur).toLocaleString('fr-FR')} €`;
 }

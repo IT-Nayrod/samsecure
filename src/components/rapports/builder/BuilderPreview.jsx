@@ -78,7 +78,7 @@ export default function BuilderPreview({ config, champsDisponibles }) {
 
   const lignes = resultat?.lignes ?? [];
   const nbTotal = resultat?.nbLignesTotal ?? lignes.length;
-  const titre = debouncedConfig?.options?.titre || 'Apercu';
+  const titre = debouncedConfig?.options?.titre || 'Aperçu';
   const showRowNumbers = debouncedConfig?.options?.afficherNumerosLignes ?? false;
 
   // Donnees graphique

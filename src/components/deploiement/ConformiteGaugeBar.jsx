@@ -10,7 +10,7 @@ const NIVEAU_COLOR = {
 const NIVEAU_LABEL = {
   conforme: 'Conforme',
   attention: 'Attention',
-  depassement: 'Depassement',
+  depassement: 'Dépassement',
 };
 
 export default function ConformiteGaugeBar({ droits, usage, niveau, unite = '', label }) {
@@ -29,7 +29,7 @@ export default function ConformiteGaugeBar({ droits, usage, niveau, unite = '', 
       <div className="relative w-full h-2.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
         <div className="h-full rounded-full transition-all" style={{ width: `${fillPct}%`, backgroundColor: color }} />
         {ratio > 1 && (
-          <div className="absolute inset-y-0 right-0 w-1.5 bg-red-700" title={`Depassement de ${Math.round((ratio - 1) * 100)} %`} />
+          <div className="absolute inset-y-0 right-0 w-1.5 bg-red-700" title={`Dépassement de ${Math.round((ratio - 1) * 100)} %`} />
         )}
       </div>
     </div>

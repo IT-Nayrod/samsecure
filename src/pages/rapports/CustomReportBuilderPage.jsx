@@ -206,7 +206,7 @@ export default function CustomReportBuilderPage() {
         <div className="flex gap-2">
           <button onClick={() => setTemplatesPanelOpen(true)} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 border border-gray-300 dark:border-gray-600 text-xs text-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
             <FolderOpen className="w-3.5 h-3.5" />
-            Modeles
+            Modèles
           </button>
           <button onClick={reinitialiser} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 border border-gray-300 dark:border-gray-600 text-xs text-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
             <RotateCcw className="w-3.5 h-3.5" />

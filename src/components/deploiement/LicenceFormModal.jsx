@@ -73,8 +73,8 @@ export default function LicenceFormModal({
     const e = {};
     if (!form.id_produit) e.id_produit = 'Le produit est requis';
     const qte = Number(form.quantite);
-    if (!Number.isInteger(qte) || qte < 1) e.quantite = 'La quantite doit etre un entier superieur a 0';
-    if (form.cout_licence !== '' && Number(form.cout_licence) < 0) e.cout_licence = 'Le cout ne peut pas etre negatif';
+    if (!Number.isInteger(qte) || qte < 1) e.quantite = 'La quantité doit être un entier supérieur à 0';
+    if (form.cout_licence !== '' && Number(form.cout_licence) < 0) e.cout_licence = 'Le coût ne peut pas être négatif';
     if (form.type === 'souscription' && !form.date_fin_souscription) e.date_fin_souscription = 'La date de fin est requise pour une souscription';
     return e;
   }
@@ -91,7 +91,7 @@ export default function LicenceFormModal({
       const saved = isEdit
         ? await licencesService.update(licence.id, payload)
         : await licencesService.create(payload);
-      addToast({ type: 'success', message: isEdit ? 'Licence mise a jour.' : 'Licence creee.' });
+      addToast({ type: 'success', message: isEdit ? 'Licence mise à jour.' : 'Licence créée.' });
       clearDraft(draftKey);
       onSaved(saved);
       onClose();
@@ -113,7 +113,7 @@ export default function LicenceFormModal({
       size="md"
       banner={draftRestaure && (
         <p className="text-xs text-blue-700 dark:text-blue-300 flex items-center justify-between gap-2">
-          Brouillon restaure depuis votre derniere saisie.
+          Brouillon restauré depuis votre dernière saisie.
           <button onClick={() => { clearDraft(draftKey); setForm(EMPTY_FORM); setDraftRestaure(false); }} className="underline hover:no-underline flex-shrink-0">Vider le brouillon</button>
         </p>
       )}
@@ -125,8 +125,8 @@ export default function LicenceFormModal({
       }
     >
       <div className="flex flex-col gap-4">
-        <FormField label="Libelle du lot" hint="Optionnel, le produit sert de libelle par defaut">
-          <input type="text" className={INPUT_CLS} value={form.label} onChange={champ('label')} placeholder="Ex. M365, siege" />
+        <FormField label="Libellé du lot" hint="Optionnel, le produit sert de libellé par défaut">
+          <input type="text" className={INPUT_CLS} value={form.label} onChange={champ('label')} placeholder="Ex. M365, siège" />
         </FormField>
         <FormField label="Produit" required error={errors.id_produit}>
           <select className={INPUT_CLS} value={form.id_produit} onChange={e => { setForm(v => ({ ...v, id_produit: e.target.value, id_edition: '', id_version: '' })); setErrors(v => ({ ...v, id_produit: null })); }}>
@@ -135,7 +135,7 @@ export default function LicenceFormModal({
           </select>
         </FormField>
         <div className="grid grid-cols-2 gap-4">
-          <FormField label="Edition" hint="Optionnel">
+          <FormField label="Édition" hint="Optionnel">
             <select className={INPUT_CLS} value={form.id_edition} onChange={champ('id_edition')} disabled={!editions.length}>
               <option value="">Aucune</option>
               {editions.map(ed => <option key={ed.id} value={ed.id}>{ed.label}</option>)}
@@ -155,7 +155,7 @@ export default function LicenceFormModal({
               {commandes.map(c => <option key={c.id} value={c.id}>{c.label}{c.contrat_label ? ` (${c.contrat_label})` : ''}</option>)}
             </select>
           </FormField>
-          <FormField label="Contrat" hint="Deduit de la commande">
+          <FormField label="Contrat" hint="Déduit de la commande">
             <input type="text" className={`${INPUT_CLS} bg-gray-50 dark:bg-gray-800`} value={commande?.contrat_label ?? ''} readOnly placeholder="-" />
           </FormField>
         </div>
@@ -169,41 +169,41 @@ export default function LicenceFormModal({
           <FormField label="Type">
             <select className={INPUT_CLS} value={form.type} onChange={champ('type')}>
               <option value="souscription">Souscription</option>
-              <option value="perpetuelle">Perpetuelle</option>
+              <option value="perpetuelle">Perpétuelle</option>
             </select>
           </FormField>
-          <FormField label="Unite de mesure">
+          <FormField label="Unité de mesure">
             <select className={INPUT_CLS} value={form.id_unite_mesure} onChange={champ('id_unite_mesure')}>
-              <option value="">Non renseignee</option>
+              <option value="">Non renseignée</option>
               {unites.map(u => <option key={u.id} value={u.id}>{u.label}</option>)}
             </select>
           </FormField>
         </div>
         <div className="grid grid-cols-2 gap-4">
-          <FormField label="Quantite" required error={errors.quantite}>
+          <FormField label="Quantité" required error={errors.quantite}>
             <input type="number" min={1} step={1} className={INPUT_CLS} value={form.quantite} onChange={champ('quantite')} />
           </FormField>
           {montantsVisibles && (
-            <FormField label="Cout (EUR)" error={errors.cout_licence}>
+            <FormField label="Coût (EUR)" error={errors.cout_licence}>
               <input type="number" min={0} step="0.01" className={INPUT_CLS} value={form.cout_licence} onChange={champ('cout_licence')} />
             </FormField>
           )}
         </div>
         {form.type === 'souscription' && (
-          <FormField label="Fin de souscription" required error={errors.date_fin_souscription} hint="Expiree le jour meme, sans tolerance">
+          <FormField label="Fin de souscription" required error={errors.date_fin_souscription} hint="Expirée le jour même, sans tolérance">
             <input type="date" className={INPUT_CLS} value={form.date_fin_souscription} onChange={champ('date_fin_souscription')} />
           </FormField>
         )}
         <div className="border-t border-gray-100 dark:border-gray-700 pt-4 flex flex-col gap-4">
           <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
             <input type="checkbox" checked={form.a_maintenance} onChange={e => setForm(v => ({ ...v, a_maintenance: e.target.checked }))} />
-            Sous maintenance (droit aux montees de version)
+            Sous maintenance (droit aux montées de version)
           </label>
           {form.a_maintenance && (
             <div className="grid grid-cols-2 gap-4">
               <FormField label="Mainteneur">
                 <select className={INPUT_CLS} value={form.id_mainteneur} onChange={champ('id_mainteneur')}>
-                  <option value="">Non renseigne</option>
+                  <option value="">Non renseigné</option>
                   {mainteneurs.map(m => <option key={m.id} value={m.id}>{m.raison_sociale}</option>)}
                 </select>
               </FormField>

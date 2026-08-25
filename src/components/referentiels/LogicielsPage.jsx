@@ -89,29 +89,29 @@ export default function LogicielsPage() {
       statut_validation: submitsForValidation ? 'en_attente' : 'valide',
     };
     setProduits(prev => [...prev, newProduit]);
-    addToast({ type: 'success', message: submitsForValidation ? 'Produit soumis a validation.' : 'Produit client cree.' });
+    addToast({ type: 'success', message: submitsForValidation ? 'Produit soumis à validation.' : 'Produit client créé.' });
   }
 
   const columns = [
-    { key: 'label', label: 'Label', sortable: true, render: r => (
+    { key: 'label', label: 'Libellé', sortable: true, render: r => (
       <button onClick={() => navigate(`/referentiels/logiciels/${r.id}`)} className="flex items-center gap-2.5 font-medium text-blue-800 hover:underline text-left">
         <LogoEditeur editeur={getEditeur(r.id_editeur)} size={22} />
         {r.label}
       </button>
     ) },
-    { key: 'editeur', label: 'Editeur', getValue: r => editeurLabel(r.id_editeur), render: r => editeurLabel(r.id_editeur) },
+    { key: 'editeur', label: 'Éditeur', getValue: r => editeurLabel(r.id_editeur), render: r => editeurLabel(r.id_editeur) },
     { key: 'sku', label: 'SKU', render: r => r.sku ?? '-' },
     { key: 'source', label: 'Source', sortable: true, render: r => <Badge variant={r.source === 'catalogue' ? 'neutral' : 'success'} label={r.source === 'catalogue' ? 'Catalogue' : 'Client'} /> },
     { key: 'niveau', label: 'Niveau', getValue: r => r.id_produit_parent ? 'Sous-produit' : 'Produit', render: r => r.id_produit_parent ? 'Sous-produit' : 'Produit' },
     { key: 'a_maintenir', label: 'Maintenance', sortable: true, render: r => r.a_maintenir ? <Badge variant="success" label="Oui" /> : <Badge variant="neutral" label="Non" /> },
     { key: 'nb_versions', label: 'Nb versions', getValue: r => getVersionsByProduit(r.id).length, render: r => getVersionsByProduit(r.id).length },
-    { key: 'nb_editions', label: 'Nb editions', getValue: r => getEditionsByProduit(r.id).length, render: r => getEditionsByProduit(r.id).length },
+    { key: 'nb_editions', label: 'Nb éditions', getValue: r => getEditionsByProduit(r.id).length, render: r => getEditionsByProduit(r.id).length },
     { key: 'statut', label: 'Statut', render: r => r.source === 'client' ? <StatutValidationBadge statut={r.statut_validation} /> : <Badge variant="neutral" label="Catalogue commun" /> },
   ];
 
   return (
     <div className="flex flex-col gap-6">
-      <Breadcrumb items={[{ label: 'Referentiels' }, { label: 'Logiciels' }]} />
+      <Breadcrumb items={[{ label: 'Référentiels' }, { label: 'Logiciels' }]} />
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Logiciels</h1>
@@ -136,7 +136,7 @@ export default function LogicielsPage() {
 
       <div className="flex flex-wrap gap-3 bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
         <select value={filterEditeur} onChange={e => setFilterEditeur(e.target.value)} className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-          <option value="">Tous les editeurs</option>
+          <option value="">Tous les éditeurs</option>
           {mockEditeurs.map(ed => <option key={ed.id} value={ed.id}>{ed.raison_sociale}</option>)}
         </select>
         <select value={filterSource} onChange={e => setFilterSource(e.target.value)} className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -146,7 +146,7 @@ export default function LogicielsPage() {
         </select>
         <select value={filterMaintenir} onChange={e => setFilterMaintenir(e.target.value)} className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="">Maintenance : tous</option>
-          <option value="oui">A maintenir</option>
+          <option value="oui">À maintenir</option>
           <option value="non">Non maintenu</option>
         </select>
         <input
@@ -161,7 +161,7 @@ export default function LogicielsPage() {
       {vueArbo ? (
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
           {racinesArbo.length === 0
-            ? <EmptyState title="Aucun produit" description="Aucun produit dans le referentiel." />
+            ? <EmptyState title="Aucun produit" description="Aucun produit dans le référentiel." />
             : racinesArbo.map(p => <TreeNode key={p.id} produit={p} produits={produits} depth={0} navigate={navigate} />)
           }
         </div>

@@ -17,7 +17,7 @@ function produitLabel(idProduit) {
 }
 
 function societeLabel(idSociete) {
-  return mockSocietes.find(s => s.id === idSociete)?.raison_sociale ?? 'Societe inconnue';
+  return mockSocietes.find(s => s.id === idSociete)?.raison_sociale ?? 'Société inconnue';
 }
 
 export const SEARCH_REGISTRY = [
@@ -30,14 +30,14 @@ export const SEARCH_REGISTRY = [
     getResultLabel: item => item.raison_sociale,
     getContext: item => {
       const parent = mockSocietes.find(s => s.id === item.societe_parent_id);
-      return `SIRET ${item.siret} - ${parent ? parent.raison_sociale : 'Societe mere'}`;
+      return `SIRET ${item.siret} - ${parent ? parent.raison_sociale : 'Société mère'}`;
     },
     getDetailPath: item => `/referentiels/organisation/${item.id}`,
     getListPath: () => '/referentiels/organisation',
   },
   {
     key: 'editeurs',
-    label: 'Editeurs',
+    label: 'Éditeurs',
     icon: Building2,
     getData: () => mockEditeurs,
     fields: item => [item.raison_sociale],

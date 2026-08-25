@@ -159,7 +159,7 @@ export default function FacturesPage() {
     { key: 'ressource', label: 'Type', sortable: true, render: r => r.ressource === 'facture' ? 'Facture' : 'Preuve' },
     { key: 'type_preuve_label', label: 'Type de preuve', render: r => r.type_preuve_label ?? '-' },
     { key: 'liaison', label: 'Contrat / Commande', render: r => [r.contrat_label, r.commande_label].filter(Boolean).join(' - ') || '-' },
-    { key: 'created_at', label: 'Depose le', sortable: true, render: r => formatDate(r.created_at) },
+    { key: 'created_at', label: 'Déposé le', sortable: true, render: r => formatDate(r.created_at) },
     { key: 'statut_validation', label: 'Validation', sortable: true,
       csvValue: r => [r.statut_validation_label, r.message_refus].filter(Boolean).join(' - '),
       render: r => <ValidationCell statut={r.statut_validation} motif={r.message_refus} /> },
@@ -200,15 +200,15 @@ export default function FacturesPage() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Factures & Preuves</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Pieces justificatives et aptitude a l&apos;audit</p>
+          <p className="text-sm text-gray-500 mt-0.5">Pièces justificatives et aptitude à l&apos;audit</p>
         </div>
         {canWrite && (
           <div className="flex gap-2">
             <Button variant="secondary" onClick={() => setPreuveModal(true)}>
-              <Plus size={15} /> Deposer une preuve
+              <Plus size={15} /> Déposer une preuve
             </Button>
             <Button variant="primary" onClick={() => setFactureModal(true)}>
-              <Plus size={15} /> Deposer une facture
+              <Plus size={15} /> Déposer une facture
             </Button>
           </div>
         )}
@@ -219,13 +219,13 @@ export default function FacturesPage() {
           onClick={() => setFilterType(v => v === 'facture' ? '' : 'facture')} active={filterType === 'facture'} />
         <DeploiementKpiCard label="Preuves" value={preuves.length} icon={FileCheck} color="#22C55E"
           onClick={() => setFilterType(v => v === 'preuve' ? '' : 'preuve')} active={filterType === 'preuve'} />
-        <DeploiementKpiCard label="Manques detectes" value={manques?.total ?? 0} icon={AlertTriangle} color="#EF4444"
+        <DeploiementKpiCard label="Manques détectés" value={manques?.total ?? 0} icon={AlertTriangle} color="#EF4444"
           onClick={() => manquesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })} />
       </div>
 
       <section ref={manquesRef} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
         <div className="flex items-baseline justify-between gap-3 mb-3">
-          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Detection des manques (risque audit)</h2>
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Détection des manques (risque audit)</h2>
           {manques?.total > 0 && (
             <p className="text-xs text-gray-500">
               {manques.total_sans_facture} sans facture, {manques.total_sans_preuve} sans preuve
@@ -233,7 +233,7 @@ export default function FacturesPage() {
           )}
         </div>
         {!manques || manques.total === 0 ? (
-          <p className="text-sm text-gray-500">Aucun manque detecte : toutes les commandes ont facture et preuve.</p>
+          <p className="text-sm text-gray-500">Aucun manque détecté : toutes les commandes ont facture et preuve.</p>
         ) : (
           <div className="flex flex-col gap-2">
             {manques.commandes.map(c => (
@@ -272,7 +272,7 @@ export default function FacturesPage() {
         </select>
         {hasActiveFiltres && (
           <button onClick={resetFiltres} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 px-3 py-2">
-            <X size={14} /> Reinitialiser les filtres
+            <X size={14} /> Réinitialiser les filtres
           </button>
         )}
       </div>
@@ -282,7 +282,7 @@ export default function FacturesPage() {
           columns={columns}
           data={lignes}
           filename="documents"
-          emptyState={{ message: hasActiveFiltres ? 'Aucun document ne correspond aux filtres.' : 'Aucun document depose a ce jour.' }}
+          emptyState={{ message: hasActiveFiltres ? 'Aucun document ne correspond aux filtres.' : 'Aucun document déposé à ce jour.' }}
         />
       </div>
 

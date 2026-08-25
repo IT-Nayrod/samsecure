@@ -42,7 +42,7 @@ export default function EcheancesFrise({ licences }) {
         if (d >= debut && d <= fin) points.push({
           id: `${l.id}-m`, licenceId: l.id, date: l.date_fin_maintenance, pct: pct(d), nom,
           type: l.statut_maintenance === 'echue' ? 'maintenance_echue' : 'maintenance',
-          libelle: l.statut_maintenance === 'echue' ? 'Maintenance echue' : 'Fin de maintenance',
+          libelle: l.statut_maintenance === 'echue' ? 'Maintenance échue' : 'Fin de maintenance',
         });
       }
       if (l.type === 'souscription' && l.date_fin_souscription) {
@@ -50,7 +50,7 @@ export default function EcheancesFrise({ licences }) {
         if (d >= debut && d <= fin) points.push({
           id: `${l.id}-s`, licenceId: l.id, date: l.date_fin_souscription, pct: pct(d), nom,
           type: l.statut_echeance === 'expire' ? 'souscription_expiree' : 'souscription',
-          libelle: l.statut_echeance === 'expire' ? 'Souscription expiree' : 'Fin de souscription',
+          libelle: l.statut_echeance === 'expire' ? 'Souscription expirée' : 'Fin de souscription',
         });
       }
     }
@@ -72,7 +72,7 @@ export default function EcheancesFrise({ licences }) {
   if (points.length === 0) {
     return (
       <div className="flex items-center gap-2 text-sm text-gray-500 py-2">
-        <CheckCircle2 size={16} className="text-green-500" /> Aucune echeance de maintenance ni de souscription entre {debut.toLocaleDateString('fr-FR')} et {fin.toLocaleDateString('fr-FR')}.
+        <CheckCircle2 size={16} className="text-green-500" /> Aucune échéance de maintenance ni de souscription entre {debut.toLocaleDateString('fr-FR')} et {fin.toLocaleDateString('fr-FR')}.
       </div>
     );
   }

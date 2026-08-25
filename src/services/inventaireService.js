@@ -51,14 +51,14 @@ export const societesInventaireService = {
 
 export const RAPPROCHEMENT_STATUT = {
   en_attente:    { variant: 'neutral', label: 'En attente' },
-  rapproche:     { variant: 'success', label: 'Rapproche' },
-  ecart_detecte: { variant: 'warning', label: 'Ecart detecte' },
-  rejete:        { variant: 'neutral', label: 'Rejete' },
+  rapproche:     { variant: 'success', label: 'Rapproché' },
+  ecart_detecte: { variant: 'warning', label: 'Écart détecté' },
+  rejete:        { variant: 'neutral', label: 'Rejeté' },
 };
 
 export const IMPORT_STATUT = {
   en_cours:       { variant: 'neutral', label: 'En cours' },
-  succes:         { variant: 'success', label: 'Succes' },
-  succes_partiel: { variant: 'warning', label: 'Succes partiel' },
-  echec:          { variant: 'error',   label: 'Echec' },
+  succes:         { variant: 'success', label: 'Succès' },
+  succes_partiel: { variant: 'warning', label: 'Succès partiel' },
+  echec:          { variant: 'error',   label: 'Échec' },
 };

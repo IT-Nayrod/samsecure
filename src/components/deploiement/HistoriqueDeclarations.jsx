@@ -8,7 +8,7 @@ import Skeleton from '../ui/Skeleton';
 import { formatDate } from '../../utils/dateUtils';
 
 const ACTIONS = {
-  CREATE: { label: 'Declaration', couleur: 'bg-gray-400' },
+  CREATE: { label: 'Déclaration', couleur: 'bg-gray-400' },
   UPDATE: { label: 'Modification', couleur: 'bg-blue-500' },
   DELETE: { label: 'Suppression', couleur: 'bg-gray-700' },
   VALIDATION: { label: 'Validation', couleur: 'bg-green-500' },
@@ -20,11 +20,11 @@ function resume(h) {
   const d = h.detail || {};
   const bouts = [];
   if (d.reference_client) bouts.push(d.reference_client);
-  if (d.quantite != null) bouts.push(`quantite ${d.quantite}`);
-  if (d.date_prochaine_revalidation) bouts.push(`echeance le ${formatDate(d.date_prochaine_revalidation)}`);
+  if (d.quantite != null) bouts.push(`quantité ${d.quantite}`);
+  if (d.date_prochaine_revalidation) bouts.push(`échéance le ${formatDate(d.date_prochaine_revalidation)}`);
   if (d.message_refus) bouts.push(`motif : ${d.message_refus}`);
   if (d.modifications) bouts.push(`champs : ${Object.keys(d.modifications).join(', ')}`);
-  if (d.transfert_vers) bouts.push('transferee vers une autre societe');
+  if (d.transfert_vers) bouts.push('transférée vers une autre société');
   return bouts.join(' · ');
 }
 
@@ -42,7 +42,7 @@ export default function HistoriqueDeclarations({ filtres, limite = 50 }) {
   }, [cle]);
 
   if (lignes === null) return <Skeleton lines={3} />;
-  if (!lignes.length) return <p className="text-sm text-gray-500">Aucune declaration enregistree.</p>;
+  if (!lignes.length) return <p className="text-sm text-gray-500">Aucune déclaration enregistrée.</p>;
 
   return (
     <ul className="flex flex-col gap-3">

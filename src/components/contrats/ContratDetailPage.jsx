@@ -92,7 +92,7 @@ export default function ContratDetailPage() {
   async function handleDelete() {
     try {
       await contratsService.remove(contrat.id);
-      addToast({ type: 'success', message: 'Contrat supprime.' });
+      addToast({ type: 'success', message: 'Contrat supprimé.' });
       navigate('/contrats/liste');
     } catch (err) {
       // Message du serveur affiche tel quel : "Suppression impossible : ce contrat porte ..."
@@ -148,7 +148,7 @@ export default function ContratDetailPage() {
     return (
       <div className="flex flex-col gap-6">
         <Breadcrumb items={[{ label: 'Droits d\'usage', to: '/contrats/liste' }, { label: 'Contrat', to: '/contrats/liste' }, { label: 'Introuvable' }]} />
-        <EmptyState title="Contrat introuvable" description="Ce contrat n'existe pas ou a ete supprime." ctaLabel="Retour a la liste" onCta={() => navigate('/contrats/liste')} />
+        <EmptyState title="Contrat introuvable" description="Ce contrat n'existe pas ou a été supprimé." ctaLabel="Retour à la liste" onCta={() => navigate('/contrats/liste')} />
       </div>
     );
   }
@@ -191,7 +191,7 @@ export default function ContratDetailPage() {
           />}
           {!contrat.archive && canWrite && (
             <Button variant="secondary" size="sm" onClick={() => setFormOpen(true)}>
-              <Pencil size={14} /> Editer
+              <Pencil size={14} /> Éditer
             </Button>
           )}
           {!contrat.archive && canDelete && (
@@ -233,7 +233,7 @@ export default function ContratDetailPage() {
         <div className="flex items-start gap-2 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
           <XCircle size={16} className="text-red-600 flex-shrink-0 mt-0.5" />
           <div>
-            <p className="text-sm font-medium text-red-800 dark:text-red-300">Saisie refusee</p>
+            <p className="text-sm font-medium text-red-800 dark:text-red-300">Saisie refusée</p>
             <p className="text-sm text-red-700 dark:text-red-400 mt-0.5">{contrat.message_refus}</p>
           </div>
         </div>
@@ -243,7 +243,7 @@ export default function ContratDetailPage() {
         <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Signataires</h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
           <div>
-            <p className="text-xs text-gray-500 mb-1">Societe signataire</p>
+            <p className="text-xs text-gray-500 mb-1">Société signataire</p>
             <p className="text-sm text-gray-800 dark:text-gray-200">{contrat.societe_label ?? '-'}</p>
           </div>
           <div>
@@ -251,44 +251,44 @@ export default function ContratDetailPage() {
             <p className="text-sm text-gray-800 dark:text-gray-200">{contrat.revendeur_label ?? '-'}</p>
           </div>
           <div>
-            <p className="text-xs text-gray-500 mb-1">Editeur</p>
+            <p className="text-xs text-gray-500 mb-1">Éditeur</p>
             <p className="text-sm text-gray-800 dark:text-gray-200">{contrat.editeur_label ?? '-'}</p>
           </div>
         </div>
       </section>
 
       <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Echeance et renouvellement</h2>
+        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Échéance et renouvellement</h2>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div>
-            <p className="text-xs text-gray-500 mb-1">Date de debut</p>
+            <p className="text-xs text-gray-500 mb-1">Date de début</p>
             <p className="text-sm text-gray-800 dark:text-gray-200">{contrat.date_debut ? formatDate(contrat.date_debut) : '-'}</p>
           </div>
           <div>
             <p className="text-xs text-gray-500 mb-1">Date de fin</p>
-            <p className="text-sm text-gray-800 dark:text-gray-200">{contrat.date_fin ? formatDate(contrat.date_fin) : 'Perpetuel'}</p>
+            <p className="text-sm text-gray-800 dark:text-gray-200">{contrat.date_fin ? formatDate(contrat.date_fin) : 'Perpétuel'}</p>
           </div>
           <div>
-            <p className="text-xs text-gray-500 mb-1">A renouveler</p>
+            <p className="text-xs text-gray-500 mb-1">À renouveler</p>
             <p className="text-sm text-gray-800 dark:text-gray-200">{contrat.a_renouveler ? 'Oui' : 'Non'}</p>
           </div>
           <div>
-            <p className="text-xs text-gray-500 mb-1">Preavis de resiliation</p>
+            <p className="text-xs text-gray-500 mb-1">Préavis de résiliation</p>
             <p className="text-sm text-gray-800 dark:text-gray-200">{contrat.duree_resiliation ? `${contrat.duree_resiliation} jours` : '-'}</p>
           </div>
         </div>
         {(contrat.statut_echeance === 'expire' || contrat.statut_echeance === 'a_renouveler') && contrat.jours_restants !== null && (
           <p className="text-sm mt-3" style={{ color: contrat.statut_echeance === 'expire' ? '#EF4444' : '#F59E0B' }}>
             {contrat.statut_echeance === 'expire'
-              ? `Echu depuis ${-contrat.jours_restants} jours`
-              : `Echeance dans ${contrat.jours_restants} jours`}
+              ? `Échu depuis ${-contrat.jours_restants} jours`
+              : `Échéance dans ${contrat.jours_restants} jours`}
           </p>
         )}
       </section>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Hierarchie</h2>
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Hiérarchie</h2>
           <div className="flex flex-col gap-3">
             <div>
               <p className="text-xs text-gray-500 mb-1">Contrat cadre parent</p>
@@ -324,14 +324,14 @@ export default function ContratDetailPage() {
           <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Rattachements</h2>
           <div className="flex flex-col gap-3">
             <div>
-              <p className="text-xs text-gray-500 mb-1">Commandes rattachees</p>
+              <p className="text-xs text-gray-500 mb-1">Commandes rattachées</p>
               <p className="text-sm text-gray-800 dark:text-gray-200">{contrat.nb_commandes ?? 0}</p>
             </div>
             <div>
-              <p className="text-xs text-gray-500 mb-1">Preuves rattachees</p>
+              <p className="text-xs text-gray-500 mb-1">Preuves rattachées</p>
               <p className="text-sm text-gray-800 dark:text-gray-200">{contrat.nb_preuves ?? 0}</p>
             </div>
-            <p className="text-xs text-gray-400">Le detail des commandes et des preuves sera liste au branchement de ces modules.</p>
+            <p className="text-xs text-gray-400">Le détail des commandes et des preuves sera listé au branchement de ces modules.</p>
             </div>
         </section>
       </div>
@@ -379,7 +379,7 @@ export default function ContratDetailPage() {
         title="Supprimer le contrat"
         isDestructive
         confirmLabel="Supprimer"
-        message={`Supprimer definitivement ${contrat.label} ? Cette action est irreversible.`}
+        message={`Supprimer définitivement ${contrat.label} ? Cette action est irréversible.`}
       />
     </div>
   );

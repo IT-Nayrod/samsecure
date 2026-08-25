@@ -45,7 +45,7 @@ export default function InventaireDetailPage() {
 
   function apresTransition(data, mode) {
     setReleve(data);
-    addToast({ type: 'success', message: { rapprocher: 'Releve rapproche.', 'ecart-assume': 'Ecart assume.', rejeter: 'Releve rejete.', reouvrir: 'Releve remis en attente.' }[mode] });
+    addToast({ type: 'success', message: { rapprocher: 'Relevé rapproché.', 'ecart-assume': 'Écart assumé.', rejeter: 'Relevé rejeté.', reouvrir: 'Relevé remis en attente.' }[mode] });
   }
 
   async function reouvrir() {
@@ -60,7 +60,7 @@ export default function InventaireDetailPage() {
       <div className="flex flex-col gap-6">
         <Breadcrumb items={[...fil, { label: 'Introuvable' }]} />
         <ErrorState message={error} status={errorStatus} onRetry={errorStatus === 404 ? undefined : load} />
-        {errorStatus === 404 && <div><Button onClick={() => navigate('/conformite/inventaire')}>Retour a la liste</Button></div>}
+        {errorStatus === 404 && <div><Button onClick={() => navigate('/conformite/inventaire')}>Retour à la liste</Button></div>}
       </div>
     );
   }
@@ -69,7 +69,7 @@ export default function InventaireDetailPage() {
   }
 
   const cfg = RAPPROCHEMENT_STATUT[releve.statut_rapprochement] ?? RAPPROCHEMENT_STATUT.en_attente;
-  const titre = releve.produit_label ?? (releve.fichier_absent ? 'Fichier archive absent' : 'Releve');
+  const titre = releve.produit_label ?? (releve.fichier_absent ? 'Fichier archivé absent' : 'Relevé');
 
   return (
     <div className="flex flex-col gap-6">
@@ -82,38 +82,38 @@ export default function InventaireDetailPage() {
             <Badge variant={cfg.variant} label={cfg.label} />
           </div>
           <p className="text-sm text-gray-500 mt-1">
-            {releve.societe_label ?? 'Societe non renseignee'} - import manuel csv{releve.date_import ? ` du ${formatDateTime(releve.date_import)}` : ''}
+            {releve.societe_label ?? 'Société non renseignée'} - import manuel csv{releve.date_import ? ` du ${formatDateTime(releve.date_import)}` : ''}
           </p>
         </div>
         {canRapprocher && (
           <div className="flex gap-2">
             {releve.statut_rapprochement !== 'rejete' && <Button onClick={() => setModal(true)}>Rapprocher</Button>}
-            {releve.statut_rapprochement !== 'en_attente' && <Button variant="secondary" onClick={reouvrir}>Reouvrir</Button>}
+            {releve.statut_rapprochement !== 'en_attente' && <Button variant="secondary" onClick={reouvrir}>Réouvrir</Button>}
           </div>
         )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Donnee brute</h2>
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Donnée brute</h2>
           {releve.fichier_absent && (
-            <p className="text-sm text-orange-600 mb-3">Le fichier archive est introuvable sur le serveur : le contenu de la ligne ne peut pas etre relu.</p>
+            <p className="text-sm text-orange-600 mb-3">Le fichier archivé est introuvable sur le serveur : le contenu de la ligne ne peut pas être relu.</p>
           )}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <p className="text-xs text-gray-500 mb-1">Produit (tel que releve)</p>
+              <p className="text-xs text-gray-500 mb-1">Produit (tel que relevé)</p>
               <p className="text-sm text-gray-800 dark:text-gray-200">{releve.produit ?? '-'}</p>
             </div>
             <div>
-              <p className="text-xs text-gray-500 mb-1">Reference constatee</p>
+              <p className="text-xs text-gray-500 mb-1">Référence constatée</p>
               <p className="text-sm text-gray-800 dark:text-gray-200 font-mono">{releve.reference ?? '-'}</p>
             </div>
             <div>
-              <p className="text-xs text-gray-500 mb-1">Quantite constatee</p>
+              <p className="text-xs text-gray-500 mb-1">Quantité constatée</p>
               <p className="text-sm text-gray-800 dark:text-gray-200">{releve.quantite ?? '-'}</p>
             </div>
             <div>
-              <p className="text-xs text-gray-500 mb-1">Societe (colonne du fichier)</p>
+              <p className="text-xs text-gray-500 mb-1">Société (colonne du fichier)</p>
               <p className="text-sm text-gray-800 dark:text-gray-200">{releve.societe_csv ?? '-'}</p>
             </div>
             <div>
@@ -125,7 +125,7 @@ export default function InventaireDetailPage() {
               <p className="text-sm text-gray-800 dark:text-gray-200">{formatDateTime(releve.created_at)}</p>
             </div>
             <div className="col-span-2">
-              <p className="text-xs text-gray-500 mb-1">Pointeur fichier archive (ligne {releve.ligne ?? '?'})</p>
+              <p className="text-xs text-gray-500 mb-1">Pointeur fichier archivé (ligne {releve.ligne ?? '?'})</p>
               <p className="text-sm text-gray-800 dark:text-gray-200 flex items-center gap-1.5 font-mono break-all">
                 <FileText size={13} className="flex-shrink-0 text-gray-400" /> {releve.url_fichier}
               </p>
@@ -141,19 +141,19 @@ export default function InventaireDetailPage() {
               <Badge variant={cfg.variant} label={cfg.label} />
             </div>
             <div>
-              <p className="text-xs text-gray-500 mb-1">Affectation rapprochee</p>
+              <p className="text-xs text-gray-500 mb-1">Affectation rapprochée</p>
               {releve.id_affectation
                 ? <p className="text-sm text-gray-800 dark:text-gray-200">{releve.affectation_reference ?? releve.affectation_label}{releve.affectation_produit_label ? ` - ${releve.affectation_produit_label}` : ''}</p>
-                : <p className="text-sm text-gray-500">Aucune affectation rapprochee.</p>}
+                : <p className="text-sm text-gray-500">Aucune affectation rapprochée.</p>}
             </div>
             {!releve.id_affectation && (
               <div>
-                <p className="text-xs text-gray-500 mb-1">Affectations candidates (meme reference)</p>
+                <p className="text-xs text-gray-500 mb-1">Affectations candidates (même référence)</p>
                 {releve.candidates?.length
                   ? <ul className="text-sm text-gray-800 dark:text-gray-200 flex flex-col gap-1">
                       {releve.candidates.map(a => <li key={a.id}>{a.reference_client} - {a.produit_label ?? a.licence_label ?? a.label} x{a.quantite}{a.societe_label ? ` - ${a.societe_label}` : ''}</li>)}
                     </ul>
-                  : <p className="text-sm text-orange-600 dark:text-orange-400">Aucune affectation declaree ne porte cette reference : usage constate sans affectation.</p>}
+                  : <p className="text-sm text-orange-600 dark:text-orange-400">Aucune affectation déclarée ne porte cette référence : usage constaté sans affectation.</p>}
               </div>
             )}
           </div>
