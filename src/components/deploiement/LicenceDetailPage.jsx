@@ -282,7 +282,7 @@ export default function LicenceDetailPage() {
           </button>
           {budgetOpen && (
             <div className="p-4 border-t border-gray-100 dark:border-gray-700">
-              <BudgetEmbeddedSection mode="licence" id={licence.id} />
+              <BudgetEmbeddedSection mode="licence" id={licence.id} licence={licence} />
             </div>
           )}
         </section>

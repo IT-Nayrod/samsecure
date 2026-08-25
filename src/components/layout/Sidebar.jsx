@@ -47,7 +47,8 @@ const MENU = [
   {
     section: 'BUDGET',
     items: [
-      { label: 'Budget', icon: PiggyBank, path: '/budget' },
+      // Page branchee sur l'API (#148) : entree mappee sur sa permission reelle.
+      { label: 'Budget', icon: PiggyBank, path: '/budget', permission: 'consulter_budget' },
     ],
   },
   {
