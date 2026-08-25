@@ -22,7 +22,7 @@
 BEGIN;
 
 INSERT INTO permission (code, label, module) VALUES
-  ('supprimer_budget', 'Supprimer une ligne budgetaire', 'budget')
+  ('supprimer_budget', 'Supprimer une ligne budgétaire', 'budget')
 ON CONFLICT (code) DO UPDATE SET label = EXCLUDED.label, module = EXCLUDED.module;
 
 INSERT INTO profil_permission (id_profil, id_permission)
