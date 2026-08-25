@@ -7,7 +7,7 @@ const pageTitles = {
   '/renouvellements': 'Renouvellements',
   '/parc-licences': 'Parc de licences',
   '/analyses-usage': "Analyses d'usage",
-  '/equipe': 'Equipe et attributions',
+  '/equipe': 'Équipe et attributions',
 };
 
 export default function Layout() {
