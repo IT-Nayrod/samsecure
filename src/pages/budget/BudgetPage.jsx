@@ -8,7 +8,7 @@ import Breadcrumb from '../../components/ui/Breadcrumb';
 import Button from '../../components/ui/Button';
 import ConfirmModal from '../../components/ui/ConfirmModal';
 import BudgetOrgSelector from '../../components/budget/BudgetOrgSelector';
-import BudgetPeriodSelector from '../../components/budget/BudgetPeriodSelector';
+import PeriodeSelector from '../../components/ui/PeriodeSelector';
 import BudgetKPIBar from '../../components/budget/BudgetKPIBar';
 import BudgetOrgBreakdown from '../../components/budget/BudgetOrgBreakdown';
 import BudgetTable from '../../components/budget/BudgetTable';
@@ -17,6 +17,7 @@ import { mockBudget } from '../../data/mockBudget';
 import { mockLicences, getLicencesByContrat } from '../../data/mockDeploiement';
 import { mockContrats, mockCommandes } from '../../data/mockContrats';
 import { mockSocietes, mockProduits } from '../../data/mockReferentiels';
+import { mockTenant } from '../../data/mockSettings';
 import { getPerimetre, ligneDansPerimetre } from '../../utils/orgUtils';
 import useRbac from '../../hooks/useRbac';
 
@@ -54,6 +55,14 @@ export default function BudgetPage() {
     () => getPerimetre(societeId || null, consolider, mockSocietes),
     [societeId, consolider]
   );
+
+  // Exercice fiscal du selecteur de periode : celui de l'organisation selectionnee
+  // (en consolidation, l'exercice de la societe mere s'applique aux filiales),
+  // a defaut le defaut tenant pour la vue "Toutes les organisations".
+  const debutExercice = useMemo(() => {
+    const s = mockSocietes.find(x => x.id === societeId);
+    return s?.debut_exercice_fiscal ?? mockTenant.debut_exercice_fiscal ?? null;
+  }, [societeId]);
 
   // Lignes pre-filtrees par licence/contrat (avant les filtres periode/org)
   const budgetLinesDisplay = useMemo(() => {
@@ -130,8 +139,9 @@ export default function BudgetPage() {
   const [ligneEnEdition, setLigneEnEdition] = useState(null);
   const [ligneASupprimer, setLigneASupprimer] = useState(null);
 
-  const defaultDateDebut = period?.debut?.toISOString?.()?.slice(0, 10);
-  const defaultDateFin = period?.fin?.toISOString?.()?.slice(0, 10);
+  // Bornes ISO calendaires fournies par le selecteur (toISOString basculerait en UTC et reculerait d'un jour)
+  const defaultDateDebut = period?.dateDebut;
+  const defaultDateFin = period?.dateFin;
 
   return (
     <div className="flex flex-col gap-6">
@@ -152,7 +162,7 @@ export default function BudgetPage() {
             onSocieteChange={setSocieteId}
             onConsoliderChange={setConsolider}
           />
-          <BudgetPeriodSelector onChange={handlePeriodChange} />
+          <PeriodeSelector debutExercice={debutExercice} onChange={handlePeriodChange} afficherBornes={false} />
           {/* Onglets */}
           <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
             <button

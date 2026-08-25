@@ -1,6 +1,10 @@
-// fiscalPeriod - calcul des periodes fiscales/civiles a partir de la date d'anniversaire fiscale d'une societe
+// fiscalPeriod - periodes nommees (fiscale_courante, civile_precedente, glissantes...) pour Commandes et Dashboard
+// Le calcul d'exercice fiscal est delegue a src/utils/periode.js (US #164), seule implementation du projet.
 import { mockSocietes } from '../data/mockReferentiels';
 import { mockTenant } from '../data/mockSettings';
+import {
+  exerciceFiscal, exerciceFiscalParCle, normaliserDebutExercice, toIsoDate as toIsoDatePartage,
+} from './periode';
 
 export const PERIODE_OPTIONS = [
   { value: 'fiscale_courante', label: 'Année fiscale en cours' },
@@ -34,20 +38,12 @@ export function getDebutExerciceFiscal(societeId, debutExercice = null) {
 // et le mois portent du sens, l'annee est arbitraire.
 export function debutExerciceDepuisDate(dateIso) {
   if (!dateIso) return null;
-  const [, mois, jour] = dateIso.slice(0, 10).split('-').map(Number);
-  return { jour, mois };
+  return normaliserDebutExercice(dateIso);
 }
 
 // Plage [debut, fin] de l'exercice fiscal contenant `reference`, decale de `yearOffset` exercices
 function fiscalYearRange(reference, debutExercice, yearOffset = 0) {
-  const { jour, mois } = debutExercice;
-  let year = reference.getFullYear();
-  const anchor = new Date(year, mois - 1, jour);
-  if (reference < anchor) year -= 1;
-  year += yearOffset;
-  const debut = new Date(year, mois - 1, jour);
-  const fin = new Date(year + 1, mois - 1, jour);
-  fin.setDate(fin.getDate() - 1);
+  const { debut, fin } = exerciceFiscal(reference, debutExercice, yearOffset);
   return { debut, fin };
 }
 
@@ -93,12 +89,8 @@ export function getExerciceFiscalKey(societeId, offsetExercices = 0, now = new D
 }
 
 export function getExerciceFiscalRange(exerciceKey, societeId) {
-  const { jour, mois } = getDebutExerciceFiscal(societeId);
-  const year = Number(exerciceKey);
-  const debut = new Date(year, mois - 1, jour);
-  const fin = new Date(year + 1, mois - 1, jour);
-  fin.setDate(fin.getDate() - 1);
-  return { debut, fin };
+  const p = exerciceFiscalParCle(exerciceKey, getDebutExerciceFiscal(societeId));
+  return p ? { debut: p.debut, fin: p.fin } : { debut: null, fin: null };
 }
 
 export function isDateInRange(dateString, range) {
@@ -114,8 +106,7 @@ export function formatPeriodeLabel(range) {
 }
 
 // Bornes en YYYY-MM-DD, sans passer par toISOString qui bascule en UTC et
-// pourrait reculer d'un jour selon le fuseau.
+// pourrait reculer d'un jour selon le fuseau. Meme implementation que periode.js.
 export function toIsoDate(d) {
-  if (!d) return null;
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return toIsoDatePartage(d);
 }
