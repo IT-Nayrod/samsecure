@@ -4,7 +4,7 @@ import { Plus, X } from 'lucide-react';
 const OPERATEURS_TEXTE = [
   { value: 'contient',         label: 'contient' },
   { value: 'ne_contient_pas',  label: 'ne contient pas' },
-  { value: 'est',              label: 'est egal a' },
+  { value: 'est',              label: 'est égal à' },
   { value: 'commence_par',     label: 'commence par' },
   { value: 'est_vide',         label: 'est vide' },
   { value: 'nest_pas_vide',    label: "n'est pas vide" },
@@ -20,8 +20,8 @@ const OPERATEURS_NOMBRE = [
 ];
 const OPERATEURS_DATE = [
   { value: 'avant',         label: 'avant le' },
-  { value: 'apres',         label: 'apres le' },
-  { value: 'est',           label: 'egal a' },
+  { value: 'apres',         label: 'après le' },
+  { value: 'est',           label: 'égal à' },
   { value: 'est_vide',      label: 'est vide' },
   { value: 'nest_pas_vide', label: "n'est pas vide" },
 ];

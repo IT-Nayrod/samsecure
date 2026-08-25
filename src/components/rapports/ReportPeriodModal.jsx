@@ -87,7 +87,7 @@ export default function ReportPeriodModal({ report, onClose }) {
 
           {/* Mode periode */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Periode</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Période</label>
             <div className="grid grid-cols-1 gap-1.5">
               {MODE_OPTIONS.map(opt => (
                 <label key={opt.value} className={`flex items-center gap-3 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${mode === opt.value ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30' : 'border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/50'}`}>

@@ -46,7 +46,7 @@ export default function BuilderPeriodSection({ periode, onChange, champDate, onC
 
   return (
     <div className="space-y-3">
-      <h3 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide">Periode</h3>
+      <h3 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide">Période</h3>
 
       {/* Mode tabs */}
       <div className="flex flex-wrap gap-1">
@@ -99,7 +99,7 @@ export default function BuilderPeriodSection({ periode, onChange, champDate, onC
       {/* Champ date d'application */}
       {champsDateOptions?.length > 0 && (
         <div>
-          <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Appliquer la periode sur</label>
+          <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Appliquer la période sur</label>
           <select value={champDate ?? ''} onChange={e => onChampDateChange(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white">
             <option value="">(tous)</option>
             {champsDateOptions.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}

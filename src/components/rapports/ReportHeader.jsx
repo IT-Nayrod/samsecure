@@ -20,7 +20,7 @@ export default function ReportHeader({ rapport, periode, onChangerPeriode, onExp
           <h1 className="text-xl font-bold text-gray-900 dark:text-white">{rapport?.titre ?? 'Rapport'}</h1>
           <div className="flex flex-wrap items-center gap-4 mt-2">
             <span className="text-sm text-gray-500 dark:text-gray-400">
-              Periode : <strong className="text-gray-700 dark:text-gray-200">{labelPeriode}</strong>
+              Période : <strong className="text-gray-700 dark:text-gray-200">{labelPeriode}</strong>
             </span>
             <span className="text-sm text-gray-500 dark:text-gray-400">
               Généré le <strong className="text-gray-700 dark:text-gray-200">{dateGen}</strong>
