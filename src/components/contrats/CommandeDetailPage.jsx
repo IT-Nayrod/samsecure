@@ -2,9 +2,9 @@
 // Donnees API. La suppression s'appuie sur le refus du serveur, pas sur un garde-fou local.
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Pencil, Trash2, XCircle, ExternalLink } from 'lucide-react';
+import { Pencil, Trash2, XCircle, ExternalLink, Plus } from 'lucide-react';
 import { commandesService, modesCommandeService } from '../../services/commandesService';
-import { preuvesService, facturesService } from '../../services/documentsService';
+import { preuvesService, facturesService, typesPreuveService } from '../../services/documentsService';
 import { optionnel } from '../../services/http';
 import { contratsService, referentielsContratsService } from '../../services/contratsService';
 import { societesService } from '../../services/adminService';
@@ -16,6 +16,7 @@ import ErrorState from '../ui/ErrorState';
 import Skeleton from '../ui/Skeleton';
 import StatutEcheanceBadge from './StatutEcheanceBadge';
 import CommandeFormModal from './CommandeFormModal';
+import PreuveFormModal from './PreuveFormModal';
 import useRbac from '../../hooks/useRbac';
 import { useToast } from '../../hooks/useToast';
 import { formatDate } from '../../utils/dateUtils';
@@ -31,6 +32,8 @@ export default function CommandeDetailPage() {
   const navigate = useNavigate();
   const { addToast } = useToast();
   const { canWrite, canDelete, canValidate } = useRbac({ write: 'saisir_commande', validate: 'valider_saisie' });
+  // Le depot d'une preuve suit le droit de l'ecran Factures & Preuves, pas celui de la commande.
+  const { canWrite: canDeposer } = useRbac({ write: 'deposer_facture_preuve' });
 
   const [commande, setCommande] = useState(null);
   const [contrats, setContrats] = useState([]);
@@ -39,6 +42,8 @@ export default function CommandeDetailPage() {
   const [modes, setModes] = useState([]);
   const [preuves, setPreuves] = useState([]);
   const [factures, setFactures] = useState([]);
+  const [typesPreuve, setTypesPreuve] = useState([]);
+  const [preuveModal, setPreuveModal] = useState(false);
   const [ouverture, setOuverture] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -56,7 +61,7 @@ export default function CommandeDetailPage() {
       // Seule la fiche est indispensable, le reste alimente le formulaire.
       // Preuves et factures rattachees sont accessoires au meme titre : un refus
       // de droit sur les documents laisse la fiche lisible, sans sa liste.
-      const [k, c, s, r, m, p, f] = await Promise.all([
+      const [k, c, s, r, m, p, f, t] = await Promise.all([
         commandesService.get(id),
         optionnel(contratsService.list()),
         optionnel(societesService.list()),
@@ -64,9 +69,10 @@ export default function CommandeDetailPage() {
         optionnel(modesCommandeService.list()),
         optionnel(preuvesService.list({ idCommande: id })),
         optionnel(facturesService.list({ idCommande: id })),
+        optionnel(typesPreuveService.list()),
       ]);
       setCommande(k); setContrats(c); setSocietes(s); setRevendeurs(r); setModes(m);
-      setPreuves(p); setFactures(f);
+      setPreuves(p); setFactures(f); setTypesPreuve(t);
     } catch (err) {
       // 404 : la commande n'existe pas ou vient d'etre supprimee, pas une panne.
       if (err.status === 404) setIntrouvable(true);
@@ -162,6 +168,9 @@ export default function CommandeDetailPage() {
             onValidate={() => valider('commande', commande.id)}
             onRefuse={motif => refuser('commande', commande.id, motif)}
           />}
+          {canDeposer && (
+            <Button variant="primary" size="sm" onClick={() => setPreuveModal(true)}><Plus size={14} /> Ajouter une preuve</Button>
+          )}
           {canWrite && (
             <Button variant="secondary" size="sm" onClick={() => setFormOpen(true)}><Pencil size={14} /> Editer</Button>
           )}
@@ -300,6 +309,16 @@ export default function CommandeDetailPage() {
         societes={societes}
         revendeurs={revendeurs}
         modes={modes}
+      />
+      <PreuveFormModal
+        isOpen={preuveModal}
+        onClose={() => setPreuveModal(false)}
+        onDone={toast => { if (toast) addToast(toast); load(); }}
+        typesPreuve={typesPreuve}
+        contrats={contrats}
+        commandes={[commande]}
+        contratParDefaut={commande.id_contrat || null}
+        commandeParDefaut={commande.id}
       />
       <ConfirmModal
         isOpen={deleteOpen}
