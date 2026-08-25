@@ -159,6 +159,20 @@ function dateValide(s) {
 
 const montantValide = (v) => Number.isFinite(v) && v >= 0 && v <= MAX_DECIMAL;
 
+// Un selecteur vide envoie "" : c'est une absence de valeur, jamais 0.
+const absent = (v) => v === undefined || v === null || v === "";
+
+// Exercice demande en query string : absent (null), valide (entier borne), ou
+// refus 5124. Meme lecture pour la liste, l'engage, la synthese et le
+// preremplissage.
+function lireExercice(v) {
+  if (absent(v)) return { exercice: null };
+  const ex = Number(v);
+  if (!Number.isInteger(ex) || ex < 1970 || ex > 2999)
+    return { pivot: { status: 400, code: 5124, error: "L'exercice demande est invalide." } };
+  return { exercice: ex };
+}
+
 // Un <select> vide et un <input type="date"> vide envoient "" et non null ;
 // Number("") vaut 0, d'ou le passage par vide() avant conversion.
 function normaliserCorps(body = {}) {
@@ -253,19 +267,16 @@ async function resoudreBornes(query) {
   if (id_societe && !UUID_RE.test(id_societe))
     return { pivot: { status: 400, code: 5123, error: "Identifiant de societe invalide." } };
 
-  if (date_debut !== undefined || date_fin !== undefined) {
+  if (!absent(date_debut) || !absent(date_fin)) {
     if (!dateValide(date_debut || "") || !dateValide(date_fin || "") || date_fin < date_debut)
       return { pivot: { status: 400, code: 5125, error: "La periode demandee est invalide." } };
     return { bornes: { mode: "periode", exercice: null, exercice_courant: null,
                        date_debut, date_fin, debut_exercice_fiscal: null } };
   }
 
-  let ex = null;
-  if (exercice !== undefined) {
-    ex = Number(exercice);
-    if (!Number.isInteger(ex) || ex < 1970 || ex > 2999)
-      return { pivot: { status: 400, code: 5124, error: "L'exercice demande est invalide." } };
-  }
+  const lu = lireExercice(exercice);
+  if (lu.pivot) return { pivot: lu.pivot };
+  const ex = lu.exercice;
 
   const debut = await debutExercice(id_societe);
   if (debut === null)
@@ -315,12 +326,15 @@ function lireFiltresAxes(query) {
 // des qu'il descend au contrat ou a la licence, axes que le precalcul n'a
 // pas, lecture directe de commande, sa source de verite (016 : "le precalcul
 // n'est qu'un cache"). Les deux chemins produisent les memes mesures.
+// Par licence, l'engage est le montant ENTIER des commandes d'origine de la
+// licence : une commande qui porte plusieurs licences n'est pas ventilee
+// entre elles (hypothese v0.5, ventilation a arbitrer avec Samuel).
 async function lireEngage(moisDebut, moisFin, f) {
   const parLicenceOuContrat = f.id_contrat || f.id_licence;
   const { rows } = parLicenceOuContrat
     ? await tenantPool.query(
         `SELECT to_char(c.date_commande, 'YYYY-MM') AS periode,
-                sum(c.montant)::float8 AS montant_commande,
+                COALESCE(sum(c.montant), 0)::float8 AS montant_commande,
                 COALESCE(sum(c.montant) FILTER (WHERE c.a_renouveler), 0)::float8 AS montant_a_renouveler,
                 count(*)::int AS nb_commandes,
                 (count(*) FILTER (WHERE c.a_renouveler))::int AS nb_a_renouveler
@@ -371,12 +385,9 @@ router.get("/budget/preremplissage", async (req, res) => {
     if (!UUID_RE.test(id_licence))
       return erreur(res, 5112, { status: 404, message: "Licence introuvable." });
 
-    let cible = null;
-    if (exercice !== undefined) {
-      cible = Number(exercice);
-      if (!Number.isInteger(cible) || cible < 1970 || cible > 2999)
-        return erreur(res, 5124, { status: 400, message: "L'exercice demande est invalide." });
-    }
+    const lu = lireExercice(exercice);
+    if (lu.pivot) return erreurPivot(res, lu.pivot);
+    const cible = lu.exercice;
 
     const { rows: lic } = await tenantPool.query(
       `SELECT l.id, l.label, l.quantite, l.type, l.id_produit,
@@ -410,10 +421,13 @@ router.get("/budget/preremplissage", async (req, res) => {
               exercice_fiscal_fin($1::int, $2::date)::text   AS date_fin`,
       [exerciceCible, licence.debut_exercice_fiscal]);
 
-    // Une maintenance arretee (version figee) ne se projette pas : la base
-    // est vide, quel que soit l'historique.
+    // Meme regle de statut que licences.js (STATUT_MAINTENANCE) : une
+    // maintenance arretee (version figee) ou absente (a_maintenance false, y
+    // compris par PATCH /licences) ne se projette pas, la base est vide quel
+    // que soit l'historique.
     const arretee = licence.date_arret_maintenance !== null;
-    const { rows: base } = arretee ? { rows: [] } : await tenantPool.query(
+    const sansMaintenance = arretee || !licence.a_maintenance;
+    const { rows: base } = sansMaintenance ? { rows: [] } : await tenantPool.query(
       `SELECT h.id, h.date_debut::text AS date_debut, h.date_fin::text AS date_fin,
               h.cout::float8 AS cout,
               h.id_mainteneur, m.raison_sociale AS mainteneur_label,
@@ -459,9 +473,14 @@ router.get("/budget/preremplissage", async (req, res) => {
       exercice_courant: exerciceCourant,
       exercice_cible: exerciceCible,
       nb_annees: nbAnnees,
-      taux_inflation: TAUX_INFLATION * 100,
+      taux_inflation: centime(TAUX_INFLATION * 100),
       facteur_inflation: Math.round(facteur * 1e6) / 1e6,
       maintenance_arretee: arretee,
+      // Raison d'une base vide, pour que le front affiche le bon message
+      // avec le 5130 : arretee, absente, ou aucune periode en cours.
+      motif_base_vide: base.length ? null
+        : (arretee ? "maintenance_arretee"
+          : (!licence.a_maintenance ? "maintenance_absente" : "aucune_periode_en_cours")),
       base,
       base_montant: baseMontant,
       nb_couts_inconnus: nbCoutsInconnus,
@@ -578,13 +597,19 @@ router.get("/budget/synthese", async (req, res) => {
 
     // Nombre de lignes qui recoupent la periode, par type : le front sait ainsi
     // si une synthese a zero vient d'une absence de saisie ou de montants nuls.
+    // Meme granularite mensuelle que l'imputation ci-dessus (OPEX sur les mois
+    // de la ligne, CAPEX au mois de date_capex) : une ligne comptee est une
+    // ligne qui contribue, et reciproquement.
     const { rows: nbLignes } = await tenantPool.query(
       `SELECT b.type, count(*)::int AS nb
          FROM budget b
          JOIN licence       l  ON l.id  = b.id_licence
          LEFT JOIN commande c  ON c.id  = l.id_commande
          LEFT JOIN contrat  ct ON ct.id = c.id_contrat
-        WHERE b.date_debut <= $2::date AND b.date_fin >= $1::date
+        WHERE ((date_trunc('month', b.date_debut) <= date_trunc('month', $2::date)
+                AND date_trunc('month', b.date_fin) >= date_trunc('month', $1::date))
+               OR date_trunc('month', COALESCE(b.date_capex, b.date_debut))
+                  BETWEEN date_trunc('month', $1::date) AND date_trunc('month', $2::date))
           AND ($3::uuid IS NULL OR c.id_societe  = $3::uuid)
           AND ($4::uuid IS NULL OR ct.id_editeur = $4::uuid)
           AND ($5::uuid IS NULL OR c.id_contrat  = $5::uuid)
@@ -597,37 +622,42 @@ router.get("/budget/synthese", async (req, res) => {
     const { source, parPeriode } = await lireEngage(moisDebut, moisFin, f);
     const parMoisBudget = new Map(budgetMois.map((m) => [m.periode, m]));
 
-    const mois = moisEntre(moisDebut, moisFin).map((periode) => {
+    // Valeurs brutes par mois (float8 issu du numeric SQL, parts d'OPEX non
+    // arrondies) : seules elles entrent dans les totaux. Arrondir chaque mois
+    // avant de sommer rendrait 99,96 pour 100 lisses sur douze mois.
+    const bruts = moisEntre(moisDebut, moisFin).map((periode) => {
       const b = parMoisBudget.get(periode);
       const e = parPeriode.get(periode);
-      const previsionnel_capex = centime(b?.previsionnel_capex ?? 0);
-      const previsionnel_opex = centime(b?.previsionnel_opex ?? 0);
-      const alloue_capex = centime(b?.alloue_capex ?? 0);
-      const alloue_opex = centime(b?.alloue_opex ?? 0);
-      return {
-        periode, mois: Number(periode.slice(5)),
-        previsionnel_capex, previsionnel_opex,
-        previsionnel: centime(previsionnel_capex + previsionnel_opex),
-        alloue_capex, alloue_opex,
-        alloue: centime(alloue_capex + alloue_opex),
-        engage: e ? e.montant_commande : 0,
+      const brut = {
+        periode,
+        previsionnel_capex: b?.previsionnel_capex ?? 0,
+        previsionnel_opex: b?.previsionnel_opex ?? 0,
+        alloue_capex: b?.alloue_capex ?? 0,
+        alloue_opex: b?.alloue_opex ?? 0,
+        engage: e ? (e.montant_commande ?? 0) : 0,
         nb_commandes: e ? e.nb_commandes : 0,
       };
+      brut.previsionnel = brut.previsionnel_capex + brut.previsionnel_opex;
+      brut.alloue = brut.alloue_capex + brut.alloue_opex;
+      return brut;
     });
 
-    // Totaux derives des mois : egaux a leur somme par construction. L'arrondi
-    // au centime absorbe le residu binaire de l'addition flottante.
-    const somme = (cle) => centime(mois.reduce((t, m) => t + m[cle], 0));
-    const totaux = {
-      previsionnel_capex: somme("previsionnel_capex"),
-      previsionnel_opex: somme("previsionnel_opex"),
-      previsionnel: somme("previsionnel"),
-      alloue_capex: somme("alloue_capex"),
-      alloue_opex: somme("alloue_opex"),
-      alloue: somme("alloue"),
-      engage: somme("engage"),
-      nb_commandes: mois.reduce((t, m) => t + m.nb_commandes, 0),
-    };
+    const CLES_MONTANTS = ["previsionnel_capex", "previsionnel_opex", "previsionnel",
+                           "alloue_capex", "alloue_opex", "alloue", "engage"];
+    const mois = bruts.map((b) => {
+      const sortie = { periode: b.periode, mois: Number(b.periode.slice(5)) };
+      for (const c of CLES_MONTANTS) sortie[c] = centime(b[c]);
+      sortie.nb_commandes = b.nb_commandes;
+      return sortie;
+    });
+
+    // Totaux sommes sur les valeurs brutes puis arrondis une seule fois : douze
+    // parts de 100/12 redonnent 100. Un total peut differer d'un centime de la
+    // somme des mois affiches, c'est le prix d'un total juste.
+    const somme = (cle) => centime(bruts.reduce((t, m) => t + m[cle], 0));
+    const totaux = {};
+    for (const c of CLES_MONTANTS) totaux[c] = somme(c);
+    totaux.nb_commandes = bruts.reduce((t, m) => t + m.nb_commandes, 0);
     totaux.ecart_previsionnel_alloue = centime(totaux.alloue - totaux.previsionnel);
     totaux.ecart_alloue_engage = centime(totaux.alloue - totaux.engage);
     // Taux en pourcentage, null sans alloue : un taux sur zero n'a pas de sens.
@@ -667,14 +697,11 @@ router.get("/budget", async (req, res) => {
     if (q.type && !TYPES.includes(q.type))
       return erreur(res, 5113, { status: 400, message: "Le type doit etre previsionnel ou alloue." });
 
-    let exercice = null;
-    if (q.exercice !== undefined) {
-      exercice = Number(q.exercice);
-      if (!Number.isInteger(exercice) || exercice < 1970 || exercice > 2999)
-        return erreur(res, 5124, { status: 400, message: "L'exercice demande est invalide." });
-    }
+    const lu = lireExercice(q.exercice);
+    if (lu.pivot) return erreurPivot(res, lu.pivot);
+    const exercice = lu.exercice;
     let plageDebut = null, plageFin = null;
-    if (q.date_debut !== undefined || q.date_fin !== undefined) {
+    if (!absent(q.date_debut) || !absent(q.date_fin)) {
       if (!dateValide(q.date_debut || "") || !dateValide(q.date_fin || "") || q.date_fin < q.date_debut)
         return erreur(res, 5125, { status: 400, message: "La periode demandee est invalide." });
       plageDebut = q.date_debut;
@@ -717,9 +744,23 @@ router.get("/budget/:id", async (req, res) => {
   }
 });
 
+// Relecture de la projection apres COMMIT. L'ecriture est acquise : un echec
+// de relecture (BDD Commune indisponible pour le libelle produit, pool sature)
+// ne doit ni provoquer un ROLLBACK hors transaction, ni repondre 500, ce qui
+// ferait rejouer une creation deja faite. La reponse se replie sur l'id.
+async function relireApresCommit(id) {
+  try {
+    return await lireLigne(id);
+  } catch (err) {
+    console.error("[budget] relecture apres commit impossible :", err.message);
+    return { id, relecture_indisponible: true };
+  }
+}
+
 router.post("/budget", async (req, res) => {
   const corps = normaliserCorps(req.body);
   const client = await tenantPool.connect();
+  let commis = false;
   try {
     await client.query("BEGIN");
 
@@ -741,10 +782,11 @@ router.post("/budget", async (req, res) => {
     await log(client, req, "CREATE", "budget", creee.id,
       `Creation d'une ligne budgetaire ${corps.type} sur la licence ${corps.id_licence}`, corps);
     await client.query("COMMIT");
+    commis = true;
 
-    succes(res, 5102, await lireLigne(creee.id), { status: 201 });
+    succes(res, 5102, await relireApresCommit(creee.id), { status: 201 });
   } catch (err) {
-    await client.query("ROLLBACK");
+    if (!commis) await client.query("ROLLBACK");
     console.error("POST /budget error", err);
     erreur(res, 5199, { status: 500, message: "Erreur serveur" });
   } finally {
@@ -755,6 +797,7 @@ router.post("/budget", async (req, res) => {
 router.patch("/budget/:id", async (req, res) => {
   const { id } = req.params;
   const client = await tenantPool.connect();
+  let commis = false;
   try {
     await client.query("BEGIN");
 
@@ -766,8 +809,14 @@ router.patch("/budget/:id", async (req, res) => {
     // champ obligatoire qui n'a simplement pas ete transmis.
     const patch = normaliserCorps(req.body);
     const corps = {};
+    const transmis = {};
     for (const champ of CHAMPS) {
-      corps[champ] = Object.prototype.hasOwnProperty.call(req.body ?? {}, champ) ? patch[champ] : avant[champ];
+      if (Object.prototype.hasOwnProperty.call(req.body ?? {}, champ)) {
+        corps[champ] = patch[champ];
+        transmis[champ] = patch[champ];
+      } else {
+        corps[champ] = avant[champ];
+      }
     }
 
     const invalide = await validerBudget(client, corps);
@@ -783,13 +832,16 @@ router.patch("/budget/:id", async (req, res) => {
     const d = diff(avant, apres);
     // Trace probante (code 5151), diff avant/apres.
     await auditer(client, req, { action: "BUDGET_MODIFIE", entiteType: "budget", entiteId: id, avant: d.avant, apres: d.apres });
+    // Seuls les champs reellement transmis sont journalises : le corps
+    // normalise entier ferait lire "mis a null" sur les champs conserves.
     await log(client, req, "UPDATE", "budget", id,
-      `Modification de la ligne budgetaire ${corps.type} sur la licence ${corps.id_licence}`, patch);
+      `Modification de la ligne budgetaire ${corps.type} sur la licence ${corps.id_licence}`, transmis);
     await client.query("COMMIT");
+    commis = true;
 
-    succes(res, 5103, await lireLigne(id));
+    succes(res, 5103, await relireApresCommit(id));
   } catch (err) {
-    await client.query("ROLLBACK");
+    if (!commis) await client.query("ROLLBACK");
     console.error("PATCH /budget/:id error", err);
     erreur(res, 5199, { status: 500, message: "Erreur serveur" });
   } finally {

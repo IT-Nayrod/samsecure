@@ -43,7 +43,7 @@ INSERT INTO code_retour (code, type, libelle) VALUES
   (5120, 'erreur', 'Le montant OPEX doit etre un montant positif ou nul'),  -- POST, PATCH /api/budget
   (5121, 'erreur', 'La quantite OPEX doit etre un nombre positif ou nul'),  -- POST, PATCH /api/budget
   (5122, 'erreur', 'Une ligne budgetaire porte au moins un montant, CAPEX ou OPEX'),  -- POST, PATCH /api/budget
-  (5123, 'erreur', 'Identifiant de filtre invalide'),  -- GET /api/budget, /engage, /synthese, /preremplissage
+  (5123, 'erreur', 'Identifiant de filtre invalide'),  -- GET /api/budget, /engage, /synthese
   (5124, 'erreur', 'L''exercice demande est invalide'),  -- GET /api/budget, /engage, /synthese, /preremplissage
   (5125, 'erreur', 'La periode demandee est invalide'),  -- GET /api/budget, /engage, /synthese
   (5126, 'erreur', 'Societe introuvable'),  -- GET /api/budget, /engage, /synthese (bornes d'exercice)

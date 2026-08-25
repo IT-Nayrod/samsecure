@@ -20,9 +20,9 @@ Enveloppe (#68) :
 - catalogue charge au demarrage de l'API ; un code absent du catalogue est
   emis avec `libelle: null` et signale en console.
 
-Perimetre enveloppe au 24/08 : contrats, commandes, preuves, factures,
+Perimetre enveloppe au 25/08 : contrats, commandes, preuves, factures,
 validation, stockagePreuves, controle des permissions (3400, 3499),
-inventaire (#111, 4000-4099). Non
+inventaire (#111, 4200-4299), budget (#146, 5100-5199). Non
 enveloppes : routes d'administration (2000-2999), auth, mails, referentiels,
 permissions, droits-effectifs (aucun code au catalogue pour ces trois
 derniers), 404 et 500 globaux de index.js.
@@ -607,7 +607,7 @@ touche jamais : pas de double previsionnel.
 | 5120 | erreur | Le montant OPEX doit etre un montant positif ou nul | POST, PATCH /api/budget |
 | 5121 | erreur | La quantite OPEX doit etre un nombre positif ou nul | POST, PATCH /api/budget |
 | 5122 | erreur | Une ligne budgetaire porte au moins un montant, CAPEX ou OPEX | POST, PATCH /api/budget |
-| 5123 | erreur | Identifiant de filtre invalide | GET /api/budget, /engage, /synthese, /preremplissage |
+| 5123 | erreur | Identifiant de filtre invalide | GET /api/budget, /engage, /synthese |
 | 5124 | erreur | L'exercice demande est invalide | GET /api/budget, /engage, /synthese, /preremplissage |
 | 5125 | erreur | La periode demandee est invalide | GET /api/budget, /engage, /synthese |
 | 5126 | erreur | Societe introuvable | GET /api/budget, /engage, /synthese (bornes d'exercice) |
@@ -631,7 +631,15 @@ Regles v0.5 assumees :
   cible sont jointes (lignes_existantes) ;
 - engage : precalcul_financier, bornes au mois pres (periode_debut,
   periode_fin renvoyees), filtres id_societe (societe payeuse) et id_editeur
-  (editeur du contrat) ;
+  (editeur du contrat) ; avec id_contrat ou id_licence, lecture directe de
+  commande (axes absents du precalcul, meme source de verite) ; l'engage par
+  licence est le montant entier des commandes d'origine, non ventile entre
+  les licences d'une meme commande (hypothese v0.5, ventilation a arbitrer) ;
+- preremplissage reserve aux profils de saisie (`saisir_budget`) : la
+  projection est faite pour etre POSTee et expose les couts de maintenance ;
+  IT Ops, en lecture seule, n'y accede pas. Les codes 5130 et 5131
+  (avertissement) sont emis par l'enveloppe de succes, comme le 4211 de
+  l'inventaire ;
 - synthese : CAPEX impute au mois de COALESCE(date_capex, date_debut), OPEX
   lisse a parts egales sur les mois de [date_debut, date_fin] ; totaux derives
   des mois, arrondis au centime ;
