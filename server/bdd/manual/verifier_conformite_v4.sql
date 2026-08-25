@@ -5,9 +5,11 @@
 --             cible v4 (US #71) : referentiel docs/bdd/index.html du 05/08
 --             + extensions migrees (008 a 023) + BDD Commune 024 a 027
 --             + module 3 (028 a 032) + module 4 budget (033 Tenant, 034 et
---             035 Commune, 036 Tenant, US #146). La table budget et
---             societe.debut_exercice_fiscal sont deja dans la cible v4 ;
---             la 033 ne change ni nom ni type de colonne.
+--             035 Commune, 036 Tenant, US #146) + archivage des contrats
+--             (037 Commune codes retour, 038 Tenant, US #96, evolution v4.1 :
+--             trois colonnes ajoutees sur contrat, integrees a la cible).
+--             La table budget et societe.debut_exercice_fiscal sont deja
+--             dans la cible v4 ; la 033 ne change ni nom ni type de colonne.
 --             Cible generee depuis le bloc DATA de docs/bdd/index.html
 --             (70 tables : 16 Commune, 54 Tenant) : la doc /bdd et ce
 --             script decrivent la meme structure, par construction.
@@ -19,8 +21,8 @@
 --             dans le schema public. Hors migrate.js (sous-dossier manual/).
 -- Sortie    : sections numerotees. Les sections 2, 3, 4, 6 et 7 sont
 --             bloquantes (base NON conforme si une ligne apparait), les
---             sections 5, 8, 9 et 9b sont informatives. La section 10 rend le
---             verdict.
+--             sections 5, 8, 9, 9b et 9c sont informatives. La section 10
+--             rend le verdict.
 -- Limites   : compare noms, types de base (uuid, character varying, numeric,
 --             timestamp without time zone...), PK sur id et UNIQUE mono
 --             colonne declares dans le referentiel. Ne compare ni les
@@ -289,6 +291,11 @@ INSERT INTO v4_attendu (base, table_name, column_name, data_type, cle) VALUES
   ('tenant', 'contrat', 'duree_resiliation', 'integer', ''),
   ('tenant', 'contrat', 'created_at', 'timestamp without time zone', ''),
   ('tenant', 'contrat', 'updated_at', 'timestamp without time zone', ''),
+  -- Archivage du contrat (#96) : colonnes ajoutees par la 038, evolution v4.1
+  -- de la cible. Absentes de docs/bdd/index.html du 05/08.
+  ('tenant', 'contrat', 'archive', 'boolean', ''),
+  ('tenant', 'contrat', 'date_archivage', 'timestamp without time zone', ''),
+  ('tenant', 'contrat', 'id_archive_par', 'uuid', 'FK'),
   ('tenant', 'commande', 'id', 'uuid', 'PK'),
   ('tenant', 'commande', 'label', 'character varying', ''),
   ('tenant', 'commande', 'id_contrat', 'uuid', 'FK'),
@@ -552,6 +559,7 @@ INSERT INTO v4_migrations_attendues (base, filename) VALUES
   ('commune', '031_commune_permission_importer_inventaire.sql'),
   ('commune', '034_commune_code_retour_budget.sql'),
   ('commune', '035_commune_permission_supprimer_budget.sql'),
+  ('commune', '037_commune_code_retour_contrats_archivage.sql'),
   ('tenant', '002_tenant_schema.sql'),
   ('tenant', '003_tenant_seed.sql'),
   ('tenant', '006_tenant_migration.sql'),
@@ -572,7 +580,8 @@ INSERT INTO v4_migrations_attendues (base, filename) VALUES
   ('tenant', '023_utilisateur_drop_date_suppression.sql'),
   ('tenant', '032_tenant_permission_importer_inventaire.sql'),
   ('tenant', '033_tenant_budget_socle.sql'),
-  ('tenant', '036_tenant_permission_supprimer_budget.sql');
+  ('tenant', '036_tenant_permission_supprimer_budget.sql'),
+  ('tenant', '038_tenant_contrat_archivage.sql');
 
 CREATE TEMP TABLE v4_ctx AS
 SELECT CASE
@@ -724,6 +733,40 @@ SELECT objet,
            EXISTS (SELECT 1 FROM information_schema.columns
                     WHERE table_schema = 'public' AND table_name = 'societe'
                       AND column_name = 'debut_exercice_fiscal' AND column_default IS NOT NULL)
+  ) x, v4_ctx c
+ WHERE c.base = 'tenant'
+ ORDER BY objet;
+
+\echo
+\echo '=== 9c. Archivage du contrat 038, Tenant uniquement (INFORMATIF) ==='
+-- Colonnes, cle etrangere et index partiel ajoutes par la 038 (#96). Les
+-- colonnes sont deja controlees en sections 3 et 4 (cible v4.1) ; ce bloc
+-- ajoute la FK et l'index, que la cible ne porte pas. Une ligne 'ABSENT'
+-- signale une base Tenant sur laquelle la 038 n'a pas ete jouee.
+SELECT objet,
+       CASE WHEN present THEN 'present' ELSE 'ABSENT' END AS etat
+  FROM (
+    SELECT 'colonne contrat.archive' AS objet,
+           EXISTS (SELECT 1 FROM information_schema.columns
+                    WHERE table_schema = 'public' AND table_name = 'contrat' AND column_name = 'archive') AS present
+    UNION ALL
+    SELECT 'colonne contrat.date_archivage',
+           EXISTS (SELECT 1 FROM information_schema.columns
+                    WHERE table_schema = 'public' AND table_name = 'contrat' AND column_name = 'date_archivage')
+    UNION ALL
+    SELECT 'colonne contrat.id_archive_par',
+           EXISTS (SELECT 1 FROM information_schema.columns
+                    WHERE table_schema = 'public' AND table_name = 'contrat' AND column_name = 'id_archive_par')
+    UNION ALL
+    SELECT 'cle etrangere contrat.id_archive_par -> utilisateur',
+           EXISTS (SELECT 1 FROM pg_constraint
+                    WHERE contype = 'f' AND conrelid = to_regclass('public.contrat')
+                      AND confrelid = to_regclass('public.utilisateur')
+                      AND conkey = ARRAY[(SELECT attnum FROM pg_attribute
+                                           WHERE attrelid = to_regclass('public.contrat') AND attname = 'id_archive_par')])
+    UNION ALL
+    SELECT 'index partiel idx_contrat_archive',
+           to_regclass('public.idx_contrat_archive') IS NOT NULL
   ) x, v4_ctx c
  WHERE c.base = 'tenant'
  ORDER BY objet;
