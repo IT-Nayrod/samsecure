@@ -1,6 +1,8 @@
 // periodUtils - Gestion des periodes pour le module Rapports - SamSecure v0.5
 // Fonctions pures sans dependance React. Objets Date uniquement dans les calculs.
 // Retourne { dateDebut: 'YYYY-MM-DD', dateFin: 'YYYY-MM-DD', label: string }.
+// Le calcul d'exercice fiscal est delegue a src/utils/periode.js (US #164).
+import { exerciceFiscal } from './periode';
 
 const NOMS_MOIS = [
   'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
@@ -28,36 +30,21 @@ export function getPeriodeAnneeCalendaire(annee) {
 
 /**
  * Liste des exercices fiscaux disponibles : 3 passes + exercice courant.
- * debutExercice : 'MM-DD' (ex: '04-01' pour un exercice au 1er avril).
- * Si debut = '01-01', l'exercice est calque sur l'annee civile, label simplifie.
- *
- * TODO: brancher sur societe.debut_exercice_fiscal au lieu du parametre fixe.
+ * debutExercice : tout format accepte par periode.normaliserDebutExercice
+ * ('MM-DD', 'YYYY-MM-DD', { jour, mois }, objet societe ; defaut 1er janvier).
+ * Si l'exercice demarre au 1er janvier, il est calque sur l'annee civile, label simplifie.
  */
 export function getExercicesFiscaux(debutExercice = '01-01') {
-  const [mStr, jStr] = debutExercice.split('-');
-  const mois = parseInt(mStr, 10) - 1; // 0-indexed
-  const jour = parseInt(jStr, 10);
   const now = new Date();
-
   const result = [];
   for (let offset = -3; offset <= 0; offset++) {
-    let anneeDebut = now.getFullYear();
-    const anniversaire = new Date(anneeDebut, mois, jour);
-    if (now < anniversaire) anneeDebut -= 1;
-    anneeDebut += offset;
-
-    const debut = new Date(anneeDebut, mois, jour);
-    const finRaw = new Date(anneeDebut + 1, mois, jour);
-    finRaw.setDate(finRaw.getDate() - 1);
-
-    let label;
-    if (mois === 0 && jour === 1) {
-      label = `Exercice ${anneeDebut}`;
-    } else {
-      label = `Exercice ${anneeDebut}-${anneeDebut + 1} (${formatJJ(debut)} - ${formatJJ(finRaw)})`;
-    }
-
-    result.push({ dateDebut: dateToISO(debut), dateFin: dateToISO(finRaw), label });
+    const { debut, fin, cle } = exerciceFiscal(now, debutExercice, offset);
+    const anneeDebut = Number(cle);
+    const civil = debut.getMonth() === 0 && debut.getDate() === 1;
+    const label = civil
+      ? `Exercice ${anneeDebut}`
+      : `Exercice ${anneeDebut}-${anneeDebut + 1} (${formatJJ(debut)} - ${formatJJ(fin)})`;
+    result.push({ dateDebut: dateToISO(debut), dateFin: dateToISO(fin), label });
   }
   return result;
 }
