@@ -30,7 +30,8 @@ derniers), 404 et 500 globaux de index.js.
 Plages : transverse 1000-1999 | administration 2000-2999 | contrats 3000-3099 |
 commandes 3100-3199 | documents 3200-3299 | validation 3300-3399 |
 droits 3400-3499 | licences 4000-4099 (module 3, partie A) |
-affectations 4100-4199 (module 3, partie B) | inventaire 4200-4299 (module 3, #111)
+affectations 4100-4199 (module 3, partie B) | inventaire 4200-4299 (module 3, #111) |
+budget 5100-5199 (module 4, partie A, #146)
 
 ## Transverse : socle d'envoi de mails (#87)
 
@@ -565,3 +566,76 @@ Permissions (server/config/routesPermissions.js) : consulter_inventaire en
 lecture (Admin, Manager DSI, IT Ops, Financier), rapprocher_inventaire sur les
 quatre transitions (Admin, Manager DSI, IT Ops), importer_inventaire sur
 l'import (Admin, Manager DSI ; migrations 031 Commune et 032 Tenant).
+
+## Budget, socle donnees et API (#146, module 4 partie A)
+
+Plage 5100-5199, reservee a la story et seedee par la migration Commune 034.
+Routeur `server/routes/budget.js`. Socle Tenant : migration 033 (table budget
+alignee et contrainte, DEFAULT 01/01 sur societe.debut_exercice_fiscal,
+fonctions exercice_fiscal_de / _debut / _fin). Permissions : lecture
+`consulter_budget` (Admin, Manager DSI, Financier, IT Ops), saisie et
+preremplissage `saisir_budget` (Admin, Manager DSI, Financier ; retiree a IT
+Ops par les migrations 035 et 036), suppression `supprimer_budget` (nouvelle
+permission, 035 Commune et 036 Tenant : Admin, Manager DSI, Financier).
+
+Doctrine : l'organisation payeuse n'est jamais stockee ni saisie sur la ligne,
+elle se deduit de licence -> commande (d'origine) -> societe ; l'editeur est
+celui du contrat de cette commande. Le previsionnel vient de la table budget,
+l'engage vient des commandes reelles (precalcul_financier, 016 et 017) et n'y
+touche jamais : pas de double previsionnel.
+
+| Code | Type | Libelle propose | Route |
+|------|------|-----------------|-------|
+| 5100 | succes | Liste des lignes budgetaires | GET /api/budget |
+| 5101 | succes | Detail de la ligne budgetaire | GET /api/budget/:id |
+| 5102 | succes | Ligne budgetaire creee | POST /api/budget (201) |
+| 5103 | succes | Ligne budgetaire modifiee | PATCH /api/budget/:id |
+| 5104 | succes | Ligne budgetaire supprimee | DELETE /api/budget/:id (200, data null) |
+| 5105 | succes | Projection previsionnelle preremplie depuis la maintenance en cours | GET /api/budget/preremplissage |
+| 5106 | succes | Engage calcule depuis les commandes | GET /api/budget/engage |
+| 5107 | succes | Synthese budgetaire : previsionnel, alloue, engage | GET /api/budget/synthese |
+| 5110 | erreur | Ligne budgetaire introuvable | GET/PATCH/DELETE /api/budget/:id (404) |
+| 5111 | erreur | La licence est obligatoire | POST, PATCH /api/budget, GET /api/budget/preremplissage |
+| 5112 | erreur | Licence introuvable | POST, PATCH /api/budget (400), GET /api/budget/preremplissage (404) |
+| 5113 | erreur | Le type doit etre previsionnel ou alloue | POST, PATCH /api/budget, GET /api/budget?type= |
+| 5114 | erreur | La date de debut est obligatoire | POST, PATCH /api/budget |
+| 5115 | erreur | La date de fin est obligatoire | POST, PATCH /api/budget |
+| 5116 | erreur | La date de fin doit etre posterieure ou egale a la date de debut | POST, PATCH /api/budget |
+| 5117 | erreur | Date invalide | POST, PATCH /api/budget |
+| 5118 | erreur | Le montant CAPEX doit etre un montant positif ou nul | POST, PATCH /api/budget |
+| 5119 | erreur | La quantite CAPEX doit etre un nombre positif ou nul | POST, PATCH /api/budget |
+| 5120 | erreur | Le montant OPEX doit etre un montant positif ou nul | POST, PATCH /api/budget |
+| 5121 | erreur | La quantite OPEX doit etre un nombre positif ou nul | POST, PATCH /api/budget |
+| 5122 | erreur | Une ligne budgetaire porte au moins un montant, CAPEX ou OPEX | POST, PATCH /api/budget |
+| 5123 | erreur | Identifiant de filtre invalide | GET /api/budget, /engage, /synthese, /preremplissage |
+| 5124 | erreur | L'exercice demande est invalide | GET /api/budget, /engage, /synthese, /preremplissage |
+| 5125 | erreur | La periode demandee est invalide | GET /api/budget, /engage, /synthese |
+| 5126 | erreur | Societe introuvable | GET /api/budget, /engage, /synthese (bornes d'exercice) |
+| 5130 | avertissement | Aucune maintenance en cours sur cette licence, projection vide | GET /api/budget/preremplissage (200, montant_opex 0, base vide) |
+| 5131 | avertissement | Licence sans commande, organisation payeuse indeterminee, exercice du tenant applique | GET /api/budget/preremplissage (200) |
+| 5150 | trace | Ligne budgetaire creee (audit_log BUDGET_CREE) | POST /api/budget |
+| 5151 | trace | Ligne budgetaire modifiee (audit_log BUDGET_MODIFIE) | PATCH /api/budget/:id |
+| 5152 | trace | Ligne budgetaire supprimee (audit_log BUDGET_SUPPRIME) | DELETE /api/budget/:id |
+| 5199 | erreur | Erreur serveur inattendue (module budget) | toutes |
+
+Regles v0.5 assumees :
+- un exercice est identifie par l'annee civile de son premier jour, calcule
+  par exercice_fiscal_de(date, COALESCE(societe.debut_exercice_fiscal,
+  tenant_config.debut_exercice_fiscal_defaut)) ; `exercice` sur une ligne est
+  l'exercice de la societe payeuse contenant date_debut ;
+- preremplissage : base = periodes de maintenance_historique de la licence en
+  cours a la date du jour (licence non arretee), cout lu comme un cout annuel,
+  exercice cible par defaut = exercice courant + 1, facteur 1,035 puissance
+  (cible moins courant, minimum 0), ligne projetee previsionnel OPEX bornee sur
+  l'exercice cible ; rien n'est ecrit, les lignes existantes sur l'exercice
+  cible sont jointes (lignes_existantes) ;
+- engage : precalcul_financier, bornes au mois pres (periode_debut,
+  periode_fin renvoyees), filtres id_societe (societe payeuse) et id_editeur
+  (editeur du contrat) ;
+- synthese : CAPEX impute au mois de COALESCE(date_capex, date_debut), OPEX
+  lisse a parts egales sur les mois de [date_debut, date_fin] ; totaux derives
+  des mois, arrondis au centime ;
+- les montants ne sont pas masques dans ce module (la US donne la lecture a IT
+  Ops sans reserve) : IT Ops lit donc l'engage agrege par GET /api/budget/engage
+  et /synthese sur consulter_budget, alors que GET /api/commandes/agregats exige
+  consulter_kpi_financiers. A valider.
