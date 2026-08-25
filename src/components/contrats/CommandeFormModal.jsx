@@ -62,6 +62,20 @@ export default function CommandeFormModal({
   // message affiche en cas d'echec reste celui de l'API, jamais un texte local.
   const montantValide = form.montant !== '' && Number(form.montant) > 0;
 
+  // Choisir un contrat propose sa societe signataire comme societe payeuse et son
+  // revendeur comme revendeur de la commande : des valeurs par defaut, que
+  // l'utilisateur reste libre de changer. La derivation ne joue qu'au changement
+  // de contrat : en modification, rien n'est ecrase tant que le contrat reste le meme.
+  function choisirContrat(idContrat) {
+    const contrat = contrats.find(c => c.id === idContrat) ?? null;
+    setForm(v => ({
+      ...v,
+      id_contrat: idContrat,
+      id_societe: contrat?.id_societe ?? v.id_societe,
+      id_revendeur: contrat?.id_revendeur ?? v.id_revendeur,
+    }));
+  }
+
   async function handleSave() {
     setLoading(true);
     setErreurApi(null);
@@ -117,19 +131,24 @@ export default function CommandeFormModal({
           </FormField>
         </div>
         <FormField label="Contrat" required>
-          <select className={INPUT_CLS} value={form.id_contrat} onChange={e => setForm(v => ({ ...v, id_contrat: e.target.value }))}>
+          <select className={INPUT_CLS} value={form.id_contrat} onChange={e => choisirContrat(e.target.value)}>
             <option value="">Choisir...</option>
-            {contrats.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+            {/* Une nouvelle commande ne propose jamais un contrat archive ; en
+                edition, le contrat courant reste selectionnable meme archive,
+                marque comme tel (#96). */}
+            {contrats
+              .filter(c => !c.archive || (isEdit && c.id === commande?.id_contrat))
+              .map(c => <option key={c.id} value={c.id}>{c.label}{c.archive ? ' (Archivé)' : ''}</option>)}
           </select>
         </FormField>
         <div className="grid grid-cols-2 gap-4">
-          <FormField label="Societe acheteuse" required>
+          <FormField label="Societe acheteuse" required hint="Proposée d'après le contrat, modifiable">
             <select className={INPUT_CLS} value={form.id_societe} onChange={e => setForm(v => ({ ...v, id_societe: e.target.value }))}>
               <option value="">Choisir...</option>
               {societes.map(s => <option key={s.id} value={s.id}>{s.raison_sociale}</option>)}
             </select>
           </FormField>
-          <FormField label="Revendeur" hint="Optionnel">
+          <FormField label="Revendeur" hint="Optionnel, proposé d'après le contrat">
             <select className={INPUT_CLS} value={form.id_revendeur} onChange={e => setForm(v => ({ ...v, id_revendeur: e.target.value }))}>
               <option value="">Aucun</option>
               {revendeurs.map(r => <option key={r.id} value={r.id}>{r.raison_sociale}</option>)}

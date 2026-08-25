@@ -8,11 +8,15 @@
 import { http } from './http';
 
 export const contratsService = {
-  list:   ()            => http.get('/contrats'),
+  // Les contrats archives sont exclus par defaut ; inclureArchives les ajoute,
+  // chaque ligne portant archive / date_archivage pour les distinguer (#96).
+  list:   ({ inclureArchives = false } = {}) => http.get(`/contrats${inclureArchives ? '?inclure_archives=1' : ''}`),
   get:    (id)          => http.get(`/contrats/${id}`),
   create: (payload)     => http.post('/contrats', payload),
   update: (id, payload) => http.patch(`/contrats/${id}`, payload),
   remove: (id)          => http.delete(`/contrats/${id}`),
+  archiver:  (id)       => http.post(`/contrats/${id}/archiver`),
+  restaurer: (id)       => http.post(`/contrats/${id}/restaurer`),
 };
 
 export const referentielsContratsService = {
