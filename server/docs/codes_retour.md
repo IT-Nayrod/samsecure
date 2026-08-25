@@ -176,7 +176,7 @@ motif technique d'un echec est dans log_serveur, jamais dans audit_log.
 | 3024 | erreur | Le revendeur signataire est obligatoire | POST, PATCH /api/contrats (#95) |
 | 3025 | erreur | La date de debut est obligatoire | POST, PATCH /api/contrats (#95) |
 | 3026 | erreur | Contrat archive : modification impossible, restaurez-le d'abord | PATCH /api/contrats/:id (#96) |
-| 3027 | erreur | Suppression impossible : contrat deja entre en validation, archivez-le | DELETE /api/contrats/:id (#96) |
+| 3027 | erreur | Suppression impossible : contrat deja valide, archivez-le | DELETE /api/contrats/:id (#96) |
 | 3028 | erreur | Contrat deja archive | POST /api/contrats/:id/archiver (#96) |
 | 3029 | erreur | Contrat non archive | POST /api/contrats/:id/restaurer (#96) |
 | 3099 | erreur | Erreur serveur inattendue (module contrats) | toutes |
@@ -184,9 +184,10 @@ motif technique d'un echec est dans log_serveur, jamais dans audit_log.
 Archivage (#96, migrations 037 et 038) : GET /api/contrats exclut les
 contrats archives sauf `?inclure_archives=1` (repond alors 3007) ; le detail
 sert toujours un contrat archive et porte `supprimable` (aucune entree
-workflow_validation). Un contrat archive refuse toute modification (3026) ;
+workflow_validation au statut valide ou a_revalider ; en_attente et refuse
+ne bloquent pas). Un contrat archive refuse toute modification (3026) ;
 la suppression physique n'est possible que pour un contrat jamais entre en
-validation (sinon 3027), le garde-fou 3020 sur les rattachements reste.
+valide ni a revalider (sinon 3027), le garde-fou 3020 sur les rattachements reste.
 Archiver et restaurer tracent CONTRAT_ARCHIVE et CONTRAT_RESTAURE dans
 audit_log et ARCHIVE / RESTAURE dans journal_ecriture.
 

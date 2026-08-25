@@ -200,7 +200,7 @@ export default function ContratDetailPage() {
             </Button>
           )}
           {/* Supprimer n'est propose que si l'API declare le contrat supprimable
-              (jamais entre en validation) ; le refus serveur reste la regle. */}
+              (jamais valide ni a revalider) ; le refus serveur reste la regle. */}
           {!contrat.archive && canDelete && contrat.supprimable && (
             <Button variant="destructive" size="sm" onClick={() => setDeleteOpen(true)}>
               <Trash2 size={14} /> Supprimer

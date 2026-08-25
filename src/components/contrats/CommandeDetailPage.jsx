@@ -63,7 +63,9 @@ export default function CommandeDetailPage() {
       // de droit sur les documents laisse la fiche lisible, sans sa liste.
       const [k, c, s, r, m, p, f, t] = await Promise.all([
         commandesService.get(id),
-        optionnel(contratsService.list()),
+        // Archives inclus : une commande existante peut pointer un contrat archive,
+        // le formulaire d'edition doit pouvoir l'afficher (#96).
+        optionnel(contratsService.list({ inclureArchives: true })),
         optionnel(societesService.list()),
         optionnel(referentielsContratsService.revendeurs()),
         optionnel(modesCommandeService.list()),

@@ -25,7 +25,7 @@ INSERT INTO code_retour (code, type, libelle) VALUES
   (3005, 'succes', 'Contrat archive'),  -- POST /api/contrats/:id/archiver
   (3006, 'succes', 'Contrat restaure'),  -- POST /api/contrats/:id/restaurer
   (3026, 'erreur', 'Contrat archive : modification impossible, restaurez-le d''abord'),  -- PATCH /api/contrats/:id
-  (3027, 'erreur', 'Suppression impossible : contrat deja entre en validation, archivez-le'),  -- suppression physique /api/contrats/:id
+  (3027, 'erreur', 'Suppression impossible : contrat deja valide, archivez-le'),  -- suppression physique /api/contrats/:id
   (3028, 'erreur', 'Contrat deja archive'),  -- POST /api/contrats/:id/archiver
   (3029, 'erreur', 'Contrat non archive'),  -- POST /api/contrats/:id/restaurer
   (3007, 'succes', 'Liste des contrats, archives inclus')  -- GET /api/contrats?inclure_archives=1

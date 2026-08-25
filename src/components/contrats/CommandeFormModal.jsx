@@ -133,7 +133,12 @@ export default function CommandeFormModal({
         <FormField label="Contrat" required>
           <select className={INPUT_CLS} value={form.id_contrat} onChange={e => choisirContrat(e.target.value)}>
             <option value="">Choisir...</option>
-            {contrats.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+            {/* Une nouvelle commande ne propose jamais un contrat archive ; en
+                edition, le contrat courant reste selectionnable meme archive,
+                marque comme tel (#96). */}
+            {contrats
+              .filter(c => !c.archive || (isEdit && c.id === commande?.id_contrat))
+              .map(c => <option key={c.id} value={c.id}>{c.label}{c.archive ? ' (Archivé)' : ''}</option>)}
           </select>
         </FormField>
         <div className="grid grid-cols-2 gap-4">

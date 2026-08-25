@@ -86,12 +86,19 @@ async function audit(client, req, action, entiteId, avant, apres) {
   );
 }
 
-// Un contrat est supprimable tant qu'il n'est jamais entre en validation :
-// aucune entree workflow_validation, quel que soit son statut (#96). Au-dela,
-// seul l'archivage retire le contrat de la vue courante.
-async function jamaisSoumis(client, id) {
+// Un contrat est supprimable tant qu'aucune de ses entrees workflow_validation
+// n'a atteint le statut valide ou a_revalider (#96). Les entrees en_attente et
+// refuse ne bloquent pas : toute creation par l'interface soumet le contrat,
+// sinon rien ne serait jamais supprimable. Les entrees traitees restent en
+// base apres une resoumission, l'historique fait donc foi. Au-dela, seul
+// l'archivage retire le contrat de la vue courante.
+async function jamaisValide(client, id) {
   const { rowCount } = await client.query(
-    `SELECT 1 FROM workflow_validation WHERE entite_type = 'contrat' AND entite_id = $1 LIMIT 1`, [id]);
+    `SELECT 1 FROM workflow_validation w
+       JOIN validation_status vs ON vs.id = w.id_statut
+      WHERE w.entite_type = 'contrat' AND w.entite_id = $1
+        AND vs.code IN ('valide', 'a_revalider')
+      LIMIT 1`, [id]);
   return rowCount === 0;
 }
 
@@ -301,7 +308,7 @@ router.get("/contrats/:id", async (req, res) => {
       [id]);
 
     // supprimable : l'API fait foi, le front n'affiche Supprimer que sur sa reponse.
-    const supprimable = await jamaisSoumis(tenantPool, id);
+    const supprimable = await jamaisValide(tenantPool, id);
 
     succes(res, 3001, { ...rows[0], ...liens, supprimable });
   } catch (err) {
@@ -470,13 +477,13 @@ router.delete("/contrats/:id", async (req, res) => {
       return erreur(res, 3010, { status: 404, message: "Contrat introuvable." });
     }
 
-    // Suppression reservee au contrat jamais entre en validation (#96). Un
-    // contrat deja soumis s'archive : rien n'est efface ici, la transaction
+    // Suppression reservee au contrat jamais valide (#96). Un contrat deja
+    // valide ou a revalider s'archive : rien n'est efface ici, la transaction
     // est simplement annulee.
-    if (!(await jamaisSoumis(client, id))) {
+    if (!(await jamaisValide(client, id))) {
       await client.query("ROLLBACK");
       return erreur(res, 3027, { status: 409,
-        message: "Suppression impossible : ce contrat est deja entre en validation. Archivez-le." });
+        message: "Suppression impossible : ce contrat a deja ete valide. Archivez-le." });
     }
 
     // Les 3 FK entrantes du DDL v4. licence.id_contrat a ete supprimee par la
