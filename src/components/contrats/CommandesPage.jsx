@@ -2,11 +2,12 @@
 // Montants, timeline et KPI viennent tous de /api/commandes/agregats : aucun
 // montant n'est calcule ici. La liste est filtree sur les bornes mensuelles
 // que l'API renvoie, ce qui garantit qu'elle ne peut pas diverger du graphe.
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Wallet, Hash, RefreshCw, TrendingUp, X } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { commandesService, modesCommandeService } from '../../services/commandesService';
+import { budgetService } from '../../services/budgetService';
 import { optionnel } from '../../services/http';
 import { contratsService, referentielsContratsService } from '../../services/contratsService';
 import { societesService } from '../../services/adminService';
@@ -41,6 +42,14 @@ export default function CommandesPage() {
   const [revendeurs, setRevendeurs] = useState([]);
   const [modes, setModes] = useState([]);
   const [agregats, setAgregats] = useState(null);
+  // Volet budget (#148) : synthese budgetaire sur la meme periode et la meme
+  // societe que les agregats. null = droit consulter_budget absent.
+  const [budget, setBudget] = useState(null);
+  const [budgetErreur, setBudgetErreur] = useState(null);
+  const [budgetLoading, setBudgetLoading] = useState(true);
+  // Jeton de la derniere demande d'agregats : une reponse tardive d'une autre
+  // periode ou societe n'ecrase pas la plus recente.
+  const demandeAgregats = useRef(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [errorStatus, setErrorStatus] = useState(null);
@@ -70,7 +79,9 @@ export default function CommandesPage() {
       // filtres et formulaire.
       const [k, c, s, r, m] = await Promise.all([
         commandesService.list(),
-        optionnel(contratsService.list()),
+        // Archives inclus : une commande existante peut pointer un contrat archive,
+        // le formulaire d'edition doit pouvoir l'afficher (#96).
+        optionnel(contratsService.list({ inclureArchives: true })),
         optionnel(societesService.list()),
         optionnel(referentielsContratsService.revendeurs()),
         optionnel(modesCommandeService.list()),
@@ -88,19 +99,42 @@ export default function CommandesPage() {
 
   const loadAgregats = useCallback(async () => {
     if (!periode?.debut || !periode?.fin) return;
+    const jeton = ++demandeAgregats.current;
     try {
       // consulter_kpi_financiers est une permission a part : un IT Ops lit ses
       // commandes sans acceder aux tableaux de bord financiers. Son refus retire
       // le graphe et les KPI, il ne condamne pas l'ecran.
-      setAgregats(await optionnel(commandesService.agregats({
+      const a = await optionnel(commandesService.agregats({
         dateDebut: toIsoDate(periode.debut),
         dateFin: toIsoDate(periode.fin),
         idSociete: societeActive,
-      }), null));
+      }), null);
+      if (jeton !== demandeAgregats.current) return;
+      setAgregats(a);
     } catch (err) {
+      if (jeton !== demandeAgregats.current) return;
       setError(err.message);
       setErrorStatus(err.status);
       addToast({ type: 'error', message: err.message });
+    }
+    // Le volet budget suit consulter_budget : son refus ou sa panne retire le
+    // volet, il ne condamne ni les agregats ni la liste.
+    setBudgetLoading(true);
+    setBudgetErreur(null);
+    try {
+      const b = await optionnel(budgetService.synthese({
+        date_debut: toIsoDate(periode.debut),
+        date_fin: toIsoDate(periode.fin),
+        id_societe: societeActive,
+      }), null);
+      if (jeton !== demandeAgregats.current) return;
+      setBudget(b);
+    } catch (err) {
+      if (jeton !== demandeAgregats.current) return;
+      setBudget(null);
+      setBudgetErreur(err.message);
+    } finally {
+      if (jeton === demandeAgregats.current) setBudgetLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [periode?.debut, periode?.fin, societeActive]);
@@ -175,13 +209,13 @@ export default function CommandesPage() {
   const hasActiveFiltres = !!(filterContrat || filterSociete || filterRevendeur || filterRenouvellement || activeKpi);
 
   const columns = [
-    { key: 'label', label: 'Label', sortable: true, render: r => (
+    { key: 'label', label: 'Libellé', sortable: true, render: r => (
       <button onClick={() => navigate(`/contrats/commandes/${r.id}`)} className="font-medium text-blue-800 hover:underline text-left">{r.label}</button>
     ) },
     { key: 'numero_devis', label: 'Devis', sortable: true, render: r => r.numero_devis ?? '-' },
-    { key: 'reference_interne', label: 'Reference', sortable: true, render: r => r.reference_interne ?? '-' },
+    { key: 'reference_interne', label: 'Référence', sortable: true, render: r => r.reference_interne ?? '-' },
     { key: 'contrat_label', label: 'Contrat', sortable: true, render: r => r.contrat_label ?? '-' },
-    { key: 'societe_label', label: 'Societe acheteuse', sortable: true, render: r => r.societe_label ?? '-' },
+    { key: 'societe_label', label: 'Société acheteuse', sortable: true, render: r => r.societe_label ?? '-' },
     { key: 'revendeur_label', label: 'Revendeur', sortable: true, render: r => r.revendeur_label ?? '-' },
     { key: 'mode_label', label: 'Mode', sortable: true, render: r => r.mode_label ?? '-' },
     { key: 'montant', label: 'Montant', sortable: true, getValue: r => r.montant, render: r => euros(r.montant) },
@@ -270,8 +304,8 @@ export default function CommandesPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <DeploiementKpiCard label="Montant total commande" value={euros(totaux.montant_commande)} icon={Wallet} color="#7C6FCD" />
         <DeploiementKpiCard label="Nombre de commandes" value={totaux.nb_commandes ?? 0} icon={Hash} color="#1F4E79" />
-        <DeploiementKpiCard label="Commandes a renouveler" value={totaux.nb_a_renouveler ?? 0} icon={RefreshCw} color="#F59E0B" onClick={() => toggleKpi('a_renouveler')} active={activeKpi === 'a_renouveler'} />
-        <DeploiementKpiCard label="Montant a renouveler" value={euros(totaux.montant_a_renouveler)} icon={TrendingUp} color="#EF4444" />
+        <DeploiementKpiCard label="Commandes à renouveler" value={totaux.nb_a_renouveler ?? 0} icon={RefreshCw} color="#F59E0B" onClick={() => toggleKpi('a_renouveler')} active={activeKpi === 'a_renouveler'} />
+        <DeploiementKpiCard label="Montant à renouveler" value={euros(totaux.montant_a_renouveler)} icon={TrendingUp} color="#EF4444" />
       </div>
 
       <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
@@ -289,25 +323,58 @@ export default function CommandesPage() {
 
       <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
         <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-          Budget vs commandes {agregats && <span className="font-normal text-gray-500">- {agregats.periode_debut} a {agregats.periode_fin}</span>}
+          Budget vs commandes {agregats && <span className="font-normal text-gray-500">- {agregats.periode_debut} à {agregats.periode_fin}</span>}
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <p className="text-xs text-gray-500 mb-1">Realise (commandes)</p>
+            <p className="text-xs text-gray-500 mb-1">Réalisé (commandes)</p>
             <p className="text-lg font-semibold text-gray-900 dark:text-white">{euros(totaux.montant_commande)}</p>
           </div>
-          <div>
-            <p className="text-xs text-gray-500 mb-1">Budget</p>
-            <p className="text-lg font-semibold text-gray-400">A venir</p>
-            <p className="text-xs text-gray-400 mt-1">Le volet budget sera branche avec le module 4.</p>
-          </div>
+          {/* Volet budget (#148) : alloue et ecart servis par la synthese
+              budgetaire sur la meme periode et la meme societe. */}
+          {budgetLoading ? (
+            <div>
+              <p className="text-xs text-gray-500 mb-1">Alloué (CAPEX + OPEX)</p>
+              <Skeleton height="h-7" width="w-32" />
+            </div>
+          ) : budget ? (
+            budget.nb_lignes?.alloue > 0 ? (
+              <div>
+                <p className="text-xs text-gray-500 mb-1">Alloué (CAPEX + OPEX)</p>
+                <p className="text-lg font-semibold text-gray-900 dark:text-white">{euros(budget.totaux?.alloue)}</p>
+                <p className={`text-xs mt-1 font-medium ${(budget.totaux?.ecart_alloue_engage ?? 0) >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                  Écart alloué / réalisé : {(budget.totaux?.ecart_alloue_engage ?? 0) >= 0 ? '+' : ''}{euros(budget.totaux?.ecart_alloue_engage)}
+                  {budget.totaux?.taux_engagement !== null && budget.totaux?.taux_engagement !== undefined
+                    ? ` (${budget.totaux.taux_engagement.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} % engagé)`
+                    : ''}
+                </p>
+              </div>
+            ) : (
+              <div>
+                <p className="text-xs text-gray-500 mb-1">Alloué (CAPEX + OPEX)</p>
+                <p className="text-lg font-semibold text-gray-400">Aucun budget alloué</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  Aucune ligne budgétaire allouée sur la période.{' '}
+                  <button onClick={() => navigate('/budget?tab=saisie')} className="text-blue-700 dark:text-blue-400 hover:underline">Ouvrir le budget</button>
+                </p>
+              </div>
+            )
+          ) : (
+            <div>
+              <p className="text-xs text-gray-500 mb-1">Alloué (CAPEX + OPEX)</p>
+              <p className="text-lg font-semibold text-gray-400">Indisponible</p>
+              <p className="text-xs text-gray-400 mt-1">
+                {budgetErreur ?? 'Les indicateurs budgétaires ne sont pas accessibles avec votre niveau de droit.'}
+              </p>
+            </div>
+          )}
         </div>
       </section>
       </>)}
 
       <div className="flex flex-wrap gap-3 bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
         <select value={filterSociete} onChange={e => setFilterSociete(e.target.value)} className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-          <option value="">Toutes les societes</option>
+          <option value="">Toutes les sociétés</option>
           {societes.map(s => <option key={s.id} value={s.id}>{s.raison_sociale}</option>)}
         </select>
         <select value={filterRevendeur} onChange={e => setFilterRevendeur(e.target.value)} className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -316,16 +383,16 @@ export default function CommandesPage() {
         </select>
         <select value={filterContrat} onChange={e => setFilterContrat(e.target.value)} className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="">Tous les contrats</option>
-          {contrats.filter(c => commandes.some(k => k.id_contrat === c.id)).map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+          {contrats.filter(c => commandes.some(k => k.id_contrat === c.id)).map(c => <option key={c.id} value={c.id}>{c.label}{c.archive ? " (Archivé)" : ""}</option>)}
         </select>
         <select value={filterRenouvellement} onChange={e => setFilterRenouvellement(e.target.value)} className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="">Renouvellement : tous</option>
-          <option value="oui">A renouveler</option>
+          <option value="oui">À renouveler</option>
           <option value="non">Sans renouvellement</option>
         </select>
         {hasActiveFiltres && (
           <button onClick={resetFiltres} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 px-3 py-2">
-            <X size={14} /> Reinitialiser les filtres
+            <X size={14} /> Réinitialiser les filtres
           </button>
         )}
       </div>
@@ -335,7 +402,7 @@ export default function CommandesPage() {
           columns={columns}
           data={filtrees}
           filename="commandes"
-          emptyState={{ message: commandes.length === 0 ? 'Aucune commande enregistree.' : 'Aucune commande ne correspond aux filtres.' }}
+          emptyState={{ message: commandes.length === 0 ? 'Aucune commande enregistrée.' : 'Aucune commande ne correspond aux filtres.' }}
         />
       </div>
 

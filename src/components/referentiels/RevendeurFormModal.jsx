@@ -44,7 +44,7 @@ export default function RevendeurFormModal({ isOpen, onClose, onSave, revendeur,
     if (reqErr) e.raison_sociale = reqErr;
     else {
       const dup = existingRevendeurs.some(r => r.id !== revendeur?.id && r.raison_sociale.trim().toLowerCase() === form.raison_sociale.trim().toLowerCase());
-      if (dup) e.raison_sociale = 'Un revendeur avec cette raison sociale existe deja';
+      if (dup) e.raison_sociale = 'Un revendeur avec cette raison sociale existe déjà';
     }
     if (form.siret) { const s = validateSiret(form.siret); if (s) e.siret = s; }
     if (form.iban) { const i = validateIban(form.iban); if (i) e.iban = i; }
@@ -73,7 +73,7 @@ export default function RevendeurFormModal({ isOpen, onClose, onSave, revendeur,
       size="sm"
       banner={draftRestaure && (
         <p className="text-xs text-blue-700 dark:text-blue-300 flex items-center justify-between gap-2">
-          Brouillon restaure depuis votre derniere saisie.
+          Brouillon restauré depuis votre dernière saisie.
           <button onClick={() => { clearDraft(draftKey); setForm(revendeur ? form : EMPTY_FORM); setDraftRestaure(false); }} className="underline hover:no-underline flex-shrink-0">Vider le brouillon</button>
         </p>
       )}

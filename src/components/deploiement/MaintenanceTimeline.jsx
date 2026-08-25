@@ -13,15 +13,15 @@ const POINT = {
 
 const LIBELLE = {
   en_cours: 'En cours',
-  a_venir: 'A venir',
-  echue: 'Echue',
+  a_venir: 'À venir',
+  echue: 'Échue',
 };
 
 export default function MaintenanceTimeline({ periodes, licence, canWrite, onEdit, onDelete }) {
   const arret = licence?.date_arret_maintenance;
 
   if (!periodes.length && !arret) {
-    return <p className="text-sm text-gray-500">Aucun historique de maintenance enregistre.</p>;
+    return <p className="text-sm text-gray-500">Aucun historique de maintenance enregistré.</p>;
   }
 
   return (
@@ -32,10 +32,10 @@ export default function MaintenanceTimeline({ periodes, licence, canWrite, onEdi
             <ShieldOff size={8} className="text-white dark:text-gray-800" />
           </span>
           <p className="text-sm text-gray-800 dark:text-gray-200">
-            Maintenance arretee le <strong>{arret}</strong>
-            {licence.version_figee_label && <> - version figee <strong>{licence.version_figee_label}</strong></>}
+            Maintenance arrêtée le <strong>{arret}</strong>
+            {licence.version_figee_label && <> - version figée <strong>{licence.version_figee_label}</strong></>}
           </p>
-          <p className="text-xs text-gray-500">Les droits acquis ({licence.quantite} {licence.unite_label ?? ''}) sont conserves, seules les montees de version cessent.</p>
+          <p className="text-xs text-gray-500">Les droits acquis ({licence.quantite} {licence.unite_label ?? ''}) sont conservés, seules les montées de version cessent.</p>
         </li>
       )}
       {periodes.map(p => (
@@ -44,7 +44,7 @@ export default function MaintenanceTimeline({ periodes, licence, canWrite, onEdi
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-sm text-gray-800 dark:text-gray-200">
-                {p.mainteneur_label ?? 'Mainteneur non renseigne'}
+                {p.mainteneur_label ?? 'Mainteneur non renseigné'}
                 <span className="ml-2 text-xs text-gray-500">{LIBELLE[p.statut] ?? p.statut}</span>
               </p>
               <p className="text-xs text-gray-500">
@@ -54,8 +54,8 @@ export default function MaintenanceTimeline({ periodes, licence, canWrite, onEdi
             </div>
             {canWrite && (
               <div className="flex items-center gap-1 flex-shrink-0">
-                <button onClick={() => onEdit(p)} aria-label="Modifier la periode" className="p-1 rounded text-gray-400 hover:text-blue-700 hover:bg-gray-100 dark:hover:bg-gray-700"><Pencil size={13} /></button>
-                <button onClick={() => onDelete(p)} aria-label="Supprimer la periode" className="p-1 rounded text-gray-400 hover:text-red-600 hover:bg-gray-100 dark:hover:bg-gray-700"><Trash2 size={13} /></button>
+                <button onClick={() => onEdit(p)} aria-label="Modifier la période" className="p-1 rounded text-gray-400 hover:text-blue-700 hover:bg-gray-100 dark:hover:bg-gray-700"><Pencil size={13} /></button>
+                <button onClick={() => onDelete(p)} aria-label="Supprimer la période" className="p-1 rounded text-gray-400 hover:text-red-600 hover:bg-gray-100 dark:hover:bg-gray-700"><Trash2 size={13} /></button>
               </div>
             )}
           </div>

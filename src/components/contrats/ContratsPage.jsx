@@ -25,6 +25,9 @@ import useValidation from '../../hooks/useValidation';
 import { appliquerStatut } from '../../services/validationService';
 
 function TreeNode({ contrat, depth, enfantsParParent, navigate, onValider, onRefuser, canValider }) {
+  // Racine par filtrage : le parent existe mais ne passe pas les filtres. On le
+  // nomme pour que le contrat ne semble pas orphelin.
+  const parentHorsFiltre = depth === 0 && !!contrat.id_contrat_parent;
   const [open, setOpen] = useState(depth === 0);
   const enfants = enfantsParParent.get(contrat.id) ?? [];
   const hasEnfants = enfants.length > 0;
@@ -42,7 +45,9 @@ function TreeNode({ contrat, depth, enfantsParParent, navigate, onValider, onRef
         }
         <span className="text-sm text-blue-800 hover:underline">{contrat.label}</span>
         <span className="text-xs text-gray-400">{contrat.editeur_label ?? '-'} - {contrat.societe_label ?? '-'}</span>
+        {parentHorsFiltre && <span className="text-[10px] text-gray-500 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-full">Rattaché à : {contrat.parent_label ?? '-'}</span>}
         {contrat.type_code === 'cadre' && <span className="text-[10px] font-semibold text-blue-700 bg-blue-100 dark:bg-blue-900/30 px-2 py-0.5 rounded-full">Cadre</span>}
+        {contrat.archive && <span className="text-[10px] font-semibold text-gray-600 bg-gray-200 dark:bg-gray-700 dark:text-gray-300 px-2 py-0.5 rounded-full">Archivé</span>}
         <StatutEcheanceBadge statut={contrat.statut_echeance} />
         <ValidationCell statut={contrat.statut_validation} motif={contrat.message_refus} />
         {/* La ligne entiere navigue au clic (l.32) : sans stopPropagation,
@@ -78,14 +83,25 @@ export default function ContratsPage() {
   const [errorStatus, setErrorStatus] = useState(null);
 
   const [vueArbo, setVueArbo] = useState(true);
+  const [afficherArchives, setAfficherArchives] = useState(false);
   const [filterEditeur, setFilterEditeur] = useState('');
   const [filterType, setFilterType] = useState('');
   const [filterStatut, setFilterStatut] = useState('');
   const [filterSociete, setFilterSociete] = useState('');
   const [activeKpi, setActiveKpi] = useState(null);
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const editeurParam = searchParams.get('editeur');
   const societeParam = searchParams.get('societe');
+
+  // Un filtre venu de l'URL ne doit pas survivre au choix explicite de
+  // l'utilisateur : le retirer de l'adresse, sinon "Toutes les societes"
+  // retomberait sur le parametre.
+  function purgerParam(nom) {
+    if (!searchParams.has(nom)) return;
+    const suivants = new URLSearchParams(searchParams);
+    suivants.delete(nom);
+    setSearchParams(suivants, { replace: true });
+  }
   const [formModal, setFormModal] = useState({ open: false, contrat: null });
 
   const load = useCallback(async () => {
@@ -97,7 +113,7 @@ export default function ContratsPage() {
       // alimentent les filtres et le formulaire : un droit manquant sur eux
       // doit priver de ces commodites, pas de la liste.
       const [c, e, s, t, r] = await Promise.all([
-        contratsService.list(),
+        contratsService.list({ inclureArchives: afficherArchives }),
         optionnel(referentielsContratsService.editeurs()),
         optionnel(societesService.list()),
         optionnel(referentielsContratsService.typesContrat()),
@@ -116,7 +132,7 @@ export default function ContratsPage() {
       setIsLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [afficherArchives]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -127,18 +143,6 @@ export default function ContratsPage() {
     setContrats(prev => prev.map(c => c.id === reponse.entite_id ? appliquerStatut(c, reponse) : c));
   }, []);
   const { valider, refuser } = useValidation(appliquer);
-
-  // Index parent -> enfants, construit une fois : l'API renvoie une liste plate.
-  const enfantsParParent = useMemo(() => {
-    const index = new Map();
-    for (const c of contrats) {
-      if (!c.id_contrat_parent) continue;
-      const fratrie = index.get(c.id_contrat_parent) ?? [];
-      fratrie.push(c);
-      index.set(c.id_contrat_parent, fratrie);
-    }
-    return index;
-  }, [contrats]);
 
   function matchesKpi(contrat, kpi) {
     const st = contrat.statut_echeance;
@@ -176,24 +180,46 @@ export default function ContratsPage() {
     setFilterType('');
     setFilterStatut('');
     setActiveKpi(null);
+    if (editeurParam || societeParam) setSearchParams({}, { replace: true });
   }
 
-  const hasActiveFiltres = !!(filterEditeur || filterSociete || filterType || filterStatut || activeKpi);
+  const hasActiveFiltres = !!(filterEditeur || filterSociete || filterType || filterStatut || activeKpi || editeurParam || societeParam);
 
-  const racinesArbo = useMemo(() => filtres.filter(c => !c.id_contrat_parent), [filtres]);
+  // L'arbre se construit sur la liste filtree, jamais sur la liste complete :
+  // un contrat qui passe le filtre est toujours affiche. S'il a un parent, il
+  // est rendu sous lui quand le parent passe aussi, sinon il devient racine.
+  // Sans filtre, l'ensemble filtre est la liste entiere et l'arbre est inchange.
+  const enfantsParParent = useMemo(() => {
+    const index = new Map();
+    for (const c of filtres) {
+      if (!c.id_contrat_parent) continue;
+      const fratrie = index.get(c.id_contrat_parent) ?? [];
+      fratrie.push(c);
+      index.set(c.id_contrat_parent, fratrie);
+    }
+    return index;
+  }, [filtres]);
+
+  const racinesArbo = useMemo(() => {
+    const visibles = new Set(filtres.map(c => c.id));
+    return filtres.filter(c => !c.id_contrat_parent || !visibles.has(c.id_contrat_parent));
+  }, [filtres]);
 
   const columns = [
-    { key: 'label', label: 'Label', sortable: true, render: r => (
-      <button onClick={() => navigate(`/contrats/liste/${r.id}`)} className="font-medium text-blue-800 hover:underline text-left">{r.label}</button>
+    { key: 'label', label: 'Libellé', sortable: true, render: r => (
+      <span className="flex items-center gap-2">
+        <button onClick={() => navigate(`/contrats/liste/${r.id}`)} className="font-medium text-blue-800 hover:underline text-left">{r.label}</button>
+        {r.archive && <span className="text-[10px] font-semibold text-gray-600 bg-gray-200 dark:bg-gray-700 dark:text-gray-300 px-2 py-0.5 rounded-full">Archivé</span>}
+      </span>
     ) },
     { key: 'type_label', label: 'Type', sortable: true, render: r => r.type_code === 'cadre'
       ? <span className="text-xs font-semibold text-blue-700 bg-blue-100 dark:bg-blue-900/30 px-2 py-0.5 rounded-full">Cadre</span>
       : (r.type_label ?? '-') },
-    { key: 'editeur_label', label: 'Editeur', sortable: true, render: r => r.editeur_label ?? '-' },
-    { key: 'societe_label', label: 'Societe signataire', sortable: true, render: r => r.societe_label ?? '-' },
+    { key: 'editeur_label', label: 'Éditeur', sortable: true, render: r => r.editeur_label ?? '-' },
+    { key: 'societe_label', label: 'Société signataire', sortable: true, render: r => r.societe_label ?? '-' },
     { key: 'revendeur_label', label: 'Revendeur', sortable: true, render: r => r.revendeur_label ?? '-' },
-    { key: 'date_debut', label: 'Date debut', sortable: true, render: r => r.date_debut ?? '-' },
-    { key: 'date_fin', label: 'Date fin', sortable: true, render: r => r.date_fin ?? 'Perpetuel' },
+    { key: 'date_debut', label: 'Date début', sortable: true, render: r => r.date_debut ?? '-' },
+    { key: 'date_fin', label: 'Date fin', sortable: true, render: r => r.date_fin ?? 'Perpétuel' },
     { key: 'statut_echeance', label: 'Statut', sortable: true, render: r => <StatutEcheanceBadge statut={r.statut_echeance} /> },
     { key: 'statut_validation', label: 'Validation', sortable: true,
       // Le CSV retombe sur row[key] sans csvValue : on y met le libelle et le
@@ -216,7 +242,7 @@ export default function ContratsPage() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Contrat</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Echeancier et hierarchie des engagements contractuels</p>
+          <p className="text-sm text-gray-500 mt-0.5">Échéancier et hiérarchie des engagements contractuels</p>
         </div>
         <div className="flex items-center gap-2">
           <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
@@ -267,23 +293,23 @@ export default function ContratsPage() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <DeploiementKpiCard label="Contrats actifs" value={kpis.actifs} icon={FileText} color="#22C55E" onClick={() => toggleKpi('actifs')} active={activeKpi === 'actifs'} />
-        <DeploiementKpiCard label="A echeance sous 90 jours" value={kpis.aEcheance} icon={AlertTriangle} color="#F59E0B" onClick={() => toggleKpi('a_echeance')} active={activeKpi === 'a_echeance'} />
-        <DeploiementKpiCard label="A renouveler" value={kpis.aRenouveler} icon={RefreshCw} color="#7C6FCD" onClick={() => toggleKpi('a_renouveler')} active={activeKpi === 'a_renouveler'} />
+        <DeploiementKpiCard label="À échéance sous 90 jours" value={kpis.aEcheance} icon={AlertTriangle} color="#F59E0B" onClick={() => toggleKpi('a_echeance')} active={activeKpi === 'a_echeance'} />
+        <DeploiementKpiCard label="À renouveler" value={kpis.aRenouveler} icon={RefreshCw} color="#7C6FCD" onClick={() => toggleKpi('a_renouveler')} active={activeKpi === 'a_renouveler'} />
         <DeploiementKpiCard label="Contrats cadres" value={kpis.cadres} icon={Layers} color="#1F4E79" onClick={() => toggleKpi('cadres')} active={activeKpi === 'cadres'} />
       </div>
 
       <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Echeancier</h2>
+        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Échéancier</h2>
         <EcheancierList contrats={contrats} />
       </section>
 
       <div className="flex flex-wrap gap-3 bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
-        <select value={filterEditeur} onChange={e => setFilterEditeur(e.target.value)} className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-          <option value="">Tous les editeurs</option>
+        <select value={filterEditeur || editeurParam || ''} onChange={e => { setFilterEditeur(e.target.value); purgerParam('editeur'); }} className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <option value="">Tous les éditeurs</option>
           {editeurs.filter(e => contrats.some(c => c.id_editeur === e.id)).map(e => <option key={e.id} value={e.id}>{e.raison_sociale}</option>)}
         </select>
-        <select value={filterSociete} onChange={e => setFilterSociete(e.target.value)} className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-          <option value="">Toutes les societes</option>
+        <select value={filterSociete || societeParam || ''} onChange={e => { setFilterSociete(e.target.value); purgerParam('societe'); }} className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <option value="">Toutes les sociétés</option>
           {societes.map(s => <option key={s.id} value={s.id}>{s.raison_sociale}</option>)}
         </select>
         <select value={filterType} onChange={e => setFilterType(e.target.value)} className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -293,13 +319,17 @@ export default function ContratsPage() {
         <select value={filterStatut} onChange={e => setFilterStatut(e.target.value)} className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="">Tous les statuts</option>
           <option value="actif">Actif</option>
-          <option value="a_renouveler">A renouveler</option>
-          <option value="expire">Expire</option>
-          <option value="perpetuel">Perpetuel</option>
+          <option value="a_renouveler">À renouveler</option>
+          <option value="expire">Expiré</option>
+          <option value="perpetuel">Perpétuel</option>
         </select>
+        <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300 px-2 cursor-pointer">
+          <input type="checkbox" checked={afficherArchives} onChange={e => setAfficherArchives(e.target.checked)} className="rounded" />
+          Afficher les archivés
+        </label>
         {hasActiveFiltres && (
           <button onClick={resetFiltres} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 px-3 py-2">
-            <X size={14} /> Reinitialiser les filtres
+            <X size={14} /> Réinitialiser les filtres
           </button>
         )}
       </div>
@@ -307,7 +337,7 @@ export default function ContratsPage() {
       {vueArbo ? (
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
           {racinesArbo.length === 0
-            ? <EmptyState title="Aucun contrat" description={contrats.length === 0 ? 'Aucun contrat enregistre pour le moment.' : 'Aucun contrat ne correspond aux filtres.'} />
+            ? <EmptyState title="Aucun contrat" description={contrats.length === 0 ? 'Aucun contrat enregistré pour le moment.' : 'Aucun contrat ne correspond aux filtres.'} />
             : racinesArbo.map(c => (
                 <TreeNode key={c.id} contrat={c} depth={0} enfantsParParent={enfantsParParent} navigate={navigate}
                   onValider={id => valider('contrat', id)}
@@ -321,7 +351,7 @@ export default function ContratsPage() {
             columns={columns}
             data={filtres}
             filename="contrats"
-            emptyState={{ message: contrats.length === 0 ? 'Aucun contrat enregistre.' : 'Aucun contrat ne correspond aux filtres.' }}
+            emptyState={{ message: contrats.length === 0 ? 'Aucun contrat enregistré.' : 'Aucun contrat ne correspond aux filtres.' }}
           />
         </div>
       )}

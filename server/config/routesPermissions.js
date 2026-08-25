@@ -12,7 +12,7 @@
 // litteraux doivent preceder les chemins parametres de meme longueur,
 // /commandes/agregats avant /commandes/:id.
 //
-// Codes disponibles, referentiel permission (27 codes, 7 modules) :
+// Codes disponibles, referentiel permission (29 codes, 7 modules) :
 //   administration : gerer_utilisateurs, gerer_exceptions_droit,
 //                    consulter_audit_log, gerer_connecteurs
 //   droits_usage   : consulter_contrats, consulter_factures, saisir_contrat,
@@ -21,7 +21,8 @@
 //                    saisir_licence, saisir_affectation, rapprocher_inventaire,
 //                    importer_inventaire (#111, 28e code)
 //   organisation   : consulter_referentiels, gerer_referentiels, gerer_contacts
-//   budget         : consulter_budget, saisir_budget, consulter_kpi_financiers
+//   budget         : consulter_budget, saisir_budget, consulter_kpi_financiers,
+//                    supprimer_budget (#146, 29e code)
 //   rapports, dashboards : non encore branches sur l'API
 //
 // PUBLIC_AUTHENTIFIE : accessible a tout porteur d'un jeton valide, sans
@@ -36,6 +37,9 @@ export const ROUTES_PERMISSIONS = [
   ["POST",   "/contrats",                    "saisir_contrat"],
   ["PATCH",  "/contrats/:id",                "saisir_contrat"],
   ["DELETE", "/contrats/:id",                "saisir_contrat"],
+  // Archivage (#96) : meme droit que la suppression qu'il remplace.
+  ["POST",   "/contrats/:id/archiver",       "saisir_contrat"],
+  ["POST",   "/contrats/:id/restaurer",      "saisir_contrat"],
 
   // ---- Droits d'usage : commandes ------------------------------------------
   // Les deux chemins litteraux passent avant /commandes/:id.
@@ -120,6 +124,24 @@ export const ROUTES_PERMISSIONS = [
   ["POST",   "/inventaire/releves/:id/ecart-assume",      "rapprocher_inventaire"],
   ["POST",   "/inventaire/releves/:id/rejeter",           "rapprocher_inventaire"],
   ["POST",   "/inventaire/releves/:id/reouvrir",          "rapprocher_inventaire"],
+
+  // ---- Module 4 : budget (#146) ---------------------------------------------
+  // Lecture : consulter_budget (Admin, Manager DSI, Financier, IT Ops). Saisie
+  // et preremplissage : saisir_budget (Admin, Manager DSI, Financier, et IT
+  // Ops par la matrice 011, conservee telle quelle : la US le place en
+  // lecture, ecart a valider avec Samuel, question "IT Ops et le financier").
+  // Suppression : supprimer_budget, permission propre (035 Commune, 036
+  // Tenant) detenue par Admin, Manager DSI et Financier : la saisie ne vaut
+  // pas droit de supprimer. Les montants ne sont pas masques dans ce module.
+  // Les chemins litteraux passent avant /budget/:id.
+  ["GET",    "/budget/preremplissage",       "saisir_budget"],
+  ["GET",    "/budget/engage",               "consulter_budget"],
+  ["GET",    "/budget/synthese",             "consulter_budget"],
+  ["GET",    "/budget",                      "consulter_budget"],
+  ["GET",    "/budget/:id",                  "consulter_budget"],
+  ["POST",   "/budget",                      "saisir_budget"],
+  ["PATCH",  "/budget/:id",                  "saisir_budget"],
+  ["DELETE", "/budget/:id",                  "supprimer_budget"],
 
   // ---- Referentiels en lecture ---------------------------------------------
   ["GET",    "/produits",                    "consulter_referentiels"],

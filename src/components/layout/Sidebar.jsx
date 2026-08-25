@@ -22,7 +22,7 @@ const MENU = [
   {
     section: 'RÉFÉRENTIELS',
     items: [
-      { label: 'Editeurs', icon: Building2, path: '/referentiels/editeurs' },
+      { label: 'Éditeurs', icon: Building2, path: '/referentiels/editeurs' },
       { label: 'Revendeurs', icon: Store, path: '/referentiels/revendeurs' },
       { label: 'Contacts', icon: Users, path: '/referentiels/contacts' },
       { label: 'Logiciels', icon: Package, path: '/referentiels/logiciels' },
@@ -47,7 +47,8 @@ const MENU = [
   {
     section: 'BUDGET',
     items: [
-      { label: 'Budget', icon: PiggyBank, path: '/budget' },
+      // Page branchee sur l'API (#148) : entree mappee sur sa permission reelle.
+      { label: 'Budget', icon: PiggyBank, path: '/budget', permission: 'consulter_budget' },
     ],
   },
   {

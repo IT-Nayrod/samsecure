@@ -66,7 +66,7 @@ function formatCellData(val, format) {
       return { v: L[val] ?? String(val), t: 'String' };
     }
     case 'badge_revalidation': {
-      const L = { a_jour: 'A jour', a_revalider: 'A revalider', depassee: 'Depassee' };
+      const L = { a_jour: 'À jour', a_revalider: 'À revalider', depassee: 'Dépassée' };
       return { v: L[val] ?? String(val), t: 'String' };
     }
     default: return { v: String(val), t: 'String' };
@@ -84,8 +84,8 @@ function buildConstatSheet({ titre, description, labelPer, dateGen, kpisDef, kpi
   }
 
   rows.push(emptyRow());
-  rows.push(mkRow(mkCell('Periode', 'String', 'Bold'), mkCell(''), mkCell(labelPer)));
-  rows.push(mkRow(mkCell('Genere le', 'String', 'Bold'), mkCell(''), mkCell(dateGen)));
+  rows.push(mkRow(mkCell('Période', 'String', 'Bold'), mkCell(''), mkCell(labelPer)));
+  rows.push(mkRow(mkCell('Généré le', 'String', 'Bold'), mkCell(''), mkCell(dateGen)));
 
   if (kpisDef?.length > 0) {
     rows.push(emptyRow());
@@ -133,7 +133,7 @@ function buildTableauSection(colonnes, lignes, sectionTitre) {
 
 function buildDonneesSheet({ titre, labelPer, colonnes, lignes, sections, resultSections }) {
   const rows = [
-    mkRow(mkCell(`${titre} - Periode : ${labelPer}`, 'String', 'Bold')),
+    mkRow(mkCell(`${titre} - Période : ${labelPer}`, 'String', 'Bold')),
     emptyRow(),
   ];
 
@@ -146,7 +146,7 @@ function buildDonneesSheet({ titre, labelPer, colonnes, lignes, sections, result
     });
   }
 
-  return `<Worksheet ss:Name="Donnees">
+  return `<Worksheet ss:Name="Données">
 <Table ss:DefaultColumnWidth="130">
 ${rows.join('\n')}
 </Table>
@@ -210,7 +210,7 @@ export function exporterExcel({
   const dateGen = `${padZ(today.getDate())}/${padZ(today.getMonth()+1)}/${today.getFullYear()}`;
   const labelPer = periode
     ? `${fmtDate(periode.dateDebut)} - ${fmtDate(periode.dateFin)}`
-    : 'Toutes periodes';
+    : 'Toutes périodes';
 
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <?mso-application progid="Excel.Sheet"?>

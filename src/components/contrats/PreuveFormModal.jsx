@@ -54,11 +54,11 @@ export default function PreuveFormModal({ isOpen, onClose, onDone, typesPreuve, 
         url_fichier: 'en-attente-de-depot',
       });
       await preuvesService.deposerFichier(creee.id, file);
-      onDone({ type: 'success', message: 'Preuve deposee.' });
+      onDone({ type: 'success', message: 'Preuve déposée.' });
       onClose();
     } catch (err) {
       setErreur(creee
-        ? `La preuve a ete creee mais le fichier n'a pas pu etre depose : ${err.message} Reprenez le depot depuis sa fiche.`
+        ? `La preuve a été créée mais le fichier n'a pas pu être déposé : ${err.message} Reprenez le dépôt depuis sa fiche.`
         : err.message);
       if (creee) onDone(null);
     } finally {
@@ -70,12 +70,12 @@ export default function PreuveFormModal({ isOpen, onClose, onDone, typesPreuve, 
     <SlideOver
       isOpen={isOpen}
       onClose={onClose}
-      title="Deposer une preuve"
+      title="Déposer une preuve"
       size="md"
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={loading}>Annuler</Button>
-          <Button variant="primary" onClick={handleSave} isLoading={loading} disabled={!complet}>Deposer</Button>
+          <Button variant="primary" onClick={handleSave} isLoading={loading} disabled={!complet}>Déposer</Button>
         </>
       }
     >
@@ -86,7 +86,7 @@ export default function PreuveFormModal({ isOpen, onClose, onDone, typesPreuve, 
         <FormField label="Fichier" required>
           <DocumentUploadField file={file} onChange={setFile} disabled={loading} />
         </FormField>
-        <FormField label="Libelle" required>
+        <FormField label="Libellé" required>
           <input className={INPUT_CLS} value={form.label} autoFocus
             onChange={e => setForm(v => ({ ...v, label: e.target.value }))} />
         </FormField>
@@ -97,14 +97,14 @@ export default function PreuveFormModal({ isOpen, onClose, onDone, typesPreuve, 
           </select>
         </FormField>
         <div className="grid grid-cols-2 gap-4">
-          <FormField label="Contrat rattache">
+          <FormField label="Contrat rattaché">
             <select className={INPUT_CLS} value={form.id_contrat}
               onChange={e => setForm(v => ({ ...v, id_contrat: e.target.value }))}>
               <option value="">Aucun</option>
               {contrats.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
             </select>
           </FormField>
-          <FormField label="Commande rattachee">
+          <FormField label="Commande rattachée">
             <select className={INPUT_CLS} value={form.id_commande}
               onChange={e => setForm(v => ({ ...v, id_commande: e.target.value }))}>
               <option value="">Aucune</option>
@@ -113,8 +113,8 @@ export default function PreuveFormModal({ isOpen, onClose, onDone, typesPreuve, 
           </FormField>
         </div>
         <p className="text-xs text-gray-500 dark:text-gray-400 -mt-2">
-          Une preuve doit etre rattachee a un contrat, a une commande, ou aux deux.
-          Seul un rattachement direct a la commande la fait sortir de la detection des manques.
+          Une preuve doit être rattachée à un contrat, à une commande, ou aux deux.
+          Seul un rattachement direct à la commande la fait sortir de la détection des manques.
         </p>
       </div>
     </SlideOver>

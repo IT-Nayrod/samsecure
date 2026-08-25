@@ -44,8 +44,8 @@ export default function ProduitDetailPage() {
   if (!produit) {
     return (
       <div className="flex flex-col gap-6">
-        <Breadcrumb items={[{ label: 'Referentiels', to: '/referentiels/logiciels' }, { label: 'Logiciels', to: '/referentiels/logiciels' }, { label: 'Introuvable' }]} />
-        <EmptyState title="Produit introuvable" description="Ce produit n'existe pas ou a ete supprime." ctaLabel="Retour a la liste" onCta={() => navigate('/referentiels/logiciels')} />
+        <Breadcrumb items={[{ label: 'Référentiels', to: '/referentiels/logiciels' }, { label: 'Logiciels', to: '/referentiels/logiciels' }, { label: 'Introuvable' }]} />
+        <EmptyState title="Produit introuvable" description="Ce produit n'existe pas ou a été supprimé." ctaLabel="Retour à la liste" onCta={() => navigate('/referentiels/logiciels')} />
       </div>
     );
   }
@@ -60,12 +60,12 @@ export default function ProduitDetailPage() {
 
   function handleSave(data, existing) {
     setProduits(prev => prev.map(p => p.id === existing.id ? { ...p, ...data } : p));
-    addToast({ type: 'success', message: 'Produit mis a jour.' });
+    addToast({ type: 'success', message: 'Produit mis à jour.' });
   }
 
   function handleDelete() {
     setProduits(prev => prev.filter(p => p.id !== produit.id));
-    addToast({ type: 'success', message: 'Produit supprime.' });
+    addToast({ type: 'success', message: 'Produit supprimé.' });
     navigate('/referentiels/logiciels');
   }
 
@@ -92,7 +92,7 @@ export default function ProduitDetailPage() {
   return (
     <div className="flex flex-col gap-6">
       <Breadcrumb items={[
-        { label: 'Referentiels', to: '/referentiels/logiciels' },
+        { label: 'Référentiels', to: '/referentiels/logiciels' },
         { label: 'Logiciels', to: '/referentiels/logiciels' },
         { label: produit.label },
       ]} />
@@ -108,7 +108,7 @@ export default function ProduitDetailPage() {
             {!isCatalogue && <StatutValidationBadge statut={produit.statut_validation} />}
           </div>
           <p className="text-sm text-gray-500 mt-1">
-            {editeurLabel(produit.id_editeur) ?? 'Aucun editeur'}{produit.sku ? ` - SKU ${produit.sku}` : ''}
+            {editeurLabel(produit.id_editeur) ?? 'Aucun éditeur'}{produit.sku ? ` - SKU ${produit.sku}` : ''}
           </p>
           {!isCatalogue && produit.statut_validation === 'refuse' && produit.motif_refus && (
             <p className="text-sm text-red-600 dark:text-red-400 mt-2">Motif du refus : {produit.motif_refus}</p>
@@ -119,7 +119,7 @@ export default function ProduitDetailPage() {
           <div className="flex items-center gap-2 flex-wrap">
             {canWrite && (
               <Button variant="secondary" size="sm" onClick={() => setFormOpen(true)}>
-                <Pencil size={14} /> Editer
+                <Pencil size={14} /> Éditer
               </Button>
             )}
             {canDelete && (
@@ -133,13 +133,13 @@ export default function ProduitDetailPage() {
 
       {isCatalogue && (
         <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl px-4 py-3 text-sm text-amber-800 dark:text-amber-300">
-          Catalogue commun, non modifiable. Ce produit est partage par tous les clients SamSecure.
+          Catalogue commun, non modifiable. Ce produit est partagé par tous les clients SamSecure.
         </div>
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Hierarchie</h2>
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Hiérarchie</h2>
           <div className="flex flex-col gap-3">
             <div>
               <p className="text-xs text-gray-500 mb-1">Produit parent</p>
@@ -164,10 +164,10 @@ export default function ProduitDetailPage() {
         </section>
 
         <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Licences liees ({licences.length})</h2>
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Licences liées ({licences.length})</h2>
           {licences.length === 0
-            ? <p className="text-sm text-gray-500">Aucune licence ne reference ce produit.</p>
-            : <Link to={`/conformite/licences?produit=${produit.id}`} className="text-sm text-blue-800 hover:underline">Voir les {licences.length} licence{licences.length > 1 ? 's' : ''} liee{licences.length > 1 ? 's' : ''}</Link>
+            ? <p className="text-sm text-gray-500">Aucune licence ne référence ce produit.</p>
+            : <Link to={`/conformite/licences?produit=${produit.id}`} className="text-sm text-blue-800 hover:underline">Voir les {licences.length} licence{licences.length > 1 ? 's' : ''} liée{licences.length > 1 ? 's' : ''}</Link>
           }
         </section>
 
@@ -175,7 +175,7 @@ export default function ProduitDetailPage() {
           <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Versions ({versionsProduit.length})</h2>
           <div className="flex flex-col gap-1.5 mb-3">
             {versionsProduit.length === 0
-              ? <p className="text-sm text-gray-500">Aucune version enregistree.</p>
+              ? <p className="text-sm text-gray-500">Aucune version enregistrée.</p>
               : versionsProduit.map(v => (
                 <div key={v.id} className="flex items-center justify-between px-3 py-1.5 bg-gray-50 dark:bg-gray-700 rounded-lg">
                   <span className="text-sm text-gray-700 dark:text-gray-300">{v.label}</span>
@@ -203,15 +203,15 @@ export default function ProduitDetailPage() {
         </section>
 
         <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Editions ({editionsProduit.length})</h2>
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Éditions ({editionsProduit.length})</h2>
           <div className="flex flex-col gap-1.5 mb-3">
             {editionsProduit.length === 0
-              ? <p className="text-sm text-gray-500">Aucune edition enregistree.</p>
+              ? <p className="text-sm text-gray-500">Aucune édition enregistrée.</p>
               : editionsProduit.map(e => (
                 <div key={e.id} className="flex items-center justify-between px-3 py-1.5 bg-gray-50 dark:bg-gray-700 rounded-lg">
                   <span className="text-sm text-gray-700 dark:text-gray-300">{e.label}</span>
                   {!isCatalogue && canWrite && (
-                    <button onClick={() => removeEdition(e.id)} aria-label="Supprimer l'edition" className="text-gray-400 hover:text-red-500">
+                    <button onClick={() => removeEdition(e.id)} aria-label="Supprimer l'édition" className="text-gray-400 hover:text-red-500">
                       <X size={14} />
                     </button>
                   )}
@@ -223,7 +223,7 @@ export default function ProduitDetailPage() {
               <input
                 value={newEdition}
                 onChange={e => setNewEdition(e.target.value)}
-                placeholder="Nouvelle edition..."
+                placeholder="Nouvelle édition..."
                 className="flex-1 text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
               <Button variant="secondary" size="sm" onClick={addEdition} disabled={!newEdition.trim()}>
@@ -247,8 +247,8 @@ export default function ProduitDetailPage() {
         confirmLabel={nbLiens > 0 ? 'Compris' : 'Supprimer'}
         message={
           nbLiens > 0
-            ? `Suppression impossible : ${produit.label} est rattache a ${licences.length} licence${licences.length > 1 ? 's' : ''} et ${enfants.length} sous-produit${enfants.length > 1 ? 's' : ''}. Detachez ou supprimez d'abord ces elements.`
-            : `Supprimer definitivement ${produit.label} ? Cette action est irreversible.`
+            ? `Suppression impossible : ${produit.label} est rattaché à ${licences.length} licence${licences.length > 1 ? 's' : ''} et ${enfants.length} sous-produit${enfants.length > 1 ? 's' : ''}. Détachez ou supprimez d'abord ces éléments.`
+            : `Supprimer définitivement ${produit.label} ? Cette action est irréversible.`
         }
       />
     </div>

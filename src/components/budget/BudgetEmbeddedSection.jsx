@@ -1,143 +1,138 @@
 // BudgetEmbeddedSection - Bloc budget embarque dans fiches Contrat et Licence - SamSecure v0.5
-// mode='licence': lignes budgetaires d'une licence avec CRUD et selecteur d'annee
-// mode='contrat': mini KPIs + tableau par licence, lien vers la page Budget globale
-import { useState, useMemo } from 'react';
+// mode='licence' : lignes budgetaires brutes de la licence (GET /budget?id_licence),
+//   indicateurs de la licence (GET /budget/synthese?id_licence), saisie avec
+//   licence verrouillee selon saisir_budget, suppression selon supprimer_budget.
+// mode='contrat' : indicateurs agreges du contrat (GET /budget/synthese?id_contrat)
+//   et repartition par licence (une synthese par licence des lignes du contrat),
+//   en lecture seule, lien vers la page Budget globale.
+// Periode : PeriodeSelector partage (#164), exercice fiscal de l'organisation
+// de la fiche (societe payeuse de la licence, societe signataire du contrat).
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Pencil, Trash2, ExternalLink, TrendingUp, TrendingDown } from 'lucide-react';
-import { mockBudget } from '../../data/mockBudget';
-import { getLicencesByContrat } from '../../data/mockDeploiement';
-import { mockProduits } from '../../data/mockReferentiels';
+import { Plus, Pencil, Trash2, ExternalLink } from 'lucide-react';
+import { budgetService } from '../../services/budgetService';
+import { societesService } from '../../services/adminService';
+import { optionnel } from '../../services/http';
+import PeriodeSelector from '../ui/PeriodeSelector';
 import BudgetProgressBar from './BudgetProgressBar';
+import BudgetKPIBar from './BudgetKPIBar';
 import BudgetFormModal from './BudgetFormModal';
 import ConfirmModal from '../ui/ConfirmModal';
 import Button from '../ui/Button';
 import EmptyState from '../ui/EmptyState';
-import { calcBudgetKpis } from './budgetCalculs';
-import { getAnneesDisponibles, getPeriodeAnneeCalendaire } from '../../utils/periodUtils';
+import ErrorState from '../ui/ErrorState';
+import Skeleton from '../ui/Skeleton';
+import Badge from '../ui/Badge';
+import {
+  parametresPeriode, exerciceDePeriode, formatEuros, formatDateIso, libelleType, totauxVides,
+} from './budgetCalculs';
 import useRbac from '../../hooks/useRbac';
 import { useToast } from '../../hooks/useToast';
 
-const fmtEur = (n) =>
-  new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n);
-
-const SELECT_CLS = 'text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500';
 const TH_CLS = 'px-3 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide whitespace-nowrap';
 
-function anneeToPeriod(annee) {
-  const p = getPeriodeAnneeCalendaire(annee);
-  return {
-    debut: new Date(p.dateDebut),
-    fin: new Date(p.dateFin),
-    dateDebut: p.dateDebut,
-    dateFin: p.dateFin,
-    label: p.label,
-  };
+// Exercice fiscal de l'organisation de la fiche, lu dans /societes (ressource
+// accessoire : sans le droit, defaut du composant de periode).
+function useDebutExercice(idSociete) {
+  const [debut, setDebut] = useState(null);
+  useEffect(() => {
+    let annule = false;
+    if (!idSociete) { setDebut(null); return undefined; }
+    optionnel(societesService.list())
+      .then(s => { if (!annule) setDebut(s.find(x => x.id === idSociete)?.debut_exercice_fiscal ?? null); })
+      .catch(() => { if (!annule) setDebut(null); });
+    return () => { annule = true; };
+  }, [idSociete]);
+  return debut;
 }
 
-function isLineInPeriod(ligne, period) {
-  return new Date(ligne.date_debut) <= period.fin && new Date(ligne.date_fin) >= period.debut;
-}
-
-function MiniKpiBar({ kpis }) {
-  const items = [
-    { label: 'CAPEX alloue', valeur: kpis.capex_alloue, isEcart: false },
-    { label: 'CAPEX engage', valeur: kpis.capex_engage, isEcart: false },
-    { label: 'Ecart CAPEX', valeur: kpis.ecart_capex, isEcart: true },
-    { label: 'OPEX alloue', valeur: kpis.opex_alloue, isEcart: false },
-    { label: 'OPEX engage', valeur: kpis.opex_engage, isEcart: false },
-    { label: 'Ecart OPEX', valeur: kpis.ecart_opex, isEcart: true },
-  ];
-  return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-      {items.map(item => {
-        const pos = item.valeur >= 0;
-        return (
-          <div key={item.label} className="bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600 p-3 flex flex-col gap-1">
-            <span className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide leading-tight">{item.label}</span>
-            {item.isEcart ? (
-              <div className={`flex items-center gap-1 text-sm font-bold ${pos ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                {pos ? <TrendingDown size={13} /> : <TrendingUp size={13} />}
-                <span>{pos ? '+' : ''}{fmtEur(item.valeur)}</span>
-              </div>
-            ) : (
-              <span className="text-sm font-bold text-gray-900 dark:text-white">{fmtEur(item.valeur)}</span>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function ModeLicence({ id }) {
-  const { canWriteBudget, canDeleteBudget } = useRbac();
+function ModeLicence({ id, licence }) {
+  const { canWrite, canDelete } = useRbac({ write: 'saisir_budget', delete: 'supprimer_budget' });
   const { addToast } = useToast();
-  const annees = getAnneesDisponibles();
-  const [annee, setAnnee] = useState(annees[annees.length - 1]);
-  const [budgetLines, setBudgetLines] = useState(mockBudget);
+  const debutExercice = useDebutExercice(licence?.id_societe ?? null);
+  const [periode, setPeriode] = useState(null);
+  const [lignes, setLignes] = useState([]);
+  const [totaux, setTotaux] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [errorStatus, setErrorStatus] = useState(null);
+  const [syntheseErreur, setSyntheseErreur] = useState(null);
   const [formOpen, setFormOpen] = useState(false);
   const [ligneEnEdition, setLigneEnEdition] = useState(null);
   const [ligneASupprimer, setLigneASupprimer] = useState(null);
+  const demande = useRef(0);
 
-  const period = useMemo(() => anneeToPeriod(annee), [annee]);
+  const load = useCallback(async () => {
+    if (!periode?.dateDebut) return;
+    const jeton = ++demande.current;
+    const filtres = { ...parametresPeriode(periode), id_licence: id };
+    setIsLoading(true);
+    setError(null);
+    setErrorStatus(null);
+    setSyntheseErreur(null);
+    try {
+      const [l, s] = await Promise.all([
+        budgetService.list(filtres),
+        budgetService.synthese(filtres).catch(err => ({ erreur: err.message })),
+      ]);
+      if (jeton !== demande.current) return;
+      setLignes(l);
+      if (s?.erreur) { setTotaux(null); setSyntheseErreur(s.erreur); }
+      else setTotaux(s.totaux);
+    } catch (err) {
+      if (jeton !== demande.current) return;
+      setError(err.message);
+      setErrorStatus(err.status);
+    } finally {
+      if (jeton === demande.current) setIsLoading(false);
+    }
+  }, [periode, id]);
 
-  const lines = useMemo(
-    () => budgetLines.filter(b => b.id_licence === id && isLineInPeriod(b, period)),
-    [budgetLines, id, period]
-  );
-
-  const kpis = useMemo(() => calcBudgetKpis(lines), [lines]);
+  useEffect(() => { load(); }, [load]);
 
   function openCreate() {
     setLigneEnEdition(null);
     setFormOpen(true);
   }
 
-  function handleSave(formData) {
-    // TODO API: POST/PUT /api/budget
-    if (ligneEnEdition) {
-      setBudgetLines(prev => prev.map(b => b.id === ligneEnEdition.id ? { ...ligneEnEdition, ...formData } : b));
-      addToast({ type: 'success', message: 'Ligne budgetaire mise a jour.' });
-    } else {
-      const newId = `b-lic-${budgetLines.length + 1}`;
-      setBudgetLines(prev => [...prev, { id: newId, ...formData }]);
-      addToast({ type: 'success', message: 'Ligne budgetaire ajoutee.' });
+  async function handleConfirmDelete() {
+    try {
+      await budgetService.remove(ligneASupprimer.id);
+      addToast({ type: 'success', message: 'Ligne budgétaire supprimée.' });
+      await load();
+    } catch (err) {
+      addToast({ type: 'error', message: err.message, persistent: true });
     }
-    setLigneEnEdition(null);
   }
 
-  function handleConfirmDelete() {
-    // TODO API: DELETE /api/budget/:id
-    setBudgetLines(prev => prev.filter(b => b.id !== ligneASupprimer.id));
-    addToast({ type: 'success', message: 'Ligne budgetaire supprimee.' });
-    setLigneASupprimer(null);
-  }
-
-  const showActions = canWriteBudget || canDeleteBudget;
+  const showActions = canWrite || canDelete;
+  const licences = useMemo(() => (licence ? [licence] : []), [licence]);
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <select value={annee} onChange={e => setAnnee(Number(e.target.value))} className={SELECT_CLS} aria-label="Annee">
-          {annees.map(a => <option key={a} value={a}>{a}</option>)}
-        </select>
-        {canWriteBudget && (
+        <PeriodeSelector debutExercice={debutExercice} onChange={setPeriode} />
+        {canWrite && (
           <Button variant="primary" size="sm" onClick={openCreate}>
             <Plus size={14} /> Ajouter
           </Button>
         )}
       </div>
 
-      {lines.length === 0 ? (
+      {isLoading ? (
+        <Skeleton lines={4} />
+      ) : error ? (
+        <ErrorState message={error} status={errorStatus} onRetry={load} />
+      ) : lignes.length === 0 ? (
         <EmptyState
-          title="Aucune ligne budgetaire"
-          description={`Aucun budget saisi pour cette licence en ${annee}.`}
-          ctaLabel={canWriteBudget ? 'Ajouter une ligne' : undefined}
-          onCta={canWriteBudget ? openCreate : undefined}
+          title="Aucune ligne budgétaire"
+          description={`Aucun budget saisi pour cette licence sur ${periode?.label?.toLowerCase() ?? 'la période'}.`}
+          ctaLabel={canWrite ? 'Ajouter une ligne' : undefined}
+          onCta={canWrite ? openCreate : undefined}
         />
       ) : (
         <>
-          <MiniKpiBar kpis={kpis} />
+          <BudgetKPIBar totaux={totaux} erreur={syntheseErreur} compact />
           <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
             <table className="w-full text-sm">
               <thead>
@@ -145,25 +140,25 @@ function ModeLicence({ id }) {
                   <th className={`${TH_CLS} text-left`}>Type</th>
                   <th className={`${TH_CLS} text-right`}>CAPEX</th>
                   <th className={`${TH_CLS} text-right`}>OPEX</th>
-                  <th className={`${TH_CLS} text-left`}>Periode</th>
+                  <th className={`${TH_CLS} text-left`}>Période</th>
+                  <th className={`${TH_CLS} text-left`}>Organisation</th>
                   {showActions && <th className="w-16 px-3 py-2"></th>}
                 </tr>
               </thead>
               <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-100 dark:divide-gray-700">
-                {lines.map(b => (
+                {lignes.map(b => (
                   <tr key={b.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
                     <td className="px-3 py-2">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${b.type === 'alloue' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'}`}>
-                        {b.type === 'alloue' ? 'Alloue' : 'Previsionnel'}
-                      </span>
+                      <Badge variant={b.type === 'alloue' ? 'success' : 'neutral'}>{libelleType(b.type)}</Badge>
                     </td>
-                    <td className="px-3 py-2 text-right text-gray-700 dark:text-gray-300">{fmtEur(b.montant_CAPEX)}</td>
-                    <td className="px-3 py-2 text-right text-gray-700 dark:text-gray-300">{fmtEur(b.montant_OPEX)}</td>
-                    <td className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">{b.date_debut} au {b.date_fin}</td>
+                    <td className="px-3 py-2 text-right text-gray-700 dark:text-gray-300">{formatEuros(b.montant_capex)}</td>
+                    <td className="px-3 py-2 text-right text-gray-700 dark:text-gray-300">{formatEuros(b.montant_opex)}</td>
+                    <td className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">{formatDateIso(b.date_debut)} au {formatDateIso(b.date_fin)}</td>
+                    <td className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">{b.id_societe ? b.societe_label : 'Non déterminée'}</td>
                     {showActions && (
                       <td className="px-3 py-2">
                         <div className="flex items-center gap-1">
-                          {canWriteBudget && (
+                          {canWrite && (
                             <button
                               onClick={() => { setLigneEnEdition(b); setFormOpen(true); }}
                               aria-label="Modifier"
@@ -172,7 +167,7 @@ function ModeLicence({ id }) {
                               <Pencil size={13} />
                             </button>
                           )}
-                          {canDeleteBudget && (
+                          {canDelete && (
                             <button
                               onClick={() => setLigneASupprimer(b)}
                               aria-label="Supprimer"
@@ -195,18 +190,20 @@ function ModeLicence({ id }) {
       <BudgetFormModal
         isOpen={formOpen}
         onClose={() => { setFormOpen(false); setLigneEnEdition(null); }}
-        onSave={handleSave}
+        onSaved={() => { setLigneEnEdition(null); load(); }}
         ligne={ligneEnEdition}
-        defaultDateDebut={period.dateDebut}
-        defaultDateFin={period.dateFin}
+        licences={licences}
+        defaultDateDebut={periode?.dateDebut}
+        defaultDateFin={periode?.dateFin}
+        exercice={exerciceDePeriode(periode)}
         lockedLicenceId={id}
       />
       <ConfirmModal
         isOpen={!!ligneASupprimer}
         onClose={() => setLigneASupprimer(null)}
         onConfirm={handleConfirmDelete}
-        title="Supprimer la ligne budgetaire"
-        message="Supprimer definitivement cette ligne budgetaire ? Cette action est irreversible."
+        title="Supprimer la ligne budgétaire"
+        message="Supprimer définitivement cette ligne budgétaire ? Cette action est irréversible."
         confirmLabel="Supprimer"
         isDestructive
       />
@@ -214,86 +211,117 @@ function ModeLicence({ id }) {
   );
 }
 
-function ModeContrat({ id }) {
+function ModeContrat({ id, contrat }) {
   const navigate = useNavigate();
-  const annees = getAnneesDisponibles();
-  const [annee, setAnnee] = useState(annees[annees.length - 1]);
-  const period = useMemo(() => anneeToPeriod(annee), [annee]);
+  const debutExercice = useDebutExercice(contrat?.id_societe ?? null);
+  const [periode, setPeriode] = useState(null);
+  const [totaux, setTotaux] = useState(null);
+  const [nbLignes, setNbLignes] = useState(0);
+  const [parLicence, setParLicence] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [errorStatus, setErrorStatus] = useState(null);
+  const demande = useRef(0);
 
-  const licences = useMemo(() => getLicencesByContrat(id), [id]);
-  const licenceIds = useMemo(() => licences.map(l => l.id), [licences]);
+  const load = useCallback(async () => {
+    if (!periode?.dateDebut) return;
+    const jeton = ++demande.current;
+    const plage = parametresPeriode(periode);
+    setIsLoading(true);
+    setError(null);
+    setErrorStatus(null);
+    try {
+      const [synthese, lignes] = await Promise.all([
+        budgetService.synthese({ ...plage, id_contrat: id }),
+        budgetService.list({ ...plage, id_contrat: id }),
+      ]);
+      if (jeton !== demande.current) return;
+      setTotaux(synthese.totaux);
+      setNbLignes(lignes.length);
 
-  const lines = useMemo(
-    () => mockBudget.filter(b => licenceIds.includes(b.id_licence) && isLineInPeriod(b, period)),
-    [licenceIds, period]
-  );
+      // Repartition par licence : une synthese par licence du contrat, meme
+      // lissage que les indicateurs du contrat.
+      const licences = new Map();
+      for (const l of lignes) {
+        if (!licences.has(l.id_licence)) {
+          licences.set(l.id_licence, { id: l.id_licence, label: l.produit_label ?? l.licence_label ?? l.id_licence, lot: l.licence_label, societe_label: l.societe_label });
+        }
+      }
+      const rows = await Promise.all([...licences.values()].map(lic =>
+        budgetService.synthese({ ...plage, id_licence: lic.id }).then(s => ({ licence: lic, totaux: s.totaux }))));
+      if (jeton !== demande.current) return;
+      setParLicence(rows.filter(r => !totauxVides(r.totaux)));
+      if (!rows.length && !lignes.length) setParLicence([]);
+    } catch (err) {
+      if (jeton !== demande.current) return;
+      setError(err.message);
+      setErrorStatus(err.status);
+    } finally {
+      if (jeton === demande.current) setIsLoading(false);
+    }
+  }, [periode, id]);
 
-  const kpis = useMemo(() => calcBudgetKpis(lines), [lines]);
+  useEffect(() => { load(); }, [load]);
 
-  const breakdownRows = useMemo(() =>
-    licences.map(l => {
-      const lLines = lines.filter(b => b.id_licence === l.id);
-      const alloue = lLines.filter(b => b.type === 'alloue');
-      const prev   = lLines.filter(b => b.type === 'previsionnel');
-      const capex_alloue = prev.reduce((s, b) => s + b.montant_CAPEX, 0);
-      const capex_engage = alloue.reduce((s, b) => s + b.montant_CAPEX, 0);
-      const opex_alloue  = prev.reduce((s, b) => s + b.montant_OPEX, 0);
-      const opex_engage  = alloue.reduce((s, b) => s + b.montant_OPEX, 0);
-      const produit = mockProduits.find(p => p.id === l.id_produit);
-      return { licence: l, produit, capex_alloue, capex_engage, opex_alloue, opex_engage };
-    }).filter(r => r.capex_alloue > 0 || r.capex_engage > 0 || r.opex_alloue > 0 || r.opex_engage > 0),
-    [licences, lines]
-  );
+  // Vide seulement sans aucune ligne ni engage : des lignes a zero existent.
+  const vide = !isLoading && !error && nbLignes === 0 && totauxVides(totaux);
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <select value={annee} onChange={e => setAnnee(Number(e.target.value))} className={SELECT_CLS} aria-label="Annee">
-          {annees.map(a => <option key={a} value={a}>{a}</option>)}
-        </select>
-        <Link to={`/budget?contrat=${id}`} className="flex items-center gap-1.5 text-sm text-blue-700 dark:text-blue-400 hover:underline">
-          <ExternalLink size={14} /> Voir tout le budget
-        </Link>
+        <PeriodeSelector debutExercice={debutExercice} onChange={setPeriode} />
+        {/* Sans consulter_budget, la page Budget refuserait aussi : lien retire. */}
+        {errorStatus !== 403 && (
+          <Link to={`/budget?contrat=${id}`} className="flex items-center gap-1.5 text-sm text-blue-700 dark:text-blue-400 hover:underline">
+            <ExternalLink size={14} /> Voir tout le budget
+          </Link>
+        )}
       </div>
 
-      {lines.length === 0 ? (
+      {isLoading ? (
+        <Skeleton lines={4} />
+      ) : error ? (
+        <ErrorState message={error} status={errorStatus} onRetry={load} />
+      ) : vide ? (
         <EmptyState
-          title="Aucune ligne budgetaire"
-          description={`Aucun budget saisi pour ce contrat en ${annee}.`}
+          title="Aucune ligne budgétaire"
+          description={`Aucun budget ni engagement pour ce contrat sur ${periode?.label?.toLowerCase() ?? 'la période'}.`}
           ctaLabel="Ouvrir la page Budget"
           onCta={() => navigate(`/budget?contrat=${id}`)}
         />
       ) : (
         <>
-          <MiniKpiBar kpis={kpis} />
-          {breakdownRows.length > 0 && (
+          <BudgetKPIBar totaux={totaux} compact />
+          {parLicence.length > 0 && (
             <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600">
                     <th className={`${TH_CLS} text-left`}>Produit / Licence</th>
-                    <th className={`${TH_CLS} text-right`}>CAPEX alloue</th>
-                    <th className={`${TH_CLS} text-left`}>CAPEX engage</th>
-                    <th className={`${TH_CLS} text-right`}>OPEX alloue</th>
-                    <th className={`${TH_CLS} text-left`}>OPEX engage</th>
+                    <th className={`${TH_CLS} text-right`}>Prévisionnel CAPEX</th>
+                    <th className={`${TH_CLS} text-right`}>Prévisionnel OPEX</th>
+                    <th className={`${TH_CLS} text-right`}>Alloué CAPEX</th>
+                    <th className={`${TH_CLS} text-right`}>Alloué OPEX</th>
+                    <th className={`${TH_CLS} text-left`}>Engagé sur alloué</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-100 dark:divide-gray-700">
-                  {breakdownRows.map(r => (
+                  {parLicence.map(r => (
                     <tr key={r.licence.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
-                      <td className="px-3 py-2 font-medium text-gray-800 dark:text-gray-200">{r.produit?.label ?? r.licence.id}</td>
-                      <td className="px-3 py-2 text-right text-gray-600 dark:text-gray-400">{fmtEur(r.capex_alloue)}</td>
                       <td className="px-3 py-2">
-                        <div className="flex flex-col gap-0.5 min-w-[100px]">
-                          <span className="text-sm font-medium text-gray-800 dark:text-gray-200">{fmtEur(r.capex_engage)}</span>
-                          <BudgetProgressBar valeur={r.capex_engage} total={r.capex_alloue} />
-                        </div>
+                        <Link to={`/conformite/licences/${r.licence.id}`} className="font-medium text-blue-800 dark:text-blue-400 hover:underline">{r.licence.label}</Link>
+                        {r.licence.lot && r.licence.lot !== r.licence.label && (
+                          <span className="block text-xs text-gray-400 dark:text-gray-500">{r.licence.lot}</span>
+                        )}
                       </td>
-                      <td className="px-3 py-2 text-right text-gray-600 dark:text-gray-400">{fmtEur(r.opex_alloue)}</td>
+                      <td className="px-3 py-2 text-right text-gray-600 dark:text-gray-400">{formatEuros(r.totaux.previsionnel_capex)}</td>
+                      <td className="px-3 py-2 text-right text-gray-600 dark:text-gray-400">{formatEuros(r.totaux.previsionnel_opex)}</td>
+                      <td className="px-3 py-2 text-right text-gray-800 dark:text-gray-200">{formatEuros(r.totaux.alloue_capex)}</td>
+                      <td className="px-3 py-2 text-right text-gray-800 dark:text-gray-200">{formatEuros(r.totaux.alloue_opex)}</td>
                       <td className="px-3 py-2">
-                        <div className="flex flex-col gap-0.5 min-w-[100px]">
-                          <span className="text-sm font-medium text-gray-800 dark:text-gray-200">{fmtEur(r.opex_engage)}</span>
-                          <BudgetProgressBar valeur={r.opex_engage} total={r.opex_alloue} />
+                        <div className="flex flex-col gap-0.5 min-w-[120px]">
+                          <span className="text-sm font-medium text-gray-800 dark:text-gray-200">{formatEuros(r.totaux.engage)}</span>
+                          <BudgetProgressBar valeur={r.totaux.engage} total={r.totaux.alloue} />
                         </div>
                       </td>
                     </tr>
@@ -308,8 +336,10 @@ function ModeContrat({ id }) {
   );
 }
 
-export default function BudgetEmbeddedSection({ mode, id }) {
-  if (mode === 'licence') return <ModeLicence id={id} />;
-  if (mode === 'contrat') return <ModeContrat id={id} />;
+// licence / contrat : objet de la fiche parente (projection API), pour
+// l'organisation de reference et le libelle de la licence verrouillee.
+export default function BudgetEmbeddedSection({ mode, id, licence = null, contrat = null }) {
+  if (mode === 'licence') return <ModeLicence id={id} licence={licence} />;
+  if (mode === 'contrat') return <ModeContrat id={id} contrat={contrat} />;
   return null;
 }

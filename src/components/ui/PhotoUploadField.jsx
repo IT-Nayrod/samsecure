@@ -42,7 +42,7 @@ export default function PhotoUploadField({ value, onChange, fallback, size = 72 
           style={{ width: size, height: size }}
         >
           {value
-            ? <img src={value} alt="Apercu" className="w-full h-full rounded-full object-cover" />
+            ? <img src={value} alt="Aperçu" className="w-full h-full rounded-full object-cover" />
             : fallback
           }
           <div className="absolute inset-0 rounded-full bg-black/0 hover:bg-black/30 transition-colors flex items-center justify-center opacity-0 hover:opacity-100">
@@ -58,7 +58,7 @@ export default function PhotoUploadField({ value, onChange, fallback, size = 72 
               <Trash2 size={13} /> Supprimer la photo
             </button>
           )}
-          <p className="text-xs text-gray-400">PNG, JPG ou WEBP, 1 Mo maximum. Glisser-deposer accepte.</p>
+          <p className="text-xs text-gray-400">PNG, JPG ou WEBP, 1 Mo maximum. Glisser-déposer accepté.</p>
         </div>
       </div>
       {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}

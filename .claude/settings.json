@@ -1,9 +1,19 @@
 {
   "permissions": {
     "defaultMode": "plan",
+    "disableBypassPermissionsMode": "disable",
     "deny": [
       "Edit",
-      "Write"
+      "Write",
+      "MultiEdit",
+      "NotebookEdit",
+      "Bash(rm:*)",
+      "Bash(git push:*)",
+      "Bash(git commit:*)",
+      "Bash(sudo:*)",
+      "Bash(psql:*)",
+      "Bash(pm2:*)",
+      "Bash(npm run migrate:*)"
     ]
   },
   "useAutoModeDuringPlan": false

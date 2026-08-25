@@ -44,7 +44,7 @@ export default function FactureFormModal({ isOpen, onClose, onDone, typesPreuve,
         idCommande: form.id_commande,
         idTypePreuve: form.id_type_preuve,
       });
-      onDone({ type: 'success', message: 'Facture et justificatif enregistres.' });
+      onDone({ type: 'success', message: 'Facture et justificatif enregistrés.' });
       onClose();
     } catch (err) {
       setErreur(err.message);
@@ -57,12 +57,12 @@ export default function FactureFormModal({ isOpen, onClose, onDone, typesPreuve,
     <SlideOver
       isOpen={isOpen}
       onClose={onClose}
-      title="Deposer une facture"
+      title="Déposer une facture"
       size="md"
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={loading}>Annuler</Button>
-          <Button variant="primary" onClick={handleSave} isLoading={loading} disabled={!complet}>Deposer</Button>
+          <Button variant="primary" onClick={handleSave} isLoading={loading} disabled={!complet}>Déposer</Button>
         </>
       }
     >
@@ -73,26 +73,26 @@ export default function FactureFormModal({ isOpen, onClose, onDone, typesPreuve,
         <FormField label="Facture" required>
           <DocumentUploadField file={file} onChange={setFile} disabled={loading} />
         </FormField>
-        <FormField label="Libelle" required>
+        <FormField label="Libellé" required>
           <input className={INPUT_CLS} value={form.label} autoFocus
             onChange={e => setForm(v => ({ ...v, label: e.target.value }))} />
         </FormField>
         <FormField label="Commande" required>
           <select className={INPUT_CLS} value={form.id_commande}
             onChange={e => setForm(v => ({ ...v, id_commande: e.target.value }))}>
-            <option value="">Selectionnez une commande</option>
+            <option value="">Sélectionnez une commande</option>
             {commandes.map(k => <option key={k.id} value={k.id}>{k.label}</option>)}
           </select>
         </FormField>
-        <FormField label="Type de la preuve creee" required>
+        <FormField label="Type de la preuve créée" required>
           <select className={INPUT_CLS} value={form.id_type_preuve}
             onChange={e => setForm(v => ({ ...v, id_type_preuve: e.target.value }))}>
             {typesPreuve.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
           </select>
         </FormField>
         <p className="text-xs text-gray-500 dark:text-gray-400 -mt-2">
-          Le fichier depose devient la preuve rattachee a cette commande, et la facture y renvoie.
-          Les deux sont enregistres ensemble ou pas du tout.
+          Le fichier déposé devient la preuve rattachée à cette commande, et la facture y renvoie.
+          Les deux sont enregistrés ensemble ou pas du tout.
         </p>
       </div>
     </SlideOver>

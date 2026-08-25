@@ -1,26 +1,15 @@
 // BudgetOrgSelector - Section Budget - SamSecure v0.5
-// Composant controle : le parent (BudgetPage) porte l'etat societeId + consolider.
+// Composant controle : le parent (BudgetPage) porte l'etat societeId + consolider
+// et fournit la liste des organisations servie par /societes (id_societe_parent).
 // Expose deux callbacks : onSocieteChange(id) et onConsoliderChange(bool).
-import { mockSocietes } from '../../data/mockReferentiels';
+import { useMemo } from 'react';
+import { sortByHierarchy } from '../../utils/societeHierarchy';
 
 const SELECT_CLS = 'text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500';
 
-function buildOrgOptions(societes) {
-  const options = [];
-  function addWithChildren(soc, depth) {
-    options.push({ id: soc.id, label: soc.raison_sociale, depth });
-    societes.filter(s => s.societe_parent_id === soc.id).forEach(c => addWithChildren(c, depth + 1));
-  }
-  societes.filter(s => !s.societe_parent_id).forEach(s => addWithChildren(s, 0));
-  return options;
-}
-
-const ORG_OPTIONS = buildOrgOptions(mockSocietes);
-
-export default function BudgetOrgSelector({ societeId, consolider, onSocieteChange, onConsoliderChange }) {
-  const hasChildren = societeId
-    ? mockSocietes.some(s => s.societe_parent_id === societeId)
-    : false;
+export default function BudgetOrgSelector({ societes = [], societeId, consolider, onSocieteChange, onConsoliderChange }) {
+  const options = useMemo(() => sortByHierarchy(societes), [societes]);
+  const hasChildren = societeId ? societes.some(s => s.id_societe_parent === societeId) : false;
 
   function handleSocieteChange(id) {
     onSocieteChange(id);
@@ -36,9 +25,11 @@ export default function BudgetOrgSelector({ societeId, consolider, onSocieteChan
         aria-label="Organisation"
       >
         <option value="">Toutes les organisations</option>
-        {ORG_OPTIONS.map(opt => (
+        {/* Indentation par espaces insecables, sans glyphe : le texte de
+            l'option est aussi la valeur affichee par le selecteur ferme. */}
+        {options.map(opt => (
           <option key={opt.id} value={opt.id}>
-            {'  '.repeat(opt.depth)}{opt.depth > 0 ? '↷ ' : ''}{opt.label}
+            {'\u00A0\u00A0\u00A0'.repeat(opt.depth)}{opt.raison_sociale}
           </option>
         ))}
       </select>

@@ -100,7 +100,11 @@ export default function AppRouter() {
             <Route path="/contrats/commandes/:id" element={<CommandeDetailPage />} />
             <Route path="/contrats/factures" element={<FacturesPage />} />
             <Route path="/contrats/factures/:id" element={<DocumentDetailPage />} />
-            <Route path="/budget" element={<BudgetPage />} />
+
+            {/* Budget (#148) : la page suit consulter_budget, l'API reste l'autorite */}
+            <Route element={<ProtectedRoute requirePermission="consulter_budget" />}>
+              <Route path="/budget" element={<BudgetPage />} />
+            </Route>
 
             {/* Rapports - accessible à tout utilisateur connecté (aucun bridage) */}
             <Route path="/rapports" element={<Navigate to="/rapports/conformite" replace />} />

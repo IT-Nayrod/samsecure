@@ -18,7 +18,7 @@ import useAuth from '../../hooks/useAuth';
 import { formatDate } from '../../utils/dateUtils';
 import { setContactPhoto, removeContactPhoto } from '../../utils/contactPhotos';
 
-const TYPE_LABELS = { client: 'Client', editeur: 'Editeur', revendeur: 'Revendeur' };
+const TYPE_LABELS = { client: 'Client', editeur: 'Éditeur', revendeur: 'Revendeur' };
 
 export default function ContactDetailPage() {
   const { id } = useParams();
@@ -35,8 +35,8 @@ export default function ContactDetailPage() {
   if (!contact) {
     return (
       <div className="flex flex-col gap-6">
-        <Breadcrumb items={[{ label: 'Referentiels', to: '/referentiels/contacts' }, { label: 'Contacts', to: '/referentiels/contacts' }, { label: 'Introuvable' }]} />
-        <EmptyState title="Contact introuvable" description="Ce contact n'existe pas ou a ete supprime." ctaLabel="Retour a la liste" onCta={() => navigate('/referentiels/contacts')} />
+        <Breadcrumb items={[{ label: 'Référentiels', to: '/referentiels/contacts' }, { label: 'Contacts', to: '/referentiels/contacts' }, { label: 'Introuvable' }]} />
+        <EmptyState title="Contact introuvable" description="Ce contact n'existe pas ou a été supprimé." ctaLabel="Retour à la liste" onCta={() => navigate('/referentiels/contacts')} />
       </div>
     );
   }
@@ -47,12 +47,12 @@ export default function ContactDetailPage() {
 
   function handleValidate() {
     setContacts(prev => prev.map(c => c.id === contact.id ? { ...c, statut_validation: 'valide', motif_refus: undefined } : c));
-    addToast({ type: 'success', message: 'Contact valide.' });
+    addToast({ type: 'success', message: 'Contact validé.' });
   }
 
   function handleRefuse(motif) {
     setContacts(prev => prev.map(c => c.id === contact.id ? { ...c, statut_validation: 'refuse', motif_refus: motif } : c));
-    addToast({ type: 'info', message: 'Contact refuse.' });
+    addToast({ type: 'info', message: 'Contact refusé.' });
   }
 
   function handleSave(data, existing, photo) {
@@ -64,19 +64,19 @@ export default function ContactDetailPage() {
       statut_validation: resoumis ? 'en_attente' : 'valide',
       soumis_par: `${user.prenom} ${user.nom}`,
     } : c));
-    addToast({ type: 'success', message: resoumis ? 'Modification soumise a validation.' : 'Contact mis a jour.' });
+    addToast({ type: 'success', message: resoumis ? 'Modification soumise à validation.' : 'Contact mis à jour.' });
   }
 
   function handleDelete() {
     setContacts(prev => prev.filter(c => c.id !== contact.id));
-    addToast({ type: 'success', message: 'Contact supprime.' });
+    addToast({ type: 'success', message: 'Contact supprimé.' });
     navigate('/referentiels/contacts');
   }
 
   return (
     <div className="flex flex-col gap-6">
       <Breadcrumb items={[
-        { label: 'Referentiels', to: '/referentiels/contacts' },
+        { label: 'Référentiels', to: '/referentiels/contacts' },
         { label: 'Contacts', to: '/referentiels/contacts' },
         { label: `${contact.prenom} ${contact.nom}` },
       ]} />
@@ -101,7 +101,7 @@ export default function ContactDetailPage() {
           {canValidate && <ValidationActions statut={contact.statut_validation} onValidate={handleValidate} onRefuse={handleRefuse} />}
           {canWrite && (
             <Button variant="secondary" size="sm" onClick={() => setFormOpen(true)}>
-              <Pencil size={14} /> Editer
+              <Pencil size={14} /> Éditer
             </Button>
           )}
           {canDelete && (
@@ -118,7 +118,7 @@ export default function ContactDetailPage() {
           <p className="text-sm text-gray-800 dark:text-gray-200">{contact.email || '-'}</p>
         </div>
         <div>
-          <p className="text-xs text-gray-500 mb-1">Telephone</p>
+          <p className="text-xs text-gray-500 mb-1">Téléphone</p>
           <p className="text-sm text-gray-800 dark:text-gray-200">{contact.telephone || '-'}</p>
         </div>
         <div>
@@ -132,7 +132,7 @@ export default function ContactDetailPage() {
           </p>
         </div>
         <div>
-          <p className="text-xs text-gray-500 mb-1">Periode</p>
+          <p className="text-xs text-gray-500 mb-1">Période</p>
           <p className="text-sm text-gray-800 dark:text-gray-200">
             Du {formatDate(contact.date_debut)} {contact.date_fin ? `au ${formatDate(contact.date_fin)}` : '(en cours)'}
           </p>
@@ -148,7 +148,7 @@ export default function ContactDetailPage() {
         title="Supprimer le contact"
         isDestructive
         confirmLabel="Supprimer"
-        message={`Supprimer definitivement ${contact.prenom} ${contact.nom} ? Cette action est irreversible.`}
+        message={`Supprimer définitivement ${contact.prenom} ${contact.nom} ? Cette action est irréversible.`}
       />
     </div>
   );

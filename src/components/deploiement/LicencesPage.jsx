@@ -31,7 +31,7 @@ import { useToast } from '../../hooks/useToast';
 
 const SELECT_CLS = 'text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500';
 
-function libelleType(t) { return t === 'perpetuelle' ? 'Perpetuelle' : 'Souscription'; }
+function libelleType(t) { return t === 'perpetuelle' ? 'Perpétuelle' : 'Souscription'; }
 
 export default function LicencesPage() {
   const navigate = useNavigate();
@@ -123,7 +123,7 @@ export default function LicencesPage() {
     const parEditeur = new Map();
     for (const l of filtered) {
       const cleE = l.id_editeur ?? 'sans-editeur';
-      if (!parEditeur.has(cleE)) parEditeur.set(cleE, { id: cleE, label: l.editeur_label ?? 'Editeur non renseigne', logo: logoEditeur(l), produits: new Map() });
+      if (!parEditeur.has(cleE)) parEditeur.set(cleE, { id: cleE, label: l.editeur_label ?? 'Éditeur non renseigné', logo: logoEditeur(l), produits: new Map() });
       const e = parEditeur.get(cleE);
       if (!e.produits.has(l.id_produit)) e.produits.set(l.id_produit, { id: l.id_produit, label: l.produit_label ?? l.id_produit, droits: l.produit_droits, usage: l.produit_usage_declare, niveau: l.produit_niveau, licences: [] });
       e.produits.get(l.id_produit).licences.push(l);
@@ -157,11 +157,11 @@ export default function LicencesPage() {
       <button onClick={() => navigate(`/conformite/licences/${r.id}`)} className="font-medium text-blue-800 hover:underline text-left">{r.label ?? r.produit_label ?? r.id}</button>
     ) },
     { key: 'produit_label', label: 'Produit', sortable: true, render: r => r.produit_label ?? '-' },
-    { key: 'editeur_label', label: 'Editeur', sortable: true, render: r => r.editeur_label ?? '-' },
+    { key: 'editeur_label', label: 'Éditeur', sortable: true, render: r => r.editeur_label ?? '-' },
     { key: 'type', label: 'Type', sortable: true, render: r => libelleType(r.type) },
-    { key: 'quantite', label: 'Quantite', sortable: true, render: r => `${r.quantite} ${r.unite_label ?? ''}` },
-    { key: 'cout_licence', label: 'Cout', sortable: true, getValue: r => r.cout_licence ?? -1, csvValue: r => r.montants_masques ? 'Masque' : (r.cout_licence ?? ''), render: r => formatMontant(r.cout_licence, r.montants_masques) },
-    { key: 'statut_echeance', label: 'Echeance', sortable: true, render: r => (
+    { key: 'quantite', label: 'Quantité', sortable: true, render: r => `${r.quantite} ${r.unite_label ?? ''}` },
+    { key: 'cout_licence', label: 'Coût', sortable: true, getValue: r => r.cout_licence ?? -1, csvValue: r => r.montants_masques ? 'Masqué' : (r.cout_licence ?? ''), render: r => formatMontant(r.cout_licence, r.montants_masques) },
+    { key: 'statut_echeance', label: 'Échéance', sortable: true, render: r => (
       <span className="inline-flex items-center gap-1.5"><StatutEcheanceBadge statut={r.statut_echeance} />{r.date_fin_souscription && <span className="text-xs text-gray-500">{r.date_fin_souscription}</span>}</span>
     ) },
     { key: 'conformite', label: 'Balance produit', csvValue: r => `${r.produit_usage_declare}/${r.produit_droits} ${r.produit_niveau}`, render: r => (
@@ -194,11 +194,11 @@ export default function LicencesPage() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Licences</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Le patrimoine de droits acquis et la balance droits vs usage declare</p>
+          <p className="text-sm text-gray-500 mt-0.5">Le patrimoine de droits acquis et la balance droits vs usage déclaré</p>
         </div>
         <div className="flex items-center gap-2">
           <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
-            <button onClick={() => setVueGroupee(true)} aria-label="Vue groupee" className={`p-1.5 rounded ${vueGroupee ? 'bg-white dark:bg-gray-800 shadow-sm text-blue-800' : 'text-gray-500'}`}>
+            <button onClick={() => setVueGroupee(true)} aria-label="Vue groupée" className={`p-1.5 rounded ${vueGroupee ? 'bg-white dark:bg-gray-800 shadow-sm text-blue-800' : 'text-gray-500'}`}>
               <Layers size={15} />
             </button>
             <button onClick={() => setVueGroupee(false)} aria-label="Vue liste" className={`p-1.5 rounded ${!vueGroupee ? 'bg-white dark:bg-gray-800 shadow-sm text-blue-800' : 'text-gray-500'}`}>
@@ -215,48 +215,48 @@ export default function LicencesPage() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <DeploiementKpiCard label="Droits acquis actifs" value={kpis.droitsActifs.toLocaleString('fr-FR')} icon={Hash} color="#1F4E79" />
-        <DeploiementKpiCard label={montantsVisibles ? 'Valeur du parc' : 'Valeur du parc (masquee)'} value={montantsVisibles ? formatMontant(kpis.valeurParc) : 'Masque'} icon={Wallet} color="#7C6FCD" />
-        <DeploiementKpiCard label="Produits en depassement" value={kpis.produitsDepassement} icon={AlertTriangle} color="#EF4444" onClick={() => toggleKpi('depassement')} active={activeKpi === 'depassement'} />
-        <DeploiementKpiCard label="Echeances a traiter" value={kpis.echeances} icon={CalendarClock} color="#F59E0B" onClick={() => toggleKpi('echeances')} active={activeKpi === 'echeances'} />
+        <DeploiementKpiCard label={montantsVisibles ? 'Valeur du parc' : 'Valeur du parc (masquée)'} value={montantsVisibles ? formatMontant(kpis.valeurParc) : 'Masqué'} icon={Wallet} color="#7C6FCD" />
+        <DeploiementKpiCard label="Produits en dépassement" value={kpis.produitsDepassement} icon={AlertTriangle} color="#EF4444" onClick={() => toggleKpi('depassement')} active={activeKpi === 'depassement'} />
+        <DeploiementKpiCard label="Échéances à traiter" value={kpis.echeances} icon={CalendarClock} color="#F59E0B" onClick={() => toggleKpi('echeances')} active={activeKpi === 'echeances'} />
       </div>
 
       <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Frise des echeances de maintenance et de souscription</h2>
+        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Frise des échéances de maintenance et de souscription</h2>
         <EcheancesFrise licences={licences} />
       </section>
 
       <div className="flex flex-wrap items-center gap-3 bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
         <select value={filterEditeur} onChange={e => setFilterEditeur(e.target.value)} className={SELECT_CLS}>
-          <option value="">Tous les editeurs</option>
+          <option value="">Tous les éditeurs</option>
           {editeurs.map(e => <option key={e.id} value={e.id}>{e.label}</option>)}
         </select>
         <select value={filterType} onChange={e => setFilterType(e.target.value)} className={SELECT_CLS}>
           <option value="">Tous les types</option>
           <option value="souscription">Souscription</option>
-          <option value="perpetuelle">Perpetuelle</option>
+          <option value="perpetuelle">Perpétuelle</option>
         </select>
         <select value={filterEcheance} onChange={e => setFilterEcheance(e.target.value)} className={SELECT_CLS}>
-          <option value="">Toute echeance</option>
+          <option value="">Toute échéance</option>
           <option value="actif">Actif</option>
-          <option value="a_renouveler">A renouveler</option>
-          <option value="expire">Expire</option>
-          <option value="perpetuel">Perpetuel</option>
+          <option value="a_renouveler">À renouveler</option>
+          <option value="expire">Expiré</option>
+          <option value="perpetuel">Perpétuel</option>
         </select>
         <select value={filterConformite} onChange={e => setFilterConformite(e.target.value)} className={SELECT_CLS}>
-          <option value="">Toute conformite</option>
+          <option value="">Toute conformité</option>
           <option value="conforme">Conforme</option>
           <option value="attention">Attention</option>
-          <option value="depassement">Depassement</option>
+          <option value="depassement">Dépassement</option>
         </select>
         <select value={filterMaintenance} onChange={e => setFilterMaintenance(e.target.value)} className={SELECT_CLS}>
           <option value="">Maintenance : toutes</option>
           <option value="active">Active</option>
-          <option value="echue">Echue</option>
-          <option value="arretee">Arretee</option>
+          <option value="echue">Échue</option>
+          <option value="arretee">Arrêtée</option>
           <option value="aucune">Sans maintenance</option>
         </select>
         {hasActiveFiltres && (
-          <button onClick={resetFiltres} className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"><X size={13} /> Reinitialiser</button>
+          <button onClick={resetFiltres} className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"><X size={13} /> Réinitialiser</button>
         )}
       </div>
 
@@ -264,7 +264,7 @@ export default function LicencesPage() {
         <div className="flex flex-col gap-4">
           {groupes.length === 0 ? (
             <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-              <EmptyState title="Aucune licence" description={licences.length ? 'Aucune licence ne correspond aux filtres.' : 'Aucune licence enregistree. Creez la premiere licence du parc.'} />
+              <EmptyState title="Aucune licence" description={licences.length ? 'Aucune licence ne correspond aux filtres.' : 'Aucune licence enregistrée. Créez la première licence du parc.'} />
             </div>
           ) : groupes.map(editeur => (
             <div key={editeur.id} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
@@ -293,7 +293,7 @@ export default function LicencesPage() {
                       </div>
                       <ConformiteGaugeBar
                         droits={produit.droits} usage={produit.usage} niveau={produit.niveau}
-                        unite={produit.licences[0]?.unite_label ?? ''} label="Droits acquis vs usage declare"
+                        unite={produit.licences[0]?.unite_label ?? ''} label="Droits acquis vs usage déclaré"
                       />
                       <div className="flex flex-wrap gap-2">
                         {produit.licences.map(l => (
@@ -301,7 +301,7 @@ export default function LicencesPage() {
                             key={l.id}
                             onClick={(e) => { if (singleId) e.stopPropagation(); navigate(`/conformite/licences/${l.id}`); }}
                             className={`inline-flex items-center gap-2 text-xs px-2.5 py-1.5 rounded-lg transition-colors ${l.droits_actifs ? 'bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300' : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 line-through'}`}
-                            title={l.droits_actifs ? undefined : 'Souscription expiree, exclue de la balance'}
+                            title={l.droits_actifs ? undefined : 'Souscription expirée, exclue de la balance'}
                           >
                             {l.label ? `${l.label} - ` : ''}{l.quantite} {l.unite_label ?? ''} - {libelleType(l.type)} - {formatMontant(l.cout_licence, l.montants_masques)}
                             <StatutEcheanceBadge statut={l.statut_echeance} />
@@ -321,7 +321,7 @@ export default function LicencesPage() {
             columns={columns}
             data={filtered}
             filename="licences"
-            emptyState={{ message: licences.length ? 'Aucune licence ne correspond aux filtres.' : 'Aucune licence enregistree.' }}
+            emptyState={{ message: licences.length ? 'Aucune licence ne correspond aux filtres.' : 'Aucune licence enregistrée.' }}
             onRowClick={r => navigate(`/conformite/licences/${r.id}`)}
           />
         </div>

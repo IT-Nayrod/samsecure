@@ -115,7 +115,7 @@ export default function LicenceDetailPage() {
   async function handleDelete() {
     try {
       await licencesService.remove(id);
-      addToast({ type: 'success', message: 'Licence supprimee.' });
+      addToast({ type: 'success', message: 'Licence supprimée.' });
       navigate('/conformite/licences');
     } catch (err) {
       addToast({ type: 'error', message: err.message });
@@ -125,7 +125,7 @@ export default function LicenceDetailPage() {
   async function handleDeletePeriode() {
     try {
       await licencesService.maintenance.remove(id, periodeASupprimer.id);
-      addToast({ type: 'success', message: 'Periode de maintenance supprimee.' });
+      addToast({ type: 'success', message: 'Période de maintenance supprimée.' });
       await rechargerPeriodes();
     } catch (err) {
       addToast({ type: 'error', message: err.message });
@@ -136,7 +136,7 @@ export default function LicenceDetailPage() {
     try {
       const saved = await licencesService.reprendreMaintenance(id);
       appliquer(saved);
-      addToast({ type: 'success', message: 'Maintenance reprise, version liberee.' });
+      addToast({ type: 'success', message: 'Maintenance reprise, version libérée.' });
     } catch (err) {
       addToast({ type: 'error', message: err.message });
     }
@@ -155,7 +155,7 @@ export default function LicenceDetailPage() {
     return (
       <div className="flex flex-col gap-6">
         <Breadcrumb items={fil('Introuvable')} />
-        <EmptyState title="Licence introuvable" description="Cette licence n'existe pas ou a ete supprimee." ctaLabel="Retour a la liste" onCta={() => navigate('/conformite/licences')} />
+        <EmptyState title="Licence introuvable" description="Cette licence n'existe pas ou a été supprimée." ctaLabel="Retour à la liste" onCta={() => navigate('/conformite/licences')} />
       </div>
     );
   }
@@ -177,7 +177,7 @@ export default function LicenceDetailPage() {
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-xl font-semibold text-gray-900 dark:text-white">{titre}</h1>
-              <Badge variant={licence.type === 'perpetuelle' ? 'neutral' : 'success'} label={licence.type === 'perpetuelle' ? 'Perpetuelle' : 'Souscription'} />
+              <Badge variant={licence.type === 'perpetuelle' ? 'neutral' : 'success'} label={licence.type === 'perpetuelle' ? 'Perpétuelle' : 'Souscription'} />
               <StatutEcheanceBadge statut={licence.statut_echeance} />
               <StatutMaintenanceBadge licence={licence} compact />
             </div>
@@ -188,7 +188,7 @@ export default function LicenceDetailPage() {
         </div>
         {canWrite && (
           <div className="flex items-center gap-2">
-            <Button variant="secondary" size="sm" onClick={() => setFormOpen(true)}><Pencil size={14} /> Editer</Button>
+            <Button variant="secondary" size="sm" onClick={() => setFormOpen(true)}><Pencil size={14} /> Éditer</Button>
             {canDelete && <Button variant="secondary" size="sm" onClick={() => setDeleteOpen(true)}><Trash2 size={14} /> Supprimer</Button>}
           </div>
         )}
@@ -196,26 +196,26 @@ export default function LicenceDetailPage() {
 
       {licence.statut_echeance === 'expire' && (
         <div className="flex items-center gap-2 text-sm text-red-700 bg-red-50 dark:bg-red-900/20 dark:text-red-300 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3">
-          Souscription expiree le {licence.date_fin_souscription} : ces {licence.quantite} {licence.unite_label ?? ''} ne comptent plus dans la balance de conformite.
+          Souscription expirée le {licence.date_fin_souscription} : ces {licence.quantite} {licence.unite_label ?? ''} ne comptent plus dans la balance de conformité.
         </div>
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Identite</h2>
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Identité</h2>
           <div className="grid grid-cols-2 gap-4">
-            <Champ label="Quantite">{licence.quantite} {licence.unite_label ?? ''}</Champ>
-            <Champ label="Cout">
+            <Champ label="Quantité">{licence.quantite} {licence.unite_label ?? ''}</Champ>
+            <Champ label="Coût">
               {licence.montants_masques
-                ? <span className="inline-flex items-center gap-1 text-gray-400"><EyeOff size={13} /> Masque</span>
+                ? <span className="inline-flex items-center gap-1 text-gray-400"><EyeOff size={13} /> Masqué</span>
                 : formatMontant(licence.cout_licence)}
             </Champ>
-            <Champ label="Fin de souscription">{licence.type === 'souscription' ? (licence.date_fin_souscription ?? '-') : 'Perpetuelle'}</Champ>
+            <Champ label="Fin de souscription">{licence.type === 'souscription' ? (licence.date_fin_souscription ?? '-') : 'Perpétuelle'}</Champ>
             <Champ label="Jours restants">{licence.jours_restants ?? '-'}</Champ>
-            <Champ label="Societe payeuse">
+            <Champ label="Société payeuse">
               {licence.id_societe
                 ? <Link to={`/referentiels/organisation/${licence.id_societe}`} className="text-blue-800 hover:underline">{licence.societe_label}</Link>
-                : <span className="text-gray-500">Deduite de la commande, non renseignee</span>}
+                : <span className="text-gray-500">Déduite de la commande, non renseignée</span>}
             </Champ>
             <Champ label="Revendeur">
               {licence.id_revendeur
@@ -227,22 +227,22 @@ export default function LicenceDetailPage() {
                 ? <Link to={`/contrats/commandes/${licence.id_commande}`} className="text-blue-800 hover:underline">{licence.commande_label}</Link>
                 : <span className="text-gray-500">-</span>}
             </Champ>
-            <Champ label="Contrat (deduit de la commande)">
+            <Champ label="Contrat (déduit de la commande)">
               {licence.id_contrat
                 ? <Link to={`/contrats/liste/${licence.id_contrat}`} className="text-blue-800 hover:underline">{licence.contrat_label}</Link>
                 : <span className="text-gray-500">-</span>}
             </Champ>
-            <Champ label="Usage declare sur ce lot">{licence.usage_declare} {licence.unite_label ?? ''} ({licence.nb_affectations ?? 0} affectation(s))</Champ>
-            <Champ label="Reference produit">{licence.produit_sku ?? '-'}</Champ>
+            <Champ label="Usage déclaré sur ce lot">{licence.usage_declare} {licence.unite_label ?? ''} ({licence.nb_affectations ?? 0} affectation(s))</Champ>
+            <Champ label="Référence produit">{licence.produit_sku ?? '-'}</Champ>
           </div>
         </section>
 
         <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
           <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Balance droits vs usage (produit)</h2>
           <div className="flex flex-col gap-4">
-            <ConformiteGaugeBar droits={licence.produit_droits} usage={licence.produit_usage_declare} niveau={licence.produit_niveau} unite={licence.unite_label ?? ''} label="Droits acquis vs usage declare" />
-            <ConformiteGaugeBar droits={licence.produit_droits} usage={licence.usage_declare} niveau={licence.usage_declare > licence.quantite ? 'depassement' : 'conforme'} unite={licence.unite_label ?? ''} label="Part de ce lot dans l'usage declare" />
-            <p className="text-xs text-gray-500">Les droits comptent toutes les licences non expirees du produit, l&apos;usage toutes ses affectations. Les seuils (attention a 90 %) sont ceux de l&apos;API.</p>
+            <ConformiteGaugeBar droits={licence.produit_droits} usage={licence.produit_usage_declare} niveau={licence.produit_niveau} unite={licence.unite_label ?? ''} label="Droits acquis vs usage déclaré" />
+            <ConformiteGaugeBar droits={licence.produit_droits} usage={licence.usage_declare} niveau={licence.usage_declare > licence.quantite ? 'depassement' : 'conforme'} unite={licence.unite_label ?? ''} label="Part de ce lot dans l'usage déclaré" />
+            <p className="text-xs text-gray-500">Les droits comptent toutes les licences non expirées du produit, l&apos;usage toutes ses affectations. Les seuils (attention à 90 %) sont ceux de l&apos;API.</p>
             <div className="flex gap-3 text-xs">
               <Link to={`/conformite/licences?produit=${licence.id_produit}`} className="text-blue-800 hover:underline">Voir les lots du produit</Link>
               <Link to={`/conformite/affectations?produit=${licence.id_produit}`} className="text-blue-800 hover:underline">Voir les affectations</Link>
@@ -255,8 +255,8 @@ export default function LicenceDetailPage() {
             <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Maintenance</h2>
             {canWrite && (
               <div className="flex items-center gap-2">
-                <Button variant="secondary" size="sm" onClick={() => setPeriodeModal({ open: true, periode: null })}><Plus size={14} /> Periode</Button>
-                {peutArreter && <Button variant="secondary" size="sm" onClick={() => setArretOpen(true)}><ShieldOff size={14} /> Arreter la maintenance</Button>}
+                <Button variant="secondary" size="sm" onClick={() => setPeriodeModal({ open: true, periode: null })}><Plus size={14} /> Période</Button>
+                {peutArreter && <Button variant="secondary" size="sm" onClick={() => setArretOpen(true)}><ShieldOff size={14} /> Arrêter la maintenance</Button>}
                 {arretee && <Button variant="secondary" size="sm" onClick={() => setRepriseOpen(true)}><ShieldCheck size={14} /> Reprendre la maintenance</Button>}
               </div>
             )}
@@ -282,7 +282,7 @@ export default function LicenceDetailPage() {
           </button>
           {budgetOpen && (
             <div className="p-4 border-t border-gray-100 dark:border-gray-700">
-              <BudgetEmbeddedSection mode="licence" id={licence.id} />
+              <BudgetEmbeddedSection mode="licence" id={licence.id} licence={licence} />
             </div>
           )}
         </section>
@@ -305,19 +305,19 @@ export default function LicenceDetailPage() {
       <ConfirmModal
         isOpen={repriseOpen} onClose={() => setRepriseOpen(false)} onConfirm={handleReprise}
         title="Reprendre la maintenance"
-        message="La version figee est liberee et la licence repasse sous maintenance. L'historique n'est pas modifie : saisissez ensuite la nouvelle periode."
+        message="La version figée est libérée et la licence repasse sous maintenance. L'historique n'est pas modifié : saisissez ensuite la nouvelle période."
         confirmLabel="Reprendre"
       />
       <ConfirmModal
         isOpen={!!periodeASupprimer} onClose={() => setPeriodeASupprimer(null)} onConfirm={handleDeletePeriode}
-        title="Supprimer la periode de maintenance"
-        message={periodeASupprimer ? `Supprimer la periode du ${periodeASupprimer.date_debut} au ${periodeASupprimer.date_fin ?? 'en cours'} ?` : ''}
+        title="Supprimer la période de maintenance"
+        message={periodeASupprimer ? `Supprimer la période du ${periodeASupprimer.date_debut} au ${periodeASupprimer.date_fin ?? 'en cours'} ?` : ''}
         confirmLabel="Supprimer" isDestructive
       />
       <ConfirmModal
         isOpen={deleteOpen} onClose={() => setDeleteOpen(false)} onConfirm={handleDelete}
         title="Supprimer la licence"
-        message={`Supprimer "${titre}" ? L'historique de maintenance est supprime avec elle. Le serveur refuse si des affectations ou des lignes budgetaires y sont rattachees.`}
+        message={`Supprimer "${titre}" ? L'historique de maintenance est supprimé avec elle. Le serveur refuse si des affectations ou des lignes budgétaires y sont rattachées.`}
         confirmLabel="Supprimer" isDestructive
       />
     </div>

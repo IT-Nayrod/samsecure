@@ -39,8 +39,8 @@ export default function ImportReleveModal({ isOpen, onClose, onImported }) {
       setResultat({ import: data.import, erreurs: data.erreurs });
       onImported?.({ type: data.import.statut === 'succes' ? 'success' : 'warning',
         message: data.import.statut === 'succes'
-          ? `Import effectue : ${data.import.nb_releves} releve(s).`
-          : `Import partiel : ${data.import.nb_releves} releve(s), ${data.erreurs.length} ligne(s) en erreur.` });
+          ? `Import effectué : ${data.import.nb_releves} relevé(s).`
+          : `Import partiel : ${data.import.nb_releves} relevé(s), ${data.erreurs.length} ligne(s) en erreur.` });
     } catch (err) {
       // 4228 : aucune ligne exploitable, l'import est trace en echec et les
       // erreurs sont jointes dans details.
@@ -58,7 +58,7 @@ export default function ImportReleveModal({ isOpen, onClose, onImported }) {
   const cfg = resultat ? (IMPORT_STATUT[resultat.import?.statut] ?? IMPORT_STATUT.en_cours) : null;
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Importer un releve d'inventaire" size="md"
+    <Modal isOpen={isOpen} onClose={onClose} title="Importer un relevé d'inventaire" size="md"
       footer={resultat
         ? <Button onClick={onClose}>Fermer</Button>
         : <>
@@ -71,7 +71,7 @@ export default function ImportReleveModal({ isOpen, onClose, onImported }) {
           <div className="flex items-center gap-2">
             <Badge variant={cfg.variant} label={cfg.label} />
             <span className="text-sm text-gray-700 dark:text-gray-300">
-              {resultat.import?.nb_lignes_total ?? 0} ligne(s) lue(s), {resultat.import?.nb_releves ?? 0} releve(s) enregistre(s), {resultat.erreurs?.length ?? 0} erreur(s).
+              {resultat.import?.nb_lignes_total ?? 0} ligne(s) lue(s), {resultat.import?.nb_releves ?? 0} relevé(s) enregistré(s), {resultat.erreurs?.length ?? 0} erreur(s).
             </span>
           </div>
           {resultat.erreurs?.length > 0 && (
@@ -79,21 +79,21 @@ export default function ImportReleveModal({ isOpen, onClose, onImported }) {
               {resultat.erreurs.map(e => <li key={e.ligne}>Ligne {e.ligne} : {e.motif}</li>)}
             </ul>
           )}
-          <p className="text-xs text-gray-500">Le fichier est archive et l'import trace, y compris en echec. Aucune affectation n'a ete creee ni modifiee : le rapprochement se fait a la main depuis la liste des releves.</p>
+          <p className="text-xs text-gray-500">Le fichier est archivé et l'import tracé, y compris en échec. Aucune affectation n'a été créée ni modifiée : le rapprochement se fait à la main depuis la liste des relevés.</p>
         </div>
       ) : (
         <form id="import-releve-form" onSubmit={submit} className="flex flex-col gap-4">
-          <FormField label="Fichier csv" required hint="Colonnes attendues : produit (identifiant ou libelle), reference, quantite. Colonne societe optionnelle. 20 Mo et 10 000 lignes maximum.">
+          <FormField label="Fichier csv" required hint="Colonnes attendues : produit (identifiant ou libellé), référence, quantité. Colonne société optionnelle. 20 Mo et 10 000 lignes maximum.">
             <input type="file" accept=".csv,text/csv" onChange={e => setFile(e.target.files?.[0] ?? null)} className={inputCls} />
           </FormField>
-          <FormField label="Societe par defaut" hint="Appliquee aux lignes sans colonne societe.">
+          <FormField label="Société par défaut" hint="Appliquée aux lignes sans colonne société.">
             <select value={idSociete} onChange={e => setIdSociete(e.target.value)} className={inputCls}>
               <option value="">Aucune</option>
               {societes.map(s => <option key={s.id} value={s.id}>{s.raison_sociale}</option>)}
             </select>
           </FormField>
           {error && <p className="text-sm text-red-600">{error}</p>}
-          <p className="text-xs text-gray-500 flex items-center gap-1.5"><Upload size={13} /> Le fichier sera archive sous un nom neutre et son empreinte SHA-256 tracee.</p>
+          <p className="text-xs text-gray-500 flex items-center gap-1.5"><Upload size={13} /> Le fichier sera archivé sous un nom neutre et son empreinte SHA-256 tracée.</p>
         </form>
       )}
     </Modal>
