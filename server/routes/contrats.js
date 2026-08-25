@@ -108,6 +108,17 @@ async function validerContrat(client, body) {
     return { status: 400, code: 3011, error: "Le libelle est obligatoire." };
   if (!id_type_contrat)
     return { status: 400, code: 3012, error: "Le type de contrat est obligatoire." };
+  // Obligatoires depuis le retour de Samuel (#95). Pas de NOT NULL en base : un
+  // contrat existant qui en manque reste consultable, il n'est refuse qu'a sa
+  // prochaine modification puisque le PATCH valide l'enregistrement fusionne.
+  if (!id_editeur)
+    return { status: 400, code: 3022, error: "L'editeur est obligatoire." };
+  if (!id_societe)
+    return { status: 400, code: 3023, error: "La societe signataire est obligatoire." };
+  if (!id_revendeur)
+    return { status: 400, code: 3024, error: "Le revendeur signataire est obligatoire." };
+  if (!date_debut)
+    return { status: 400, code: 3025, error: "La date de debut est obligatoire." };
   // Doublon volontaire de ck_contrat_dates : la contrainte base produirait une
   // 23514 en 500, on veut un 400 lisible.
   if (date_debut && date_fin && date_debut > date_fin)

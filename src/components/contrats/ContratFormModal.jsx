@@ -39,6 +39,7 @@ export default function ContratFormModal({
   const { addToast } = useToast();
   const [form, setForm] = useState(EMPTY_FORM);
   const [erreurApi, setErreurApi] = useState(null);
+  const [erreurs, setErreurs] = useState({});
   const [loading, setLoading] = useState(false);
   const [draftRestaure, setDraftRestaure] = useState(false);
 
@@ -78,7 +79,23 @@ export default function ContratFormModal({
     saveDraft(draftKey, form);
   }, [form, isOpen, draftKey]);
 
+  // Champs obligatoires (#95) : le formulaire refuse d'envoyer une saisie
+  // incomplete et nomme le champ manquant ; le serveur applique la meme regle.
+  function validate() {
+    const e = {};
+    if (!form.label.trim()) e.label = 'Le libellé est obligatoire';
+    if (!form.id_type_contrat) e.id_type_contrat = 'Le type de contrat est obligatoire';
+    if (!form.id_editeur) e.id_editeur = "L'éditeur est obligatoire";
+    if (!form.id_societe) e.id_societe = 'La société signataire est obligatoire';
+    if (!form.id_revendeur) e.id_revendeur = 'Le revendeur signataire est obligatoire';
+    if (!form.date_debut) e.date_debut = 'La date de début est obligatoire';
+    return e;
+  }
+
   async function handleSave() {
+    const e = validate();
+    setErreurs(e);
+    if (Object.keys(e).length) return;
     setLoading(true);
     setErreurApi(null);
     const payload = {
@@ -150,31 +167,31 @@ export default function ContratFormModal({
             {erreurApi}
           </p>
         )}
-        <FormField label="Label" required>
+        <FormField label="Label" required error={erreurs.label}>
           <input className={INPUT_CLS} value={form.label} onChange={e => setForm(v => ({ ...v, label: e.target.value }))} />
         </FormField>
-        <FormField label="Type de contrat" required>
+        <FormField label="Type de contrat" required error={erreurs.id_type_contrat}>
           <select className={INPUT_CLS} value={form.id_type_contrat} onChange={e => setForm(v => ({ ...v, id_type_contrat: e.target.value }))}>
             <option value="">Choisir...</option>
             {typesContrat.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
           </select>
         </FormField>
-        <FormField label="Editeur" hint="Optionnel">
+        <FormField label="Editeur" required error={erreurs.id_editeur}>
           <select className={INPUT_CLS} value={form.id_editeur} onChange={e => setForm(v => ({ ...v, id_editeur: e.target.value }))}>
-            <option value="">Aucun</option>
+            <option value="">Choisir...</option>
             {editeurs.map(ed => <option key={ed.id} value={ed.id}>{ed.raison_sociale}</option>)}
           </select>
         </FormField>
         <div className="grid grid-cols-2 gap-4">
-          <FormField label="Societe signataire" hint="Signataire client">
+          <FormField label="Societe signataire" required hint="Signataire client" error={erreurs.id_societe}>
             <select className={INPUT_CLS} value={form.id_societe} onChange={e => setForm(v => ({ ...v, id_societe: e.target.value }))}>
-              <option value="">Aucune</option>
+              <option value="">Choisir...</option>
               {societes.map(s => <option key={s.id} value={s.id}>{s.raison_sociale}</option>)}
             </select>
           </FormField>
-          <FormField label="Revendeur signataire" hint="Optionnel">
+          <FormField label="Revendeur signataire" required error={erreurs.id_revendeur}>
             <select className={INPUT_CLS} value={form.id_revendeur} onChange={e => setForm(v => ({ ...v, id_revendeur: e.target.value }))}>
-              <option value="">Aucun</option>
+              <option value="">Choisir...</option>
               {revendeurs.map(r => <option key={r.id} value={r.id}>{r.raison_sociale}</option>)}
             </select>
           </FormField>
@@ -186,7 +203,7 @@ export default function ContratFormModal({
           </select>
         </FormField>
         <div className="grid grid-cols-2 gap-4">
-          <FormField label="Date de debut">
+          <FormField label="Date de debut" required error={erreurs.date_debut}>
             <input type="date" className={INPUT_CLS} value={form.date_debut} onChange={e => setForm(v => ({ ...v, date_debut: e.target.value }))} />
           </FormField>
           <FormField label="Date de fin" hint="Optionnelle (perpetuel si vide)">

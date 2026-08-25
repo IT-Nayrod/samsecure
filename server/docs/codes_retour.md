@@ -168,6 +168,10 @@ motif technique d'un echec est dans log_serveur, jamais dans audit_log.
 | 3019 | erreur | Ce rattachement creerait un cycle | POST, PATCH /api/contrats |
 | 3020 | erreur | Suppression impossible : elements lies | DELETE /api/contrats/:id |
 | 3021 | avertissement | Parent non cadre, anomalie qualite enregistree | POST, PATCH /api/contrats |
+| 3022 | erreur | L'editeur est obligatoire | POST, PATCH /api/contrats (#95) |
+| 3023 | erreur | La societe signataire est obligatoire | POST, PATCH /api/contrats (#95) |
+| 3024 | erreur | Le revendeur signataire est obligatoire | POST, PATCH /api/contrats (#95) |
+| 3025 | erreur | La date de debut est obligatoire | POST, PATCH /api/contrats (#95) |
 | 3099 | erreur | Erreur serveur inattendue (module contrats) | toutes |
 
 Le 3021 n'est pas un refus : le rattachement est accepté. Il est réservé pour que la #68 puisse, si Dorian le décide, remonter l'avertissement au front. Signalez-lui ce cas, la consigne ne prévoit de code que pour les refus.
