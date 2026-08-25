@@ -2,8 +2,9 @@
 // Donnees API. La suppression s'appuie sur le refus du serveur, pas sur un garde-fou local.
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Pencil, Trash2, XCircle } from 'lucide-react';
+import { Pencil, Trash2, XCircle, ExternalLink } from 'lucide-react';
 import { commandesService, modesCommandeService } from '../../services/commandesService';
+import { preuvesService, facturesService } from '../../services/documentsService';
 import { optionnel } from '../../services/http';
 import { contratsService, referentielsContratsService } from '../../services/contratsService';
 import { societesService } from '../../services/adminService';
@@ -36,6 +37,9 @@ export default function CommandeDetailPage() {
   const [societes, setSocietes] = useState([]);
   const [revendeurs, setRevendeurs] = useState([]);
   const [modes, setModes] = useState([]);
+  const [preuves, setPreuves] = useState([]);
+  const [factures, setFactures] = useState([]);
+  const [ouverture, setOuverture] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [errorStatus, setErrorStatus] = useState(null);
@@ -50,14 +54,19 @@ export default function CommandeDetailPage() {
     setIntrouvable(false);
     try {
       // Seule la fiche est indispensable, le reste alimente le formulaire.
-      const [k, c, s, r, m] = await Promise.all([
+      // Preuves et factures rattachees sont accessoires au meme titre : un refus
+      // de droit sur les documents laisse la fiche lisible, sans sa liste.
+      const [k, c, s, r, m, p, f] = await Promise.all([
         commandesService.get(id),
         optionnel(contratsService.list()),
         optionnel(societesService.list()),
         optionnel(referentielsContratsService.revendeurs()),
         optionnel(modesCommandeService.list()),
+        optionnel(preuvesService.list({ idCommande: id })),
+        optionnel(facturesService.list({ idCommande: id })),
       ]);
       setCommande(k); setContrats(c); setSocietes(s); setRevendeurs(r); setModes(m);
+      setPreuves(p); setFactures(f);
     } catch (err) {
       // 404 : la commande n'existe pas ou vient d'etre supprimee, pas une panne.
       if (err.status === 404) setIntrouvable(true);
@@ -72,6 +81,21 @@ export default function CommandeDetailPage() {
 
   const appliquer = useCallback(reponse => setCommande(k => appliquerStatut(k, reponse)), []);
   const { valider, refuser } = useValidation(appliquer);
+
+  // Le fichier est protege par le jeton : on le telecharge puis on ouvre l'objet
+  // URL local, comme le fait la fiche document.
+  async function ouvrirFichier(idPreuve) {
+    setOuverture(idPreuve);
+    try {
+      const url = await preuvesService.fichierUrl(idPreuve);
+      window.open(url, '_blank', 'noopener');
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (err) {
+      addToast({ type: 'error', message: err.message });
+    } finally {
+      setOuverture(null);
+    }
+  }
 
   async function handleDelete() {
     try {
@@ -217,22 +241,54 @@ export default function CommandeDetailPage() {
       </section>
 
       <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Rattachements</h2>
-        <div className="grid grid-cols-3 gap-4">
-          <div>
-            <p className="text-xs text-gray-500 mb-1">Factures</p>
-            <p className="text-sm text-gray-800 dark:text-gray-200">{commande.nb_factures ?? 0}</p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-500 mb-1">Preuves</p>
-            <p className="text-sm text-gray-800 dark:text-gray-200">{commande.nb_preuves ?? 0}</p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-500 mb-1">Licences</p>
-            <p className="text-sm text-gray-800 dark:text-gray-200">{commande.nb_licences ?? 0}</p>
-          </div>
-        </div>
-        <p className="text-xs text-gray-400 mt-3">Le detail des documents et des licences sera liste au branchement de ces modules.</p>
+        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Preuves ({preuves.length})</h2>
+        {preuves.length === 0 ? (
+          <p className="text-sm text-gray-500">Aucune preuve rattachée à cette commande.</p>
+        ) : (
+          <ul className="divide-y divide-gray-100 dark:divide-gray-700">
+            {preuves.map(p => (
+              <li key={p.id} className="flex items-center justify-between gap-3 py-2">
+                <div className="min-w-0">
+                  <Link to={`/contrats/factures/${p.id}?ressource=preuve`} className="text-sm font-medium text-blue-800 hover:underline">{p.label}</Link>
+                  <p className="text-xs text-gray-500">{p.type_label ?? '-'} · déposée le {formatDate(p.created_at)}</p>
+                </div>
+                {p.url_fichier && p.url_fichier !== 'en-attente-de-depot' && (
+                  <Button variant="secondary" size="sm" onClick={() => ouvrirFichier(p.id)} isLoading={ouverture === p.id}>
+                    <ExternalLink size={14} /> Ouvrir le fichier
+                  </Button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Factures ({factures.length})</h2>
+        {factures.length === 0 ? (
+          <p className="text-sm text-gray-500">Aucune facture rattachée à cette commande.</p>
+        ) : (
+          <ul className="divide-y divide-gray-100 dark:divide-gray-700">
+            {factures.map(f => (
+              <li key={f.id} className="flex items-center justify-between gap-3 py-2">
+                <div className="min-w-0">
+                  <Link to={`/contrats/factures/${f.id}?ressource=facture`} className="text-sm font-medium text-blue-800 hover:underline">{f.label}</Link>
+                  <p className="text-xs text-gray-500">{f.preuve_label ? `Justificatif : ${f.preuve_label}` : 'Sans justificatif'} · déposée le {formatDate(f.created_at)}</p>
+                </div>
+                {f.id_preuve && (
+                  <Button variant="secondary" size="sm" onClick={() => ouvrirFichier(f.id_preuve)} isLoading={ouverture === f.id_preuve}>
+                    <ExternalLink size={14} /> Ouvrir le fichier
+                  </Button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Licences</h2>
+        <p className="text-sm text-gray-800 dark:text-gray-200">{commande.nb_licences ?? 0} licence(s) rattachée(s)</p>
       </section>
 
       <CommandeFormModal
