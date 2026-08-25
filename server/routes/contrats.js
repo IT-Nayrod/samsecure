@@ -51,7 +51,7 @@ const SELECT_CONTRAT = `
          c.id_editeur,   e.raison_sociale AS editeur_label,
          c.id_societe,   s.raison_sociale AS societe_label,
          c.id_revendeur, r.raison_sociale AS revendeur_label,
-         c.id_contrat_parent, p.label AS parent_label,
+         c.id_contrat_parent, p.label AS parent_label, ps.raison_sociale AS parent_societe_label,
          c.date_debut::text AS date_debut, c.date_fin::text AS date_fin,
           c.a_renouveler, c.duree_resiliation,
          c.created_at, c.updated_at,
@@ -65,6 +65,7 @@ const SELECT_CONTRAT = `
   LEFT JOIN societe      s  ON s.id  = c.id_societe
   LEFT JOIN revendeur    r  ON r.id  = c.id_revendeur
   LEFT JOIN contrat      p  ON p.id  = c.id_contrat_parent
+  LEFT JOIN societe      ps ON ps.id = p.id_societe
   ${jointureStatut("contrat", "c")}`;
 
 // Colonnes metier ecrivables, dans l'ordre des parametres d'INSERT et d'UPDATE.
