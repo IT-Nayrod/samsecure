@@ -124,8 +124,9 @@ export const ROUTES_PERMISSIONS = [
 
   // ---- Module 4 : budget (#146) ---------------------------------------------
   // Lecture : consulter_budget (Admin, Manager DSI, Financier, IT Ops). Saisie
-  // et preremplissage : saisir_budget (Admin, Manager DSI, Financier ; retiree
-  // a IT Ops par les migrations 035 et 036, la US le place en lecture).
+  // et preremplissage : saisir_budget (Admin, Manager DSI, Financier, et IT
+  // Ops par la matrice 011, conservee telle quelle : la US le place en
+  // lecture, ecart a valider avec Samuel, question "IT Ops et le financier").
   // Suppression : supprimer_budget, permission propre (035 Commune, 036
   // Tenant) detenue par Admin, Manager DSI et Financier : la saisie ne vaut
   // pas droit de supprimer. Les montants ne sont pas masques dans ce module.

@@ -574,9 +574,14 @@ Routeur `server/routes/budget.js`. Socle Tenant : migration 033 (table budget
 alignee et contrainte, DEFAULT 01/01 sur societe.debut_exercice_fiscal,
 fonctions exercice_fiscal_de / _debut / _fin). Permissions : lecture
 `consulter_budget` (Admin, Manager DSI, Financier, IT Ops), saisie et
-preremplissage `saisir_budget` (Admin, Manager DSI, Financier ; retiree a IT
-Ops par les migrations 035 et 036), suppression `supprimer_budget` (nouvelle
-permission, 035 Commune et 036 Tenant : Admin, Manager DSI, Financier).
+preremplissage `saisir_budget` (Admin, Manager DSI, Financier, et IT Ops par
+la matrice 011 conservee telle quelle), suppression `supprimer_budget`
+(nouvelle permission, 035 Commune et 036 Tenant : Admin, Manager DSI,
+Financier). Ecart avec la US, qui place IT Ops en lecture : la matrice 011
+validee reste la reference tant que Samuel n'a pas tranche la question "IT
+Ops et le financier" (saisir_licence, saisir_affectation, saisir_budget,
+visibilite des montants via consulter_budget). A valider, pas de retrait
+code.
 
 Doctrine : l'organisation payeuse n'est jamais stockee ni saisie sur la ligne,
 elle se deduit de licence -> commande (d'origine) -> societe ; l'editeur est
@@ -636,10 +641,9 @@ Regles v0.5 assumees :
   licence est le montant entier des commandes d'origine, non ventile entre
   les licences d'une meme commande (hypothese v0.5, ventilation a arbitrer) ;
 - preremplissage reserve aux profils de saisie (`saisir_budget`) : la
-  projection est faite pour etre POSTee et expose les couts de maintenance ;
-  IT Ops, en lecture seule, n'y accede pas. Les codes 5130 et 5131
-  (avertissement) sont emis par l'enveloppe de succes, comme le 4211 de
-  l'inventaire ;
+  projection est faite pour etre POSTee et expose les couts de maintenance.
+  Les codes 5130 et 5131 (avertissement) sont emis par l'enveloppe de succes,
+  comme le 4211 de l'inventaire ;
 - synthese : CAPEX impute au mois de COALESCE(date_capex, date_debut), OPEX
   lisse a parts egales sur les mois de [date_debut, date_fin] ; totaux derives
   des mois, arrondis au centime ;
