@@ -25,6 +25,9 @@ import useValidation from '../../hooks/useValidation';
 import { appliquerStatut } from '../../services/validationService';
 
 function TreeNode({ contrat, depth, enfantsParParent, navigate, onValider, onRefuser, canValider }) {
+  // Racine par filtrage : le parent existe mais ne passe pas les filtres. On le
+  // nomme pour que le contrat ne semble pas orphelin.
+  const parentHorsFiltre = depth === 0 && !!contrat.id_contrat_parent;
   const [open, setOpen] = useState(depth === 0);
   const enfants = enfantsParParent.get(contrat.id) ?? [];
   const hasEnfants = enfants.length > 0;
@@ -42,6 +45,7 @@ function TreeNode({ contrat, depth, enfantsParParent, navigate, onValider, onRef
         }
         <span className="text-sm text-blue-800 hover:underline">{contrat.label}</span>
         <span className="text-xs text-gray-400">{contrat.editeur_label ?? '-'} - {contrat.societe_label ?? '-'}</span>
+        {parentHorsFiltre && <span className="text-[10px] text-gray-500 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-full">Rattaché à : {contrat.parent_label ?? '-'}</span>}
         {contrat.type_code === 'cadre' && <span className="text-[10px] font-semibold text-blue-700 bg-blue-100 dark:bg-blue-900/30 px-2 py-0.5 rounded-full">Cadre</span>}
         <StatutEcheanceBadge statut={contrat.statut_echeance} />
         <ValidationCell statut={contrat.statut_validation} motif={contrat.message_refus} />
@@ -83,9 +87,19 @@ export default function ContratsPage() {
   const [filterStatut, setFilterStatut] = useState('');
   const [filterSociete, setFilterSociete] = useState('');
   const [activeKpi, setActiveKpi] = useState(null);
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const editeurParam = searchParams.get('editeur');
   const societeParam = searchParams.get('societe');
+
+  // Un filtre venu de l'URL ne doit pas survivre au choix explicite de
+  // l'utilisateur : le retirer de l'adresse, sinon "Toutes les societes"
+  // retomberait sur le parametre.
+  function purgerParam(nom) {
+    if (!searchParams.has(nom)) return;
+    const suivants = new URLSearchParams(searchParams);
+    suivants.delete(nom);
+    setSearchParams(suivants, { replace: true });
+  }
   const [formModal, setFormModal] = useState({ open: false, contrat: null });
 
   const load = useCallback(async () => {
@@ -128,18 +142,6 @@ export default function ContratsPage() {
   }, []);
   const { valider, refuser } = useValidation(appliquer);
 
-  // Index parent -> enfants, construit une fois : l'API renvoie une liste plate.
-  const enfantsParParent = useMemo(() => {
-    const index = new Map();
-    for (const c of contrats) {
-      if (!c.id_contrat_parent) continue;
-      const fratrie = index.get(c.id_contrat_parent) ?? [];
-      fratrie.push(c);
-      index.set(c.id_contrat_parent, fratrie);
-    }
-    return index;
-  }, [contrats]);
-
   function matchesKpi(contrat, kpi) {
     const st = contrat.statut_echeance;
     if (kpi === 'actifs') return st === 'actif';
@@ -176,11 +178,30 @@ export default function ContratsPage() {
     setFilterType('');
     setFilterStatut('');
     setActiveKpi(null);
+    if (editeurParam || societeParam) setSearchParams({}, { replace: true });
   }
 
-  const hasActiveFiltres = !!(filterEditeur || filterSociete || filterType || filterStatut || activeKpi);
+  const hasActiveFiltres = !!(filterEditeur || filterSociete || filterType || filterStatut || activeKpi || editeurParam || societeParam);
 
-  const racinesArbo = useMemo(() => filtres.filter(c => !c.id_contrat_parent), [filtres]);
+  // L'arbre se construit sur la liste filtree, jamais sur la liste complete :
+  // un contrat qui passe le filtre est toujours affiche. S'il a un parent, il
+  // est rendu sous lui quand le parent passe aussi, sinon il devient racine.
+  // Sans filtre, l'ensemble filtre est la liste entiere et l'arbre est inchange.
+  const enfantsParParent = useMemo(() => {
+    const index = new Map();
+    for (const c of filtres) {
+      if (!c.id_contrat_parent) continue;
+      const fratrie = index.get(c.id_contrat_parent) ?? [];
+      fratrie.push(c);
+      index.set(c.id_contrat_parent, fratrie);
+    }
+    return index;
+  }, [filtres]);
+
+  const racinesArbo = useMemo(() => {
+    const visibles = new Set(filtres.map(c => c.id));
+    return filtres.filter(c => !c.id_contrat_parent || !visibles.has(c.id_contrat_parent));
+  }, [filtres]);
 
   const columns = [
     { key: 'label', label: 'Label', sortable: true, render: r => (
@@ -278,11 +299,11 @@ export default function ContratsPage() {
       </section>
 
       <div className="flex flex-wrap gap-3 bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
-        <select value={filterEditeur} onChange={e => setFilterEditeur(e.target.value)} className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+        <select value={filterEditeur || editeurParam || ''} onChange={e => { setFilterEditeur(e.target.value); purgerParam('editeur'); }} className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="">Tous les editeurs</option>
           {editeurs.filter(e => contrats.some(c => c.id_editeur === e.id)).map(e => <option key={e.id} value={e.id}>{e.raison_sociale}</option>)}
         </select>
-        <select value={filterSociete} onChange={e => setFilterSociete(e.target.value)} className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+        <select value={filterSociete || societeParam || ''} onChange={e => { setFilterSociete(e.target.value); purgerParam('societe'); }} className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="">Toutes les societes</option>
           {societes.map(s => <option key={s.id} value={s.id}>{s.raison_sociale}</option>)}
         </select>
