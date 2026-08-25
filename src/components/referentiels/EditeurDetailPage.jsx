@@ -34,8 +34,8 @@ export default function EditeurDetailPage() {
   if (!editeur) {
     return (
       <div className="flex flex-col gap-6">
-        <Breadcrumb items={[{ label: 'Referentiels', to: '/referentiels/editeurs' }, { label: 'Editeurs', to: '/referentiels/editeurs' }, { label: 'Introuvable' }]} />
-        <EmptyState title="Editeur introuvable" description="Cet editeur n'existe pas ou a ete supprime." ctaLabel="Retour a la liste" onCta={() => navigate('/referentiels/editeurs')} />
+        <Breadcrumb items={[{ label: 'Référentiels', to: '/referentiels/editeurs' }, { label: 'Éditeurs', to: '/referentiels/editeurs' }, { label: 'Introuvable' }]} />
+        <EmptyState title="Éditeur introuvable" description="Cet éditeur n'existe pas ou a été supprimé." ctaLabel="Retour à la liste" onCta={() => navigate('/referentiels/editeurs')} />
       </div>
     );
   }
@@ -48,12 +48,12 @@ export default function EditeurDetailPage() {
 
   function handleValidate() {
     setEditeurs(prev => prev.map(e => e.id === editeur.id ? { ...e, statut_validation: 'valide', motif_refus: undefined } : e));
-    addToast({ type: 'success', message: 'Editeur valide.' });
+    addToast({ type: 'success', message: 'Éditeur validé.' });
   }
 
   function handleRefuse(motif) {
     setEditeurs(prev => prev.map(e => e.id === editeur.id ? { ...e, statut_validation: 'refuse', motif_refus: motif } : e));
-    addToast({ type: 'info', message: 'Editeur refuse.' });
+    addToast({ type: 'info', message: 'Éditeur refusé.' });
   }
 
   function handleSave(data, existing) {
@@ -63,20 +63,20 @@ export default function EditeurDetailPage() {
       statut_validation: resoumis ? 'en_attente' : 'valide',
       soumis_par: `${user.prenom} ${user.nom}`,
     } : e));
-    addToast({ type: 'success', message: resoumis ? 'Modification soumise a validation.' : 'Editeur mis a jour.' });
+    addToast({ type: 'success', message: resoumis ? 'Modification soumise à validation.' : 'Éditeur mis à jour.' });
   }
 
   function handleDelete() {
     setEditeurs(prev => prev.filter(e => e.id !== editeur.id));
-    addToast({ type: 'success', message: 'Editeur supprime.' });
+    addToast({ type: 'success', message: 'Éditeur supprimé.' });
     navigate('/referentiels/editeurs');
   }
 
   return (
     <div className="flex flex-col gap-6">
       <Breadcrumb items={[
-        { label: 'Referentiels', to: '/referentiels/editeurs' },
-        { label: 'Editeurs', to: '/referentiels/editeurs' },
+        { label: 'Référentiels', to: '/referentiels/editeurs' },
+        { label: 'Éditeurs', to: '/referentiels/editeurs' },
         { label: editeur.raison_sociale },
       ]} />
 
@@ -100,7 +100,7 @@ export default function EditeurDetailPage() {
           {canValidate && <ValidationActions statut={editeur.statut_validation} onValidate={handleValidate} onRefuse={handleRefuse} />}
           {canWrite && (
             <Button variant="secondary" size="sm" onClick={() => setFormOpen(true)}>
-              <Pencil size={14} /> Editer
+              <Pencil size={14} /> Éditer
             </Button>
           )}
           {canDelete && (
@@ -113,9 +113,9 @@ export default function EditeurDetailPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Produits associes ({produits.length})</h2>
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Produits associés ({produits.length})</h2>
           {produits.length === 0
-            ? <p className="text-sm text-gray-500">Aucun produit du catalogue rattache.</p>
+            ? <p className="text-sm text-gray-500">Aucun produit du catalogue rattaché.</p>
             : (
               <ul className="flex flex-col gap-1.5">
                 {produits.map(p => (
@@ -128,21 +128,21 @@ export default function EditeurDetailPage() {
         </section>
 
         <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Contrats associes ({contrats.length})</h2>
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Contrats associés ({contrats.length})</h2>
           {contrats.length === 0
-            ? <p className="text-sm text-gray-500">Aucun contrat rattache.</p>
+            ? <p className="text-sm text-gray-500">Aucun contrat rattaché.</p>
             : (
               <div className="flex flex-col gap-1.5">
-                <p className="text-sm text-gray-600 dark:text-gray-300">{contrats.length} contrat{contrats.length > 1 ? 's' : ''} rattache{contrats.length > 1 ? 's' : ''}.</p>
+                <p className="text-sm text-gray-600 dark:text-gray-300">{contrats.length} contrat{contrats.length > 1 ? 's' : ''} rattaché{contrats.length > 1 ? 's' : ''}.</p>
                 <Link to={`/contrats/liste?editeur=${editeur.id}`} className="text-sm text-blue-800 hover:underline">Voir les contrats</Link>
               </div>
             )}
         </section>
 
         <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Contacts rattaches ({contacts.length})</h2>
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Contacts rattachés ({contacts.length})</h2>
           {contacts.length === 0
-            ? <p className="text-sm text-gray-500">Aucun contact rattache.</p>
+            ? <p className="text-sm text-gray-500">Aucun contact rattaché.</p>
             : (
               <ul className="flex flex-col gap-1.5">
                 {contacts.map(c => (
@@ -155,10 +155,10 @@ export default function EditeurDetailPage() {
         </section>
 
         <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Synthese conformite</h2>
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Synthèse conformité</h2>
           <div className="flex flex-col gap-2">
             <ConformiteBadge conformite={conformite} />
-            <Link to={`/conformite/licences?editeur=${editeur.id}`} className="text-sm text-blue-800 hover:underline">Voir le detail dans le Dashboard</Link>
+            <Link to={`/conformite/licences?editeur=${editeur.id}`} className="text-sm text-blue-800 hover:underline">Voir le détail dans le Dashboard</Link>
           </div>
         </section>
       </div>
@@ -169,13 +169,13 @@ export default function EditeurDetailPage() {
         isOpen={deleteOpen}
         onClose={() => setDeleteOpen(false)}
         onConfirm={nbLiens > 0 ? () => setDeleteOpen(false) : handleDelete}
-        title="Supprimer l'editeur"
+        title="Supprimer l'éditeur"
         isDestructive={nbLiens === 0}
         confirmLabel={nbLiens > 0 ? 'Compris' : 'Supprimer'}
         message={
           nbLiens > 0
-            ? `Suppression impossible : ${editeur.raison_sociale} est rattache a ${produits.length} produit${produits.length > 1 ? 's' : ''} et ${contrats.length} contrat${contrats.length > 1 ? 's' : ''}. Detachez ou supprimez d'abord ces elements.`
-            : `Supprimer definitivement ${editeur.raison_sociale} ? Cette action est irreversible.`
+            ? `Suppression impossible : ${editeur.raison_sociale} est rattaché à ${produits.length} produit${produits.length > 1 ? 's' : ''} et ${contrats.length} contrat${contrats.length > 1 ? 's' : ''}. Détachez ou supprimez d'abord ces éléments.`
+            : `Supprimer définitivement ${editeur.raison_sociale} ? Cette action est irréversible.`
         }
       />
     </div>

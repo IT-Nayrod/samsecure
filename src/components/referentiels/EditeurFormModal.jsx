@@ -44,7 +44,7 @@ export default function EditeurFormModal({ isOpen, onClose, onSave, editeur, exi
     if (reqErr) e.raison_sociale = reqErr;
     else {
       const dup = existingEditeurs.some(ed => ed.id !== editeur?.id && ed.raison_sociale.trim().toLowerCase() === form.raison_sociale.trim().toLowerCase());
-      if (dup) e.raison_sociale = 'Un editeur avec cette raison sociale existe deja';
+      if (dup) e.raison_sociale = 'Un éditeur avec cette raison sociale existe déjà';
     }
     return e;
   }
@@ -66,11 +66,11 @@ export default function EditeurFormModal({ isOpen, onClose, onSave, editeur, exi
     <SlideOver
       isOpen={isOpen}
       onClose={onClose}
-      title={isEdit ? 'Modifier l\'editeur' : 'Nouvel editeur'}
+      title={isEdit ? 'Modifier l\'éditeur' : 'Nouvel éditeur'}
       size="sm"
       banner={draftRestaure && (
         <p className="text-xs text-blue-700 dark:text-blue-300 flex items-center justify-between gap-2">
-          Brouillon restaure depuis votre derniere saisie.
+          Brouillon restauré depuis votre dernière saisie.
           <button onClick={() => { clearDraft(draftKey); setForm(editeur ? form : EMPTY_FORM); setDraftRestaure(false); }} className="underline hover:no-underline flex-shrink-0">Vider le brouillon</button>
         </p>
       )}

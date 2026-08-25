@@ -13,8 +13,8 @@ import { loadDraft, saveDraft, clearDraft } from '../../utils/formDraft';
 const INPUT_CLS = 'w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white';
 
 const TYPES_RATTACHEMENT = [
-  { value: 'client', label: 'Client (societe du groupe)' },
-  { value: 'editeur', label: 'Editeur' },
+  { value: 'client', label: 'Client (société du groupe)' },
+  { value: 'editeur', label: 'Éditeur' },
   { value: 'revendeur', label: 'Revendeur' },
 ];
 
@@ -71,14 +71,14 @@ export default function ContactFormModal({ isOpen, onClose, onSave, contact }) {
     const e = {};
     const nomErr = validateRequired(form.nom, 'Le nom');
     if (nomErr) e.nom = nomErr;
-    const prenomErr = validateRequired(form.prenom, 'Le prenom');
+    const prenomErr = validateRequired(form.prenom, 'Le prénom');
     if (prenomErr) e.prenom = prenomErr;
     if (form.email) { const m = validateEmail(form.email); if (m) e.email = m; }
     if (form.telephone) { const p = validatePhoneFr(form.telephone); if (p) e.telephone = p; }
     if (!form.type_rattachement) e.type_rattachement = 'Le type de rattachement est requis';
-    if (!form.id_rattachement) e.id_rattachement = 'L\'entite de rattachement est requise';
+    if (!form.id_rattachement) e.id_rattachement = 'L\'entité de rattachement est requise';
     if (form.date_fin && form.date_debut && form.date_fin < form.date_debut) {
-      e.date_fin = 'La date de fin doit etre posterieure ou egale a la date de debut';
+      e.date_fin = 'La date de fin doit être postérieure ou égale à la date de début';
     }
     return e;
   }
@@ -105,7 +105,7 @@ export default function ContactFormModal({ isOpen, onClose, onSave, contact }) {
       size="md"
       banner={draftRestaure && (
         <p className="text-xs text-blue-700 dark:text-blue-300 flex items-center justify-between gap-2">
-          Brouillon restaure depuis votre derniere saisie.
+          Brouillon restauré depuis votre dernière saisie.
           <button onClick={() => { clearDraft(draftKey); setForm(contact ? form : EMPTY_FORM); setDraftRestaure(false); }} className="underline hover:no-underline flex-shrink-0">Vider le brouillon</button>
         </p>
       )}
@@ -136,7 +136,7 @@ export default function ContactFormModal({ isOpen, onClose, onSave, contact }) {
           <FormField label="Nom" required error={errors.nom}>
             <input className={INPUT_CLS} value={form.nom} onChange={e => { setForm(v => ({ ...v, nom: e.target.value })); setErrors(v => ({ ...v, nom: null })); }} />
           </FormField>
-          <FormField label="Prenom" required error={errors.prenom}>
+          <FormField label="Prénom" required error={errors.prenom}>
             <input className={INPUT_CLS} value={form.prenom} onChange={e => { setForm(v => ({ ...v, prenom: e.target.value })); setErrors(v => ({ ...v, prenom: null })); }} />
           </FormField>
         </div>
@@ -144,7 +144,7 @@ export default function ContactFormModal({ isOpen, onClose, onSave, contact }) {
           <FormField label="Email" error={errors.email}>
             <input type="email" className={INPUT_CLS} value={form.email} onChange={e => { setForm(v => ({ ...v, email: e.target.value })); setErrors(v => ({ ...v, email: null })); }} />
           </FormField>
-          <FormField label="Telephone" error={errors.telephone}>
+          <FormField label="Téléphone" error={errors.telephone}>
             <input className={INPUT_CLS} value={form.telephone} onChange={e => { setForm(v => ({ ...v, telephone: e.target.value })); setErrors(v => ({ ...v, telephone: null })); }} />
           </FormField>
         </div>
@@ -165,7 +165,7 @@ export default function ContactFormModal({ isOpen, onClose, onSave, contact }) {
               {TYPES_RATTACHEMENT.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
           </FormField>
-          <FormField label="Entite de rattachement" required error={errors.id_rattachement}>
+          <FormField label="Entité de rattachement" required error={errors.id_rattachement}>
             <select
               className={INPUT_CLS}
               value={form.id_rattachement}
@@ -178,7 +178,7 @@ export default function ContactFormModal({ isOpen, onClose, onSave, contact }) {
           </FormField>
         </div>
         <div className="grid grid-cols-2 gap-4">
-          <FormField label="Date de debut">
+          <FormField label="Date de début">
             <input type="date" className={INPUT_CLS} value={form.date_debut} onChange={e => setForm(v => ({ ...v, date_debut: e.target.value }))} />
           </FormField>
           <FormField label="Date de fin" error={errors.date_fin} hint="Optionnelle">

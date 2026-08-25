@@ -92,7 +92,7 @@ export default function ProduitFormModal({ isOpen, onClose, onSave, produit, all
       size="sm"
       banner={draftRestaure && (
         <p className="text-xs text-blue-700 dark:text-blue-300 flex items-center justify-between gap-2">
-          Brouillon restaure depuis votre derniere saisie.
+          Brouillon restauré depuis votre dernière saisie.
           <button onClick={() => { clearDraft(draftKey); setForm(produit ? form : EMPTY_FORM); setDraftRestaure(false); }} className="underline hover:no-underline flex-shrink-0">Vider le brouillon</button>
         </p>
       )}
@@ -104,10 +104,10 @@ export default function ProduitFormModal({ isOpen, onClose, onSave, produit, all
       }
     >
       <div className="flex flex-col gap-4">
-        <FormField label="Label" required error={errors.label}>
+        <FormField label="Libellé" required error={errors.label}>
           <input className={INPUT_CLS} value={form.label} onChange={e => { setForm(v => ({ ...v, label: e.target.value })); setErrors(v => ({ ...v, label: null })); }} />
         </FormField>
-        <FormField label="Editeur" hint="Optionnel">
+        <FormField label="Éditeur" hint="Optionnel">
           <select className={INPUT_CLS} value={form.id_editeur} onChange={e => setForm(v => ({ ...v, id_editeur: e.target.value }))}>
             <option value="">Aucun</option>
             {mockEditeurs.map(ed => <option key={ed.id} value={ed.id}>{ed.raison_sociale}</option>)}
@@ -119,7 +119,7 @@ export default function ProduitFormModal({ isOpen, onClose, onSave, produit, all
             {parentOptions.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
           </select>
         </FormField>
-        <FormField label="Maintenance" hint="Donne droit aux montees de version">
+        <FormField label="Maintenance" hint="Donne droit aux montées de version">
           <label className="flex items-center gap-3 pt-1 cursor-pointer">
             <div
               onClick={() => setForm(v => ({ ...v, a_maintenir: !v.a_maintenir }))}
@@ -127,7 +127,7 @@ export default function ProduitFormModal({ isOpen, onClose, onSave, produit, all
             >
               <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${form.a_maintenir ? 'translate-x-5' : ''}`} />
             </div>
-            <span className="text-sm text-gray-700 dark:text-gray-300">{form.a_maintenir ? 'A maintenir' : 'Non maintenu'}</span>
+            <span className="text-sm text-gray-700 dark:text-gray-300">{form.a_maintenir ? 'À maintenir' : 'Non maintenu'}</span>
           </label>
         </FormField>
       </div>
