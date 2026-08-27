@@ -694,6 +694,7 @@ par le circuit unique de la #53, avec ses propres codes 3300-3314.
 | 5202 | succes | Editeur cree | POST /api/editeurs |
 | 5203 | succes | Editeur modifie | PATCH /api/editeurs/:id |
 | 5204 | succes | Editeur supprime | DELETE /api/editeurs/:id |
+| 5205 | succes | Suggestions d'editeurs | GET /api/editeurs/recherche |
 | 5210 | erreur | Editeur introuvable | GET/PATCH/DELETE /api/editeurs/:id |
 | 5211 | erreur | La raison sociale est obligatoire | POST, PATCH /api/editeurs |
 | 5212 | erreur | Un editeur porte deja cette raison sociale | POST, PATCH /api/editeurs |
@@ -757,3 +758,25 @@ Points de lecture :
 - a_maintenir a disparu de l'ecran Logiciels : le modele ne le porte plus sur le
   produit depuis la modif 12, la maintenance est un choix client porte par la
   licence.
+
+Recherche incrementale des editeurs (code 5205, migration Commune 042) :
+
+- `GET /api/editeurs/recherche?q=&exclure=&limite=` sert les editeurs deja
+  references qui correspondent au texte saisi, au fil de la frappe. Le
+  referentiel peut compter des milliers de lignes : personne ne peut verifier de
+  visu qu'un editeur en est absent, et le doublon nait de cette impossibilite,
+  pas d'une inattention. Les suggestions se montrent donc pendant la saisie, la
+  ou l'erreur se commet, et non a l'enregistrement ou l'unicite ne rendrait
+  qu'un 5212 apres coup ;
+- reponse `{ suggestions, total }`. Volontairement pauvre : ni compteurs ni
+  conformite, contrairement a 5200, qui interroge les deux bases. Une frappe ne
+  doit couter qu'une requete bornee. `total` porte le nombre de correspondances
+  au-dela des `limite` servies (8 par defaut, 25 au plus) ;
+- `exclure` ecarte l'editeur en cours de modification, qui ne se signale pas a
+  lui-meme comme un doublon de lui-meme ; `exact` marque la correspondance a la
+  casse pres, celle que la base refusera ;
+- les jokers ILIKE (`%`, `_`) sont echappes : un client tapant "100%" cherche ce
+  texte, il n'interroge pas le referentiel avec un joker ;
+- route litterale declaree avant `/editeurs/:id`, qui capturerait sinon
+  "recherche" comme un identifiant, cote routeur comme cote
+  routesPermissions.js.

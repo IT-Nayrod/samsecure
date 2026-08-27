@@ -229,6 +229,77 @@ router.get("/editeurs", async (req, res) => {
   }
 });
 
+// Recherche incrementale, appelee au fil de la frappe par le formulaire.
+//
+// Raison d'etre : le referentiel peut compter des milliers d'editeurs. Personne
+// ne peut verifier de visu qu'un editeur en est absent, et le doublon nait de
+// cette impossibilite, pas d'une inattention. Montrer les correspondances
+// pendant la saisie evite la creation en double, la contrainte d'unicite
+// n'arrivant sinon qu'a l'enregistrement, une fois le formulaire rempli.
+//
+// Volontairement pauvre et rapide : ni compteurs ni conformite, contrairement a
+// la liste, qui interroge les deux bases. Une frappe ne doit couter qu'une
+// seule requete, bornee par LIMIT.
+//
+// Montee en charge : le joker en tete du ILIKE interdit l'usage de
+// uq_editeur_raison_sociale, la recherche est donc un parcours sequentiel. Sur
+// quelques milliers de lignes il se compte en millisecondes et le debounce du
+// front espace les appels. Au-dela, la reponse est un index trigramme :
+//   CREATE EXTENSION pg_trgm;
+//   CREATE INDEX idx_editeur_raison_sociale_trgm
+//     ON editeur USING gin (raison_sociale gin_trgm_ops);
+// Non pose ici : l'extension demande des droits que le role applicatif n'a pas
+// forcement, et la mesure doit preceder l'optimisation.
+//
+// Declaree avant /editeurs/:id : la route parametree capturerait sinon
+// "recherche" comme un identifiant. Meme regle cote routesPermissions.js.
+router.get("/editeurs/recherche", async (req, res) => {
+  try {
+    const brut = typeof req.query.q === "string" ? req.query.q.trim() : "";
+    // Une saisie vide ne suggere rien : renvoyer le referentiel entier a chaque
+    // ouverture du formulaire n'aiderait personne et couterait cher.
+    if (!brut) return succes(res, 5205, { suggestions: [], total: 0 });
+
+    // % et _ sont les jokers de ILIKE : sans echappement, un client tapant
+    // "100%" interrogerait le referentiel avec un joker au milieu de son texte.
+    const motif = brut.replace(/([\\%_])/g, "\\$1");
+
+    // exclure : l'editeur en cours de modification ne se signale pas a
+    // lui-meme comme un doublon de lui-meme.
+    const exclu = UUID_RE.test(String(req.query.exclure ?? "")) ? req.query.exclure : null;
+    const limite = Math.min(Math.max(parseInt(req.query.limite, 10) || 8, 1), 25);
+
+    // count(*) OVER () : le total des correspondances sans seconde requete, pour
+    // que l'ecran puisse dire combien de resultats ne sont pas montres.
+    // L'ordre place la correspondance exacte en tete, puis celles qui commencent
+    // par le texte saisi, puis le reste.
+    const { rows } = await tenantPool.query(
+      `SELECT e.id, e.raison_sociale, e.pays, e.url_logo_defaut, e.url_logo_custom,
+              lower(e.raison_sociale) = lower($1) AS exact,
+              count(*) OVER ()::int AS total
+         FROM editeur e
+        WHERE e.raison_sociale ILIKE '%' || $2 || '%' ESCAPE '\\'
+          AND ($3::uuid IS NULL OR e.id <> $3)
+        ORDER BY CASE
+                   WHEN lower(e.raison_sociale) = lower($1)      THEN 0
+                   WHEN e.raison_sociale ILIKE $2 || '%' ESCAPE '\\' THEN 1
+                   ELSE 2
+                 END,
+                 e.raison_sociale
+        LIMIT $4`,
+      [brut, motif, exclu, limite]);
+
+    const total = rows.length ? rows[0].total : 0;
+    succes(res, 5205, {
+      suggestions: rows.map(({ total: _total, ...e }) => e),
+      total,
+    });
+  } catch (err) {
+    console.error("GET /editeurs/recherche error", err);
+    erreur(res, 5299, { status: 500, message: "Erreur serveur" });
+  }
+});
+
 router.get("/editeurs/:id", async (req, res) => {
   const { id } = req.params;
   try {

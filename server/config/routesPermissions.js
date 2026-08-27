@@ -157,6 +157,9 @@ export const ROUTES_PERMISSIONS = [
   // Lecture et ecriture separees par le meme couple que les societes.
   // Les chemins litteraux precedent les chemins parametres, et les
   // declinaisons precedent /logiciels/:id : la premiere regle qui matche gagne.
+  // Recherche incrementale du formulaire editeur : litterale, donc declaree
+  // avant /editeurs/:id qui capturerait sinon "recherche" comme identifiant.
+  ["GET",    "/editeurs/recherche",          "consulter_referentiels"],
   ["GET",    "/editeurs/:id",                "consulter_referentiels"],
   ["POST",   "/editeurs",                    "gerer_referentiels"],
   ["PATCH",  "/editeurs/:id",                "gerer_referentiels"],

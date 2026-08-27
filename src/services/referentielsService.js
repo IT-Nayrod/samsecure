@@ -17,6 +17,17 @@ export const editeursService = {
   create: (payload)     => http.post('/editeurs', payload),
   update: (id, payload) => http.patch(`/editeurs/${id}`, payload),
   remove: (id)          => http.delete(`/editeurs/${id}`),
+
+  // Recherche incrementale du formulaire, appelee au fil de la frappe. Sert une
+  // reponse pauvre et bornee ({ suggestions, total }), sans les compteurs ni la
+  // conformite de list() : une frappe ne doit pas couter une lecture des deux
+  // bases. exclure ecarte l'editeur en cours de modification.
+  rechercher: (q, { exclure, limite } = {}) => {
+    const params = new URLSearchParams({ q });
+    if (exclure) params.set('exclure', exclure);
+    if (limite) params.set('limite', String(limite));
+    return http.get(`/editeurs/recherche?${params.toString()}`);
+  },
 };
 
 export const logicielsService = {
