@@ -3,21 +3,21 @@
 // Chaque entree lit une source de donnees existante (aucune copie), declare ses champs cherchables,
 // le contexte affiche dans le resultat, et les routes de destination (detail si elle existe, sinon liste).
 import {
-  Building, Building2, Store, Users, Package, FileText, ShoppingCart, Receipt, Shield, Tag, Database,
+  Building, Building2, Store, Users, Package, FileText, ShoppingCart, Receipt, Shield, Tag,
 } from 'lucide-react';
 import {
   mockSocietes, mockEditeurs, mockRevendeurs, mockContacts, mockProduits, mockFonctions,
   getProduitsByEditeur, getRattachementInfo,
 } from './mockReferentiels';
 import { mockContrats, mockCommandes, mockDocuments, getEditeurLabel, getSocieteLabelContrat } from './mockContrats';
-import { mockLicences, mockAffectations, mockInventaireRaw } from './mockDeploiement';
+import { mockLicences, mockAffectations } from './mockDeploiement';
 
 function produitLabel(idProduit) {
   return mockProduits.find(p => p.id === idProduit)?.label ?? 'Produit inconnu';
 }
 
 function societeLabel(idSociete) {
-  return mockSocietes.find(s => s.id === idSociete)?.raison_sociale ?? 'Societe inconnue';
+  return mockSocietes.find(s => s.id === idSociete)?.raison_sociale ?? 'Société inconnue';
 }
 
 export const SEARCH_REGISTRY = [
@@ -30,14 +30,14 @@ export const SEARCH_REGISTRY = [
     getResultLabel: item => item.raison_sociale,
     getContext: item => {
       const parent = mockSocietes.find(s => s.id === item.societe_parent_id);
-      return `SIRET ${item.siret} - ${parent ? parent.raison_sociale : 'Societe mere'}`;
+      return `SIRET ${item.siret} - ${parent ? parent.raison_sociale : 'Société mère'}`;
     },
     getDetailPath: item => `/referentiels/organisation/${item.id}`,
     getListPath: () => '/referentiels/organisation',
   },
   {
     key: 'editeurs',
-    label: 'Editeurs',
+    label: 'Éditeurs',
     icon: Building2,
     getData: () => mockEditeurs,
     fields: item => [item.raison_sociale],
@@ -141,19 +141,11 @@ export const SEARCH_REGISTRY = [
     getDetailPath: item => `/conformite/affectations/${item.id}`,
     getListPath: () => '/conformite/affectations',
   },
-  {
-    key: 'inventaire',
-    label: 'Inventaire',
-    icon: Database,
-    getData: () => mockInventaireRaw,
-    fields: item => [produitLabel(item.id_produit), item.connecteur],
-    getResultLabel: item => `${produitLabel(item.id_produit)} - ${societeLabel(item.id_societe)}`,
-    getContext: item => `${item.connecteur} - ${item.quantite_detectee} detectes`,
-    getDetailPath: item => `/conformite/inventaire/${item.id}`,
-    getListPath: () => '/conformite/inventaire',
-  },
 ];
 
+// Remarque : l'entrée "Inventaire" a été retirée de la recherche globale (#111) :
+// les relevés sont servis par l'API, plus par un mock, et la recherche globale
+// n'indexe que des données locales.
 // Remarque : l'entrée "Utilisateurs" a été retirée de la recherche globale.
 // Elle indexait src/data/mockUsers.js, qui n'est plus la source de vérité
 // depuis le passage aux données réelles (voir Administration > Utilisateurs).

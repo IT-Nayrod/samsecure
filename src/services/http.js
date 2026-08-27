@@ -6,12 +6,35 @@ const REFRESH_KEY = 'ss_refresh_token';
 let accessToken = null;
 let refreshPromise = null;
 
+// code : code numerique du catalogue code_retour (#68), null si la reponse
+// n'est pas enveloppee (routes hors module 2, corps non JSON). details : le
+// complement structure eventuel (bloquants d'une suppression, permission
+// requise, statut courant d'une validation).
 export class ApiError extends Error {
-  constructor(message, status) {
+  constructor(message, status, code = null, details = null) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
+    this.code = code;
+    this.details = details;
   }
+}
+
+// Enveloppe normalisee (#68) : { code, type, libelle, data } en succes,
+// { code, type, libelle, error, details? } en erreur. Les services recoivent
+// data tel quel, comme avant l'enveloppe ; une reponse nue (route non encore
+// enveloppee) est rendue telle quelle.
+function deballer(data) {
+  if (data && typeof data === 'object' && !Array.isArray(data)
+      && data.type === 'succes' && 'code' in data && 'data' in data) {
+    return data.data;
+  }
+  return data;
+}
+
+function erreurApi(data, status) {
+  return new ApiError(data?.error || 'Une erreur est survenue.', status,
+    data?.code ?? null, data?.details ?? null);
 }
 
 export class SessionExpiredError extends Error {
@@ -90,9 +113,9 @@ async function request(path, { method = 'GET', body, retry = true } = {}) {
   }
 
   if (!res.ok) {
-    throw new ApiError(data?.error || 'Une erreur est survenue.', res.status);
+    throw erreurApi(data, res.status);
   }
-  return data;
+  return deballer(data);
 }
 
 // Un 403 sur une ressource accessoire ne doit pas condamner l'ecran entier :
@@ -148,8 +171,8 @@ async function requestForm(path, formData, { retry = true } = {}) {
   } catch {
     // pas de corps JSON
   }
-  if (!res.ok) throw new ApiError(data?.error || 'Une erreur est survenue.', res.status);
-  return data;
+  if (!res.ok) throw erreurApi(data, res.status);
+  return deballer(data);
 }
 
 // Recuperation d'un fichier protege. Un lien <a href> ne conviendrait pas : le
@@ -178,7 +201,7 @@ async function requestBlob(path, { retry = true } = {}) {
   if (!res.ok) {
     let data = null;
     try { data = await res.json(); } catch { /* corps non JSON */ }
-    throw new ApiError(data?.error || 'Une erreur est survenue.', res.status);
+    throw erreurApi(data, res.status);
   }
   return res.blob();
 }

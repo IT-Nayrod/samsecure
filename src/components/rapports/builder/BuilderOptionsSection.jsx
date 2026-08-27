@@ -22,7 +22,7 @@ export default function BuilderOptionsSection({ options, onChange }) {
           type="text"
           value={options.titre ?? ''}
           onChange={e => update({ titre: e.target.value })}
-          placeholder="Mon rapport personnalise"
+          placeholder="Mon rapport personnalisé"
           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white placeholder-gray-400"
         />
       </div>
@@ -57,7 +57,7 @@ export default function BuilderOptionsSection({ options, onChange }) {
             onChange={e => update({ afficherNumerosLignes: e.target.checked })}
             className="rounded border-gray-300 text-indigo-600 w-4 h-4"
           />
-          <span className="text-sm text-gray-700 dark:text-gray-300">Afficher les numeros de lignes</span>
+          <span className="text-sm text-gray-700 dark:text-gray-300">Afficher les numéros de lignes</span>
         </label>
       </div>
     </div>

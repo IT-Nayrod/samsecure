@@ -74,7 +74,7 @@ export default function BuilderGroupSection({ champs, champsNumeriques, groupeme
       {/* Agregats sur champs numeriques */}
       {groupement && champsNumeriques.length > 0 && (
         <div>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Agregats</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Agrégats</p>
           <div className="space-y-2">
             {champsNumeriques.map(c => (
               <div key={c.key} className="flex items-center gap-1 flex-wrap">

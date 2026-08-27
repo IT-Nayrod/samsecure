@@ -13,7 +13,7 @@ export default function useValidation(onTraite) {
       const reponse = action === 'valider'
         ? await validationService.valider(entiteType, id)
         : await validationService.refuser(entiteType, id, motif);
-      addToast({ type: 'success', message: action === 'valider' ? 'Saisie validee.' : 'Saisie refusee.' });
+      addToast({ type: 'success', message: action === 'valider' ? 'Saisie validée.' : 'Saisie refusée.' });
       onTraite(reponse);
       return reponse;
     } catch (err) {

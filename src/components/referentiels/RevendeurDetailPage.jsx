@@ -37,8 +37,8 @@ export default function RevendeurDetailPage() {
   if (!revendeur) {
     return (
       <div className="flex flex-col gap-6">
-        <Breadcrumb items={[{ label: 'Referentiels', to: '/referentiels/revendeurs' }, { label: 'Revendeurs', to: '/referentiels/revendeurs' }, { label: 'Introuvable' }]} />
-        <EmptyState title="Revendeur introuvable" description="Ce revendeur n'existe pas ou a ete supprime." ctaLabel="Retour a la liste" onCta={() => navigate('/referentiels/revendeurs')} />
+        <Breadcrumb items={[{ label: 'Référentiels', to: '/referentiels/revendeurs' }, { label: 'Revendeurs', to: '/referentiels/revendeurs' }, { label: 'Introuvable' }]} />
+        <EmptyState title="Revendeur introuvable" description="Ce revendeur n'existe pas ou a été supprimé." ctaLabel="Retour à la liste" onCta={() => navigate('/referentiels/revendeurs')} />
       </div>
     );
   }
@@ -50,12 +50,12 @@ export default function RevendeurDetailPage() {
 
   function handleValidate() {
     setRevendeurs(prev => prev.map(r => r.id === revendeur.id ? { ...r, statut_validation: 'valide', motif_refus: undefined } : r));
-    addToast({ type: 'success', message: 'Revendeur valide.' });
+    addToast({ type: 'success', message: 'Revendeur validé.' });
   }
 
   function handleRefuse(motif) {
     setRevendeurs(prev => prev.map(r => r.id === revendeur.id ? { ...r, statut_validation: 'refuse', motif_refus: motif } : r));
-    addToast({ type: 'info', message: 'Revendeur refuse.' });
+    addToast({ type: 'info', message: 'Revendeur refusé.' });
   }
 
   function handleSave(data, existing) {
@@ -65,19 +65,19 @@ export default function RevendeurDetailPage() {
       statut_validation: resoumis ? 'en_attente' : 'valide',
       soumis_par: `${user.prenom} ${user.nom}`,
     } : r));
-    addToast({ type: 'success', message: resoumis ? 'Modification soumise a validation.' : 'Revendeur mis a jour.' });
+    addToast({ type: 'success', message: resoumis ? 'Modification soumise à validation.' : 'Revendeur mis à jour.' });
   }
 
   function handleDelete() {
     setRevendeurs(prev => prev.filter(r => r.id !== revendeur.id));
-    addToast({ type: 'success', message: 'Revendeur supprime.' });
+    addToast({ type: 'success', message: 'Revendeur supprimé.' });
     navigate('/referentiels/revendeurs');
   }
 
   return (
     <div className="flex flex-col gap-6">
       <Breadcrumb items={[
-        { label: 'Referentiels', to: '/referentiels/revendeurs' },
+        { label: 'Référentiels', to: '/referentiels/revendeurs' },
         { label: 'Revendeurs', to: '/referentiels/revendeurs' },
         { label: revendeur.raison_sociale },
       ]} />
@@ -97,7 +97,7 @@ export default function RevendeurDetailPage() {
           {canValidate && <ValidationActions statut={revendeur.statut_validation} onValidate={handleValidate} onRefuse={handleRefuse} />}
           {canWrite && (
             <Button variant="secondary" size="sm" onClick={() => setFormOpen(true)}>
-              <Pencil size={14} /> Editer
+              <Pencil size={14} /> Éditer
             </Button>
           )}
           {canDelete && (
@@ -132,17 +132,17 @@ export default function RevendeurDetailPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Commandes associees ({commandes.length})</h2>
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Commandes associées ({commandes.length})</h2>
           {commandes.length === 0
-            ? <p className="text-sm text-gray-500">Aucune commande rattachee.</p>
+            ? <p className="text-sm text-gray-500">Aucune commande rattachée.</p>
             : <Link to={`/contrats/commandes?revendeur=${revendeur.id}`} className="text-sm text-blue-800 hover:underline">Voir les commandes</Link>
           }
         </section>
 
         <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Licences associees ({licences.length})</h2>
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Licences associées ({licences.length})</h2>
           {licences.length === 0
-            ? <p className="text-sm text-gray-500">Aucune licence rattachee.</p>
+            ? <p className="text-sm text-gray-500">Aucune licence rattachée.</p>
             : (
               <ul className="flex flex-col gap-1.5">
                 {licences.map(l => {
@@ -158,9 +158,9 @@ export default function RevendeurDetailPage() {
         </section>
 
         <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Contacts rattaches ({contacts.length})</h2>
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Contacts rattachés ({contacts.length})</h2>
           {contacts.length === 0
-            ? <p className="text-sm text-gray-500">Aucun contact rattache.</p>
+            ? <p className="text-sm text-gray-500">Aucun contact rattaché.</p>
             : (
               <ul className="flex flex-col gap-1.5">
                 {contacts.map(c => (
@@ -184,8 +184,8 @@ export default function RevendeurDetailPage() {
         confirmLabel={nbLiens > 0 ? 'Compris' : 'Supprimer'}
         message={
           nbLiens > 0
-            ? `Suppression impossible : ${revendeur.raison_sociale} est rattache a ${commandes.length} commande${commandes.length > 1 ? 's' : ''} et ${licences.length} licence${licences.length > 1 ? 's' : ''}. Detachez ou supprimez d'abord ces elements.`
-            : `Supprimer definitivement ${revendeur.raison_sociale} ? Cette action est irreversible.`
+            ? `Suppression impossible : ${revendeur.raison_sociale} est rattaché à ${commandes.length} commande${commandes.length > 1 ? 's' : ''} et ${licences.length} licence${licences.length > 1 ? 's' : ''}. Détachez ou supprimez d'abord ces éléments.`
+            : `Supprimer définitivement ${revendeur.raison_sociale} ? Cette action est irréversible.`
         }
       />
     </div>

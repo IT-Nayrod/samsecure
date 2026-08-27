@@ -76,7 +76,7 @@ export default function DocumentDetailPage() {
           if (err.status !== 404) throw err;
         }
       }
-      setError('Ce document n\'existe pas ou a ete supprime.');
+      setError('Ce document n\'existe pas ou a été supprimé.');
     } catch (err) {
       setError(err.message);
       setErrorStatus(err.status);
@@ -118,7 +118,7 @@ export default function DocumentDetailPage() {
     setDepot(true);
     try {
       await preuvesService.deposerFichier(doc.id, fichier);
-      addToast({ type: 'success', message: 'Fichier depose.' });
+      addToast({ type: 'success', message: 'Fichier déposé.' });
       setFichier(null);
       await load();
     } catch (err) {
@@ -142,7 +142,7 @@ export default function DocumentDetailPage() {
     try {
       if (estPreuve) await preuvesService.remove(doc.id);
       else await facturesService.remove(doc.id);
-      addToast({ type: 'success', message: estPreuve ? 'Preuve supprimee.' : 'Facture supprimee.' });
+      addToast({ type: 'success', message: estPreuve ? 'Preuve supprimée.' : 'Facture supprimée.' });
       navigate('/contrats/factures');
     } catch (err) {
       addToast({ type: 'error', message: err.message });
@@ -210,31 +210,31 @@ export default function DocumentDetailPage() {
         <div className="flex items-start gap-2 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
           <XCircle size={16} className="text-red-600 flex-shrink-0 mt-0.5" />
           <div>
-            <p className="text-sm font-medium text-red-800 dark:text-red-300">Saisie refusee</p>
+            <p className="text-sm font-medium text-red-800 dark:text-red-300">Saisie refusée</p>
             <p className="text-sm text-red-700 dark:text-red-400 mt-0.5">{doc.message_refus}</p>
           </div>
         </div>
       )}
 
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 grid grid-cols-2 md:grid-cols-3 gap-5">
-        <Champ label="Libelle">{doc.label}</Champ>
-        <Champ label="Depose le">{formatDate(doc.created_at)}</Champ>
+        <Champ label="Libellé">{doc.label}</Champ>
+        <Champ label="Déposé le">{formatDate(doc.created_at)}</Champ>
 
         {estPreuve ? (
           <>
             <Champ label="Type de preuve">{doc.type_label}</Champ>
             <Champ label="Nom du fichier d'origine">{doc.nom_origine}</Champ>
-            <Champ label="Contrat rattache">
+            <Champ label="Contrat rattaché">
               {doc.id_contrat
                 ? <Link to={`/contrats/liste/${doc.id_contrat}`} className="text-blue-800 hover:underline">{doc.contrat_label}</Link>
                 : null}
             </Champ>
-            <Champ label="Commande rattachee">
+            <Champ label="Commande rattachée">
               {doc.id_commande
                 ? <Link to={`/contrats/commandes/${doc.id_commande}`} className="text-blue-800 hover:underline">{doc.commande_label}</Link>
                 : null}
             </Champ>
-            <Champ label="Factures liees">{doc.nb_factures > 0 ? `${doc.nb_factures} facture(s)` : 'Aucune'}</Champ>
+            <Champ label="Factures liées">{doc.nb_factures > 0 ? `${doc.nb_factures} facture(s)` : 'Aucune'}</Champ>
           </>
         ) : (
           <>
@@ -248,12 +248,12 @@ export default function DocumentDetailPage() {
                 ? <Link to={`/contrats/liste/${doc.id_contrat}`} className="text-blue-800 hover:underline">{doc.contrat_label}</Link>
                 : null}
             </Champ>
-            <Champ label="Preuve liee">
+            <Champ label="Preuve liée">
               {doc.id_preuve
                 ? <Link to={`/contrats/factures/${doc.id_preuve}?ressource=preuve`} className="text-blue-800 hover:underline">{doc.preuve_label}</Link>
                 : <span className="text-gray-400">Aucune</span>}
             </Champ>
-            <Champ label="Type de la preuve liee">{doc.preuve_type_label}</Champ>
+            <Champ label="Type de la preuve liée">{doc.preuve_type_label}</Champ>
           </>
         )}
       </div>
@@ -268,26 +268,26 @@ export default function DocumentDetailPage() {
                   {doc.hash_sha256}
                 </code>
                 <button onClick={copierHash} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 px-2 py-2" aria-label="Copier l'empreinte">
-                  {copie ? <><Check size={14} className="text-green-600" /> Copie</> : <><Copy size={14} /> Copier</>}
+                  {copie ? <><Check size={14} className="text-green-600" /> Copié</> : <><Copy size={14} /> Copier</>}
                 </button>
               </div>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                Empreinte SHA-256 calculee au depot. Elle prouve en audit que le fichier servi est
-                exactement celui qui a ete depose.
+                Empreinte SHA-256 calculée au dépôt. Elle prouve en audit que le fichier servi est
+                exactement celui qui a été déposé.
               </p>
             </>
           ) : (
             <div className="flex flex-col gap-3">
               <p className="text-sm text-gray-500 flex items-center gap-2">
                 <FileWarning size={15} className="text-amber-500" />
-                Aucun fichier n&apos;a encore ete depose pour cette preuve.
+                Aucun fichier n&apos;a encore été déposé pour cette preuve.
               </p>
               {canWrite && (
                 <>
                   <DocumentUploadField file={fichier} onChange={setFichier} disabled={depot} />
                   <div>
                     <Button variant="primary" onClick={deposer} isLoading={depot} disabled={!fichier}>
-                      Deposer le fichier
+                      Déposer le fichier
                     </Button>
                   </div>
                 </>
@@ -303,8 +303,8 @@ export default function DocumentDetailPage() {
         onConfirm={handleDelete}
         title={estPreuve ? 'Supprimer cette preuve ?' : 'Supprimer cette facture ?'}
         message={estPreuve
-          ? 'Le fichier associe sera egalement supprime. Une preuve rattachee a une facture ne peut pas etre supprimee.'
-          : 'La preuve liee n\'est pas supprimee : elle reste disponible dans la liste des documents.'}
+          ? 'Le fichier associé sera également supprimé. Une preuve rattachée à une facture ne peut pas être supprimée.'
+          : 'La preuve liée n\'est pas supprimée : elle reste disponible dans la liste des documents.'}
         confirmLabel="Supprimer"
         isDestructive
       />

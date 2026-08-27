@@ -46,19 +46,19 @@ export const mockAffectations = [
   { id: 'af-pr5-b',  id_produit: 'pr5',  id_societe: '2', quantite: 17, reference_client: 'SQL - Instance Lyon 2',    statut_validation: 'valide',    soumis_par: 'Julie Petit',    date_derniere_revalidation: '2026-05-25' },
   { id: 'af-pr7-a',  id_produit: 'pr7',  id_societe: '1', quantite: 60, reference_client: 'Adobe CC - Studio Design', statut_validation: 'valide',    soumis_par: 'Thomas Bernard', date_derniere_revalidation: '2026-06-10' },
   { id: 'af-pr11-a', id_produit: 'pr11', id_societe: '2', quantite: 68, reference_client: 'Oracle DB - Cluster Lyon', statut_validation: 'valide',    soumis_par: 'Julie Petit',    date_derniere_revalidation: '2026-01-15' },
-  { id: 'af-pr14-a', id_produit: 'pr14', id_societe: '1', quantite: 80, reference_client: 'SAP ERP - Siege',          statut_validation: 'valide',    soumis_par: 'Thomas Bernard', date_derniere_revalidation: '2026-06-15' },
+  { id: 'af-pr14-a', id_produit: 'pr14', id_societe: '1', quantite: 80, reference_client: 'SAP ERP - Siège',          statut_validation: 'valide',    soumis_par: 'Thomas Bernard', date_derniere_revalidation: '2026-06-15' },
   { id: 'af-pr14-b', id_produit: 'pr14', id_societe: '4', quantite: 20, reference_client: 'SAP ERP - Bordeaux',       statut_validation: 'en_attente', soumis_par: 'Julie Petit',    date_derniere_revalidation: null },
-  { id: 'af-pr16-a', id_produit: 'pr16', id_societe: '1', quantite: 22, reference_client: 'IBM Db2 - Entrepot donnees', statut_validation: 'valide',  soumis_par: 'Thomas Bernard', date_derniere_revalidation: '2026-03-01' },
-  { id: 'af-pr19-a', id_produit: 'pr19', id_societe: '3', quantite: 29, reference_client: 'AutoCAD - Bureau etudes',    statut_validation: 'valide',    soumis_par: 'Julie Petit',    date_derniere_revalidation: '2026-05-01' },
+  { id: 'af-pr16-a', id_produit: 'pr16', id_societe: '1', quantite: 22, reference_client: 'IBM Db2 - Entrepôt données', statut_validation: 'valide',  soumis_par: 'Thomas Bernard', date_derniere_revalidation: '2026-03-01' },
+  { id: 'af-pr19-a', id_produit: 'pr19', id_societe: '3', quantite: 29, reference_client: 'AutoCAD - Bureau études',    statut_validation: 'valide',    soumis_par: 'Julie Petit',    date_derniere_revalidation: '2026-05-01' },
   // Affectations Atlassian (dormantes : 12% et 22% de taux utilisation -> R-O01)
-  { id: 'af-pr22-a', id_produit: 'pr22', id_societe: '1', quantite: 12, reference_client: 'Confluence - Equipe DSI',    statut_validation: 'valide',    soumis_par: 'Thomas Bernard', date_derniere_revalidation: '2026-03-15' },
-  { id: 'af-pr21-a', id_produit: 'pr21', id_societe: '1', quantite: 18, reference_client: 'Jira - Equipe projets',       statut_validation: 'valide',    soumis_par: 'Thomas Bernard', date_derniere_revalidation: '2025-12-01' },
+  { id: 'af-pr22-a', id_produit: 'pr22', id_societe: '1', quantite: 12, reference_client: 'Confluence - Équipe DSI',    statut_validation: 'valide',    soumis_par: 'Thomas Bernard', date_derniere_revalidation: '2026-03-15' },
+  { id: 'af-pr21-a', id_produit: 'pr21', id_societe: '1', quantite: 18, reference_client: 'Jira - Équipe projets',       statut_validation: 'valide',    soumis_par: 'Thomas Bernard', date_derniere_revalidation: '2025-12-01' },
   // Historique 2023-2024 pour R-C04 (etat des revalidations avec anteriorite 3 ans)
   { id: 'af-pr1-c',  id_produit: 'pr1',  id_societe: '1', quantite: 48, reference_client: 'M365 - Historique 2023',     statut_validation: 'valide',    soumis_par: 'Thomas Bernard', date_derniere_revalidation: '2023-06-10' },
   { id: 'af-pr4-b',  id_produit: 'pr4',  id_societe: '1', quantite: 44, reference_client: 'WinSrv - Historique 2024',  statut_validation: 'valide',    soumis_par: 'Thomas Bernard', date_derniere_revalidation: '2024-01-20' },
 ];
 
-// --- INVENTAIRE (usage reel detecte) ---------------------------------------------
+// --- CONNECTEURS (apercu v2, hors perimetre #111) --------------------------------
 export const mockConnecteurs = [
   { id: 'cn1', nom: 'Lansweeper',         statut: 'ok' },
   { id: 'cn2', nom: 'GLPI',               statut: 'ok' },
@@ -66,22 +66,6 @@ export const mockConnecteurs = [
   { id: 'cn4', nom: 'SCCM',               statut: 'defaillant' },
   { id: 'cn5', nom: 'Intune',             statut: 'non_configure' },
   { id: 'cn6', nom: 'Ivanti',             statut: 'non_configure' },
-];
-
-export const mockInventaireRaw = [
-  { id: 'inv-pr1-a',  id_produit: 'pr1',  id_societe: '1', connecteur: 'Lansweeper',       format_source: 'JSON', url_fichier: '/inventaire/2026-06-15/lansweeper_acme-france.json', quantite_detectee: 50, date_collecte: '2026-06-15', statut_rapprochement: 'rapproche',     id_affectation: 'af-pr1-a',  nature_ecart: null },
-  { id: 'inv-pr1-b',  id_produit: 'pr1',  id_societe: '2', connecteur: 'Active Directory', format_source: 'CSV',  url_fichier: '/inventaire/2026-06-15/ad_acme-lyon.csv',             quantite_detectee: 35, date_collecte: '2026-06-15', statut_rapprochement: 'rapproche',     id_affectation: 'af-pr1-b',  nature_ecart: null },
-  { id: 'inv-pr4-a',  id_produit: 'pr4',  id_societe: '1', connecteur: 'SCCM',             format_source: 'JSON', url_fichier: '/inventaire/2026-06-10/sccm_acme-france.json',        quantite_detectee: 50, date_collecte: '2026-06-10', statut_rapprochement: 'rapproche',     id_affectation: 'af-pr4-a',  nature_ecart: null },
-  { id: 'inv-pr5-a',  id_produit: 'pr5',  id_societe: '2', connecteur: 'GLPI',             format_source: 'JSON', url_fichier: '/inventaire/2026-06-12/glpi_acme-lyon.json',          quantite_detectee: 30, date_collecte: '2026-06-12', statut_rapprochement: 'rapproche',     id_affectation: 'af-pr5-a',  nature_ecart: null },
-  { id: 'inv-pr5-b',  id_produit: 'pr5',  id_societe: '2', connecteur: 'GLPI',             format_source: 'JSON', url_fichier: '/inventaire/2026-06-12/glpi_acme-lyon.json',          quantite_detectee: 17, date_collecte: '2026-06-12', statut_rapprochement: 'rapproche',     id_affectation: 'af-pr5-b',  nature_ecart: null },
-  { id: 'inv-pr7-a',  id_produit: 'pr7',  id_societe: '1', connecteur: 'Intune',           format_source: 'JSON', url_fichier: '/inventaire/2026-06-16/intune_acme-france.json',      quantite_detectee: 60, date_collecte: '2026-06-16', statut_rapprochement: 'rapproche',     id_affectation: 'af-pr7-a',  nature_ecart: null },
-  { id: 'inv-pr7-b',  id_produit: 'pr7',  id_societe: '1', connecteur: 'Intune',           format_source: 'JSON', url_fichier: '/inventaire/2026-06-16/intune_acme-france.json',      quantite_detectee: 14, date_collecte: '2026-06-16', statut_rapprochement: 'ecart_detecte', id_affectation: null,        nature_ecart: 'Usage detecte non declare : 14 postes Adobe Creative Cloud actifs sans affectation correspondante' },
-  { id: 'inv-pr11-a', id_produit: 'pr11', id_societe: '2', connecteur: 'Active Directory', format_source: 'CSV',  url_fichier: '/inventaire/2026-06-14/ad_acme-lyon.csv',             quantite_detectee: 68, date_collecte: '2026-06-14', statut_rapprochement: 'rapproche',     id_affectation: 'af-pr11-a', nature_ecart: null },
-  { id: 'inv-pr14-a', id_produit: 'pr14', id_societe: '1', connecteur: 'SCCM',             format_source: 'JSON', url_fichier: '/inventaire/2026-06-15/sccm_acme-france.json',        quantite_detectee: 80, date_collecte: '2026-06-15', statut_rapprochement: 'rapproche',     id_affectation: 'af-pr14-a', nature_ecart: null },
-  { id: 'inv-pr14-b', id_produit: 'pr14', id_societe: '4', connecteur: 'SCCM',             format_source: 'JSON', url_fichier: '/inventaire/2026-06-15/sccm_acme-bordeaux.json',      quantite_detectee: 20, date_collecte: '2026-06-15', statut_rapprochement: 'en_attente',    id_affectation: null,        nature_ecart: null },
-  { id: 'inv-pr16-a', id_produit: 'pr16', id_societe: '1', connecteur: 'Lansweeper',       format_source: 'JSON', url_fichier: '/inventaire/2026-06-11/lansweeper_acme-france.json', quantite_detectee: 22, date_collecte: '2026-06-11', statut_rapprochement: 'rapproche',     id_affectation: 'af-pr16-a', nature_ecart: null },
-  { id: 'inv-pr19-a', id_produit: 'pr19', id_societe: '3', connecteur: 'GLPI',             format_source: 'JSON', url_fichier: '/inventaire/2026-06-09/glpi_acme-paris.json',         quantite_detectee: 29, date_collecte: '2026-06-09', statut_rapprochement: 'rapproche',     id_affectation: 'af-pr19-a', nature_ecart: null },
-  { id: 'inv-noise-1', id_produit: 'pr1', id_societe: '2', connecteur: 'Active Directory', format_source: 'CSV',  url_fichier: '/inventaire/2026-06-15/ad_acme-lyon.csv',             quantite_detectee: 5,  date_collecte: '2026-06-15', statut_rapprochement: 'rejete',        id_affectation: null,        nature_ecart: 'Doublon avec inv-pr1-b, ecarte apres verification' },
 ];
 
 // --- HELPERS DE DERIVATION --------------------------------------------------------
@@ -113,10 +97,6 @@ export function getAffectationsBySociete(idSociete) {
   return mockAffectations.filter(a => a.id_societe === idSociete);
 }
 
-export function getInventaireByProduit(idProduit) {
-  return mockInventaireRaw.filter(i => i.id_produit === idProduit);
-}
-
 export function getDroitsTotalProduit(idProduit) {
   return getLicencesByProduit(idProduit).reduce((s, l) => s + l.quantite, 0);
 }
@@ -126,9 +106,13 @@ export function getDeclareTotalProduit(idProduit) {
   return mockAffectations.filter(a => a.id_produit === idProduit && a.statut_validation === 'valide').reduce((s, a) => s + a.quantite, 0);
 }
 
-// Les entrees rejetees ne comptent pas dans l'usage reel
-export function getReelTotalProduit(idProduit) {
-  return mockInventaireRaw.filter(i => i.id_produit === idProduit && i.statut_rapprochement !== 'rejete').reduce((s, i) => s + i.quantite_detectee, 0);
+// Usage reel : plus aucune donnee de demonstration (#111). Les releves
+// d'inventaire sont servis par l'API (GET /api/inventaire/ecarts,
+// synthese_produits). Ce mock ne connait donc aucun usage constate ; la
+// valeur 0 est conservee pour les pages encore mockees qui appellent le
+// triangle (AffectationDetailPage), le temps de leur branchement.
+export function getReelTotalProduit() {
+  return 0;
 }
 
 export function getNiveauConformite(ratio) {

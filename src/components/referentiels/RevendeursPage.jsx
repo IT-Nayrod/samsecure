@@ -40,7 +40,7 @@ export default function RevendeursPage() {
         statut_validation: resoumis ? 'en_attente' : 'valide',
         soumis_par: `${user.prenom} ${user.nom}`,
       } : r));
-      addToast({ type: 'success', message: resoumis ? 'Modification soumise a validation.' : 'Revendeur mis a jour.' });
+      addToast({ type: 'success', message: resoumis ? 'Modification soumise à validation.' : 'Revendeur mis à jour.' });
     } else {
       const newRevendeur = {
         id: `rv-${Date.now()}`, ...data,
@@ -48,7 +48,7 @@ export default function RevendeursPage() {
         soumis_par: `${user.prenom} ${user.nom}`,
       };
       setRevendeurs(prev => [...prev, newRevendeur]);
-      addToast({ type: 'success', message: submitsForValidation ? 'Revendeur soumis a validation.' : 'Revendeur cree.' });
+      addToast({ type: 'success', message: submitsForValidation ? 'Revendeur soumis à validation.' : 'Revendeur créé.' });
     }
   }
 
@@ -66,7 +66,7 @@ export default function RevendeursPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <Breadcrumb items={[{ label: 'Referentiels' }, { label: 'Revendeurs' }]} />
+      <Breadcrumb items={[{ label: 'Référentiels' }, { label: 'Revendeurs' }]} />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Revendeurs</h1>
@@ -95,7 +95,7 @@ export default function RevendeursPage() {
           data={filtered}
           filename="revendeurs"
           emptyState={{
-            message: 'Aucun revendeur ne correspond a la recherche.',
+            message: 'Aucun revendeur ne correspond à la recherche.',
             ctaLabel: canWrite ? 'Nouveau revendeur' : undefined,
             onCta: canWrite ? () => setFormModal({ open: true, revendeur: null }) : undefined,
           }}

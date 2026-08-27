@@ -12,15 +12,17 @@
 // litteraux doivent preceder les chemins parametres de meme longueur,
 // /commandes/agregats avant /commandes/:id.
 //
-// Codes disponibles, referentiel permission (27 codes, 7 modules) :
+// Codes disponibles, referentiel permission (29 codes, 7 modules) :
 //   administration : gerer_utilisateurs, gerer_exceptions_droit,
 //                    consulter_audit_log, gerer_connecteurs
 //   droits_usage   : consulter_contrats, consulter_factures, saisir_contrat,
 //                    saisir_commande, deposer_facture_preuve
 //   deploiement    : valider_saisie, consulter_licences, consulter_inventaire,
-//                    saisir_licence, saisir_affectation, rapprocher_inventaire
+//                    saisir_licence, saisir_affectation, rapprocher_inventaire,
+//                    importer_inventaire (#111, 28e code)
 //   organisation   : consulter_referentiels, gerer_referentiels, gerer_contacts
-//   budget         : consulter_budget, saisir_budget, consulter_kpi_financiers
+//   budget         : consulter_budget, saisir_budget, consulter_kpi_financiers,
+//                    supprimer_budget (#146, 29e code)
 //   rapports, dashboards : non encore branches sur l'API
 //
 // PUBLIC_AUTHENTIFIE : accessible a tout porteur d'un jeton valide, sans
@@ -35,6 +37,9 @@ export const ROUTES_PERMISSIONS = [
   ["POST",   "/contrats",                    "saisir_contrat"],
   ["PATCH",  "/contrats/:id",                "saisir_contrat"],
   ["DELETE", "/contrats/:id",                "saisir_contrat"],
+  // Archivage (#96) : meme droit que la suppression qu'il remplace.
+  ["POST",   "/contrats/:id/archiver",       "saisir_contrat"],
+  ["POST",   "/contrats/:id/restaurer",      "saisir_contrat"],
 
   // ---- Droits d'usage : commandes ------------------------------------------
   // Les deux chemins litteraux passent avant /commandes/:id.
@@ -71,12 +76,101 @@ export const ROUTES_PERMISSIONS = [
   ["POST",   "/validation/:type/:id/valider", "valider_saisie"],
   ["POST",   "/validation/:type/:id/refuser", "valider_saisie"],
 
+  // ---- Deploiement : licences (#102) ---------------------------------------
+  // Le droit de lire un montant est distinct du droit de lire la licence :
+  // consulter_kpi_financiers est evalue dans le routeur (masquage des couts),
+  // pas ici. Les sous-routes de maintenance suivent les memes deux droits.
+  ["GET",    "/licences",                              "consulter_licences"],
+  ["GET",    "/licences/:id",                          "consulter_licences"],
+  ["GET",    "/licences/:id/maintenance",              "consulter_licences"],
+  ["POST",   "/licences",                              "saisir_licence"],
+  ["PATCH",  "/licences/:id",                          "saisir_licence"],
+  ["DELETE", "/licences/:id",                          "saisir_licence"],
+  ["POST",   "/licences/:id/maintenance",              "saisir_licence"],
+  ["PATCH",  "/licences/:id/maintenance/:mid",         "saisir_licence"],
+  ["DELETE", "/licences/:id/maintenance/:mid",         "saisir_licence"],
+  ["POST",   "/licences/:id/arret-maintenance",        "saisir_licence"],
+  ["POST",   "/licences/:id/reprise-maintenance",      "saisir_licence"],
+
+  // ---- Module 3 : affectations, usage declare et revalidation (#106) --------
+  // Lecture : consulter_inventaire (Financier, IT Ops, Manager DSI). Saisie :
+  // saisir_affectation (IT Ops, IT Data input, et Manager DSI par la matrice
+  // 011). Revalidation : valider_saisie, comme le traitement du circuit unique.
+  // Les chemins litteraux decompte et historique passent avant /affectations/:id.
+  // GET /licences est servi par le routeur licences (#102), regle ci-dessus.
+  ["GET",    "/affectations/decompte",        "consulter_inventaire"],
+  ["GET",    "/affectations/historique",      "consulter_inventaire"],
+  ["GET",    "/affectations",                 "consulter_inventaire"],
+  ["GET",    "/affectations/:id",             "consulter_inventaire"],
+  ["POST",   "/affectations/:id/revalider",   "valider_saisie"],
+  ["POST",   "/affectations",                 "saisir_affectation"],
+  ["PATCH",  "/affectations/:id",             "saisir_affectation"],
+  ["DELETE", "/affectations/:id",             "saisir_affectation"],
+
+  // ---- Inventaire (#111, module 3) ------------------------------------------
+  // Les chemins litteraux /inventaire/ecarts et /inventaire/affectations
+  // passent avant /inventaire/releves/:id. L'import exige un droit propre,
+  // importer_inventaire (migrations 031 et 032), detenu par admin_sam et
+  // manager_dsi : consulter et rapprocher ne suffisent pas a introduire des
+  // donnees dans le parc. Le rapprochement ne touche jamais une affectation.
+  ["GET",    "/inventaire/imports",                       "consulter_inventaire"],
+  ["POST",   "/inventaire/imports",                       "importer_inventaire"],
+  ["GET",    "/inventaire/imports/:id",                   "consulter_inventaire"],
+  ["GET",    "/inventaire/ecarts",                        "consulter_inventaire"],
+  ["GET",    "/inventaire/affectations",                  "consulter_inventaire"],
+  ["GET",    "/inventaire/releves",                       "consulter_inventaire"],
+  ["GET",    "/inventaire/releves/:id",                   "consulter_inventaire"],
+  ["POST",   "/inventaire/releves/:id/rapprocher",        "rapprocher_inventaire"],
+  ["POST",   "/inventaire/releves/:id/ecart-assume",      "rapprocher_inventaire"],
+  ["POST",   "/inventaire/releves/:id/rejeter",           "rapprocher_inventaire"],
+  ["POST",   "/inventaire/releves/:id/reouvrir",          "rapprocher_inventaire"],
+
+  // ---- Module 4 : budget (#146) ---------------------------------------------
+  // Lecture : consulter_budget (Admin, Manager DSI, Financier, IT Ops). Saisie
+  // et preremplissage : saisir_budget (Admin, Manager DSI, Financier, et IT
+  // Ops par la matrice 011, conservee telle quelle : la US le place en
+  // lecture, ecart a valider avec Samuel, question "IT Ops et le financier").
+  // Suppression : supprimer_budget, permission propre (035 Commune, 036
+  // Tenant) detenue par Admin, Manager DSI et Financier : la saisie ne vaut
+  // pas droit de supprimer. Les montants ne sont pas masques dans ce module.
+  // Les chemins litteraux passent avant /budget/:id.
+  ["GET",    "/budget/preremplissage",       "saisir_budget"],
+  ["GET",    "/budget/engage",               "consulter_budget"],
+  ["GET",    "/budget/synthese",             "consulter_budget"],
+  ["GET",    "/budget",                      "consulter_budget"],
+  ["GET",    "/budget/:id",                  "consulter_budget"],
+  ["POST",   "/budget",                      "saisir_budget"],
+  ["PATCH",  "/budget/:id",                  "saisir_budget"],
+  ["DELETE", "/budget/:id",                  "supprimer_budget"],
+
   // ---- Referentiels en lecture ---------------------------------------------
+  ["GET",    "/produits",                    "consulter_referentiels"],
+  ["GET",    "/unites-mesure",               "consulter_referentiels"],
+  ["GET",    "/mainteneurs",                 "consulter_referentiels"],
   ["GET",    "/types-contrat",               "consulter_referentiels"],
   ["GET",    "/editeurs",                    "consulter_referentiels"],
   ["GET",    "/revendeurs",                  "consulter_referentiels"],
   ["GET",    "/modes-commande",              "consulter_referentiels"],
   ["GET",    "/types-preuve",                "consulter_referentiels"],
+
+  // ---- Referentiels du module 1 : editeurs et logiciels ---------------------
+  // Lecture et ecriture separees par le meme couple que les societes.
+  // Les chemins litteraux precedent les chemins parametres, et les
+  // declinaisons precedent /logiciels/:id : la premiere regle qui matche gagne.
+  ["GET",    "/editeurs/:id",                "consulter_referentiels"],
+  ["POST",   "/editeurs",                    "gerer_referentiels"],
+  ["PATCH",  "/editeurs/:id",                "gerer_referentiels"],
+  ["DELETE", "/editeurs/:id",                "gerer_referentiels"],
+
+  ["POST",   "/logiciels/:id/versions",            "gerer_referentiels"],
+  ["DELETE", "/logiciels/:id/versions/:idDecl",    "gerer_referentiels"],
+  ["POST",   "/logiciels/:id/editions",            "gerer_referentiels"],
+  ["DELETE", "/logiciels/:id/editions/:idDecl",    "gerer_referentiels"],
+  ["GET",    "/logiciels",                   "consulter_referentiels"],
+  ["GET",    "/logiciels/:id",               "consulter_referentiels"],
+  ["POST",   "/logiciels",                   "gerer_referentiels"],
+  ["PATCH",  "/logiciels/:id",               "gerer_referentiels"],
+  ["DELETE", "/logiciels/:id",               "gerer_referentiels"],
 
   // ---- Organisation : societes ---------------------------------------------
   ["GET",    "/societes/:id/profils-orphelins", "gerer_referentiels"],
@@ -124,6 +218,12 @@ export const ROUTES_PERMISSIONS = [
   ["PATCH",  "/profils/:id",                             "gerer_utilisateurs"],
   ["DELETE", "/profils/:id",                             "gerer_utilisateurs"],
   ["GET",    "/permissions",                             "gerer_utilisateurs"],
+
+  // ---- Mails (#87) ---------------------------------------------------------
+  // Test de la configuration SMTP. gerer_connecteurs n'est detenue que par le
+  // groupe admin_sam (matrice 011/021) : la route est de fait reservee au
+  // profil administrateur, sans nommer de profil ici.
+  ["POST",   "/mails/test",                  "gerer_connecteurs"],
 
   // ---- Journal -------------------------------------------------------------
   // La lecture du journal est une consultation d'audit. L'ecriture reste

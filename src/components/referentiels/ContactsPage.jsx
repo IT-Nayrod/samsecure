@@ -17,7 +17,7 @@ import { useToast } from '../../hooks/useToast';
 import useAuth from '../../hooks/useAuth';
 import { setContactPhoto, removeContactPhoto } from '../../utils/contactPhotos';
 
-const TYPE_LABELS = { client: 'Client', editeur: 'Editeur', revendeur: 'Revendeur' };
+const TYPE_LABELS = { client: 'Client', editeur: 'Éditeur', revendeur: 'Revendeur' };
 
 function ContactCard({ contact, navigate }) {
   const fonction = mockFonctions.find(f => f.id === contact.id_fonction)?.label;
@@ -98,7 +98,7 @@ export default function ContactsPage() {
         statut_validation: resoumis ? 'en_attente' : 'valide',
         soumis_par: `${user.prenom} ${user.nom}`,
       } : c));
-      addToast({ type: 'success', message: resoumis ? 'Modification soumise a validation.' : 'Contact mis a jour.' });
+      addToast({ type: 'success', message: resoumis ? 'Modification soumise à validation.' : 'Contact mis à jour.' });
     } else {
       const newContact = {
         id, ...data,
@@ -106,12 +106,12 @@ export default function ContactsPage() {
         soumis_par: `${user.prenom} ${user.nom}`,
       };
       setContacts(prev => [...prev, newContact]);
-      addToast({ type: 'success', message: submitsForValidation ? 'Contact soumis a validation.' : 'Contact cree.' });
+      addToast({ type: 'success', message: submitsForValidation ? 'Contact soumis à validation.' : 'Contact créé.' });
     }
   }
 
   const columns = [
-    { key: 'nom', label: 'Nom Prenom', sortable: true, render: r => (
+    { key: 'nom', label: 'Nom Prénom', sortable: true, render: r => (
       <button onClick={() => navigate(`/referentiels/contacts/${r.id}`)} className="flex items-center gap-2.5 font-medium text-blue-800 hover:underline text-left">
         <AvatarContact contact={r} size={28} />
         {r.nom} {r.prenom}
@@ -119,7 +119,7 @@ export default function ContactsPage() {
     ), csvValue: r => `${r.nom} ${r.prenom}` },
     { key: 'fonction', label: 'Fonction', getValue: r => mockFonctions.find(f => f.id === r.id_fonction)?.label ?? '-', render: r => mockFonctions.find(f => f.id === r.id_fonction)?.label ?? '-' },
     { key: 'email', label: 'Email', sortable: true },
-    { key: 'telephone', label: 'Telephone' },
+    { key: 'telephone', label: 'Téléphone' },
     { key: 'rattachement', label: 'Rattachement', render: r => {
       const info = getRattachementInfo(r.type_rattachement, r.id_rattachement);
       return <span>{TYPE_LABELS[r.type_rattachement]} - {info.label}</span>;
@@ -130,7 +130,7 @@ export default function ContactsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <Breadcrumb items={[{ label: 'Referentiels' }, { label: 'Contacts' }]} />
+      <Breadcrumb items={[{ label: 'Référentiels' }, { label: 'Contacts' }]} />
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Contacts</h1>
@@ -157,7 +157,7 @@ export default function ContactsPage() {
         <select value={filterType} onChange={e => setFilterType(e.target.value)} className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="">Tous les rattachements</option>
           <option value="client">Client</option>
-          <option value="editeur">Editeur</option>
+          <option value="editeur">Éditeur</option>
           <option value="revendeur">Revendeur</option>
         </select>
         <select value={filterFonction} onChange={e => setFilterFonction(e.target.value)} className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -173,7 +173,7 @@ export default function ContactsPage() {
           type="text"
           value={search}
           onChange={e => setSearch(e.target.value)}
-          placeholder="Rechercher par nom, prenom ou email..."
+          placeholder="Rechercher par nom, prénom ou email..."
           className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 flex-1 min-w-[200px]"
         />
       </div>

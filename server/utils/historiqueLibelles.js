@@ -79,7 +79,11 @@ export function traduireEvenement(ligne, idCompteCible) {
       break;
     
     case "REINITIALISATION_DEMANDEE":
-      libelle = `Lien de réinitialisation envoyé${parActeur}`;
+      // mail_envoye absent sur les traces anterieures au socle mail (#87) :
+      // le libelle historique reste "envoyé", seul un echec explicite le change.
+      libelle = ap.mail_envoye === false
+        ? `Lien de réinitialisation émis, mail non envoyé${parActeur}`
+        : `Lien de réinitialisation envoyé${parActeur}`;
       details = { expiration_heures: ap.expiration_heures ?? null };
       break;
 

@@ -2,8 +2,9 @@
 // Donnees API. La suppression s'appuie sur le refus du serveur, pas sur un garde-fou local.
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Pencil, Trash2, XCircle } from 'lucide-react';
+import { Pencil, Trash2, XCircle, ExternalLink, Plus } from 'lucide-react';
 import { commandesService, modesCommandeService } from '../../services/commandesService';
+import { preuvesService, facturesService, typesPreuveService } from '../../services/documentsService';
 import { optionnel } from '../../services/http';
 import { contratsService, referentielsContratsService } from '../../services/contratsService';
 import { societesService } from '../../services/adminService';
@@ -15,6 +16,7 @@ import ErrorState from '../ui/ErrorState';
 import Skeleton from '../ui/Skeleton';
 import StatutEcheanceBadge from './StatutEcheanceBadge';
 import CommandeFormModal from './CommandeFormModal';
+import PreuveFormModal from './PreuveFormModal';
 import useRbac from '../../hooks/useRbac';
 import { useToast } from '../../hooks/useToast';
 import { formatDate } from '../../utils/dateUtils';
@@ -30,12 +32,19 @@ export default function CommandeDetailPage() {
   const navigate = useNavigate();
   const { addToast } = useToast();
   const { canWrite, canDelete, canValidate } = useRbac({ write: 'saisir_commande', validate: 'valider_saisie' });
+  // Le depot d'une preuve suit le droit de l'ecran Factures & Preuves, pas celui de la commande.
+  const { canWrite: canDeposer } = useRbac({ write: 'deposer_facture_preuve' });
 
   const [commande, setCommande] = useState(null);
   const [contrats, setContrats] = useState([]);
   const [societes, setSocietes] = useState([]);
   const [revendeurs, setRevendeurs] = useState([]);
   const [modes, setModes] = useState([]);
+  const [preuves, setPreuves] = useState([]);
+  const [factures, setFactures] = useState([]);
+  const [typesPreuve, setTypesPreuve] = useState([]);
+  const [preuveModal, setPreuveModal] = useState(false);
+  const [ouverture, setOuverture] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [errorStatus, setErrorStatus] = useState(null);
@@ -50,14 +59,22 @@ export default function CommandeDetailPage() {
     setIntrouvable(false);
     try {
       // Seule la fiche est indispensable, le reste alimente le formulaire.
-      const [k, c, s, r, m] = await Promise.all([
+      // Preuves et factures rattachees sont accessoires au meme titre : un refus
+      // de droit sur les documents laisse la fiche lisible, sans sa liste.
+      const [k, c, s, r, m, p, f, t] = await Promise.all([
         commandesService.get(id),
-        optionnel(contratsService.list()),
+        // Archives inclus : une commande existante peut pointer un contrat archive,
+        // le formulaire d'edition doit pouvoir l'afficher (#96).
+        optionnel(contratsService.list({ inclureArchives: true })),
         optionnel(societesService.list()),
         optionnel(referentielsContratsService.revendeurs()),
         optionnel(modesCommandeService.list()),
+        optionnel(preuvesService.list({ idCommande: id })),
+        optionnel(facturesService.list({ idCommande: id })),
+        optionnel(typesPreuveService.list()),
       ]);
       setCommande(k); setContrats(c); setSocietes(s); setRevendeurs(r); setModes(m);
+      setPreuves(p); setFactures(f); setTypesPreuve(t);
     } catch (err) {
       // 404 : la commande n'existe pas ou vient d'etre supprimee, pas une panne.
       if (err.status === 404) setIntrouvable(true);
@@ -73,10 +90,25 @@ export default function CommandeDetailPage() {
   const appliquer = useCallback(reponse => setCommande(k => appliquerStatut(k, reponse)), []);
   const { valider, refuser } = useValidation(appliquer);
 
+  // Le fichier est protege par le jeton : on le telecharge puis on ouvre l'objet
+  // URL local, comme le fait la fiche document.
+  async function ouvrirFichier(idPreuve) {
+    setOuverture(idPreuve);
+    try {
+      const url = await preuvesService.fichierUrl(idPreuve);
+      window.open(url, '_blank', 'noopener');
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (err) {
+      addToast({ type: 'error', message: err.message });
+    } finally {
+      setOuverture(null);
+    }
+  }
+
   async function handleDelete() {
     try {
       await commandesService.remove(commande.id);
-      addToast({ type: 'success', message: 'Commande supprimee.' });
+      addToast({ type: 'success', message: 'Commande supprimée.' });
       navigate('/contrats/commandes');
     } catch (err) {
       // Message du serveur affiche tel quel : "Suppression impossible : ..."
@@ -102,7 +134,7 @@ export default function CommandeDetailPage() {
     return (
       <div className="flex flex-col gap-6">
         <Breadcrumb items={[{ label: 'Droits d\'usage', to: '/contrats/commandes' }, { label: 'Commandes', to: '/contrats/commandes' }, { label: 'Introuvable' }]} />
-        <EmptyState title="Commande introuvable" description="Cette commande n'existe pas ou a ete supprimee." ctaLabel="Retour a la liste" onCta={() => navigate('/contrats/commandes')} />
+        <EmptyState title="Commande introuvable" description="Cette commande n'existe pas ou a été supprimée." ctaLabel="Retour à la liste" onCta={() => navigate('/contrats/commandes')} />
       </div>
     );
   }
@@ -138,8 +170,11 @@ export default function CommandeDetailPage() {
             onValidate={() => valider('commande', commande.id)}
             onRefuse={motif => refuser('commande', commande.id, motif)}
           />}
+          {canDeposer && (
+            <Button variant="primary" size="sm" onClick={() => setPreuveModal(true)}><Plus size={14} /> Ajouter une preuve</Button>
+          )}
           {canWrite && (
-            <Button variant="secondary" size="sm" onClick={() => setFormOpen(true)}><Pencil size={14} /> Editer</Button>
+            <Button variant="secondary" size="sm" onClick={() => setFormOpen(true)}><Pencil size={14} /> Éditer</Button>
           )}
           {canDelete && (
             <Button variant="destructive" size="sm" onClick={() => setDeleteOpen(true)}><Trash2 size={14} /> Supprimer</Button>
@@ -151,7 +186,7 @@ export default function CommandeDetailPage() {
         <div className="flex items-start gap-2 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
           <XCircle size={16} className="text-red-600 flex-shrink-0 mt-0.5" />
           <div>
-            <p className="text-sm font-medium text-red-800 dark:text-red-300">Saisie refusee</p>
+            <p className="text-sm font-medium text-red-800 dark:text-red-300">Saisie refusée</p>
             <p className="text-sm text-red-700 dark:text-red-400 mt-0.5">{commande.message_refus}</p>
           </div>
         </div>
@@ -167,7 +202,7 @@ export default function CommandeDetailPage() {
               : <p className="text-sm text-gray-500">-</p>}
           </div>
           <div>
-            <p className="text-xs text-gray-500 mb-1">Societe acheteuse</p>
+            <p className="text-xs text-gray-500 mb-1">Société acheteuse</p>
             <p className="text-sm text-gray-800 dark:text-gray-200">{commande.societe_label ?? '-'}</p>
           </div>
           <div>
@@ -182,7 +217,7 @@ export default function CommandeDetailPage() {
       </section>
 
       <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Financier et echeance</h2>
+        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Financier et échéance</h2>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div>
             <p className="text-xs text-gray-500 mb-1">Montant</p>
@@ -193,46 +228,78 @@ export default function CommandeDetailPage() {
             <p className="text-sm text-gray-800 dark:text-gray-200">{formatDate(commande.date_commande)}</p>
           </div>
           <div>
-            <p className="text-xs text-gray-500 mb-1">A renouveler</p>
+            <p className="text-xs text-gray-500 mb-1">À renouveler</p>
             <p className="text-sm text-gray-800 dark:text-gray-200">{commande.a_renouveler ? 'Oui' : 'Non'}</p>
           </div>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4">
           <div>
-            <p className="text-xs text-gray-500 mb-1">Numero de devis</p>
+            <p className="text-xs text-gray-500 mb-1">Numéro de devis</p>
             <p className="text-sm text-gray-800 dark:text-gray-200">{commande.numero_devis ?? '-'}</p>
           </div>
           <div>
-            <p className="text-xs text-gray-500 mb-1">Reference interne</p>
+            <p className="text-xs text-gray-500 mb-1">Référence interne</p>
             <p className="text-sm text-gray-800 dark:text-gray-200">{commande.reference_interne ?? '-'}</p>
           </div>
         </div>
         {(commande.statut_echeance === 'expire' || commande.statut_echeance === 'a_renouveler') && commande.jours_restants !== null && (
           <p className="text-sm mt-3" style={{ color: commande.statut_echeance === 'expire' ? '#EF4444' : '#F59E0B' }}>
             {commande.statut_echeance === 'expire'
-              ? `Echu depuis ${-commande.jours_restants} jours`
-              : `Echeance dans ${commande.jours_restants} jours`}
+              ? `Échu depuis ${-commande.jours_restants} jours`
+              : `Échéance dans ${commande.jours_restants} jours`}
           </p>
         )}
       </section>
 
       <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Rattachements</h2>
-        <div className="grid grid-cols-3 gap-4">
-          <div>
-            <p className="text-xs text-gray-500 mb-1">Factures</p>
-            <p className="text-sm text-gray-800 dark:text-gray-200">{commande.nb_factures ?? 0}</p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-500 mb-1">Preuves</p>
-            <p className="text-sm text-gray-800 dark:text-gray-200">{commande.nb_preuves ?? 0}</p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-500 mb-1">Licences</p>
-            <p className="text-sm text-gray-800 dark:text-gray-200">{commande.nb_licences ?? 0}</p>
-          </div>
-        </div>
-        <p className="text-xs text-gray-400 mt-3">Le detail des documents et des licences sera liste au branchement de ces modules.</p>
+        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Preuves ({preuves.length})</h2>
+        {preuves.length === 0 ? (
+          <p className="text-sm text-gray-500">Aucune preuve rattachée à cette commande.</p>
+        ) : (
+          <ul className="divide-y divide-gray-100 dark:divide-gray-700">
+            {preuves.map(p => (
+              <li key={p.id} className="flex items-center justify-between gap-3 py-2">
+                <div className="min-w-0">
+                  <Link to={`/contrats/factures/${p.id}?ressource=preuve`} className="text-sm font-medium text-blue-800 hover:underline">{p.label}</Link>
+                  <p className="text-xs text-gray-500">{p.type_label ?? '-'} · déposée le {formatDate(p.created_at)}</p>
+                </div>
+                {p.url_fichier && p.url_fichier !== 'en-attente-de-depot' && (
+                  <Button variant="secondary" size="sm" onClick={() => ouvrirFichier(p.id)} isLoading={ouverture === p.id}>
+                    <ExternalLink size={14} /> Ouvrir le fichier
+                  </Button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Factures ({factures.length})</h2>
+        {factures.length === 0 ? (
+          <p className="text-sm text-gray-500">Aucune facture rattachée à cette commande.</p>
+        ) : (
+          <ul className="divide-y divide-gray-100 dark:divide-gray-700">
+            {factures.map(f => (
+              <li key={f.id} className="flex items-center justify-between gap-3 py-2">
+                <div className="min-w-0">
+                  <Link to={`/contrats/factures/${f.id}?ressource=facture`} className="text-sm font-medium text-blue-800 hover:underline">{f.label}</Link>
+                  <p className="text-xs text-gray-500">{f.preuve_label ? `Justificatif : ${f.preuve_label}` : 'Sans justificatif'} · déposée le {formatDate(f.created_at)}</p>
+                </div>
+                {f.id_preuve && (
+                  <Button variant="secondary" size="sm" onClick={() => ouvrirFichier(f.id_preuve)} isLoading={ouverture === f.id_preuve}>
+                    <ExternalLink size={14} /> Ouvrir le fichier
+                  </Button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Licences</h2>
+        <p className="text-sm text-gray-800 dark:text-gray-200">{commande.nb_licences ?? 0} licence(s) rattachée(s)</p>
       </section>
 
       <CommandeFormModal
@@ -245,6 +312,16 @@ export default function CommandeDetailPage() {
         revendeurs={revendeurs}
         modes={modes}
       />
+      <PreuveFormModal
+        isOpen={preuveModal}
+        onClose={() => setPreuveModal(false)}
+        onDone={toast => { if (toast) addToast(toast); load(); }}
+        typesPreuve={typesPreuve}
+        contrats={contrats}
+        commandes={[commande]}
+        contratParDefaut={commande.id_contrat || null}
+        commandeParDefaut={commande.id}
+      />
       <ConfirmModal
         isOpen={deleteOpen}
         onClose={() => setDeleteOpen(false)}
@@ -252,7 +329,7 @@ export default function CommandeDetailPage() {
         title="Supprimer la commande"
         isDestructive
         confirmLabel="Supprimer"
-        message={`Supprimer definitivement ${commande.label} ? Cette action est irreversible.`}
+        message={`Supprimer définitivement ${commande.label} ? Cette action est irréversible.`}
       />
     </div>
   );

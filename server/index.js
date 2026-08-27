@@ -2,6 +2,7 @@
 import express from "express";
 import cors from "cors";
 import { APP_ENV } from "./db.js";
+import { chargerCatalogueCodes } from "./utils/reponse.js";
 
 import authRouter from "./routes/auth.js";
 import { authMiddleware } from "./middleware/auth.js";
@@ -23,6 +24,14 @@ import preuvesRouter from "./routes/preuves.js";
 import facturesRouter from "./routes/factures.js";
 import reinitialisationPubliqueRouter from "./routes/reinitialisationPublique.js";
 import validationRouter from "./routes/validation.js";
+import mailsRouter from "./routes/mails.js";
+import licencesRouter from "./routes/licences.js";
+import referentielsLicencesRouter from "./routes/referentielsLicences.js";
+import affectationsRouter from "./routes/affectations.js";
+import inventaireRouter from "./routes/inventaire.js";
+import budgetRouter from "./routes/budget.js";
+import editeursRouter from "./routes/editeurs.js";
+import logicielsRouter from "./routes/logiciels.js";
 
 const app = express();
 app.use(cors());
@@ -54,6 +63,17 @@ app.use("/api", commandesRouter);
 app.use("/api", preuvesRouter);
 app.use("/api", facturesRouter);
 app.use("/api", validationRouter);
+app.use("/api", mailsRouter);
+app.use("/api", licencesRouter);
+app.use("/api", referentielsLicencesRouter);
+app.use("/api", affectationsRouter);
+app.use("/api", inventaireRouter);
+app.use("/api", budgetRouter);
+// Referentiels du module 1. editeursRouter porte GET /editeurs, que
+// referentielsRouter servait jusqu'ici : monte apres lui, il ne prendrait pas
+// la main si la route y etait restee, d'ou son retrait la-bas.
+app.use("/api", editeursRouter);
+app.use("/api", logicielsRouter);
 
 app.use("/api", (req, res) => {
   res.status(404).json({ error: "Ressource introuvable." });
@@ -67,6 +87,12 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 3001;
+// Catalogue code_retour (BDD Commune) : un echec de chargement ne bloque pas
+// le demarrage, les reponses sortent alors avec libelle null et l'ecart est
+// visible en console.
+chargerCatalogueCodes()
+  .then((n) => console.log(`Catalogue code_retour charge : ${n} codes`))
+  .catch((err) => console.error("[code_retour] chargement impossible :", err.message));
 app.listen(PORT, () => {
   console.log(
     `API SamSecure [${APP_ENV}] sur http://localhost:${PORT}` +

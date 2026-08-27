@@ -1,5 +1,6 @@
 import express from "express";
 import { tenantPool } from "../db.js";
+import { succes, erreur, erreurPivot, codeEntete } from "../utils/reponse.js";
 import fs from "node:fs";
 import path from "node:path";
 import {
@@ -13,12 +14,17 @@ import {
 const router = express.Router();
 
 // Convention du projet : helper de journalisation local a chaque routeur.
-async function log(client, action, entite_type, entite_id, description, payload) {
+// id_auteur est lu dans req.user (session JWT), comme le fait audit() : les
+// quatre routeurs de saisie sont montes apres authMiddleware, req.user est
+// donc toujours renseigne. Jamais un id arbitraire : la FK vers utilisateur
+// ferait avorter la transaction en cours.
+async function log(client, req, action, entite_type, entite_id, description, payload) {
   try {
     await client.query(
-      `INSERT INTO journal_ecriture (action, entite_type, entite_id, description, payload)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [action, entite_type, entite_id || null, description, payload ? JSON.stringify(payload) : null]
+      `INSERT INTO journal_ecriture (action, entite_type, entite_id, description, id_auteur, payload)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [action, entite_type, entite_id || null, description, req?.user?.id || null,
+       payload ? JSON.stringify(payload) : null]
     );
   } catch (e) {
     console.error("[journal] log failed:", e.message);
@@ -113,28 +119,21 @@ function normaliserCorps(body = {}) {
 async function validerPreuve(client, body) {
   const { label, id_type_preuve, id_contrat, id_commande, url_fichier, hash_sha256 } = body;
 
-  // code_retour: 3211
   if (!label || !label.trim())
-    return { status: 400, error: "Le libelle est obligatoire." };
-  // code_retour: 3212
+    return { status: 400, code: 3211, error: "Le libelle est obligatoire." };
   if (!id_type_preuve)
-    return { status: 400, error: "Le type de preuve est obligatoire." };
-  // code_retour: 3213
+    return { status: 400, code: 3212, error: "Le type de preuve est obligatoire." };
   if (!(await existe(client, "type_preuve", id_type_preuve)))
-    return { status: 400, error: "Type de preuve introuvable." };
-  // code_retour: 3214
+    return { status: 400, code: 3213, error: "Type de preuve introuvable." };
   // Regle metier de la #48 : une preuve sans rattachement est orpheline, elle
   // ne serait atteignable ni par un contrat ni par une commande. Le DDL laisse
   // les deux colonnes nullables, c'est l'API qui porte la contrainte.
   if (!id_contrat && !id_commande)
-    return { status: 400, error: "Une preuve doit etre rattachee a un contrat, a une commande, ou aux deux." };
-  // code_retour: 3215
+    return { status: 400, code: 3214, error: "Une preuve doit etre rattachee a un contrat, a une commande, ou aux deux." };
   if (!(await existe(client, "contrat", id_contrat)))
-    return { status: 400, error: "Contrat introuvable." };
-  // code_retour: 3216
+    return { status: 400, code: 3215, error: "Contrat introuvable." };
   if (!(await existe(client, "commande", id_commande)))
-    return { status: 400, error: "Commande introuvable." };
-  // code_retour: 3217
+    return { status: 400, code: 3216, error: "Commande introuvable." };
   // url_fichier est NOT NULL en base (002_tenant_schema.sql:351). Decision du
   // 11/08 : on ne migre pas, le champ est donc obligatoire des la #48. En #49
   // il sera renseigne par le module de depot et non plus par le client, sans
@@ -144,51 +143,43 @@ async function validerPreuve(client, body) {
   // http/https de GED. La chaine est stockee telle quelle. La regle viendra se
   // brancher a cet endroit precis, code 3231 reserve.
   if (!url_fichier || !url_fichier.trim())
-    return { status: 400, error: "Le chemin du fichier est obligatoire." };
-  // code_retour: 3218
+    return { status: 400, code: 3217, error: "Le chemin du fichier est obligatoire." };
   // Le hash reste facultatif : le rendre obligatoire prejugerait de D27, qui
   // prevoit justement un hash NULL pour un lien externe. Seul son format est
   // verifie quand il est fourni.
   if (hash_sha256 && !SHA256_RE.test(hash_sha256))
-    return { status: 400, error: "L'empreinte SHA-256 doit comporter 64 caracteres hexadecimaux." };
+    return { status: 400, code: 3218, error: "L'empreinte SHA-256 doit comporter 64 caracteres hexadecimaux." };
   return null;
 }
 
 router.get("/preuves", async (req, res) => {
   try {
     const filtres = construireFiltres(req.query);
-    // code_retour: 3219
-    if (filtres.erreur) return res.status(400).json({ error: filtres.erreur });
+    if (filtres.erreur) return erreur(res, 3219, { status: 400, message: filtres.erreur });
 
     const { rows } = await tenantPool.query(
       `${SELECT_PREUVE} ${filtres.clause} ORDER BY p.created_at DESC, p.label`,
       filtres.params
     );
-    // code_retour: 3200
-    res.json(rows);
+    succes(res, 3200, rows);
   } catch (err) {
     console.error("GET /preuves error", err);
-    // code_retour: 3299
-    res.status(500).json({ error: "Erreur serveur" });
+    erreur(res, 3299, { status: 500, message: "Erreur serveur" });
   }
 });
 
 router.get("/preuves/:id", async (req, res) => {
   const { id } = req.params;
   try {
-    // code_retour: 3210
-    if (!UUID_RE.test(id)) return res.status(404).json({ error: "Preuve introuvable." });
+    if (!UUID_RE.test(id)) return erreur(res, 3210, { status: 404, message: "Preuve introuvable." });
 
     const { rows } = await tenantPool.query(`${SELECT_PREUVE} WHERE p.id = $1`, [id]);
-    // code_retour: 3210
-    if (!rows.length) return res.status(404).json({ error: "Preuve introuvable." });
+    if (!rows.length) return erreur(res, 3210, { status: 404, message: "Preuve introuvable." });
 
-    // code_retour: 3201
-    res.json(rows[0]);
+    succes(res, 3201, rows[0]);
   } catch (err) {
     console.error("GET /preuves/:id error", err);
-    // code_retour: 3299
-    res.status(500).json({ error: "Erreur serveur" });
+    erreur(res, 3299, { status: 500, message: "Erreur serveur" });
   }
 });
 
@@ -201,7 +192,7 @@ router.post("/preuves", async (req, res) => {
     const invalide = await validerPreuve(client, corps);
     if (invalide) {
       await client.query("ROLLBACK");
-      return res.status(invalide.status).json({ error: invalide.error });
+      return erreurPivot(res, invalide);
     }
 
     const label = corps.label.trim();
@@ -217,17 +208,15 @@ router.post("/preuves", async (req, res) => {
     // l'ecriture metier.
     await soumettre(client, "preuve", creee.id, req.user?.id);
 
-    await log(client, "CREATE", "preuve", creee.id, `Creation de la preuve "${label}"`, corps);
+    await log(client, req, "CREATE", "preuve", creee.id, `Creation de la preuve "${label}"`, corps);
     await client.query("COMMIT");
 
     const { rows } = await tenantPool.query(`${SELECT_PREUVE} WHERE p.id = $1`, [creee.id]);
-    // code_retour: 3202
-    res.status(201).json(rows[0]);
+    succes(res, 3202, rows[0], { status: 201 });
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("POST /preuves error", err);
-    // code_retour: 3299
-    res.status(500).json({ error: "Erreur serveur" });
+    erreur(res, 3299, { status: 500, message: "Erreur serveur" });
   } finally {
     client.release();
   }
@@ -239,19 +228,17 @@ router.patch("/preuves/:id", async (req, res) => {
   try {
     await client.query("BEGIN");
 
-    // code_retour: 3210
     if (!UUID_RE.test(id)) {
       await client.query("ROLLBACK");
-      return res.status(404).json({ error: "Preuve introuvable." });
+      return erreur(res, 3210, { status: 404, message: "Preuve introuvable." });
     }
 
     const { rows: existant } = await client.query(
       `SELECT label, id_type_preuve, id_contrat, id_commande, url_fichier, hash_sha256
        FROM preuve WHERE id = $1`, [id]);
-    // code_retour: 3210
     if (!existant.length) {
       await client.query("ROLLBACK");
-      return res.status(404).json({ error: "Preuve introuvable." });
+      return erreur(res, 3210, { status: 404, message: "Preuve introuvable." });
     }
 
     // Fusion avant validation : un PATCH partiel ne doit pas echouer sur un
@@ -266,7 +253,7 @@ router.patch("/preuves/:id", async (req, res) => {
     const invalide = await validerPreuve(client, corps);
     if (invalide) {
       await client.query("ROLLBACK");
-      return res.status(invalide.status).json({ error: invalide.error });
+      return erreurPivot(res, invalide);
     }
 
     // Pas de updated_at : la table preuve n'en porte pas (002_tenant_schema.sql:344).
@@ -283,17 +270,15 @@ router.patch("/preuves/:id", async (req, res) => {
     // Une modification est une saisie : retour en attente, motif de refus efface.
     await soumettre(client, "preuve", id, req.user?.id);
 
-    await log(client, "UPDATE", "preuve", id, `Modification de la preuve "${label}"`, patch);
+    await log(client, req, "UPDATE", "preuve", id, `Modification de la preuve "${label}"`, patch);
     await client.query("COMMIT");
 
     const { rows } = await tenantPool.query(`${SELECT_PREUVE} WHERE p.id = $1`, [id]);
-    // code_retour: 3203
-    res.json(rows[0]);
+    succes(res, 3203, rows[0]);
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("PATCH /preuves/:id error", err);
-    // code_retour: 3299
-    res.status(500).json({ error: "Erreur serveur" });
+    erreur(res, 3299, { status: 500, message: "Erreur serveur" });
   } finally {
     client.release();
   }
@@ -305,17 +290,15 @@ router.delete("/preuves/:id", async (req, res) => {
   try {
     await client.query("BEGIN");
 
-    // code_retour: 3210
     if (!UUID_RE.test(id)) {
       await client.query("ROLLBACK");
-      return res.status(404).json({ error: "Preuve introuvable." });
+      return erreur(res, 3210, { status: 404, message: "Preuve introuvable." });
     }
 
     const { rows: existant } = await client.query(`SELECT label, url_fichier FROM preuve WHERE id = $1`, [id]);
-    // code_retour: 3210
     if (!existant.length) {
       await client.query("ROLLBACK");
-      return res.status(404).json({ error: "Preuve introuvable." });
+      return erreur(res, 3210, { status: 404, message: "Preuve introuvable." });
     }
 
     // Seule FK entrante de preuve dans le DDL v4 : facture.id_preuve. Supprimer
@@ -326,9 +309,9 @@ router.delete("/preuves/:id", async (req, res) => {
 
     if (liens.factures) {
       await client.query("ROLLBACK");
-      // code_retour: 3230
-      return res.status(409).json({
-        error: `Suppression impossible : cette preuve est rattachee a ${liens.factures} facture(s).`,
+      return erreur(res, 3230, {
+        status: 409,
+        message: `Suppression impossible : cette preuve est rattachee a ${liens.factures} facture(s).`,
         details: liens,
       });
     }
@@ -337,20 +320,18 @@ router.delete("/preuves/:id", async (req, res) => {
     // applicatif, dans la meme transaction que la suppression.
     await purgerValidations(client, "preuve", id);
     await client.query(`DELETE FROM preuve WHERE id = $1`, [id]);
-    await log(client, "DELETE", "preuve", id, `Suppression de la preuve "${existant[0].label}"`, null);
+    await log(client, req, "DELETE", "preuve", id, `Suppression de la preuve "${existant[0].label}"`, null);
     await client.query("COMMIT");
 
     // Le fichier physique ne survit pas a sa preuve : sans cela le stockage
     // accumulerait des orphelins qu'aucune ligne ne reference plus. Supprime
     // apres le COMMIT, pour ne pas le perdre si la transaction echouait.
     await supprimerFichier(existant[0].url_fichier);
-    // code_retour: 3204
-    res.status(204).end();
+    succes(res, 3204, null);
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("DELETE /preuves/:id error", err);
-    // code_retour: 3299
-    res.status(500).json({ error: "Erreur serveur" });
+    erreur(res, 3299, { status: 500, message: "Erreur serveur" });
   } finally {
     client.release();
   }
@@ -384,15 +365,11 @@ async function audit(client, req, action, entiteId, avant, apres) {
 
 async function deposerFichier(req, res) {
   const { id } = req.params;
-  // code_retour: 3210
-  if (!UUID_RE.test(id)) return res.status(404).json({ error: "Preuve introuvable." });
-  // code_retour: 3220
-  if (!req.file) return res.status(400).json({ error: "Aucun fichier n'a ete transmis." });
+  if (!UUID_RE.test(id)) return erreur(res, 3210, { status: 404, message: "Preuve introuvable." });
+  if (!req.file) return erreur(res, 3220, { status: 400, message: "Aucun fichier n'a ete transmis." });
 
-  // code_retour: 3221
-  // code_retour: 3223
   const invalideFichier = validerFichier(req.file);
-  if (invalideFichier) return res.status(invalideFichier.status).json({ error: invalideFichier.error });
+  if (invalideFichier) return erreurPivot(res, invalideFichier);
 
   const client = await tenantPool.connect();
   let ecrit = null;
@@ -401,10 +378,9 @@ async function deposerFichier(req, res) {
 
     const { rows: existant } = await client.query(
       `SELECT label, url_fichier, hash_sha256, nom_origine FROM preuve WHERE id = $1`, [id]);
-    // code_retour: 3210
     if (!existant.length) {
       await client.query("ROLLBACK");
-      return res.status(404).json({ error: "Preuve introuvable." });
+      return erreur(res, 3210, { status: 404, message: "Preuve introuvable." });
     }
     const avant = existant[0];
     const remplacement = NOM_PHYSIQUE_RE.test(avant.url_fichier || "");
@@ -425,7 +401,7 @@ async function deposerFichier(req, res) {
         : null,
       { url_fichier: ecrit.nomPhysique, hash_sha256: ecrit.hash, nom_origine: ecrit.nomOrigine, taille: req.file.size });
 
-    await log(client, "UPDATE", "preuve", id,
+    await log(client, req, "UPDATE", "preuve", id,
       `${remplacement ? "Remplacement" : "Depot"} du fichier de la preuve "${avant.label}"`,
       { nom_origine: ecrit.nomOrigine, hash_sha256: ecrit.hash });
 
@@ -436,15 +412,13 @@ async function deposerFichier(req, res) {
     if (remplacement && avant.url_fichier !== ecrit.nomPhysique) await supprimerFichier(avant.url_fichier);
 
     const { rows } = await tenantPool.query(`${SELECT_PREUVE} WHERE p.id = $1`, [id]);
-    // code_retour: 3205
-    res.status(201).json(rows[0]);
+    succes(res, 3205, rows[0], { status: 201 });
   } catch (err) {
     await client.query("ROLLBACK").catch(() => {});
     // Le fichier ecrit avant l'echec ne doit pas rester orphelin sur le disque.
     if (ecrit) await supprimerFichier(ecrit.nomPhysique);
     console.error("POST /preuves/:id/fichier error", err);
-    // code_retour: 3299
-    res.status(500).json({ error: "Erreur serveur" });
+    erreur(res, 3299, { status: 500, message: "Erreur serveur" });
   } finally {
     client.release();
   }
@@ -457,10 +431,9 @@ router.post("/preuves/:id/fichier", (req, res) => {
   recevoirFichier(req, res, (err) => {
     if (err) {
       const connue = erreurReception(err);
-      if (connue) return res.status(connue.status).json({ error: connue.error });
+      if (connue) return erreurPivot(res, connue);
       console.error("POST /preuves/:id/fichier multipart error", err);
-      // code_retour: 3220
-      return res.status(400).json({ error: "Aucun fichier n'a ete transmis." });
+      return erreur(res, 3220, { status: 400, message: "Aucun fichier n'a ete transmis." });
     }
     deposerFichier(req, res);
   });
@@ -469,13 +442,11 @@ router.post("/preuves/:id/fichier", (req, res) => {
 router.get("/preuves/:id/fichier", async (req, res) => {
   const { id } = req.params;
   try {
-    // code_retour: 3210
-    if (!UUID_RE.test(id)) return res.status(404).json({ error: "Preuve introuvable." });
+    if (!UUID_RE.test(id)) return erreur(res, 3210, { status: 404, message: "Preuve introuvable." });
 
     const { rows } = await tenantPool.query(
       `SELECT url_fichier, nom_origine FROM preuve WHERE id = $1`, [id]);
-    // code_retour: 3210
-    if (!rows.length) return res.status(404).json({ error: "Preuve introuvable." });
+    if (!rows.length) return erreur(res, 3210, { status: 404, message: "Preuve introuvable." });
 
     const { url_fichier, nom_origine } = rows[0];
 
@@ -483,23 +454,20 @@ router.get("/preuves/:id/fichier", async (req, res) => {
     // qu'une url_fichier en http/https donnera lieu a une redirection plutot
     // qu'a un acces disque, code 3232 reserve au pre-catalogue. Dans l'attente,
     // seul un fichier depose par cette tache est servi.
-    // code_retour: 3224
     if (!NOM_PHYSIQUE_RE.test(url_fichier || ""))
-      return res.status(404).json({ error: "Aucun fichier n'a ete depose pour cette preuve." });
+      return erreur(res, 3224, { status: 404, message: "Aucun fichier n'a ete depose pour cette preuve." });
 
     // Garde-fou de traversee de chemin : url_fichier a pu etre saisi librement
     // par le POST /preuves de la #48. Le motif ci-dessus l'interdit deja, la
     // resolution le verifie une seconde fois avant tout acces disque.
     const racine = path.resolve(PREUVES_DIR);
     const chemin = path.resolve(racine, url_fichier);
-    // code_retour: 3226
     if (!chemin.startsWith(racine + path.sep))
-      return res.status(404).json({ error: "Aucun fichier n'a ete depose pour cette preuve." });
+      return erreur(res, 3226, { status: 404, message: "Aucun fichier n'a ete depose pour cette preuve." });
 
     if (!fs.existsSync(chemin)) {
       console.error(`[stockage] fichier absent du disque pour la preuve ${id} : ${url_fichier}`);
-      // code_retour: 3225
-      return res.status(404).json({ error: "Le fichier est introuvable dans le stockage." });
+      return erreur(res, 3225, { status: 404, message: "Le fichier est introuvable dans le stockage." });
     }
 
     const extension = path.extname(url_fichier).toLowerCase();
@@ -522,18 +490,15 @@ router.get("/preuves/:id/fichier", async (req, res) => {
     // meme qu'elle ne sort pas de la racine : le garde-fou de traversee est
     // ainsi double. Le callback est indispensable, l'erreur d'envoi etant
     // asynchrone elle echapperait au try/catch et finirait au handler global.
-    // code_retour: 3206
-    res.sendFile(url_fichier, { root: racine }, (err) => {
+    codeEntete(res, 3206).sendFile(url_fichier, { root: racine }, (err) => {
       if (!err) return;
       if (res.headersSent) return console.error("GET /preuves/:id/fichier interrompu", err.message);
       console.error("GET /preuves/:id/fichier envoi impossible", err);
-      // code_retour: 3225
-      res.status(404).json({ error: "Le fichier est introuvable dans le stockage." });
+      erreur(res, 3225, { status: 404, message: "Le fichier est introuvable dans le stockage." });
     });
   } catch (err) {
     console.error("GET /preuves/:id/fichier error", err);
-    // code_retour: 3299
-    res.status(500).json({ error: "Erreur serveur" });
+    erreur(res, 3299, { status: 500, message: "Erreur serveur" });
   }
 });
 

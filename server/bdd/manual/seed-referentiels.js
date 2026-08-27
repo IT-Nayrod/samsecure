@@ -1,19 +1,44 @@
-// Amorce des referentiels editeur et revendeur. Ces deux tables n'ont pas encore
-// de CRUD (module 1 non branche) et restent vides, ce qui laisse les selecteurs
-// du formulaire contrat sans source. Script manuel, jamais joue par migrate.js.
-// Idempotent : rejouable sans creer de doublon.
+// Amorce des referentiels editeur et revendeur.
+// Script manuel, jamais joue par migrate.js. Idempotent : rejouable sans creer
+// de doublon ni ecraser une saisie client.
+//
+// Depuis l'ouverture du referentiel editeurs a la saisie (migrations 039 a 041),
+// ce script fait trois choses la ou il n'en faisait qu'une :
+//   - il insere les editeurs manquants, comme avant ;
+//   - il renseigne le pays des editeurs qui n'en ont pas encore. Uniquement
+//     ceux-la : un pays saisi par le client fait foi et n'est jamais ecrase ;
+//   - il pose l'entree workflow_validation des editeurs qui n'en ont aucune.
+//     Sans elle, l'ecran n'afficherait aucun statut et le traitement de
+//     validation refuserait la ligne, une saisie sans demande n'etant pas
+//     traitable (validation.js, code 3312). Statut valide : ces editeurs ne
+//     sont pas saisis par le client, ils lui sont livres.
 import { commonPool, tenantPool, APP_ENV } from "../../db.js";
 
+// raison sociale, slug du logo, pays. Le slug pointe un fichier de public/logos.
 const EDITEURS = [
-  ["Microsoft Corporation", "microsoft"], ["Adobe Systems", "adobe"],
-  ["Oracle Corporation", "oracle"], ["SAP SE", "sap"], ["IBM Corporation", "ibm"],
-  ["Autodesk", "autodesk"], ["Citrix Systems", "citrix"], ["VMware", "vmware"],
-  ["Salesforce", "salesforce"], ["ServiceNow", null], ["Atlassian", "atlassian"],
-  ["ESET", null], ["Symantec (Broadcom)", "symantec"],
-  ["Dassault Systemes", "dassaultsystemes"], ["Sage", "sage"], ["Cegid", null],
-  ["Esker", null], ["Talend", "talend"], ["Slack Technologies", "slack"],
-  ["Zoom Video Communications", "zoom"], ["Datadog", "datadog"],
-  ["Snowflake", "snowflake"], ["Lansweeper", null],
+  ["Microsoft Corporation", "microsoft", "États-Unis"],
+  ["Adobe Systems", "adobe", "États-Unis"],
+  ["Oracle Corporation", "oracle", "États-Unis"],
+  ["SAP SE", "sap", "Allemagne"],
+  ["IBM Corporation", "ibm", "États-Unis"],
+  ["Autodesk", "autodesk", "États-Unis"],
+  ["Citrix Systems", "citrix", "États-Unis"],
+  ["VMware", "vmware", "États-Unis"],
+  ["Salesforce", "salesforce", "États-Unis"],
+  ["ServiceNow", null, "États-Unis"],
+  ["Atlassian", "atlassian", "Australie"],
+  ["ESET", null, "Slovaquie"],
+  ["Symantec (Broadcom)", "symantec", "États-Unis"],
+  ["Dassault Systemes", "dassaultsystemes", "France"],
+  ["Sage", "sage", "France"],
+  ["Cegid", null, "France"],
+  ["Esker", null, "France"],
+  ["Talend", "talend", "France"],
+  ["Slack Technologies", "slack", "États-Unis"],
+  ["Zoom Video Communications", "zoom", "États-Unis"],
+  ["Datadog", "datadog", "États-Unis"],
+  ["Snowflake", "snowflake", "États-Unis"],
+  ["Lansweeper", null, "Belgique"],
 ];
 
 const REVENDEURS = [
@@ -41,15 +66,38 @@ try {
   await client.query("BEGIN");
 
   let nbEditeurs = 0;
-  for (const [raisonSociale, slug] of EDITEURS) {
+  let nbPays = 0;
+  for (const [raisonSociale, slug, pays] of EDITEURS) {
     const { rowCount } = await client.query(
-      `INSERT INTO editeur (raison_sociale, url_logo_defaut)
-       SELECT $1::text, $2::text
+      `INSERT INTO editeur (raison_sociale, url_logo_defaut, pays)
+       SELECT $1::text, $2::text, $3::text
        WHERE NOT EXISTS (SELECT 1 FROM editeur WHERE raison_sociale = $1)`,
-      [raisonSociale, slug ? `/logos/${slug}.svg` : null]
+      [raisonSociale, slug ? `/logos/${slug}.svg` : null, pays]
     );
     nbEditeurs += rowCount;
+
+    // Rattrapage des editeurs inseres avant la migration 039, quand la colonne
+    // n'existait pas. Le pays saisi par le client n'est jamais touche.
+    const { rowCount: majPays } = await client.query(
+      `UPDATE editeur SET pays = $2 WHERE raison_sociale = $1 AND pays IS NULL`,
+      [raisonSociale, pays]
+    );
+    nbPays += majPays;
   }
+
+  // Une entree de workflow par editeur qui n'en a aucune. Le SELECT sur
+  // validation_status echouerait a zero ligne si le referentiel n'etait pas
+  // seede : c'est le cas nominal depuis 003.
+  const { rowCount: nbWorkflow } = await client.query(
+    `INSERT INTO workflow_validation (entite_type, entite_id, id_statut)
+     SELECT 'editeur', e.id, vs.id
+       FROM editeur e
+       CROSS JOIN validation_status vs
+      WHERE vs.code = 'valide'
+        AND NOT EXISTS (
+          SELECT 1 FROM workflow_validation w
+           WHERE w.entite_type = 'editeur' AND w.entite_id = e.id)`
+  );
 
   let nbRevendeurs = 0;
   for (const [raisonSociale, siret, iban, email] of REVENDEURS) {
@@ -63,7 +111,10 @@ try {
   }
 
   await client.query("COMMIT");
-  console.log(`[${APP_ENV}] Referentiels amorces : ${nbEditeurs} editeur(s), ${nbRevendeurs} revendeur(s) ajoute(s).`);
+  console.log(
+    `[${APP_ENV}] Referentiels amorces : ${nbEditeurs} editeur(s) ajoute(s), ` +
+    `${nbPays} pays renseigne(s), ${nbWorkflow} statut(s) de validation pose(s), ` +
+    `${nbRevendeurs} revendeur(s) ajoute(s).`);
 } catch (err) {
   await client.query("ROLLBACK");
   console.error("Echec :", err.message);

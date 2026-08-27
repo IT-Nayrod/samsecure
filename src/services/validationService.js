@@ -3,7 +3,8 @@
 // polymorphe cote API : le front n'a donc qu'un service, pas un par bloc.
 // Meme convention que les autres services : aucun fetch direct, http.js porte
 // le Bearer, le refresh sur 401 et la normalisation des erreurs en ApiError
-// dont le message est le champ "error" du serveur, affiche tel quel.
+// (message = champ "error" affiche tel quel, code = code_retour, #68) et le
+// deballage de l'enveloppe { code, type, libelle, data }.
 import { http } from './http';
 
 export const validationService = {

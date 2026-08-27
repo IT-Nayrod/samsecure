@@ -10,6 +10,7 @@
 // config/routesPermissions.js est la seule source.
 import { ROUTES_PERMISSIONS } from "../config/routesPermissions.js";
 import { permissionsEffectives } from "../utils/droitsUtilisateur.js";
+import { erreur } from "../utils/reponse.js";
 
 // RBAC_STRICT=false journalise le refus sans bloquer : sert a observer les
 // refus reels sur un environnement avant de couper. Toute autre valeur, y
@@ -20,12 +21,19 @@ const STRICT = process.env.RBAC_STRICT !== "false";
 // Un chemin Express devient une expression ancree : /profils/:id/societes
 // accepte /profils/<uuid>/societes et rien d'autre. Ancrage aux deux bouts
 // pour qu'une regle courte ne capture pas un chemin plus long.
+// Insensible a la casse (flag i), comme le routage d'Express 5 (router 2,
+// path-to-regexp 8, caseSensitive false par defaut) : le middleware doit
+// reconnaitre exactement les memes chemins que les routeurs. Sans le flag,
+// /budget/Preremplissage echappait a la regle litterale, tombait sur la
+// regle /budget/:id (droit de lecture) puis etait servi par le handler de
+// preremplissage (droit de saisie) : revue #146, le meme contournement
+// touchait /commandes/Agregats.
 function versRegex(chemin) {
   const motif = chemin
     .split("/")
     .map((seg) => (seg.startsWith(":") ? "[^/]+" : seg.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))
     .join("/");
-  return new RegExp(`^${motif}/?$`);
+  return new RegExp(`^${motif}/?$`, "i");
 }
 
 const REGLES = ROUTES_PERMISSIONS.map(([methode, chemin, permission]) => ({
@@ -43,8 +51,8 @@ export function controlePermissions(req, res, next) {
   if (!regle) {
     console.error(`[rbac] route non declaree : ${req.method} ${req.path}`);
     if (!STRICT) return next();
-    return res.status(403).json({
-      error: "Cette action n'est pas permise pour votre niveau de droit.",
+    return erreur(res, 3400, {
+      status: 403, message: "Cette action n'est pas permise pour votre niveau de droit.",
     });
   }
 
@@ -61,19 +69,18 @@ export function controlePermissions(req, res, next) {
         return next();
       }
       console.warn(refus);
-      // code_retour: 3400
       // Le droit manquant est nomme : le support et le simulateur de droits
       // doivent pouvoir dire quelle permission attribuer, sans lire les logs.
-      res.status(403).json({
-        error: "Cette action n'est pas permise pour votre niveau de droit. " +
-               `Permission requise : ${regle.permission}.`,
-        permission_requise: regle.permission,
+      erreur(res, 3400, {
+        status: 403,
+        message: "Cette action n'est pas permise pour votre niveau de droit. " +
+                 `Permission requise : ${regle.permission}.`,
+        details: { permission_requise: regle.permission },
       });
     })
     .catch((err) => {
       // Une panne du calcul des droits ne doit jamais valoir autorisation.
       console.error("[rbac] calcul des droits impossible", err);
-      // code_retour: 3499
-      res.status(500).json({ error: "Erreur serveur" });
+      erreur(res, 3499, { status: 500, message: "Erreur serveur" });
     });
 }

@@ -5,9 +5,9 @@ import Badge from '../ui/Badge';
 
 const CONFIG = {
   actif: { variant: 'success', label: 'Actif' },
-  a_renouveler: { variant: 'warning', label: 'A renouveler' },
-  expire: { variant: 'error', label: 'Expire' },
-  perpetuel: { variant: 'neutral', label: 'Perpetuel' },
+  a_renouveler: { variant: 'warning', label: 'À renouveler' },
+  expire: { variant: 'error', label: 'Expiré' },
+  perpetuel: { variant: 'neutral', label: 'Perpétuel' },
 };
 
 export default function StatutEcheanceBadge({ statut }) {

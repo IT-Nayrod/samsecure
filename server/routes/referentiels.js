@@ -20,9 +20,10 @@ async function liste(res, sql, contexte) {
 router.get("/types-contrat", (req, res) =>
   liste(res, `SELECT id, code, label FROM type_contrat ORDER BY label`, "GET /types-contrat"));
 
-router.get("/editeurs", (req, res) =>
-  liste(res, `SELECT id, raison_sociale, url_logo_defaut, url_logo_custom
-              FROM editeur ORDER BY raison_sociale`, "GET /editeurs"));
+// GET /editeurs a demenage vers routes/editeurs.js, qui sert le referentiel
+// complet du module 1 sous enveloppe normalisee. La projection y conserve les
+// quatre champs servis ici, et deballer() dans src/services/http.js rend le
+// changement de forme transparent pour le selecteur du formulaire contrat.
 
 router.get("/revendeurs", (req, res) =>
   liste(res, `SELECT id, raison_sociale FROM revendeur ORDER BY raison_sociale`, "GET /revendeurs"));

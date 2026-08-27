@@ -1,7 +1,8 @@
 // commandesService - acces API du module commandes.
 // Meme convention que contratsService : aucun fetch direct, aucune gestion de
 // token, http.js porte le Bearer, le refresh sur 401 et la normalisation des
-// erreurs en ApiError dont le message est le champ "error" du serveur.
+// erreurs en ApiError (message = champ "error", code = code_retour, #68) et
+// le deballage de l'enveloppe { code, type, libelle, data }.
 import { http } from './http';
 
 export const commandesService = {
