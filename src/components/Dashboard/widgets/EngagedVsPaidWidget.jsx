@@ -1,15 +1,21 @@
-// V2 - Nouveau - Widget Montants engagés vs payés avec drill-down par éditeur → produit
-import { useState } from 'react';
+// Montants engagés vs payés par éditeur (Financier), branches sur le
+// precalcul financier via GET /dashboards/engages-payes (#192).
+// Le montant paye vient de la meme table : il reste a zero tant qu'aucune
+// facture ne porte de montant (note migration 016), la donnee est servie
+// telle quelle. Le clic sur un editeur ouvre la liste des contrats filtree.
+import { useNavigate } from 'react-router-dom';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, Legend, Cell,
+  ResponsiveContainer, Cell,
 } from 'recharts';
-import { MoreVertical, ChevronLeft } from 'lucide-react';
-import Card from '../../ui/Card';
-import { montantsEngagesPayesData } from '../../../data/dashboardMockData';
-import FreshnessBadge from './FreshnessBadge';
+import CadreWidget from './CadreWidget';
+import useSourceDashboard from '../useSourceDashboard';
+import { couleurSerie } from '../couleurs';
+import { ROUTES_DRILL } from '../drill';
+import { dashboardService } from '../../../services/dashboardService';
+import { toIsoDate } from '../../../utils/fiscalPeriod';
 
-const DrillTooltip = ({ active, payload, label, level }) => {
+const TooltipEngage = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
   return (
     <div style={{
@@ -22,127 +28,80 @@ const DrillTooltip = ({ active, payload, label, level }) => {
         <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
           <span style={{ width: 8, height: 8, borderRadius: 2, background: p.fill }} />
           <span style={{ opacity: 0.85 }}>{p.name} : </span>
-          <strong>{p.value.toLocaleString('fr-FR')} €</strong>
+          <strong>{Number(p.value).toLocaleString('fr-FR')} €</strong>
         </div>
       ))}
-      {level === 'editeur' && (
-        <div style={{ marginTop: 6, borderTop: '1px solid rgba(255,255,255,0.15)', paddingTop: 6, fontSize: 10, opacity: 0.65 }}>
-          Cliquez pour plus d'informations
-        </div>
-      )}
+      <div style={{ marginTop: 6, borderTop: '1px solid rgba(255,255,255,0.15)', paddingTop: 6, fontSize: 10, opacity: 0.65 }}>
+        {"Cliquez pour ouvrir les contrats de l'éditeur"}
+      </div>
     </div>
   );
 };
 
-export function EngagedVsPaidWidget() {
-  const [drillLevel, setDrillLevel] = useState('editeur');
-  const [selectedEditeur, setSelectedEditeur] = useState(null);
+export function EngagedVsPaidWidget({ periode }) {
+  const navigate = useNavigate();
+  const debut = periode?.debut ? toIsoDate(periode.debut) : '';
+  const fin = periode?.fin ? toIsoDate(periode.fin) : '';
+  const cle = `engages-payes:${debut}:${fin}`;
+  const { data, chargement, erreur, relancer } = useSourceDashboard(cle,
+    () => dashboardService.engagesPayes(debut && fin ? { date_debut: debut, date_fin: fin } : {}));
 
-  const editeurColor = drillLevel === 'produit'
-    ? montantsEngagesPayesData.parEditeur.find(e => e.editeur === selectedEditeur)?.color || '#7C6FCD'
-    : null;
-
-  const chartData = drillLevel === 'editeur'
-    ? montantsEngagesPayesData.parEditeur
-    : (montantsEngagesPayesData.parProduit[selectedEditeur] || []);
-
-  const handleClick = (barData) => {
-    if (drillLevel === 'editeur' && barData?.activePayload) {
-      const ed = barData.activePayload[0]?.payload?.editeur;
-      if (ed && montantsEngagesPayesData.parProduit[ed]) {
-        setSelectedEditeur(ed);
-        setDrillLevel('produit');
-      }
-    }
-  };
-
-  const handleBack = () => {
-    setDrillLevel('editeur');
-    setSelectedEditeur(null);
-  };
-
-  const xKey = drillLevel === 'editeur' ? 'editeur' : 'produit';
+  const lignes = (data?.lignes ?? []).map((l, i) => ({
+    ...l,
+    editeur: l.editeur_label ?? 'Sans éditeur',
+    couleur: couleurSerie(i),
+  }));
 
   return (
-    <Card id="montants-engages-payes" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {drillLevel === 'produit' && (
-            <button
-              onClick={handleBack}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 2,
-                fontSize: 11, color: '#7C6FCD', background: '#7C6FCD14',
-                border: '1px solid #7C6FCD30', borderRadius: 20,
-                padding: '3px 10px', cursor: 'pointer', fontWeight: 600,
-              }}
-            >
-              <ChevronLeft size={12} />Retour
-            </button>
-          )}
-          <h3 style={{ fontSize: 13, fontWeight: 600, color: '#1A1D23', margin: 0 }}>
-            {drillLevel === 'editeur'
-              ? 'Montants engagés vs payés'
-              : `${selectedEditeur} - détail produits`}
-          </h3>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <FreshnessBadge type="cached" minutesAgo={60} />
-          <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8B9099', display: 'flex', padding: 0 }}>
-            <MoreVertical size={16} />
-          </button>
-        </div>
-      </div>
-
+    <CadreWidget
+      widgetId="montants-engages-payes"
+      titre="Montants engagés vs payés"
+      info={"Par éditeur, montants commandés (engagés) et montants payés sur la période, lus dans le précalcul financier des commandes. Le montant payé reste à zéro tant que les factures ne portent pas de montant."}
+      derniereMaj={data?.derniere_maj}
+      chargement={chargement} erreur={erreur} onRelancer={relancer}
+      vide={!chargement && !erreur && lignes.length === 0}
+      videMessage="Aucune commande sur la période."
+      onOuvrir={() => navigate(ROUTES_DRILL.commandes())}
+    >
       <div style={{ display: 'flex', gap: 12, fontSize: 10, color: '#8B9099' }}>
         {[
           { color: '#7C6FCD', label: 'Commandé' },
-          { color: '#3FC8B8', label: 'Payé'     },
-        ].map(l => (
+          { color: '#3FC8B8', label: 'Payé' },
+        ].map((l) => (
           <span key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <span style={{ width: 8, height: 8, borderRadius: 2, background: l.color, display: 'inline-block' }} />
             {l.label}
           </span>
         ))}
-        {drillLevel === 'editeur' && (
-          <span style={{ opacity: 0.6 }}>- Cliquez sur un éditeur pour le détail</span>
-        )}
+        <span style={{ opacity: 0.6 }}>- Cliquez sur un éditeur pour ses contrats</span>
       </div>
-
       <ResponsiveContainer width="100%" height={210}>
         <BarChart
-          data={chartData}
-          margin={{ top: 4, right: 4, left: -4, bottom: drillLevel === 'produit' ? 20 : 0 }}
+          data={lignes}
+          margin={{ top: 4, right: 4, left: -4, bottom: 0 }}
           barCategoryGap="30%"
-          onClick={handleClick}
-          style={{ cursor: drillLevel === 'editeur' ? 'pointer' : 'default' }}
+          onClick={(d) => {
+            const entree = d?.activePayload?.[0]?.payload;
+            if (entree?.id_editeur) navigate(ROUTES_DRILL.contrats({ editeur: entree.id_editeur }));
+          }}
+          style={{ cursor: 'pointer' }}
         >
           <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" vertical={false} />
-          <XAxis
-            dataKey={xKey}
-            tick={{ fontSize: drillLevel === 'produit' ? 9 : 11, fill: '#8B9099' }}
-            axisLine={false} tickLine={false}
-            angle={drillLevel === 'produit' ? -20 : 0}
-            textAnchor={drillLevel === 'produit' ? 'end' : 'middle'}
-          />
+          <XAxis dataKey="editeur" tick={{ fontSize: 11, fill: '#8B9099' }} axisLine={false} tickLine={false} />
           <YAxis
-            tickFormatter={v => v >= 1000000 ? `${(v/1000000).toFixed(1)}M` : v >= 1000 ? `${(v/1000).toFixed(0)}k` : v}
+            tickFormatter={(v) => (v >= 1000000 ? `${(v / 1000000).toFixed(1)}M` : v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v)}
             tick={{ fontSize: 10, fill: '#8B9099' }} axisLine={false} tickLine={false}
           />
-          <Tooltip content={<DrillTooltip level={drillLevel} />} cursor={{ fill: 'rgba(0,0,0,0.04)' }} />
-          <Bar dataKey="commande" name="Commandé" fill="#7C6FCD" maxBarSize={36} radius={[3, 3, 0, 0]}>
-            {drillLevel === 'editeur' && montantsEngagesPayesData.parEditeur.map((entry, i) => (
-              <Cell key={i} fill={entry.color + 'CC'} />
-            ))}
+          <Tooltip content={<TooltipEngage />} cursor={{ fill: 'rgba(0,0,0,0.04)' }} />
+          <Bar dataKey="montant_commande" name="Commandé" maxBarSize={36} radius={[3, 3, 0, 0]}>
+            {lignes.map((l, i) => <Cell key={i} fill={l.couleur + 'CC'} />)}
           </Bar>
-          <Bar dataKey="paye" name="Payé" fill="#3FC8B8" maxBarSize={36} radius={[3, 3, 0, 0]}>
-            {drillLevel === 'editeur' && montantsEngagesPayesData.parEditeur.map((entry, i) => (
-              <Cell key={i} fill={entry.color + '80'} />
-            ))}
+          <Bar dataKey="montant_paye" name="Payé" maxBarSize={36} radius={[3, 3, 0, 0]}>
+            {lignes.map((l, i) => <Cell key={i} fill={l.couleur + '80'} />)}
           </Bar>
         </BarChart>
       </ResponsiveContainer>
-    </Card>
+    </CadreWidget>
   );
 }
 

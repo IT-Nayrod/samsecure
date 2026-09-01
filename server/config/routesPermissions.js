@@ -23,7 +23,10 @@
 //   organisation   : consulter_referentiels, gerer_referentiels, gerer_contacts
 //   budget         : consulter_budget, saisir_budget, consulter_kpi_financiers,
 //                    supprimer_budget (#146, 29e code)
-//   rapports, dashboards : non encore branches sur l'API
+//   dashboards     : acceder_dashboard_manager_dsi, _financier, _it_ops
+//                    (migration 010) : pilotent le selecteur de dashboard,
+//                    les routes de donnees suivent les droits metier
+//   rapports       : non encore branche sur l'API
 //
 // PUBLIC_AUTHENTIFIE : accessible a tout porteur d'un jeton valide, sans
 // permission particuliere. A n'employer que pour les routes qui ne divulguent
@@ -157,6 +160,20 @@ export const ROUTES_PERMISSIONS = [
   ["GET",    "/conformite",                 "consulter_licences"],
   ["GET",    "/qualite",                    "consulter_inventaire"],
   ["GET",    "/confiance",                  "consulter_licences"],
+  // ---- Module 4 : dashboards (#190) -----------------------------------------
+  // Configuration et preferences : donnees de parametrage et de confort
+  // strictement personnelles, aucun montant ni donnee metier, d'ou
+  // PUBLIC_AUTHENTIFIE. La synthese agrege le workflow de validation et les
+  // revalidations du module 3 : elle suit consulter_inventaire, le droit de
+  // lecture de ce module (Manager DSI et IT Ops le portent, la matrice 011
+  // fait foi). Les deux agregats financiers portent des montants : ils suivent
+  // consulter_kpi_financiers, que la matrice refuse a it_ops : le masquage des
+  // montants pour IT Ops est ainsi tenu cote serveur, pas seulement a l'ecran.
+  ["GET",    "/dashboards/configuration",   PUBLIC_AUTHENTIFIE],
+  ["PUT",    "/dashboards/preferences",     PUBLIC_AUTHENTIFIE],
+  ["GET",    "/dashboards/synthese",        "consulter_inventaire"],
+  ["GET",    "/dashboards/montants-totaux", "consulter_kpi_financiers"],
+  ["GET",    "/dashboards/engages-payes",   "consulter_kpi_financiers"],
 
   // ---- Referentiels en lecture ---------------------------------------------
   ["GET",    "/produits",                    "consulter_referentiels"],

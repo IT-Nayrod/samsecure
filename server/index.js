@@ -35,6 +35,7 @@ import logicielsRouter from "./routes/logiciels.js";
 import revendeursRouter from "./routes/revendeurs.js";
 import conformiteRouter from "./routes/conformite.js";
 import qualiteRouter from "./routes/qualite.js";
+import dashboardsRouter from "./routes/dashboards.js";
 
 const app = express();
 app.use(cors());
@@ -82,6 +83,7 @@ app.use("/api", revendeursRouter);
 // saisies et indice de confiance (#116).
 app.use("/api", conformiteRouter);
 app.use("/api", qualiteRouter);
+app.use("/api", dashboardsRouter);
 
 app.use("/api", (req, res) => {
   res.status(404).json({ error: "Ressource introuvable." });
