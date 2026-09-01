@@ -32,6 +32,7 @@ import inventaireRouter from "./routes/inventaire.js";
 import budgetRouter from "./routes/budget.js";
 import editeursRouter from "./routes/editeurs.js";
 import logicielsRouter from "./routes/logiciels.js";
+import dashboardsRouter from "./routes/dashboards.js";
 
 const app = express();
 app.use(cors());
@@ -74,6 +75,7 @@ app.use("/api", budgetRouter);
 // la main si la route y etait restee, d'ou son retrait la-bas.
 app.use("/api", editeursRouter);
 app.use("/api", logicielsRouter);
+app.use("/api", dashboardsRouter);
 
 app.use("/api", (req, res) => {
   res.status(404).json({ error: "Ressource introuvable." });
