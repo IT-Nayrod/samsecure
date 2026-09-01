@@ -33,6 +33,8 @@ import budgetRouter from "./routes/budget.js";
 import editeursRouter from "./routes/editeurs.js";
 import logicielsRouter from "./routes/logiciels.js";
 import revendeursRouter from "./routes/revendeurs.js";
+import conformiteRouter from "./routes/conformite.js";
+import qualiteRouter from "./routes/qualite.js";
 
 const app = express();
 app.use(cors());
@@ -76,6 +78,10 @@ app.use("/api", budgetRouter);
 app.use("/api", editeursRouter);
 app.use("/api", logicielsRouter);
 app.use("/api", revendeursRouter);
+// Module 3, conformite : balance droits/usages precalculee (046), qualite des
+// saisies et indice de confiance (#116).
+app.use("/api", conformiteRouter);
+app.use("/api", qualiteRouter);
 
 app.use("/api", (req, res) => {
   res.status(404).json({ error: "Ressource introuvable." });

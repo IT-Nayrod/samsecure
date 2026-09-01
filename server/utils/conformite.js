@@ -5,12 +5,15 @@
 // referentiel editeurs en a besoin a son tour, et deux copies auraient
 // diverge a la premiere evolution des seuils.
 //
-// La table precalcul_conformite n'est pas utilisee : elle existe depuis la
-// migration 002 mais aucun trigger, aucune route et aucun script ne l'ecrit.
-// Le calcul est donc fait a la lecture, comme pour les licences.
+// Depuis la migration 046 (#116), precalcul_conformite est alimentee par
+// triggers sur licence et affectation : GET /conformite la lit. Les fragments
+// de ce module restent la definition du calcul a la lecture, employee par
+// licences.js, editeurs.js et le chemin filtre par societe de conformite.js
+// (le precalcul est par produit, sans axe societe).
 //
 // Les fragments SQL attendent l'alias l sur licence. Ce sont des constantes du
 // code, jamais des valeurs de requete : leur interpolation est sure.
+import { tenantPool, commonPool } from "../db.js";
 
 // Souscription echue : le jour meme de sa date de fin, sans tolerance
 // (hypothese v0.5 assumee). Une perpetuelle n'expire jamais. Une souscription
@@ -66,4 +69,51 @@ export async function balanceParProduit(client) {
     `WITH ${CTE_BALANCE_PRODUIT}
      SELECT id_produit, droits, usage_declare FROM balance WHERE id_produit IS NOT NULL`);
   return rows;
+}
+
+// ---------------------------------------------------------------------------
+// Seuils de conformite (#116)
+// ---------------------------------------------------------------------------
+
+// Valeurs de repli, identiques aux defauts seedes par les migrations 046
+// (seuil_dashboard, Tenant) et 047 (default_seuil_dashboard, Commune) : elles
+// ne servent que si les deux tables sont muettes.
+export const SEUIL_TAUX_DEFAUT = 90;
+export const SEUIL_MONTANT_DEFAUT = 10000;
+
+// Seuils effectifs : tenant (seuil_dashboard) puis defaut Commune
+// (default_seuil_dashboard) puis constante. Deux requetes bornees par appel,
+// jamais une par ligne. Le pendant SQL est conformite_seuil() (046), employe
+// par les triggers, qui ne peut lire que le tenant : la chaine est fermee par
+// le seed 046 qui diffuse les defauts Commune dans seuil_dashboard.
+export async function seuilsConformite() {
+  const lire = async (pool, table) => {
+    const { rows } = await pool.query(
+      `SELECT widget_code, valeur::float8 AS valeur FROM ${table}
+        WHERE widget_code IN ('conformite_taux', 'conformite_ecart_valorise')
+          AND echelle = 1`);
+    return new Map(rows.map((r) => [r.widget_code, r.valeur]));
+  };
+  const tenant = await lire(tenantPool, "seuil_dashboard");
+  const commun = tenant.size < 2 ? await lire(commonPool, "default_seuil_dashboard") : new Map();
+  return {
+    seuilTaux: tenant.get("conformite_taux")
+      ?? commun.get("conformite_taux") ?? SEUIL_TAUX_DEFAUT,
+    seuilMontant: tenant.get("conformite_ecart_valorise")
+      ?? commun.get("conformite_ecart_valorise") ?? SEUIL_MONTANT_DEFAUT,
+  };
+}
+
+// Statut d'une balance, seuils parametres. Pendant JS de conformite_statut()
+// (046) : depassement prime, puis attention au taux ou a l'ecart valorise
+// negatif au-dela du seuil en montant, conforme sinon. La branche montant est
+// aujourd'hui couverte par le depassement (un ecart valorise negatif suppose
+// usages > droits) : conservee telle que la regle #116 l'enonce.
+export function statutConformite(droits, usages, ecartValorise, { seuilTaux, seuilMontant }) {
+  if (usages > droits) return "depassement";
+  if (droits > 0 && usages >= (droits * seuilTaux) / 100) return "attention";
+  if (ecartValorise != null && ecartValorise < 0 && Math.abs(ecartValorise) >= seuilMontant) {
+    return "attention";
+  }
+  return "conforme";
 }

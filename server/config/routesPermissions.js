@@ -143,6 +143,21 @@ export const ROUTES_PERMISSIONS = [
   ["PATCH",  "/budget/:id",                  "saisir_budget"],
   ["DELETE", "/budget/:id",                  "supprimer_budget"],
 
+  // ---- Module 3 : conformite, qualite des saisies, confiance (#116) ---------
+  // Permissions existantes reutilisees, aucun code ajoute au referentiel.
+  // Conformite et confiance : consulter_licences (la balance et l'indice
+  // pesent le patrimoine de licences ; les montants y sont masques sans
+  // consulter_kpi_financiers, evalue dans le routeur comme pour les couts du
+  // module licences). Qualite : consulter_inventaire, la vue operationnelle
+  // du module 3 (meme lectorat que les affectations et les ecarts). Les
+  // permissions dashboards (acceder_dashboard_*) ne conviennent pas : chacune
+  // est propre a un persona et le controle central n'exprime pas de OU.
+  // Le chemin litteral /conformite/synthese passe avant /conformite.
+  ["GET",    "/conformite/synthese",        "consulter_licences"],
+  ["GET",    "/conformite",                 "consulter_licences"],
+  ["GET",    "/qualite",                    "consulter_inventaire"],
+  ["GET",    "/confiance",                  "consulter_licences"],
+
   // ---- Referentiels en lecture ---------------------------------------------
   ["GET",    "/produits",                    "consulter_referentiels"],
   ["GET",    "/unites-mesure",               "consulter_referentiels"],
