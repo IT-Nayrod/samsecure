@@ -212,7 +212,7 @@
 </section>
 
 <footer>
-  <div class="wrap">Les statuts (écoulée, en cours, à venir) sont calculés automatiquement à partir de la date d'ouverture de la page. Ils indiquent la position dans le temps, pas l'avancement réel des travaux, qui se pilote en point d'équipe. Nayrod - SamSecure - document établi le 20/07/2026, mis à jour le 29/07/2026.</div>
+  <div class="wrap">Les statuts (écoulée, en cours, à venir) sont calculés automatiquement à partir de la date d'ouverture de la page. Ils indiquent la position dans le temps, pas l'avancement réel des travaux, qui se pilote en point d'équipe. Nayrod - SamSecure - document établi le 20/07/2026, mis à jour le 27/08/2026.</div>
 </footer>
 
 <script>
@@ -318,32 +318,35 @@
      ]}], notes:[]},
 
     {id:"S35", start:D(2026,8,24), end:D(2026,8,30), phase:"dev", lot:"Lot 2", tuilage:false,
-     objectif:"Module 4 : budget et rapports",
-     contenu:"Développement du lot 2, seconde moitié : budget, rapports, dernières fonctions transverses. Envoi du lot 2 en validation.",
+     objectif:"Module 4 : budget, dashboards et référentiels",
+     contenu:"Développement du lot 2, seconde moitié : budget, dashboards par profil et pages référentiels. Envoi du lot 2 en validation.",
      livrable:"Lot 2 envoyé, fin du développement au 30/08.", jalons:["J3"],
      stq:[{t:null, items:[
-       "Budget : lignes, répartition, préremplissage depuis les contrats de maintenance",
+       "Budget : socle, API, page et fiches (licence, contrat)",
+       "Dashboards par profil (manager DSI, financier, IT ops)",
+       "Référentiels : les quatre pages éditeurs, revendeurs, contacts et logiciels",
        "Reprise du bug d'affichage des indicateurs",
-       "Rapports : préconfigurés et générateur sur mesure, génération et export",
        "Dernières fonctions transverses",
-       "Envoi du lot 2 en validation : fin du développement au 30/08"
+       "Envoi du lot 2 en validation"
      ]}], notes:[]},
 
     {id:"S36", start:D(2026,8,31), end:D(2026,9,6), phase:"fix", lot:"Lot 2", tuilage:true,
      objectif:"Correctifs lot 2",
-     contenu:"7 jours de correctifs à réception des retours. En parallèle, bouclage et reprise des reliquats. Semaine allégée.",
+     contenu:"7 jours de correctifs à réception des retours. En parallèle, reprise des reliquats. Semaine allégée.",
      livrable:"Retours lot 2 traités.", jalons:[],
      stq:[{t:null, items:[
        "Recueil des retours du lot 2, 7 jours de correctifs à réception",
+       "Conformité matérialisée et alertes (notifications et mails)",
        "Semaine allégée, disponibilités réduites"
      ]}],
-     notes:[{k:"par", lbl:"En parallèle", txt:"bouclage et reprise des reliquats"}]},
+     notes:[{k:"par", lbl:"En parallèle", txt:"reprise des reliquats"}]},
 
-    {id:"S37", start:D(2026,9,7), end:D(2026,9,13), phase:"fix", lot:null, tuilage:false,
-     objectif:"Bouclage",
-     contenu:"Passe complète en données réelles, environnement de production finalisé, jeu de démonstration consolidé.",
-     livrable:"Version consolidée.", jalons:[],
+    {id:"S37", start:D(2026,9,7), end:D(2026,9,13), phase:"fix", lot:null, tuilage:true,
+     objectif:"Rapports et bouclage",
+     contenu:"Développement des rapports en parallèle du bouclage, sur base de données finale, après les correctifs des lots 1 et 2. Passe complète en données réelles, environnement de production finalisé.",
+     livrable:"Version consolidée, rapports livrés.", jalons:[],
      stq:[{t:null, items:[
+       "Rapports : préconfigurés et générateur sur mesure, génération et export, sur base de données finale",
        "Passe complète de l'application en données réelles, tous parcours",
        "Environnement de production finalisé : sécurisation, sauvegardes",
        "Jeu de données de démonstration consolidé"
@@ -374,7 +377,7 @@
   var JALONS = [
     {id:"J1", date:D(2026,7,24), label:"Bases de données en place et remplies"},
     {id:"J2", date:D(2026,8,9),  label:"Lot 1 envoyé en validation (modules 1 et 2)"},
-    {id:"J3", date:D(2026,8,30), label:"Lot 2 envoyé en validation, fin du développement"},
+    {id:"J3", date:D(2026,8,30), label:"Lot 2 envoyé en validation"},
     {id:"J4", date:D(2026,9,18), label:"Version stabilisée, recette générale faite"},
     {id:"J5", date:D(2026,9,25), label:"v0.5 opérationnelle, validée par le client", final:true}
   ];
