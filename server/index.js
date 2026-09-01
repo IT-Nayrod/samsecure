@@ -33,6 +33,7 @@ import budgetRouter from "./routes/budget.js";
 import editeursRouter from "./routes/editeurs.js";
 import logicielsRouter from "./routes/logiciels.js";
 import revendeursRouter from "./routes/revendeurs.js";
+import contactsRouter from "./routes/contacts.js";
 
 const app = express();
 app.use(cors());
@@ -76,6 +77,7 @@ app.use("/api", budgetRouter);
 app.use("/api", editeursRouter);
 app.use("/api", logicielsRouter);
 app.use("/api", revendeursRouter);
+app.use("/api", contactsRouter);
 
 app.use("/api", (req, res) => {
   res.status(404).json({ error: "Ressource introuvable." });

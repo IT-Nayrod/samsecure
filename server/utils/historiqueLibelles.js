@@ -22,6 +22,13 @@ const NOMS_CHAMPS = {
   raison_sociale: "raison sociale",
   siret: "SIRET",
   iban: "IBAN",
+  telephone: "téléphone",
+  id_fonction: "fonction",
+  id_societe: "société de rattachement",
+  id_editeur: "éditeur de rattachement",
+  id_revendeur: "revendeur de rattachement",
+  date_debut: "date de début",
+  date_fin: "date de fin",
 };
 
 // Les dates sont stockees en text ISO (yyyy-mm-jj) depuis le correctif du
@@ -177,6 +184,19 @@ export function traduireEvenement(ligne, idCompteCible) {
 
     case "REVENDEUR_REACTIVE":
       libelle = `Revendeur réactivé${parActeur}`;
+      break;
+
+    case "CONTACT_CREE":
+      libelle = `Contact créé${parActeur}`;
+      break;
+
+    case "CONTACT_MODIFIE":
+      libelle = `Contact modifié : ${champsLisibles}${parActeur}`;
+      details = { champs_modifies: champs.map((c) => NOMS_CHAMPS[c] || c) };
+      break;
+
+    case "CONTACT_SUPPRIME":
+      libelle = `Contact supprimé${parActeur}`;
       break;
 
     default:
