@@ -31,7 +31,8 @@ Plages : transverse 1000-1999 | administration 2000-2999 | contrats 3000-3099 |
 commandes 3100-3199 | documents 3200-3299 | validation 3300-3399 |
 droits 3400-3499 | licences 4000-4099 (module 3, partie A) |
 affectations 4100-4199 (module 3, partie B) | inventaire 4200-4299 (module 3, #111) |
-budget 5100-5199 (module 4, partie A, #146)
+conformite 4300-4399 (module 3, #116) | budget 5100-5199 (module 4, partie A, #146) |
+qualite des saisies et confiance 5400-5449 (module 3, #116)
 
 ## Transverse : socle d'envoi de mails (#87)
 
@@ -435,6 +436,89 @@ Decompte (4106) : somme brute des quantites des affectations dont la derniere
 entree du workflow est `valide` (donc `valide` + `a_revalider` de lecture),
 par produit et societe, sans deduplication par reference (hypothese v0.5
 assumee), avec `droits_total` par produit (somme `licence.quantite`).
+
+## Conformite (#116, module 3)
+
+Plage 4300-4399, seedee par la migration Commune 044. Routeur
+`server/routes/conformite.js`. Source nominale : `precalcul_conformite`,
+alimentee par les triggers de la migration Tenant 043 sur licence et
+affectation (insert, update, delete), amorcee par
+`recalculer_conformite_complete()` en fin de 043 et rejouable par
+`server/bdd/manual/amorcer-conformite.js` (execution quotidienne recommandee :
+les droits dependent de CURRENT_DATE, les triggers ne partent qu'a
+l'ecriture). Le filtre `id_societe` et la synthese par societe sont calcules a
+la volee avec les memes regles, le precalcul n'ayant pas d'axe societe.
+
+Lecture sur `consulter_licences` ; `prix_unitaire`, `ecart_valorise` et les
+agregats `ecart_valorise_negatif` / `_positif` (sommes signees) servis a null
+avec `montants_masques: true` sans `consulter_kpi_financiers`, comme les couts
+du module licences.
+
+| Code | Type | Libelle propose | Route |
+|------|------|-----------------|-------|
+| 4300 | succes | État de conformité par produit | GET /api/conformite |
+| 4301 | succes | Synthèse de conformité | GET /api/conformite/synthese |
+| 4310 | erreur | Identifiant de société invalide | GET /api/conformite |
+| 4311 | erreur | Identifiant d'éditeur invalide | GET /api/conformite |
+| 4312 | erreur | Identifiant de produit invalide | GET /api/conformite |
+| 4313 | erreur | Le niveau demandé doit être global, editeur ou societe | GET /api/conformite/synthese |
+| 4399 | erreur | Erreur serveur inattendue (module conformité) | toutes |
+
+Regles #116 (validees) : droits = quantites des licences perpetuelles +
+souscriptions dont date de fin >= date du jour (sortie le jour meme, regle
+#102 conservee) ; usages = quantites des affectations dont la derniere entree
+du workflow est `valide` (le `a_revalider` de lecture en fait partie),
+`en_attente` et `refuse` exclus, sans deduplication par reference ; ecart =
+droits - usages ; `ecart_pct` = usages / droits x 100, borne a 999.99
+(colonne DECIMAL(5,2) du DDL v4) ; prix unitaire = somme des couts des
+licences actives / somme de leurs quantites ; ecart valorise = ecart x prix
+unitaire ; statut = `depassement` si usages > droits, `attention` si taux >=
+seuil, `conforme` sinon ; droits et usages nuls = produit non compte (ligne a
+zero, filtree). Seuils lus dans `seuil_dashboard` (tenant, echelle 1) puis
+`default_seuil_dashboard` (Commune) : `conformite_taux` (90, pourcent) et
+`conformite_ecart_valorise` (10000, euros, seuil en montant sur l'ecart
+valorise negatif ; branche aujourd'hui couverte par le depassement, conservee
+telle que la regle l'enonce).
+
+## Qualite des saisies et indice de confiance (#116, module 3)
+
+Plage 5400-5449, seedee par la migration Commune 044. Routeur
+`server/routes/qualite.js`, calcul pur de l'indice dans
+`server/utils/indiceConfiance.js` (teste au node:test).
+
+GET /api/qualite (permission `consulter_inventaire`) : detection a la volee,
+sans precalcul, croisee avec `anomalie_qualite`. Types produits :
+`licence_sans_contrat`, `contrat_sans_justificatif`, `commande_sans_preuve`,
+`doublon_affectation`, `doublon_produit`, `champ_obligatoire_vide`. Une
+anomalie `resolu = true` (resolution ou faux positif, la table ne distingue
+pas) exclut l'element meme s'il est encore detecte ; une anomalie ouverte est
+servie sans doublon ; une detection nouvelle est inseree avec type, gravite et
+description dans la transaction de la lecture. Les types des autres
+producteurs (`incoherence`, `hors_plage_parent`, `ligne_import`) ne sont pas
+reservis ici.
+
+GET /api/confiance (permission `consulter_licences`) : note sur 100 par
+perimetre (tenant, ou societe par `id_societe`), ponderee par la valeur (cout
+des licences actives ; societe payeuse via la commande pour les licences,
+societe declarante pour les affectations). Exhaustivite (poids 40) : 4 liens
+par licence active (commande, facture ou preuve, contrat, societe
+signataire). Coherence (poids 30) : valeur des licences sans anomalie ouverte
+sur la licence ou sa chaine (commande, contrat), un objet multi-anomalies
+compte une fois. Fraicheur (poids 30) : valeur des affectations validees a
+echeance de revalidation non depassee. Un perimetre sans valeur ponderable
+rend des notes a 100, objets concernes listes dans les malus a zero point.
+`valeur_totale` est masquee sans `consulter_kpi_financiers`.
+
+| Code | Type | Libelle propose | Route |
+|------|------|-----------------|-------|
+| 5400 | succes | État de la qualité des saisies | GET /api/qualite |
+| 5401 | succes | Indice de confiance | GET /api/confiance |
+| 5410 | erreur | Identifiant de société invalide | GET /api/confiance |
+| 5449 | erreur | Erreur serveur inattendue (module qualité et confiance) | les deux |
+
+Les libelles de la 044 sont accentues (consigne #116 : textes destines a
+l'ecran en francais accentue), la ou les migrations 025 a 042 sont en ASCII :
+homogeneisation du catalogue a arbitrer.
 
 ## Controle des permissions (transverse)
 
