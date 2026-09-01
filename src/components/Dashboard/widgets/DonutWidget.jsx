@@ -1,14 +1,19 @@
-// V2 - Modifié - W09 Indice de conformité | W16 Valorisation licences non utilisées
+// Donuts des dashboards, branches sur le contrat conformite (#192) :
+// indice de conformite global (Manager DSI) et valorisation des licences
+// non utilisees (Financier).
+import { useNavigate } from 'react-router-dom';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
-import { MoreVertical } from 'lucide-react';
-import Card from '../../ui/Card';
+import CadreWidget from './CadreWidget';
+import useSourceDashboard from '../useSourceDashboard';
+import { useSeuils } from '../ContexteDashboard';
+import { couleurSeuil } from '../seuils';
 import {
-  THRESHOLD_GREEN, THRESHOLD_YELLOW, THRESHOLD_ORANGE, THRESHOLD_RED,
-} from '../../../data/dashboardMockData';
-import { THRESHOLDS } from '../../../data/thresholds';
-import FreshnessBadge from './FreshnessBadge';
+  THRESHOLD_GREEN, THRESHOLD_ORANGE, THRESHOLD_RED, couleurSerie,
+} from '../couleurs';
+import { ROUTES_DRILL } from '../drill';
+import { conformiteService } from '../../../services/dashboardService';
 
-const CustomTooltip = ({ active, payload }) => {
+const TooltipDonut = ({ active, payload, euros = false }) => {
   if (!active || !payload?.length) return null;
   return (
     <div style={{
@@ -17,39 +22,53 @@ const CustomTooltip = ({ active, payload }) => {
     }}>
       <strong>{payload[0].name}</strong>
       {' - '}
-      {typeof payload[0].value === 'number' && payload[0].value > 1000
-        ? payload[0].value.toLocaleString('fr-FR') + ' €'
+      {euros
+        ? `${Number(payload[0].value).toLocaleString('fr-FR')} €`
         : payload[0].value}
     </div>
   );
 };
 
-// ─── W09 - Indice de conformité global (V2 - sous-titre clarifié) ─────────────
-export function IndiceConformiteWidget({ data }) {
-  return (
-    <Card id="indice-conformite" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
-        <div>
-          <h3 style={{ fontSize: 13, fontWeight: 600, color: '#1A1D23', margin: 0 }}>Indice de conformité global</h3>
-          <p style={{ fontSize: 10, color: '#8B9099', margin: '2px 0 0 0' }}>Conformité contractuelle et optimisation</p>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <FreshnessBadge type="cached" minutesAgo={30} />
-          <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8B9099', display: 'flex', padding: 0 }}>
-            <MoreVertical size={16} />
-          </button>
-        </div>
-      </div>
+// ─── Indice de conformité global (Manager DSI) ──────────────────────────────
+export function IndiceConformiteWidget() {
+  const navigate = useNavigate();
+  const seuils = useSeuils('indice-conformite');
+  const { data, chargement, erreur, relancer } = useSourceDashboard(
+    'conformite-global', () => conformiteService.synthese('global'));
 
-      <div style={{ position: 'relative', height: 150, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+  // Le niveau global renvoie les agregats, en tete de reponse ou en ligne
+  // unique selon le contrat : les deux formes sont acceptees.
+  const ag = data?.agregats ?? data?.lignes?.[0] ?? null;
+  const nbProduits = ag?.nb_produits ?? 0;
+  const segments = ag ? [
+    { name: 'Conforme', value: ag.nb_conforme ?? 0, color: THRESHOLD_GREEN },
+    { name: 'Attention', value: ag.nb_attention ?? 0, color: THRESHOLD_ORANGE },
+    { name: 'Dépassement', value: ag.nb_depassement ?? 0, color: THRESHOLD_RED },
+  ].filter((s) => s.value > 0) : [];
+  const pctConforme = nbProduits > 0 ? ((ag.nb_conforme ?? 0) / nbProduits) * 100 : null;
+  const color = couleurSeuil(pctConforme, seuils);
+
+  return (
+    <CadreWidget
+      widgetId="indice-conformite"
+      titre="Indice de conformité global"
+      sousTitre="Conformité contractuelle du parc"
+      info={"Répartition des produits du parc par statut de conformité (usage déclaré face aux droits acquis) et part de produits conformes, colorée selon les seuils configurés. Le clic ouvre la liste des licences."}
+      derniereMaj={ag?.derniere_maj}
+      chargement={chargement} erreur={erreur} onRelancer={relancer}
+      vide={!chargement && !erreur && nbProduits === 0}
+      videMessage="Aucun produit avec droits ou usage pour le moment."
+      onOuvrir={() => navigate(ROUTES_DRILL.licences())}
+    >
+      <div style={{ position: 'relative', height: 150 }}>
         <ResponsiveContainer width="100%" height={150}>
           <PieChart>
-            <Pie data={data.segments} cx="50%" cy="50%"
+            <Pie data={segments} cx="50%" cy="50%"
               innerRadius={48} outerRadius={64}
-              dataKey="value" strokeWidth={2} stroke="white">
-              {data.segments.map((seg, i) => <Cell key={i} fill={seg.color} />)}
+              dataKey="value" strokeWidth={2} stroke="white" isAnimationActive={false}>
+              {segments.map((seg, i) => <Cell key={i} fill={seg.color} />)}
             </Pie>
-            <Tooltip content={<CustomTooltip />} />
+            <Tooltip content={<TooltipDonut />} />
           </PieChart>
         </ResponsiveContainer>
         <div style={{
@@ -57,21 +76,14 @@ export function IndiceConformiteWidget({ data }) {
           transform: 'translate(-50%, -50%)',
           textAlign: 'center', pointerEvents: 'none',
         }}>
-          <div style={{ fontSize: 22, fontWeight: 700, color: '#E8534A', lineHeight: 1.1 }}>+{data.score}</div>
-          <div style={{ fontSize: 9, color: '#8B9099', fontWeight: 500 }}>À optimiser</div>
+          <div style={{ fontSize: 22, fontWeight: 700, color, lineHeight: 1.1 }}>
+            {pctConforme == null ? '-' : `${pctConforme.toFixed(0)}%`}
+          </div>
+          <div style={{ fontSize: 9, color: '#8B9099', fontWeight: 500 }}>conformes</div>
         </div>
       </div>
-
-      <button onClick={() => console.log('navigate to /compliance')} style={{
-        alignSelf: 'center', border: '1px solid #EAECF0', borderRadius: 6,
-        padding: '5px 20px', fontSize: 12, color: '#1A1D23',
-        backgroundColor: 'white', cursor: 'pointer', fontWeight: 500,
-      }}>
-        J'optimise
-      </button>
-
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 8px' }}>
-        {data.segments.map((seg, i) => (
+        {segments.map((seg, i) => (
           <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
             <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: seg.color, flexShrink: 0 }} />
             <span style={{ fontSize: 10, color: '#8B9099' }}>{seg.name}</span>
@@ -79,40 +91,60 @@ export function IndiceConformiteWidget({ data }) {
           </div>
         ))}
       </div>
-    </Card>
+    </CadreWidget>
   );
 }
 
-// ─── W16 - Valorisation des licences non utilisées (V2 - couleur sur % parc) ─
-export function ValorisationLicencesWidget({ data }) {
-  const T = THRESHOLDS.valorisation_licences.pct;
-  const pct = data.pctNonUtilisees;
-  const color = pct < T[0] ? THRESHOLD_GREEN
-    : pct < T[1] ? THRESHOLD_YELLOW
-    : pct < T[2] ? THRESHOLD_ORANGE
-    : THRESHOLD_RED;
+// ─── Valorisation des licences non utilisées (Financier) ────────────────────
+export function ValorisationLicencesWidget() {
+  const navigate = useNavigate();
+  const seuils = useSeuils('valorisation-licences');
+  const { data, chargement, erreur, relancer } = useSourceDashboard(
+    'conformite:', () => conformiteService.list({}));
+
+  // Ecart valorise positif = droits payes au-dela de l'usage declare,
+  // agrege par editeur pour les segments du donut.
+  const parEditeur = new Map();
+  let totalDroits = 0;
+  let ecartQuantite = 0;
+  for (const l of data?.lignes ?? []) {
+    totalDroits += l.droits_total ?? 0;
+    const ecart = (l.droits_total ?? 0) - (l.usages_total ?? 0);
+    if (ecart > 0) ecartQuantite += ecart;
+    const valorise = l.ecart_valorise ?? 0;
+    if (valorise > 0) {
+      const cle = l.editeur_label ?? 'Sans éditeur';
+      parEditeur.set(cle, (parEditeur.get(cle) ?? 0) + valorise);
+    }
+  }
+  const segments = [...parEditeur.entries()]
+    .map(([name, value], i) => ({ name, value: Math.round(value * 100) / 100, color: couleurSerie(i) }))
+    .sort((a, b) => b.value - a.value);
+  const total = data?.agregats?.ecart_valorise_positif
+    ?? segments.reduce((t, s) => t + s.value, 0);
+  const pct = totalDroits > 0 ? (ecartQuantite / totalDroits) * 100 : null;
+  const color = couleurSeuil(pct, seuils);
 
   return (
-    <Card id="valorisation-licences" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
-        <h3 style={{ fontSize: 13, fontWeight: 600, color: '#1A1D23', margin: 0 }}>Valorisation licences non utilisées</h3>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <FreshnessBadge type="cached" minutesAgo={60} />
-          <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8B9099', display: 'flex', padding: 0 }}>
-            <MoreVertical size={16} />
-          </button>
-        </div>
-      </div>
-
+    <CadreWidget
+      widgetId="valorisation-licences"
+      titre="Valorisation licences non utilisées"
+      info={"Valeur des droits acquis au-delà de l'usage déclaré (écart valorisé positif), répartie par éditeur. Le pourcentage rapporte les quantités non utilisées au parc détenu, coloré selon les seuils configurés."}
+      derniereMaj={data?.agregats?.derniere_maj}
+      chargement={chargement} erreur={erreur} onRelancer={relancer}
+      vide={!chargement && !erreur && segments.length === 0}
+      videMessage="Aucune licence excédentaire valorisée sur le parc."
+      onOuvrir={() => navigate(ROUTES_DRILL.licences())}
+    >
       <div style={{ position: 'relative', height: 150 }}>
         <ResponsiveContainer width="100%" height={150}>
           <PieChart>
-            <Pie data={data.segments} cx="50%" cy="50%"
+            <Pie data={segments} cx="50%" cy="50%"
               innerRadius={48} outerRadius={64}
-              dataKey="value" strokeWidth={2} stroke="white">
-              {data.segments.map((seg, i) => <Cell key={i} fill={seg.color} />)}
+              dataKey="value" strokeWidth={2} stroke="white" isAnimationActive={false}>
+              {segments.map((seg, i) => <Cell key={i} fill={seg.color} />)}
             </Pie>
-            <Tooltip content={<CustomTooltip />} />
+            <Tooltip content={<TooltipDonut euros />} />
           </PieChart>
         </ResponsiveContainer>
         <div style={{
@@ -121,24 +153,15 @@ export function ValorisationLicencesWidget({ data }) {
           textAlign: 'center', pointerEvents: 'none',
         }}>
           <div style={{ fontSize: 14, fontWeight: 700, color, lineHeight: 1.2 }}>
-            {data.total.toLocaleString('fr-FR')} €
+            {Number(total).toLocaleString('fr-FR')} €
           </div>
           <div style={{ fontSize: 9, color, fontWeight: 700, marginTop: 2 }}>
-            {pct.toFixed(1)}% non utilisées
+            {pct == null ? '' : `${pct.toFixed(1)}% non utilisées`}
           </div>
         </div>
       </div>
-
-      <button onClick={() => console.log('navigate to /savings')} style={{
-        alignSelf: 'center', border: '1px solid #EAECF0', borderRadius: 6,
-        padding: '5px 20px', fontSize: 12, color: '#1A1D23',
-        backgroundColor: 'white', cursor: 'pointer', fontWeight: 500,
-      }}>
-        Voir le détail
-      </button>
-
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 8px' }}>
-        {data.segments.map((seg, i) => (
+        {segments.slice(0, 6).map((seg, i) => (
           <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
             <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: seg.color, flexShrink: 0 }} />
             <span style={{ fontSize: 10, color: '#8B9099' }}>{seg.name}</span>
@@ -148,9 +171,9 @@ export function ValorisationLicencesWidget({ data }) {
           </div>
         ))}
       </div>
-    </Card>
+    </CadreWidget>
   );
 }
 
-// Alias rétrocompatibilité
+// Alias retrocompatibilite
 export const EconomiesOptimisablesWidget = ValorisationLicencesWidget;
