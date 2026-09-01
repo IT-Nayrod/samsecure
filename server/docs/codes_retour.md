@@ -31,7 +31,8 @@ Plages : transverse 1000-1999 | administration 2000-2999 | contrats 3000-3099 |
 commandes 3100-3199 | documents 3200-3299 | validation 3300-3399 |
 droits 3400-3499 | licences 4000-4099 (module 3, partie A) |
 affectations 4100-4199 (module 3, partie B) | inventaire 4200-4299 (module 3, #111) |
-budget 5100-5199 (module 4, partie A, #146)
+conformite 4300-4399 (module 3, #116) | budget 5100-5199 (module 4, partie A, #146) |
+qualite des saisies et confiance 5400-5449 (module 3, #116)
 
 ## Transverse : socle d'envoi de mails (#87)
 
@@ -436,6 +437,89 @@ entree du workflow est `valide` (donc `valide` + `a_revalider` de lecture),
 par produit et societe, sans deduplication par reference (hypothese v0.5
 assumee), avec `droits_total` par produit (somme `licence.quantite`).
 
+## Conformite (#116, module 3)
+
+Plage 4300-4399, seedee par la migration Commune 047. Routeur
+`server/routes/conformite.js`. Source nominale : `precalcul_conformite`,
+alimentee par les triggers de la migration Tenant 046 sur licence et
+affectation (insert, update, delete), amorcee par
+`recalculer_conformite_complete()` en fin de 046 et rejouable par
+`server/bdd/manual/amorcer-conformite.js` (execution quotidienne recommandee :
+les droits dependent de CURRENT_DATE, les triggers ne partent qu'a
+l'ecriture). Le filtre `id_societe` et la synthese par societe sont calcules a
+la volee avec les memes regles, le precalcul n'ayant pas d'axe societe.
+
+Lecture sur `consulter_licences` ; `prix_unitaire`, `ecart_valorise` et les
+agregats `ecart_valorise_negatif` / `_positif` (sommes signees) servis a null
+avec `montants_masques: true` sans `consulter_kpi_financiers`, comme les couts
+du module licences.
+
+| Code | Type | Libelle propose | Route |
+|------|------|-----------------|-------|
+| 4300 | succes | État de conformité par produit | GET /api/conformite |
+| 4301 | succes | Synthèse de conformité | GET /api/conformite/synthese |
+| 4310 | erreur | Identifiant de société invalide | GET /api/conformite |
+| 4311 | erreur | Identifiant d'éditeur invalide | GET /api/conformite |
+| 4312 | erreur | Identifiant de produit invalide | GET /api/conformite |
+| 4313 | erreur | Le niveau demandé doit être global, editeur ou societe | GET /api/conformite/synthese |
+| 4399 | erreur | Erreur serveur inattendue (module conformité) | toutes |
+
+Regles #116 (validees) : droits = quantites des licences perpetuelles +
+souscriptions dont date de fin >= date du jour (sortie le jour meme, regle
+#102 conservee) ; usages = quantites des affectations dont la derniere entree
+du workflow est `valide` (le `a_revalider` de lecture en fait partie),
+`en_attente` et `refuse` exclus, sans deduplication par reference ; ecart =
+droits - usages ; `ecart_pct` = usages / droits x 100, borne a 999.99
+(colonne DECIMAL(5,2) du DDL v4) ; prix unitaire = somme des couts des
+licences actives / somme de leurs quantites ; ecart valorise = ecart x prix
+unitaire ; statut = `depassement` si usages > droits, `attention` si taux >=
+seuil, `conforme` sinon ; droits et usages nuls = produit non compte (ligne a
+zero, filtree). Seuils lus dans `seuil_dashboard` (tenant, echelle 1) puis
+`default_seuil_dashboard` (Commune) : `conformite_taux` (90, pourcent) et
+`conformite_ecart_valorise` (10000, euros, seuil en montant sur l'ecart
+valorise negatif ; branche aujourd'hui couverte par le depassement, conservee
+telle que la regle l'enonce).
+
+## Qualite des saisies et indice de confiance (#116, module 3)
+
+Plage 5400-5449, seedee par la migration Commune 047. Routeur
+`server/routes/qualite.js`, calcul pur de l'indice dans
+`server/utils/indiceConfiance.js` (teste au node:test).
+
+GET /api/qualite (permission `consulter_inventaire`) : detection a la volee,
+sans precalcul, croisee avec `anomalie_qualite`. Types produits :
+`licence_sans_contrat`, `contrat_sans_justificatif`, `commande_sans_preuve`,
+`doublon_affectation`, `doublon_produit`, `champ_obligatoire_vide`. Une
+anomalie `resolu = true` (resolution ou faux positif, la table ne distingue
+pas) exclut l'element meme s'il est encore detecte ; une anomalie ouverte est
+servie sans doublon ; une detection nouvelle est inseree avec type, gravite et
+description dans la transaction de la lecture. Les types des autres
+producteurs (`incoherence`, `hors_plage_parent`, `ligne_import`) ne sont pas
+reservis ici.
+
+GET /api/confiance (permission `consulter_licences`) : note sur 100 par
+perimetre (tenant, ou societe par `id_societe`), ponderee par la valeur (cout
+des licences actives ; societe payeuse via la commande pour les licences,
+societe declarante pour les affectations). Exhaustivite (poids 40) : 4 liens
+par licence active (commande, facture ou preuve, contrat, societe
+signataire). Coherence (poids 30) : valeur des licences sans anomalie ouverte
+sur la licence ou sa chaine (commande, contrat), un objet multi-anomalies
+compte une fois. Fraicheur (poids 30) : valeur des affectations validees a
+echeance de revalidation non depassee. Un perimetre sans valeur ponderable
+rend des notes a 100, objets concernes listes dans les malus a zero point.
+`valeur_totale` est masquee sans `consulter_kpi_financiers`.
+
+| Code | Type | Libelle propose | Route |
+|------|------|-----------------|-------|
+| 5400 | succes | État de la qualité des saisies | GET /api/qualite |
+| 5401 | succes | Indice de confiance | GET /api/confiance |
+| 5410 | erreur | Identifiant de société invalide | GET /api/confiance |
+| 5449 | erreur | Erreur serveur inattendue (module qualité et confiance) | les deux |
+
+Les libelles de la 047 sont accentues (consigne #116 : textes destines a
+l'ecran en francais accentue), la ou les migrations 025 a 042 sont en ASCII :
+homogeneisation du catalogue a arbitrer.
+
 ## Controle des permissions (transverse)
 
 Plage droits 3400-3499. Le controle est central, monte une seule fois dans
@@ -672,3 +756,179 @@ Regles v0.5 assumees :
   Ops sans reserve) : IT Ops lit donc l'engage agrege par GET /api/budget/engage
   et /synthese sur consulter_budget, alors que GET /api/commandes/agregats exige
   consulter_kpi_financiers. A valider.
+
+## Referentiels editeurs et logiciels (module 1)
+
+Deux plages, seedees par la migration Commune 041 : 5200-5299 pour les
+editeurs, 5300-5399 pour les logiciels. Meme decoupage dans les deux :
+x00-x09 succes, x10-x29 erreurs de validation et de reference, x30-x39 traces
+audit_log, x99 erreur serveur du module.
+
+Routeurs `server/routes/editeurs.js` et `server/routes/logiciels.js`. Socle
+Tenant : migrations 039 (editeur.pays, unicite de la raison sociale) et 040
+(produit_client.updated_at et son trigger, tables version_client et
+edition_client). Permissions : lecture `consulter_referentiels`, ecriture
+`gerer_referentiels`, deja seedees par 007 et sans ajout. La validation passe
+par le circuit unique de la #53, avec ses propres codes 3300-3314.
+
+| Code | Type | Libelle | Emis par |
+|---|---|---|---|
+| 5200 | succes | Liste des editeurs | GET /api/editeurs |
+| 5201 | succes | Detail de l'editeur | GET /api/editeurs/:id |
+| 5202 | succes | Editeur cree | POST /api/editeurs |
+| 5203 | succes | Editeur modifie | PATCH /api/editeurs/:id |
+| 5204 | succes | Editeur supprime | DELETE /api/editeurs/:id |
+| 5205 | succes | Suggestions d'editeurs | GET /api/editeurs/recherche |
+| 5210 | erreur | Editeur introuvable | GET/PATCH/DELETE /api/editeurs/:id |
+| 5211 | erreur | La raison sociale est obligatoire | POST, PATCH /api/editeurs |
+| 5212 | erreur | Un editeur porte deja cette raison sociale | POST, PATCH /api/editeurs |
+| 5213 | erreur | Suppression impossible : rattachements | DELETE /api/editeurs/:id |
+| 5290 | trace | Editeur cree | POST /api/editeurs |
+| 5291 | trace | Editeur modifie | PATCH /api/editeurs/:id |
+| 5292 | trace | Editeur supprime | DELETE /api/editeurs/:id |
+| 5299 | erreur | Erreur serveur inattendue (referentiel editeurs) | toutes |
+| 5300 | succes | Liste des logiciels | GET /api/logiciels |
+| 5301 | succes | Detail du logiciel | GET /api/logiciels/:id |
+| 5302 | succes | Logiciel cree | POST /api/logiciels |
+| 5303 | succes | Logiciel modifie | PATCH /api/logiciels/:id |
+| 5304 | succes | Logiciel supprime | DELETE /api/logiciels/:id |
+| 5305 | succes | Version ajoutee | POST /api/logiciels/:id/versions |
+| 5306 | succes | Version supprimee | DELETE /api/logiciels/:id/versions/:idDecl |
+| 5307 | succes | Edition ajoutee | POST /api/logiciels/:id/editions |
+| 5308 | succes | Edition supprimee | DELETE /api/logiciels/:id/editions/:idDecl |
+| 5310 | erreur | Logiciel introuvable | GET/PATCH/DELETE /api/logiciels/:id |
+| 5311 | erreur | Le libelle est obligatoire | POST, PATCH /api/logiciels |
+| 5312 | erreur | Editeur introuvable | POST, PATCH /api/logiciels |
+| 5313 | erreur | Produit parent introuvable | POST, PATCH /api/logiciels |
+| 5314 | erreur | Un produit ne peut pas etre son propre parent | PATCH /api/logiciels/:id |
+| 5315 | erreur | Ce rattachement fermerait une boucle | PATCH /api/logiciels/:id |
+| 5316 | erreur | Le catalogue commun n'est pas modifiable | PATCH/DELETE et declinaisons |
+| 5317 | erreur | Suppression impossible : rattachements | DELETE /api/logiciels/:id |
+| 5318 | erreur | Le libelle de la version est obligatoire | POST /api/logiciels/:id/versions |
+| 5319 | erreur | Cette version existe deja pour ce logiciel | POST /api/logiciels/:id/versions |
+| 5320 | erreur | Le libelle de l'edition est obligatoire | POST /api/logiciels/:id/editions |
+| 5321 | erreur | Cette edition existe deja pour ce logiciel | POST /api/logiciels/:id/editions |
+| 5322 | erreur | Version introuvable | DELETE /api/logiciels/:id/versions/:idDecl |
+| 5323 | erreur | Edition introuvable | DELETE /api/logiciels/:id/editions/:idDecl |
+| 5330 | trace | Logiciel cree | POST /api/logiciels |
+| 5331 | trace | Logiciel modifie | PATCH /api/logiciels/:id |
+| 5332 | trace | Logiciel supprime | DELETE /api/logiciels/:id |
+| 5399 | erreur | Erreur serveur inattendue (referentiel logiciels) | toutes |
+
+Points de lecture :
+
+- GET /api/editeurs a change de forme : servi jusqu'ici en reponse nue par
+  `referentiels.js`, il sort desormais sous enveloppe normalisee. La projection
+  conserve id, raison_sociale, url_logo_defaut et url_logo_custom ; `deballer()`
+  dans src/services/http.js rend le changement transparent pour le selecteur du
+  formulaire contrat ;
+- nb_produits et la conformite d'un editeur ne sont pas calculables en SQL : le
+  catalogue vit en BDD Commune et l'editeur en Tenant, aucune jointure ne
+  traverse les deux bases. Le regroupement est applicatif, en une requete par
+  reponse et jamais par ligne ;
+- conformite vaut null quand aucun produit de l'editeur ne porte de licence :
+  il n'y a alors rien a rapprocher, et un niveau conforme laisserait croire a un
+  controle qui n'a pas eu lieu. La balance elle-meme est celle du module 3
+  (`server/utils/conformite.js`), pas la table precalcul_conformite, qu'aucun
+  trigger, aucune route et aucun script n'alimente ;
+- GET /api/logiciels sert le catalogue global (produit_referentiel, Commune) et
+  les logiciels client (produit_client, Tenant) sous une forme unique. Chaque
+  ligne porte source et modifiable. Toute ecriture visant un identifiant du
+  catalogue rend 5316 en 409, et non 404 : le produit existe, c'est l'ecriture
+  qui n'a pas lieu d'etre depuis un espace client ;
+- GET /api/produits (`referentielsLicences.js`, code 4050) est inchange et
+  continue de servir le seul catalogue global au selecteur du formulaire
+  licence ;
+- a_maintenir a disparu de l'ecran Logiciels : le modele ne le porte plus sur le
+  produit depuis la modif 12, la maintenance est un choix client porte par la
+  licence.
+
+Recherche incrementale des editeurs (code 5205, migration Commune 042) :
+
+- `GET /api/editeurs/recherche?q=&exclure=&limite=` sert les editeurs deja
+  references qui correspondent au texte saisi, au fil de la frappe. Le
+  referentiel peut compter des milliers de lignes : personne ne peut verifier de
+  visu qu'un editeur en est absent, et le doublon nait de cette impossibilite,
+  pas d'une inattention. Les suggestions se montrent donc pendant la saisie, la
+  ou l'erreur se commet, et non a l'enregistrement ou l'unicite ne rendrait
+  qu'un 5212 apres coup ;
+- reponse `{ suggestions, total }`. Volontairement pauvre : ni compteurs ni
+  conformite, contrairement a 5200, qui interroge les deux bases. Une frappe ne
+  doit couter qu'une requete bornee. `total` porte le nombre de correspondances
+  au-dela des `limite` servies (8 par defaut, 25 au plus) ;
+- `exclure` ecarte l'editeur en cours de modification, qui ne se signale pas a
+  lui-meme comme un doublon de lui-meme ; `exact` marque la correspondance a la
+  casse pres, celle que la base refusera ;
+- les jokers ILIKE (`%`, `_`) sont echappes : un client tapant "100%" cherche ce
+  texte, il n'interroge pas le referentiel avec un joker ;
+- route litterale declaree avant `/editeurs/:id`, qui capturerait sinon
+  "recherche" comme un identifiant, cote routeur comme cote
+  routesPermissions.js.
+
+
+## Referentiel revendeurs (module 1)
+
+Plage 5220-5239, seedee par la migration Commune 045 et rendue continue par la
+043, qui a deplace les trois traces editeurs vers 5290-5292. Decoupage :
+5220-5226 succes, 5227-5236 erreurs, 5237-5239 traces audit_log. La plage n'a
+pas de x99 : l'erreur serveur du module est 5236.
+
+Routeur `server/routes/revendeurs.js`. Socle Tenant : migration 044 (colonne
+actif, updated_at et son trigger, fonctions normaliser_texte et
+cle_rapprochement, index, unicite partielle du SIRET). Permissions : lecture
+`consulter_referentiels`, ecriture `gerer_referentiels` (admin_sam, manager_dsi
+et it_ops par la matrice 011 ; financier en est exclu). Aucune permission
+nouvelle.
+
+| Code | Type | Libelle | Emis par |
+|---|---|---|---|
+| 5220 | succes | Liste des revendeurs | GET /api/revendeurs |
+| 5221 | succes | Detail du revendeur | GET /api/revendeurs/:id |
+| 5222 | succes | Revendeur cree | POST /api/revendeurs |
+| 5223 | succes | Revendeur modifie | PATCH /api/revendeurs/:id |
+| 5224 | succes | Revendeur desactive | POST /api/revendeurs/:id/desactiver |
+| 5225 | succes | Revendeur reactive | POST /api/revendeurs/:id/reactiver |
+| 5226 | succes | Suggestions de revendeurs | GET /api/revendeurs/recherche |
+| 5227 | erreur | Revendeur introuvable | GET/PATCH /api/revendeurs/:id, changements d'etat |
+| 5228 | erreur | La raison sociale est obligatoire | POST, PATCH /api/revendeurs |
+| 5229 | erreur | Le SIRET doit contenir 14 chiffres | POST, PATCH /api/revendeurs |
+| 5230 | erreur | Un revendeur porte deja ce SIRET | POST, PATCH /api/revendeurs |
+| 5231 | erreur | Un revendeur au nom tres proche existe deja | POST, PATCH /api/revendeurs |
+| 5232 | erreur | IBAN invalide | POST, PATCH /api/revendeurs |
+| 5233 | erreur | Adresse email invalide | POST, PATCH /api/revendeurs |
+| 5234 | erreur | Ce revendeur est deja desactive | POST /api/revendeurs/:id/desactiver |
+| 5235 | erreur | Ce revendeur est deja actif | POST /api/revendeurs/:id/reactiver |
+| 5236 | erreur | Erreur serveur inattendue (referentiel revendeurs) | toutes |
+| 5237 | trace | Revendeur cree | POST /api/revendeurs |
+| 5238 | trace | Revendeur modifie | PATCH /api/revendeurs/:id |
+| 5239 | trace | Statut du revendeur modifie | POST /api/revendeurs/:id/desactiver et /reactiver |
+
+Points de lecture :
+
+- pas de suppression : quatre tables referencent un revendeur (contrat,
+  commande, licence, maintenance_historique) et doivent continuer de le nommer.
+  Le retrait est une desactivation reversible, sur le modele acte par la
+  migration 022 pour utilisateur. `date_suppression` n'est pas reprise, la 022
+  l'ayant justement abandonnee ;
+- GET /revendeurs masque les desactives par defaut : cette route sert aussi de
+  selecteur aux formulaires contrat et commande. `inclure_inactifs=1` les sert
+  avec les autres, la colonne `actif` permettant de les distinguer ;
+- la route a change de forme : servie jusqu'ici en reponse nue par
+  `referentiels.js`, elle sort desormais sous enveloppe normalisee. Elle
+  conserve id et raison_sociale, et `deballer()` dans src/services/http.js rend
+  le changement transparent pour ses appelants ;
+- 5230 et 5231 portent l'existant dans `details.existant`, avec `details.motif`
+  a `siret` ou `raison_sociale`. Ce n'est pas un simple refus : l'ecran doit
+  pouvoir ouvrir la fiche existante, ou proposer sa reactivation si elle est
+  desactivee. Un refus sec conduirait a recreer le meme revendeur sous un
+  troisieme nom ;
+- le rapprochement des noms passe par `cle_rapprochement()` (migration 044), qui
+  retire accents, casse, ponctuation et forme juridique : "SCC France",
+  "S.C.C. FRANCE" et "SCC France SAS" ont la meme cle. Aucune extension n'est
+  requise, pg_trgm et fuzzystrmatch n'etant pas installes ;
+- la recherche est insensible a la casse et aux accents par `normaliser_texte()`
+  applique des deux cotes de la comparaison. Les jokers LIKE (`%`, `_`) sont
+  echappes ;
+- l'unicite du SIRET (index partiel, migration 044) n'est qu'un garde-fou de
+  derniere ligne : elle n'attrape que la course entre deux creations
+  simultanees, la detection applicative faisant le travail avant.

@@ -23,7 +23,10 @@
 //   organisation   : consulter_referentiels, gerer_referentiels, gerer_contacts
 //   budget         : consulter_budget, saisir_budget, consulter_kpi_financiers,
 //                    supprimer_budget (#146, 29e code)
-//   rapports, dashboards : non encore branches sur l'API
+//   dashboards     : acceder_dashboard_manager_dsi, _financier, _it_ops
+//                    (migration 010) : pilotent le selecteur de dashboard,
+//                    les routes de donnees suivent les droits metier
+//   rapports       : non encore branche sur l'API
 //
 // PUBLIC_AUTHENTIFIE : accessible a tout porteur d'un jeton valide, sans
 // permission particuliere. A n'employer que pour les routes qui ne divulguent
@@ -143,6 +146,35 @@ export const ROUTES_PERMISSIONS = [
   ["PATCH",  "/budget/:id",                  "saisir_budget"],
   ["DELETE", "/budget/:id",                  "supprimer_budget"],
 
+  // ---- Module 3 : conformite, qualite des saisies, confiance (#116) ---------
+  // Permissions existantes reutilisees, aucun code ajoute au referentiel.
+  // Conformite et confiance : consulter_licences (la balance et l'indice
+  // pesent le patrimoine de licences ; les montants y sont masques sans
+  // consulter_kpi_financiers, evalue dans le routeur comme pour les couts du
+  // module licences). Qualite : consulter_inventaire, la vue operationnelle
+  // du module 3 (meme lectorat que les affectations et les ecarts). Les
+  // permissions dashboards (acceder_dashboard_*) ne conviennent pas : chacune
+  // est propre a un persona et le controle central n'exprime pas de OU.
+  // Le chemin litteral /conformite/synthese passe avant /conformite.
+  ["GET",    "/conformite/synthese",        "consulter_licences"],
+  ["GET",    "/conformite",                 "consulter_licences"],
+  ["GET",    "/qualite",                    "consulter_inventaire"],
+  ["GET",    "/confiance",                  "consulter_licences"],
+  // ---- Module 4 : dashboards (#190) -----------------------------------------
+  // Configuration et preferences : donnees de parametrage et de confort
+  // strictement personnelles, aucun montant ni donnee metier, d'ou
+  // PUBLIC_AUTHENTIFIE. La synthese agrege le workflow de validation et les
+  // revalidations du module 3 : elle suit consulter_inventaire, le droit de
+  // lecture de ce module (Manager DSI et IT Ops le portent, la matrice 011
+  // fait foi). Les deux agregats financiers portent des montants : ils suivent
+  // consulter_kpi_financiers, que la matrice refuse a it_ops : le masquage des
+  // montants pour IT Ops est ainsi tenu cote serveur, pas seulement a l'ecran.
+  ["GET",    "/dashboards/configuration",   PUBLIC_AUTHENTIFIE],
+  ["PUT",    "/dashboards/preferences",     PUBLIC_AUTHENTIFIE],
+  ["GET",    "/dashboards/synthese",        "consulter_inventaire"],
+  ["GET",    "/dashboards/montants-totaux", "consulter_kpi_financiers"],
+  ["GET",    "/dashboards/engages-payes",   "consulter_kpi_financiers"],
+
   // ---- Referentiels en lecture ---------------------------------------------
   ["GET",    "/produits",                    "consulter_referentiels"],
   ["GET",    "/unites-mesure",               "consulter_referentiels"],
@@ -152,6 +184,38 @@ export const ROUTES_PERMISSIONS = [
   ["GET",    "/revendeurs",                  "consulter_referentiels"],
   ["GET",    "/modes-commande",              "consulter_referentiels"],
   ["GET",    "/types-preuve",                "consulter_referentiels"],
+
+  // ---- Referentiels du module 1 : editeurs et logiciels ---------------------
+  // Lecture et ecriture separees par le meme couple que les societes.
+  // Les chemins litteraux precedent les chemins parametres, et les
+  // declinaisons precedent /logiciels/:id : la premiere regle qui matche gagne.
+  // Recherche incrementale du formulaire editeur : litterale, donc declaree
+  // avant /editeurs/:id qui capturerait sinon "recherche" comme identifiant.
+  ["GET",    "/editeurs/recherche",          "consulter_referentiels"],
+  ["GET",    "/editeurs/:id",                "consulter_referentiels"],
+  ["POST",   "/editeurs",                    "gerer_referentiels"],
+  ["PATCH",  "/editeurs/:id",                "gerer_referentiels"],
+  ["DELETE", "/editeurs/:id",                "gerer_referentiels"],
+
+  ["POST",   "/logiciels/:id/versions",            "gerer_referentiels"],
+  ["DELETE", "/logiciels/:id/versions/:idDecl",    "gerer_referentiels"],
+  ["POST",   "/logiciels/:id/editions",            "gerer_referentiels"],
+  ["DELETE", "/logiciels/:id/editions/:idDecl",    "gerer_referentiels"],
+  ["GET",    "/logiciels",                   "consulter_referentiels"],
+  ["GET",    "/logiciels/:id",               "consulter_referentiels"],
+  ["POST",   "/logiciels",                   "gerer_referentiels"],
+  ["PATCH",  "/logiciels/:id",               "gerer_referentiels"],
+  ["DELETE", "/logiciels/:id",               "gerer_referentiels"],
+
+  // Revendeurs. Litteraux et sous-chemins d'abord, /revendeurs/:id ensuite :
+  // la premiere regle qui matche gagne, et la route parametree capturerait
+  // sinon "recherche" comme un identifiant.
+  ["GET",    "/revendeurs/recherche",        "consulter_referentiels"],
+  ["POST",   "/revendeurs/:id/desactiver",   "gerer_referentiels"],
+  ["POST",   "/revendeurs/:id/reactiver",    "gerer_referentiels"],
+  ["GET",    "/revendeurs/:id",              "consulter_referentiels"],
+  ["POST",   "/revendeurs",                  "gerer_referentiels"],
+  ["PATCH",  "/revendeurs/:id",              "gerer_referentiels"],
 
   // ---- Organisation : societes ---------------------------------------------
   ["GET",    "/societes/:id/profils-orphelins", "gerer_referentiels"],

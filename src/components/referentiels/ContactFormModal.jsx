@@ -5,7 +5,9 @@ import Button from '../ui/Button';
 import FormField from '../ui/FormField';
 import PhotoUploadField from '../ui/PhotoUploadField';
 import { validateRequired, validateEmail, validatePhoneFr } from '../../utils/validation';
-import { mockFonctions, mockEditeurs, mockRevendeurs, mockSocietes } from '../../data/mockReferentiels';
+import { mockFonctions, mockEditeurs, mockSocietes } from '../../data/mockReferentiels';
+import { revendeursService } from '../../services/referentielsService';
+import { optionnel } from '../../services/http';
 import { getContactPhoto } from '../../utils/contactPhotos';
 import { colorForName, initialsFromParts } from '../../utils/avatar';
 import { loadDraft, saveDraft, clearDraft } from '../../utils/formDraft';
@@ -18,10 +20,10 @@ const TYPES_RATTACHEMENT = [
   { value: 'revendeur', label: 'Revendeur' },
 ];
 
-function entitesForType(type) {
+function entitesForType(type, revendeurs) {
   if (type === 'client') return mockSocietes.map(s => ({ value: s.id, label: s.raison_sociale }));
   if (type === 'editeur') return mockEditeurs.map(e => ({ value: e.id, label: e.raison_sociale }));
-  if (type === 'revendeur') return mockRevendeurs.map(r => ({ value: r.id, label: r.raison_sociale }));
+  if (type === 'revendeur') return revendeurs.map(r => ({ value: r.id, label: r.raison_sociale }));
   return [];
 }
 
@@ -35,7 +37,19 @@ export default function ContactFormModal({ isOpen, onClose, onSave, contact }) {
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [draftRestaure, setDraftRestaure] = useState(false);
+  const [revendeurs, setRevendeurs] = useState([]);
 
+  // Les revendeurs viennent de l'API depuis la bascule du referentiel. Charges
+  // a l'ouverture seulement, et par optionnel() : un droit manquant sur le
+  // referentiel prive du selecteur, pas du formulaire entier.
+  useEffect(() => {
+    if (!isOpen) return;
+    let annule = false;
+    optionnel(revendeursService.list())
+      .then(liste => { if (!annule) setRevendeurs(liste); })
+      .catch(() => { if (!annule) setRevendeurs([]); });
+    return () => { annule = true; };
+  }, [isOpen]);
   useEffect(() => {
     if (!isOpen) return;
     const draft = loadDraft(draftKey);
@@ -67,6 +81,20 @@ export default function ContactFormModal({ isOpen, onClose, onSave, contact }) {
     saveDraft(draftKey, form);
   }, [form, isOpen, draftKey]);
 
+  
+
+  // Les revendeurs viennent de l'API depuis la bascule du referentiel. Charges
+  // a l'ouverture seulement, et par optionnel() : un droit manquant sur le
+  // referentiel prive du selecteur, pas du formulaire entier.
+  useEffect(() => {
+    if (!isOpen) return;
+    let annule = false;
+    optionnel(revendeursService.list())
+      .then(liste => { if (!annule) setRevendeurs(liste); })
+      .catch(() => { if (!annule) setRevendeurs([]); });
+    return () => { annule = true; };
+  }, [isOpen]);
+
   function validate() {
     const e = {};
     const nomErr = validateRequired(form.nom, 'Le nom');
@@ -95,7 +123,7 @@ export default function ContactFormModal({ isOpen, onClose, onSave, contact }) {
   }
 
   const isValid = !Object.values(validate()).some(Boolean);
-  const entites = entitesForType(form.type_rattachement);
+  const entites = entitesForType(form.type_rattachement, revendeurs);
 
   return (
     <SlideOver

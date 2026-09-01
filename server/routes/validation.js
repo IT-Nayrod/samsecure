@@ -1,7 +1,7 @@
 import express from "express";
 import { tenantPool } from "../db.js";
 import { succes, erreur } from "../utils/reponse.js";
-import { ENTITES_VALIDABLES, lireStatutCourant } from "../utils/validationWorkflow.js";
+import { ENTITES_VALIDABLES, lireStatutCourant, colonneLabel } from "../utils/validationWorkflow.js";
 
 const router = express.Router();
 
@@ -49,9 +49,12 @@ async function traiter(req, res, statutCible, motif) {
   try {
     await client.query("BEGIN");
 
-    // Le nom de table vient du catalogue, jamais du parametre de route.
+    // Le nom de table et celui de la colonne de libelle viennent du catalogue,
+    // jamais du parametre de route. L'alias AS label garde la suite du
+    // traitement ignorante du nom reel : les tiers du module 1 nomment leur
+    // libelle raison_sociale, les entites de saisie le nomment label.
     const { rows: existant } = await client.query(
-      `SELECT label FROM ${cible.table} WHERE id = $1`, [entiteId]);
+      `SELECT ${colonneLabel(cible)} AS label FROM ${cible.table} WHERE id = $1`, [entiteId]);
     if (!existant.length) {
       await client.query("ROLLBACK");
       return erreur(res, 3311, { status: 404, message: cible.introuvable });

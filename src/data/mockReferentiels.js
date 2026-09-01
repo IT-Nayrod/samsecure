@@ -61,30 +61,6 @@ export const mockEditeurs = [
   { id: 'ed24', raison_sociale: 'Lansweeper',                   pays: 'Belgique',    logo_slug: null,               statut_validation: 'valide',    soumis_par: 'Import initial' },
 ];
 
-// --- REVENDEURS ----------------------------------------------------------------
-export const mockRevendeurs = [
-  { id: 'rv1',  raison_sociale: 'SCC France',                  siret: '33212545600056', iban: 'FR7630006000011234567890189', email: 'contact@scc.fr',         statut_validation: 'valide',    soumis_par: 'Import initial' },
-  { id: 'rv2',  raison_sociale: 'Insight Direct',               siret: '40312478900032', iban: 'FR7630004000031234567890143', email: 'contact@insight.com',     statut_validation: 'valide',    soumis_par: 'Import initial' },
-  { id: 'rv3',  raison_sociale: 'Bechtle France',               siret: '38456712300048', iban: 'FR7612548029981234567890271', email: 'contact@bechtle.fr',      statut_validation: 'valide',    soumis_par: 'Import initial' },
-  { id: 'rv4',  raison_sociale: 'Econocom',                    siret: '38972145600061', iban: 'FR7630003000401234567890370', email: 'contact@econocom.com',    statut_validation: 'valide',    soumis_par: 'Import initial' },
-  { id: 'rv5',  raison_sociale: 'Computacenter France',         siret: '34256987100025', iban: 'FR7620041010050500013M02606', email: 'contact@computacenter.fr', statut_validation: 'valide',    soumis_par: 'Import initial' },
-  { id: 'rv6',  raison_sociale: 'Softchoice France',            siret: '41258963200017', iban: 'FR7617569000901234567890182', email: 'contact@softchoice.com',  statut_validation: 'valide',    soumis_par: 'Import initial' },
-  { id: 'rv7',  raison_sociale: 'CDW France',                   siret: '39845712600039', iban: 'FR7630007000111234567890211', email: 'contact@cdw.com',         statut_validation: 'valide',    soumis_par: 'Import initial' },
-  { id: 'rv8',  raison_sociale: 'Crayon France',                 siret: '50123478900014', iban: 'FR7630002005501234567890196', email: 'contact@crayon.com',      statut_validation: 'valide',    soumis_par: 'Import initial' },
-  { id: 'rv9',  raison_sociale: 'ALSO France',                  siret: '42698745100052', iban: 'FR7630066100011234567890206', email: 'contact@also.com',        statut_validation: 'valide',    soumis_par: 'Import initial' },
-  { id: 'rv10', raison_sociale: 'TD Synnex France',              siret: '35487912600073', iban: 'FR7630001007941234567890138', email: 'contact@tdsynnex.com',    statut_validation: 'valide',    soumis_par: 'Import initial' },
-  { id: 'rv11', raison_sociale: 'Dell Technologies France',       siret: '38912456700084', iban: 'FR7630056009501234567890159', email: 'contact@dell.com',        statut_validation: 'valide',    soumis_par: 'Import initial' },
-  { id: 'rv12', raison_sociale: 'HPE France',                   siret: '32178945600025', iban: 'FR7630027082001234567890224', email: 'contact@hpe.com',         statut_validation: 'valide',    soumis_par: 'Import initial' },
-  { id: 'rv13', raison_sociale: 'Apogea',                       siret: '49856712300041', iban: 'FR7630788001001234567890183', email: 'contact@apogea.fr',       statut_validation: 'en_attente', soumis_par: 'Thomas Bernard' },
-  { id: 'rv14', raison_sociale: 'Hardis Group',                  siret: '31254896700019', iban: 'FR7610278024301234567890251', email: 'contact@hardis-group.com', statut_validation: 'en_attente', soumis_par: 'Julie Petit' },
-  { id: 'rv15', raison_sociale: 'Devoteam',                     siret: '34896712500066', iban: 'FR7630003020201234567890116', email: 'contact@devoteam.com',    statut_validation: 'valide',    soumis_par: 'Import initial' },
-  { id: 'rv16', raison_sociale: 'Inetum',                       siret: '38745961200038', iban: 'FR7610907001011234567890192', email: 'contact@inetum.com',      statut_validation: 'valide',    soumis_par: 'Import initial' },
-  { id: 'rv17', raison_sociale: 'Sopra Steria',                  siret: '32692249800012', iban: 'FR7630066100021234567890247', email: 'contact@soprasteria.com', statut_validation: 'valide',    soumis_par: 'Import initial' },
-  { id: 'rv18', raison_sociale: 'Cheops Technology',             siret: '40325871900057', iban: 'FR7630004003001234567890278', email: 'contact@cheops.fr',       statut_validation: 'valide',    soumis_par: 'Import initial' },
-  { id: 'rv19', raison_sociale: 'Watsoft Distribution',           siret: '49712536800023', iban: 'FR7613807001081234567890163', email: 'contact@watsoft.com',     statut_validation: 'refuse',    soumis_par: 'Thomas Bernard', motif_refus: 'IBAN invalide, format incorrect transmis par le revendeur.' },
-  { id: 'rv20', raison_sociale: 'Exclusive Networks',             siret: '49887412300046', iban: 'FR7630003015101234567890294', email: 'contact@exclusive-networks.com', statut_validation: 'valide', soumis_par: 'Import initial' },
-];
-
 // --- PRODUITS (catalogue commun + produits client) ---------------------------
 // Hierarchie : suites (parent) -> sous-produits (enfants)
 export const mockProduits = [
@@ -222,9 +198,13 @@ export function isContactActif(contact) {
 
 // Resolution du libelle de l'entite de rattachement d'un contact (client, editeur ou revendeur)
 export function getRattachementInfo(typeRattachement, idRattachement) {
-  if (typeRattachement === 'client') {
-    const societe = mockSocietes.find(s => s.id === idRattachement);
-    return { label: societe?.raison_sociale ?? 'Société inconnue', detailPath: `/referentiels/organisation/${idRattachement}` };
+    if (typeRattachement === 'revendeur') {
+    // Les revendeurs viennent de l'API depuis la bascule du referentiel : ils
+    // ne sont plus resolvables depuis ce fichier, qui est synchrone. Les
+    // contacts etant eux-memes encore mockes, leur id_rattachement designe de
+    // toute facon un revendeur de demonstration qui n'existe plus. Le lien est
+    // donc retire plutot que de mener a une fiche introuvable.
+    return { label: 'Revendeur', detailPath: null };
   }
   if (typeRattachement === 'editeur') {
     const editeur = mockEditeurs.find(e => e.id === idRattachement);

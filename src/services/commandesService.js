@@ -12,14 +12,15 @@ export const commandesService = {
   update: (id, payload) => http.patch(`/commandes/${id}`, payload),
   remove: (id)          => http.delete(`/commandes/${id}`),
 
-  // Les agregats acceptent soit une annee, soit une plage. La societe est un
-  // axe du precalcul et se transmet ; contrat et revendeur n'en sont pas et
-  // restent des filtres de liste.
-  agregats: ({ dateDebut, dateFin, annee, idSociete } = {}) => {
+  // Les agregats acceptent soit une annee, soit une plage. La societe et
+  // l'editeur sont les deux axes du precalcul et se transmettent ; contrat et
+  // revendeur n'en sont pas et restent des filtres de liste.
+  agregats: ({ dateDebut, dateFin, annee, idSociete, idEditeur } = {}) => {
     const p = new URLSearchParams();
     if (dateDebut && dateFin) { p.set('date_debut', dateDebut); p.set('date_fin', dateFin); }
     else if (annee) p.set('annee', annee);
     if (idSociete) p.set('id_societe', idSociete);
+    if (idEditeur) p.set('id_editeur', idEditeur);
     return http.get(`/commandes/agregats?${p.toString()}`);
   },
 };

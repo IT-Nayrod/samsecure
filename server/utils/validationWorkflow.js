@@ -16,14 +16,26 @@ import { apresTraitementAffectation } from "./revalidation.js";
 // transaction du traitement, apres la mise a jour de l'entree. C'est par lui
 // que le module 3 branche son cycle de revalidation sur le circuit unique,
 // sans second workflow ni seconde file (#106).
+// colonneLabel (optionnel) : colonne portant le libelle lisible de l'entite,
+// pour les messages de journal. Les cinq entites de saisie nomment la leur
+// label, les tiers du module 1 la nomment raison_sociale.
 export const ENTITES_VALIDABLES = {
-  contrat:     { table: "contrat",     introuvable: "Contrat introuvable." },
-  commande:    { table: "commande",    introuvable: "Commande introuvable." },
-  facture:     { table: "facture",     introuvable: "Facture introuvable." },
-  preuve:      { table: "preuve",      introuvable: "Preuve introuvable." },
-  affectation: { table: "affectation", introuvable: "Affectation introuvable.",
-                 apresTraitement: apresTraitementAffectation },
+  contrat:        { table: "contrat",        introuvable: "Contrat introuvable." },
+  commande:       { table: "commande",       introuvable: "Commande introuvable." },
+  facture:        { table: "facture",        introuvable: "Facture introuvable." },
+  preuve:         { table: "preuve",         introuvable: "Preuve introuvable." },
+  affectation:    { table: "affectation",    introuvable: "Affectation introuvable.",
+                    apresTraitement: apresTraitementAffectation },
+  editeur:        { table: "editeur",        introuvable: "Editeur introuvable.",
+                    colonneLabel: "raison_sociale" },
+  produit_client: { table: "produit_client", introuvable: "Logiciel introuvable." },
 };
+
+// Comme table, la valeur sort du catalogue et jamais d'un parametre de route :
+// son interpolation dans une requete est sure ici, et nulle part ailleurs.
+export function colonneLabel(cible) {
+  return cible.colonneLabel || "label";
+}
 
 // Fragment a coller dans les projections de liste et de detail. Le LATERAL sert
 // la derniere entree seule, sans sous-requete par colonne, et s'appuie sur

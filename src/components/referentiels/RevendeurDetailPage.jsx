@@ -1,21 +1,31 @@
-// RevendeurDetailPage - fiche detail d'un revendeur
-import { useState } from 'react';
+// RevendeurDetailPage - fiche detail d'un revendeur.
+// Donnees API : /revendeurs/:id. Les compteurs de contrats, commandes et
+// licences sont servis par l'API.
+//
+// Pas de suppression : quatre tables referencent un revendeur et doivent
+// continuer de le nommer. Le retrait est une desactivation, reversible, qui le
+// sort des selecteurs de saisie sans rien effacer.
+//
+// La section des contacts a ete retiree : leur module n'est pas branche et ses
+// identifiants de mock ne correspondent a aucun revendeur reel.
+import { useState, useCallback, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Pencil, Trash2, Eye, EyeOff } from 'lucide-react';
-import { mockRevendeurs, getContactsByRattachement, mockProduits } from '../../data/mockReferentiels';
-import { getLicencesByRevendeur } from '../../data/mockDeploiement';
-import { getCommandesByRevendeur } from '../../data/mockContrats';
+import { Pencil, Eye, EyeOff, Ban, RotateCcw } from 'lucide-react';
+import { revendeursService } from '../../services/referentielsService';
 import Breadcrumb from '../ui/Breadcrumb';
 import Button from '../ui/Button';
+import Badge from '../ui/Badge';
 import ConfirmModal from '../ui/ConfirmModal';
 import EmptyState from '../ui/EmptyState';
-import StatutValidationBadge from './StatutValidationBadge';
-import ValidationActions from './ValidationActions';
+import ErrorState from '../ui/ErrorState';
+import Skeleton from '../ui/Skeleton';
 import RevendeurFormModal from './RevendeurFormModal';
+import ModalDoublonRevendeur from './ModalDoublonRevendeur';
 import useRbac from '../../hooks/useRbac';
 import { useToast } from '../../hooks/useToast';
-import useAuth from '../../hooks/useAuth';
 
+// L'IBAN est une coordonnee bancaire : il ne s'affiche pas en clair par defaut,
+// meme aux profils qui peuvent le modifier.
 function maskIban(iban) {
   if (!iban) return '-';
   return `${iban.slice(0, 4)} **** **** **** ${iban.slice(-4)}`;
@@ -25,88 +35,131 @@ export default function RevendeurDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { addToast } = useToast();
-  const { canWrite, canValidate, canDelete, submitsForValidation } = useRbac();
-  const { user } = useAuth();
-  const [revendeurs, setRevendeurs] = useState(mockRevendeurs);
+  const { canWrite } = useRbac({ write: 'gerer_referentiels' });
+  const [revendeur, setRevendeur] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [errorStatus, setErrorStatus] = useState(null);
   const [formOpen, setFormOpen] = useState(false);
-  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [etatOpen, setEtatOpen] = useState(false);
   const [ibanVisible, setIbanVisible] = useState(false);
+  const [doublon, setDoublon] = useState(null);
 
-  const revendeur = revendeurs.find(r => r.id === id);
+  const load = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    setErrorStatus(null);
+    try {
+      setRevendeur(await revendeursService.get(id));
+    } catch (err) {
+      setError(err.message);
+      setErrorStatus(err.status);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [id]);
 
-  if (!revendeur) {
+  useEffect(() => { load(); }, [load]);
+
+  async function handleSave(data, existing) {
+    try {
+      await revendeursService.update(existing.id, data);
+      addToast({ type: 'success', message: 'Revendeur mis à jour.' });
+      await load();
+    } catch (err) {
+      if (err?.status === 409 && err?.details?.existant) {
+        setDoublon({ existant: err.details.existant, motif: err.details.motif });
+      } else if (err?.status !== 400) {
+        addToast({ type: 'error', message: err.message });
+      }
+      throw err;
+    }
+  }
+
+  async function changerEtat() {
+    const desactiver = revendeur.actif;
+    try {
+      if (desactiver) await revendeursService.desactiver(id);
+      else await revendeursService.reactiver(id);
+      addToast({ type: 'success', message: desactiver ? 'Revendeur désactivé.' : 'Revendeur réactivé.' });
+      await load();
+    } catch (err) {
+      addToast({ type: 'error', message: err.message });
+    }
+  }
+
+  const fil = (
+    <Breadcrumb items={[
+      { label: 'Référentiels', to: '/referentiels/revendeurs' },
+      { label: 'Revendeurs', to: '/referentiels/revendeurs' },
+      { label: revendeur?.raison_sociale ?? '...' },
+    ]} />
+  );
+
+  if (isLoading) {
     return (
       <div className="flex flex-col gap-6">
-        <Breadcrumb items={[{ label: 'Référentiels', to: '/referentiels/revendeurs' }, { label: 'Revendeurs', to: '/referentiels/revendeurs' }, { label: 'Introuvable' }]} />
-        <EmptyState title="Revendeur introuvable" description="Ce revendeur n'existe pas ou a été supprimé." ctaLabel="Retour à la liste" onCta={() => navigate('/referentiels/revendeurs')} />
+        {fil}
+        <Skeleton height="h-20" />
+        <Skeleton height="h-64" />
       </div>
     );
   }
 
-  const commandes = getCommandesByRevendeur(revendeur.id);
-  const licences = getLicencesByRevendeur(revendeur.id);
-  const contacts = getContactsByRattachement('revendeur', revendeur.id);
-  const nbLiens = commandes.length + licences.length;
-
-  function handleValidate() {
-    setRevendeurs(prev => prev.map(r => r.id === revendeur.id ? { ...r, statut_validation: 'valide', motif_refus: undefined } : r));
-    addToast({ type: 'success', message: 'Revendeur validé.' });
+  if (error) {
+    if (errorStatus === 404) {
+      return (
+        <div className="flex flex-col gap-6">
+          {fil}
+          <EmptyState title="Revendeur introuvable" description="Ce revendeur n'existe pas." ctaLabel="Retour à la liste" onCta={() => navigate('/referentiels/revendeurs')} />
+        </div>
+      );
+    }
+    return (
+      <div className="flex flex-col gap-6">
+        {fil}
+        <ErrorState message={error} status={errorStatus} onRetry={load} />
+      </div>
+    );
   }
 
-  function handleRefuse(motif) {
-    setRevendeurs(prev => prev.map(r => r.id === revendeur.id ? { ...r, statut_validation: 'refuse', motif_refus: motif } : r));
-    addToast({ type: 'info', message: 'Revendeur refusé.' });
-  }
-
-  function handleSave(data, existing) {
-    const resoumis = submitsForValidation;
-    setRevendeurs(prev => prev.map(r => r.id === existing.id ? {
-      ...r, ...data,
-      statut_validation: resoumis ? 'en_attente' : 'valide',
-      soumis_par: `${user.prenom} ${user.nom}`,
-    } : r));
-    addToast({ type: 'success', message: resoumis ? 'Modification soumise à validation.' : 'Revendeur mis à jour.' });
-  }
-
-  function handleDelete() {
-    setRevendeurs(prev => prev.filter(r => r.id !== revendeur.id));
-    addToast({ type: 'success', message: 'Revendeur supprimé.' });
-    navigate('/referentiels/revendeurs');
-  }
+  const nbLiens = revendeur.nb_contrats + revendeur.nb_commandes + revendeur.nb_licences;
 
   return (
     <div className="flex flex-col gap-6">
-      <Breadcrumb items={[
-        { label: 'Référentiels', to: '/referentiels/revendeurs' },
-        { label: 'Revendeurs', to: '/referentiels/revendeurs' },
-        { label: revendeur.raison_sociale },
-      ]} />
+      {fil}
 
       <div className="flex items-start justify-between flex-wrap gap-4">
         <div>
           <div className="flex items-center gap-2 flex-wrap">
             <h1 className="text-xl font-semibold text-gray-900 dark:text-white">{revendeur.raison_sociale}</h1>
-            <StatutValidationBadge statut={revendeur.statut_validation} />
+            <Badge variant={revendeur.actif ? 'success' : 'neutral'} label={revendeur.actif ? 'Actif' : 'Désactivé'} />
           </div>
-          {revendeur.statut_validation === 'refuse' && revendeur.motif_refus && (
-            <p className="text-sm text-red-600 dark:text-red-400 mt-2">Motif du refus : {revendeur.motif_refus}</p>
-          )}
-          <p className="text-xs text-gray-400 mt-1">Soumis par {revendeur.soumis_par}</p>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          {canValidate && <ValidationActions statut={revendeur.statut_validation} onValidate={handleValidate} onRefuse={handleRefuse} />}
-          {canWrite && (
+        {canWrite && (
+          <div className="flex items-center gap-2 flex-wrap">
             <Button variant="secondary" size="sm" onClick={() => setFormOpen(true)}>
               <Pencil size={14} /> Éditer
             </Button>
-          )}
-          {canDelete && (
-            <Button variant="destructive" size="sm" onClick={() => setDeleteOpen(true)}>
-              <Trash2 size={14} /> Supprimer
-            </Button>
-          )}
-        </div>
+            {revendeur.actif ? (
+              <Button variant="destructive" size="sm" onClick={() => setEtatOpen(true)}>
+                <Ban size={14} /> Désactiver
+              </Button>
+            ) : (
+              <Button variant="secondary" size="sm" onClick={() => setEtatOpen(true)}>
+                <RotateCcw size={14} /> Réactiver
+              </Button>
+            )}
+          </div>
+        )}
       </div>
+
+      {!revendeur.actif && (
+        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl px-4 py-3 text-sm text-amber-800 dark:text-amber-300">
+          Revendeur désactivé. Il n&apos;est plus proposé à la saisie des contrats et des commandes,
+          mais reste nommé par ceux qui le portent déjà.
+        </div>
+      )}
 
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div>
@@ -116,9 +169,15 @@ export default function RevendeurDetailPage() {
         <div>
           <p className="text-xs text-gray-500 mb-1">IBAN</p>
           <div className="flex items-center gap-2">
-            <p className="text-sm text-gray-800 dark:text-gray-200 font-mono">{ibanVisible ? (revendeur.iban ?? '-') : maskIban(revendeur.iban)}</p>
+            <p className="text-sm text-gray-800 dark:text-gray-200 font-mono">
+              {ibanVisible ? (revendeur.iban ?? '-') : maskIban(revendeur.iban)}
+            </p>
             {revendeur.iban && (
-              <button onClick={() => setIbanVisible(v => !v)} aria-label={ibanVisible ? 'Masquer l\'IBAN' : 'Afficher l\'IBAN'} className="text-gray-400 hover:text-gray-600">
+              <button
+                onClick={() => setIbanVisible(v => !v)}
+                aria-label={ibanVisible ? 'Masquer l\'IBAN' : 'Afficher l\'IBAN'}
+                className="text-gray-400 hover:text-gray-600"
+              >
                 {ibanVisible ? <EyeOff size={14} /> : <Eye size={14} />}
               </button>
             )}
@@ -130,62 +189,60 @@ export default function RevendeurDetailPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Commandes associées ({commandes.length})</h2>
-          {commandes.length === 0
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Contrats ({revendeur.nb_contrats})</h2>
+          {revendeur.nb_contrats === 0
+            ? <p className="text-sm text-gray-500">Aucun contrat rattaché.</p>
+            : <Link to={`/contrats/liste?revendeur=${revendeur.id}`} className="text-sm text-blue-800 hover:underline">Voir les contrats</Link>}
+        </section>
+
+        <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Commandes ({revendeur.nb_commandes})</h2>
+          {revendeur.nb_commandes === 0
             ? <p className="text-sm text-gray-500">Aucune commande rattachée.</p>
-            : <Link to={`/contrats/commandes?revendeur=${revendeur.id}`} className="text-sm text-blue-800 hover:underline">Voir les commandes</Link>
-          }
+            : <Link to={`/contrats/commandes?revendeur=${revendeur.id}`} className="text-sm text-blue-800 hover:underline">Voir les commandes</Link>}
         </section>
 
         <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Licences associées ({licences.length})</h2>
-          {licences.length === 0
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Licences ({revendeur.nb_licences})</h2>
+          {revendeur.nb_licences === 0
             ? <p className="text-sm text-gray-500">Aucune licence rattachée.</p>
-            : (
-              <ul className="flex flex-col gap-1.5">
-                {licences.map(l => {
-                  const produit = mockProduits.find(p => p.id === l.id_produit);
-                  return (
-                    <li key={l.id}>
-                      <Link to={`/referentiels/logiciels/${l.id_produit}`} className="text-sm text-blue-800 hover:underline">{produit?.label ?? l.id_produit}</Link>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-        </section>
-
-        <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Contacts rattachés ({contacts.length})</h2>
-          {contacts.length === 0
-            ? <p className="text-sm text-gray-500">Aucun contact rattaché.</p>
-            : (
-              <ul className="flex flex-col gap-1.5">
-                {contacts.map(c => (
-                  <li key={c.id}>
-                    <Link to={`/referentiels/contacts/${c.id}`} className="text-sm text-blue-800 hover:underline">{c.prenom} {c.nom}</Link>
-                  </li>
-                ))}
-              </ul>
-            )}
+            : <Link to={`/conformite/licences?revendeur=${revendeur.id}`} className="text-sm text-blue-800 hover:underline">Voir les licences</Link>}
         </section>
       </div>
 
-      <RevendeurFormModal isOpen={formOpen} onClose={() => setFormOpen(false)} onSave={handleSave} revendeur={revendeur} existingRevendeurs={revendeurs} />
+      <RevendeurFormModal
+        isOpen={formOpen}
+        onClose={() => setFormOpen(false)}
+        onSave={handleSave}
+        revendeur={revendeur}
+        onOuvrirExistant={(e) => { setDoublon(null); setFormOpen(false); navigate(`/referentiels/revendeurs/${e.id}`); }}
+      />
+
+      {doublon && (
+        <ModalDoublonRevendeur
+          doublon={doublon}
+          onClose={() => setDoublon(null)}
+          onOuvrirFiche={(e) => { setDoublon(null); setFormOpen(false); navigate(`/referentiels/revendeurs/${e.id}`); }}
+        />
+      )}
 
       <ConfirmModal
-        isOpen={deleteOpen}
-        onClose={() => setDeleteOpen(false)}
-        onConfirm={nbLiens > 0 ? () => setDeleteOpen(false) : handleDelete}
-        title="Supprimer le revendeur"
-        isDestructive={nbLiens === 0}
-        confirmLabel={nbLiens > 0 ? 'Compris' : 'Supprimer'}
+        isOpen={etatOpen}
+        onClose={() => setEtatOpen(false)}
+        onConfirm={changerEtat}
+        title={revendeur.actif ? 'Désactiver le revendeur' : 'Réactiver le revendeur'}
+        isDestructive={revendeur.actif}
+        confirmLabel={revendeur.actif ? 'Désactiver' : 'Réactiver'}
         message={
-          nbLiens > 0
-            ? `Suppression impossible : ${revendeur.raison_sociale} est rattaché à ${commandes.length} commande${commandes.length > 1 ? 's' : ''} et ${licences.length} licence${licences.length > 1 ? 's' : ''}. Détachez ou supprimez d'abord ces éléments.`
-            : `Supprimer définitivement ${revendeur.raison_sociale} ? Cette action est irréversible.`
+          revendeur.actif
+            ? `${revendeur.raison_sociale} ne sera plus proposé à la saisie.` +
+              (nbLiens > 0
+                ? ` Les ${nbLiens} élément${nbLiens > 1 ? 's' : ''} qui le portent déjà (contrats, commandes, licences) ne changent pas.`
+                : '') +
+              ' Cette action est réversible.'
+            : `${revendeur.raison_sociale} sera de nouveau proposé à la saisie des contrats et des commandes.`
         }
       />
     </div>
