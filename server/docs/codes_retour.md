@@ -31,7 +31,11 @@ Plages : transverse 1000-1999 | administration 2000-2999 | contrats 3000-3099 |
 commandes 3100-3199 | documents 3200-3299 | validation 3300-3399 |
 droits 3400-3499 | licences 4000-4099 (module 3, partie A) |
 affectations 4100-4199 (module 3, partie B) | inventaire 4200-4299 (module 3, #111) |
-budget 5100-5199 (module 4, partie A, #146)
+budget 5100-5199 (module 4, partie A, #146) |
+referentiels editeurs 5200-5299 et logiciels 5300-5399 (module 1, migration 041,
+traces editeurs deplacees en 5290-5292 par la 043) |
+revendeurs 5220-5239 (module 1, migrations 043 a 045) |
+contacts 5240-5259 (module 4, #181, migrations 048 et 049)
 
 ## Transverse : socle d'envoi de mails (#87)
 
@@ -848,3 +852,68 @@ Points de lecture :
 - l'unicite du SIRET (index partiel, migration 044) n'est qu'un garde-fou de
   derniere ligne : elle n'attrape que la course entre deux creations
   simultanees, la detection applicative faisant le travail avant.
+## Referentiel contacts (module 4, #181)
+
+Plage 5240-5259, a la suite des revendeurs, seedee par la migration Commune
+048. Meme decoupage compact que la 045, la plage n'ayant pas de x99 :
+5240-5246 succes, 5247-5256 erreurs (dont 5256, erreur serveur du module),
+5257-5259 traces audit_log.
+
+Routeur `server/routes/contacts.js`. Socle Tenant : migration 049
+(rattachements id_societe, id_editeur, id_revendeur avec au plus un renseigne,
+dates de debut et de fin, updated_at et son trigger, index sur le nom complet
+normalise et sa cle de rapprochement, unicite partielle de l'adresse email).
+Les fonctions normaliser_texte() et cle_rapprochement() viennent de la 044.
+Permissions : lecture `consulter_referentiels`, ecriture `gerer_contacts`, le
+code dedie du module organisation (seede par 007, detenu par admin_sam et
+manager_dsi dans la matrice 011/021). Aucune permission nouvelle.
+
+| Code | Type | Libelle | Emis par |
+|---|---|---|---|
+| 5240 | succes | Liste des contacts | GET /api/contacts |
+| 5241 | succes | Detail du contact | GET /api/contacts/:id |
+| 5242 | succes | Contact cree | POST /api/contacts (201) |
+| 5243 | succes | Contact modifie | PATCH /api/contacts/:id |
+| 5244 | succes | Contact supprime | DELETE /api/contacts/:id (200, data null) |
+| 5245 | succes | Suggestions de contacts | GET /api/contacts/recherche |
+| 5246 | succes | Liste des fonctions | GET /api/fonctions |
+| 5247 | erreur | Contact introuvable | GET/PATCH/DELETE /api/contacts/:id (404) |
+| 5248 | erreur | Le nom est obligatoire | POST, PATCH /api/contacts |
+| 5249 | erreur | Saisie invalide (message surcharge : adresse email ou telephone) | POST, PATCH /api/contacts |
+| 5250 | erreur | Fonction introuvable | POST, PATCH /api/contacts |
+| 5251 | erreur | Rattachement introuvable (message surcharge : societe, editeur ou revendeur) | POST, PATCH /api/contacts |
+| 5252 | erreur | Un contact porte au plus un rattachement | POST, PATCH /api/contacts |
+| 5253 | erreur | Dates invalides (message surcharge : format, ou fin anterieure au debut) | POST, PATCH /api/contacts |
+| 5254 | erreur | Un contact porte deja cette adresse email | POST, PATCH /api/contacts (409, details.existant) |
+| 5255 | erreur | Un contact au nom tres proche existe deja | POST, PATCH /api/contacts (409, details.existant) |
+| 5256 | erreur | Erreur serveur inattendue (referentiel contacts) | toutes |
+| 5257 | trace | Contact cree (audit_log CONTACT_CREE) | POST /api/contacts |
+| 5258 | trace | Contact modifie (audit_log CONTACT_MODIFIE) | PATCH /api/contacts/:id |
+| 5259 | trace | Contact supprime (audit_log CONTACT_SUPPRIME) | DELETE /api/contacts/:id |
+
+Points de lecture :
+
+- pas de colonne actif : l'etat se deduit de date_fin, une fin echue vaut
+  contact inactif. Un contact parti se retire en posant sa date de fin, par
+  PATCH ; la suppression reelle reste possible pour une fiche creee par
+  erreur, aucune table ne referencant le contact ;
+- le rattachement est une FK parmi trois (societe du groupe, editeur,
+  revendeur), au plus une renseignee (ck_contact_rattachement_unique). L'API
+  sert `type_rattachement` et `rattachement_label` derives, le front n'a pas a
+  connaitre la forme en base. Le rattachement est optionnel ;
+- 5254 et 5255 portent l'existant dans `details.existant`, avec
+  `details.motif` a `email` ou `nom`, comme 5230 et 5231 pour les revendeurs :
+  l'ecran propose d'ouvrir la fiche existante plutot que de refuser a sec ;
+- le rapprochement des noms passe par `cle_rapprochement()` sur le nom complet,
+  compare dans les deux ordres cote recherche : "Lemoine Henri",
+  "henri lemoine" et "Henri Lemoine" se retrouvent ;
+- la recherche incrementale (5245) porte sur le nom complet dans les deux
+  ordres et sur l'adresse email, insensible a la casse et aux accents par
+  `normaliser_texte()` applique des deux cotes. Jokers LIKE echappes ;
+- l'unicite de l'adresse email (index partiel uq_contact_email, migration 049)
+  n'est qu'un garde-fou de derniere ligne contre la course entre deux
+  creations simultanees, la detection applicative faisant le travail avant ;
+- pas de workflow de validation : comme le revendeur, le contact est un tiers,
+  hors du circuit de la #53 ;
+- GET /fonctions (5246) sert le referentiel des fonctions (copy-on-write,
+  seede par 003) au selecteur du formulaire.
