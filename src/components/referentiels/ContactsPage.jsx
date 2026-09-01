@@ -1,29 +1,33 @@
-// ContactsPage - liste des contacts (Referentiels)
-import { useState, useMemo } from 'react';
+// ContactsPage - liste des contacts (Referentiels).
+// Donnees API : /contacts et /fonctions. La fonction, le rattachement resolu
+// (type_rattachement, rattachement_label) et l'etat actif (derive de la date
+// de fin) sont servis par l'API, jamais recalcules ici.
+//
+// Le 409 de doublon n'est pas une erreur a jeter en toast : il porte
+// l'existant, et c'est lui qui interesse l'utilisateur. La page ouvre alors
+// ModalDoublonContact, comme RevendeursPage avec la sienne.
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, LayoutGrid, List, Mail, Phone } from 'lucide-react';
-import { mockContacts as initialContacts, mockFonctions, isContactActif, getRattachementInfo } from '../../data/mockReferentiels';
+import { contactsService } from '../../services/contactsService';
 import DataTable from '../ui/DataTable';
 import Button from '../ui/Button';
 import Badge from '../ui/Badge';
 import Breadcrumb from '../ui/Breadcrumb';
-import StatutValidationBadge from './StatutValidationBadge';
+import ErrorState from '../ui/ErrorState';
+import Skeleton from '../ui/Skeleton';
 import ContactFormModal from './ContactFormModal';
+import ModalDoublonContact from './ModalDoublonContact';
 import AvatarContact from './AvatarContact';
 import useRbac from '../../hooks/useRbac';
 import useDebounce from '../../hooks/useDebounce';
 import useLocalStorage from '../../hooks/useLocalStorage';
 import { useToast } from '../../hooks/useToast';
-import useAuth from '../../hooks/useAuth';
 import { setContactPhoto, removeContactPhoto } from '../../utils/contactPhotos';
 
 const TYPE_LABELS = { client: 'Client', editeur: 'Éditeur', revendeur: 'Revendeur' };
 
 function ContactCard({ contact, navigate }) {
-  const fonction = mockFonctions.find(f => f.id === contact.id_fonction)?.label;
-  const rattachement = getRattachementInfo(contact.type_rattachement, contact.id_rattachement);
-  const actif = isContactActif(contact);
-
   return (
     <button
       onClick={() => navigate(`/referentiels/contacts/${contact.id}`)}
@@ -32,13 +36,12 @@ function ContactCard({ contact, navigate }) {
       <AvatarContact contact={contact} size={56} />
       <div className="min-w-0 w-full">
         <p className="font-semibold text-gray-900 dark:text-white truncate">{contact.prenom} {contact.nom}</p>
-        {fonction && <p className="text-xs text-gray-500 mt-0.5 truncate">{fonction}</p>}
-        <p className="text-xs text-gray-400 mt-0.5 truncate">{TYPE_LABELS[contact.type_rattachement]} - {rattachement.label}</p>
+        {contact.fonction_label && <p className="text-xs text-gray-500 mt-0.5 truncate">{contact.fonction_label}</p>}
+        {contact.type_rattachement && (
+          <p className="text-xs text-gray-400 mt-0.5 truncate">{TYPE_LABELS[contact.type_rattachement]} - {contact.rattachement_label}</p>
+        )}
       </div>
-      <div className="flex items-center gap-1.5 flex-wrap justify-center">
-        <Badge variant={actif ? 'success' : 'neutral'} label={actif ? 'Actif' : 'Inactif'} />
-        <StatutValidationBadge statut={contact.statut_validation} />
-      </div>
+      <Badge variant={contact.actif ? 'success' : 'neutral'} label={contact.actif ? 'Actif' : 'Inactif'} />
       {(contact.email || contact.telephone) && (
         <div className="flex flex-col gap-1 w-full min-w-0 pt-3 mt-auto border-t border-gray-100 dark:border-gray-700">
           {contact.email && (
@@ -60,9 +63,12 @@ function ContactCard({ contact, navigate }) {
 export default function ContactsPage() {
   const navigate = useNavigate();
   const { addToast } = useToast();
-  const { canWrite, submitsForValidation } = useRbac();
-  const { user } = useAuth();
-  const [contacts, setContacts] = useState(initialContacts);
+  const { canWrite } = useRbac({ write: 'gerer_contacts' });
+  const [contacts, setContacts] = useState([]);
+  const [fonctions, setFonctions] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [errorStatus, setErrorStatus] = useState(null);
   const [filterType, setFilterType] = useState('');
   const [filterFonction, setFilterFonction] = useState('');
   const [filterActif, setFilterActif] = useState('');
@@ -70,44 +76,77 @@ export default function ContactsPage() {
   const [search, setSearch] = useState(searchParams.get('q') ?? '');
   const debouncedSearch = useDebounce(search, 300);
   const [formModal, setFormModal] = useState({ open: false, contact: null });
+  const [doublon, setDoublon] = useState(null);
   const [viewMode, setViewMode] = useLocalStorage('samsecure_contacts_vue', 'cards');
+
+  const load = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    setErrorStatus(null);
+    try {
+      // Les fonctions ne servent qu'au filtre : leur echec ne prive pas de la
+      // liste, il vide simplement le selecteur.
+      const [listeContacts, listeFonctions] = await Promise.all([
+        contactsService.list(),
+        contactsService.fonctions().catch(() => []),
+      ]);
+      setContacts(listeContacts);
+      setFonctions(listeFonctions);
+    } catch (err) {
+      setError(err.message);
+      setErrorStatus(err.status);
+      addToast({ type: 'error', message: err.message });
+    } finally {
+      setIsLoading(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
 
   const filtered = useMemo(() => {
     return contacts.filter(c => {
       if (filterType && c.type_rattachement !== filterType) return false;
       if (filterFonction && c.id_fonction !== filterFonction) return false;
-      if (filterActif === 'actif' && !isContactActif(c)) return false;
-      if (filterActif === 'inactif' && isContactActif(c)) return false;
+      if (filterActif === 'actif' && !c.actif) return false;
+      if (filterActif === 'inactif' && c.actif) return false;
       if (debouncedSearch) {
         const q = debouncedSearch.toLowerCase();
-        if (!`${c.prenom} ${c.nom} ${c.email}`.toLowerCase().includes(q)) return false;
+        if (!`${c.prenom ?? ''} ${c.nom} ${c.email ?? ''}`.toLowerCase().includes(q)) return false;
       }
       return true;
     });
   }, [contacts, filterType, filterFonction, filterActif, debouncedSearch]);
 
-  function handleSave(data, existing, photo) {
-    const id = existing?.id ?? `ct-${Date.now()}`;
-    if (photo) setContactPhoto(id, photo);
-    else removeContactPhoto(id);
-
-    if (existing) {
-      const resoumis = submitsForValidation;
-      setContacts(prev => prev.map(c => c.id === existing.id ? {
-        ...c, ...data,
-        statut_validation: resoumis ? 'en_attente' : 'valide',
-        soumis_par: `${user.prenom} ${user.nom}`,
-      } : c));
-      addToast({ type: 'success', message: resoumis ? 'Modification soumise à validation.' : 'Contact mis à jour.' });
-    } else {
-      const newContact = {
-        id, ...data,
-        statut_validation: submitsForValidation ? 'en_attente' : 'valide',
-        soumis_par: `${user.prenom} ${user.nom}`,
-      };
-      setContacts(prev => [...prev, newContact]);
-      addToast({ type: 'success', message: submitsForValidation ? 'Contact soumis à validation.' : 'Contact créé.' });
+  // La photo reste un stockage navigateur (samsecure_photos_contacts), le
+  // schema ne portant pas de depot de fichier pour les contacts.
+  async function handleSave(data, existing, photo) {
+    try {
+      if (existing) {
+        await contactsService.update(existing.id, data);
+        if (photo) setContactPhoto(existing.id, photo);
+        else removeContactPhoto(existing.id);
+        addToast({ type: 'success', message: 'Contact mis à jour.' });
+      } else {
+        const cree = await contactsService.create(data);
+        if (photo) setContactPhoto(cree.id, photo);
+        addToast({ type: 'success', message: 'Contact créé.' });
+      }
+      await load();
+    } catch (err) {
+      if (err?.status === 409 && err?.details?.existant) {
+        setDoublon({ existant: err.details.existant, motif: err.details.motif });
+      } else if (err?.status !== 400) {
+        addToast({ type: 'error', message: err.message });
+      }
+      throw err;
     }
+  }
+
+  function ouvrirExistant(existant) {
+    setDoublon(null);
+    setFormModal({ open: false, contact: null });
+    navigate(`/referentiels/contacts/${existant.id}`);
   }
 
   const columns = [
@@ -116,20 +155,20 @@ export default function ContactsPage() {
         <AvatarContact contact={r} size={28} />
         {r.nom} {r.prenom}
       </button>
-    ), csvValue: r => `${r.nom} ${r.prenom}` },
-    { key: 'fonction', label: 'Fonction', getValue: r => mockFonctions.find(f => f.id === r.id_fonction)?.label ?? '-', render: r => mockFonctions.find(f => f.id === r.id_fonction)?.label ?? '-' },
-    { key: 'email', label: 'Email', sortable: true },
-    { key: 'telephone', label: 'Téléphone' },
-    { key: 'rattachement', label: 'Rattachement', render: r => {
-      const info = getRattachementInfo(r.type_rattachement, r.id_rattachement);
-      return <span>{TYPE_LABELS[r.type_rattachement]} - {info.label}</span>;
-    } },
-    { key: 'actif', label: 'Statut', sortable: true, getValue: r => isContactActif(r) ? 1 : 0, render: r => <Badge variant={isContactActif(r) ? 'success' : 'neutral'} label={isContactActif(r) ? 'Actif' : 'Inactif'} /> },
-    { key: 'statut_validation', label: 'Validation', sortable: true, render: r => <StatutValidationBadge statut={r.statut_validation} /> },
+    ), csvValue: r => `${r.nom} ${r.prenom ?? ''}`.trim() },
+    { key: 'fonction', label: 'Fonction', getValue: r => r.fonction_label ?? '-', render: r => r.fonction_label ?? '-' },
+    { key: 'email', label: 'Email', sortable: true, render: r => r.email ?? '-' },
+    { key: 'telephone', label: 'Téléphone', render: r => r.telephone ?? '-' },
+    { key: 'rattachement', label: 'Rattachement', render: r => (
+      r.type_rattachement
+        ? <span>{TYPE_LABELS[r.type_rattachement]} - {r.rattachement_label}</span>
+        : <span className="text-gray-400">-</span>
+    ) },
+    { key: 'actif', label: 'Statut', sortable: true, getValue: r => r.actif ? 1 : 0, render: r => <Badge variant={r.actif ? 'success' : 'neutral'} label={r.actif ? 'Actif' : 'Inactif'} /> },
   ];
 
-  return (
-    <div className="flex flex-col gap-6">
+  const entete = (
+    <>
       <Breadcrumb items={[{ label: 'Référentiels' }, { label: 'Contacts' }]} />
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
@@ -146,12 +185,37 @@ export default function ContactsPage() {
             </button>
           </div>
           {canWrite && (
-            <Button variant="primary" onClick={() => setFormModal({ open: true, contact: null })}>
+            <Button variant="primary" onClick={() => setFormModal({ open: true, contact: null })} disabled={isLoading || !!error}>
               <Plus size={15} /> Nouveau contact
             </Button>
           )}
         </div>
       </div>
+    </>
+  );
+
+  if (error) {
+    return (
+      <div className="flex flex-col gap-6">
+        {entete}
+        <ErrorState message={error} status={errorStatus} onRetry={load} />
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col gap-6">
+        {entete}
+        <Skeleton height="h-16" />
+        <Skeleton height="h-64" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      {entete}
 
       <div className="flex flex-wrap gap-3 bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
         <select value={filterType} onChange={e => setFilterType(e.target.value)} className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -162,10 +226,10 @@ export default function ContactsPage() {
         </select>
         <select value={filterFonction} onChange={e => setFilterFonction(e.target.value)} className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="">Toutes les fonctions</option>
-          {mockFonctions.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
+          {fonctions.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
         </select>
         <select value={filterActif} onChange={e => setFilterActif(e.target.value)} className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-          <option value="">Tous les statuts</option>
+          <option value="">Tous les états</option>
           <option value="actif">Actif</option>
           <option value="inactif">Inactif</option>
         </select>
@@ -187,7 +251,9 @@ export default function ContactsPage() {
           renderCard={contact => <ContactCard contact={contact} navigate={navigate} />}
           cardsClassName="grid items-stretch gap-4 grid-cols-[repeat(auto-fill,minmax(240px,1fr))]"
           emptyState={{
-            message: 'Aucun contact ne correspond aux filtres.',
+            message: contacts.length
+              ? 'Aucun contact ne correspond aux filtres.'
+              : 'Aucun contact enregistré.',
             ctaLabel: canWrite ? 'Nouveau contact' : undefined,
             onCta: canWrite ? () => setFormModal({ open: true, contact: null }) : undefined,
           }}
@@ -199,7 +265,16 @@ export default function ContactsPage() {
         onClose={() => setFormModal({ open: false, contact: null })}
         onSave={handleSave}
         contact={formModal.contact}
+        onOuvrirExistant={ouvrirExistant}
       />
+
+      {doublon && (
+        <ModalDoublonContact
+          doublon={doublon}
+          onClose={() => setDoublon(null)}
+          onOuvrirFiche={ouvrirExistant}
+        />
+      )}
     </div>
   );
 }
