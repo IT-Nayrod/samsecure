@@ -2,7 +2,7 @@
 // Triangle de conformite : remplace les anciens stubs relationnels de mockReferentiels.js
 // (mockLicencesLiees, mockAffectationsParSociete) et les listes pauvres de mockSettings.js
 // (mockLicences, mockAffectations), qui n'alimentaient que la recherche globale.
-import { mockProduits, mockSocietes, mockRevendeurs } from './mockReferentiels';
+import { mockProduits, mockSocietes } from './mockReferentiels';
 import { mockContrats, mockCommandes } from './mockContrats';
 
 // --- LICENCES (droits acquis) ----------------------------------------------------
@@ -71,10 +71,6 @@ export const mockConnecteurs = [
 // --- HELPERS DE DERIVATION --------------------------------------------------------
 export function getLicencesByProduit(idProduit) {
   return mockLicences.filter(l => l.id_produit === idProduit);
-}
-
-export function getLicencesByRevendeur(idRevendeur) {
-  return mockLicences.filter(l => l.id_revendeur === idRevendeur);
 }
 
 export function getLicencesByContrat(idContrat) {

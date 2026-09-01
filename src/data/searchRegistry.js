@@ -6,7 +6,7 @@ import {
   Building, Building2, Store, Users, Package, FileText, ShoppingCart, Receipt, Shield, Tag,
 } from 'lucide-react';
 import {
-  mockSocietes, mockEditeurs, mockRevendeurs, mockContacts, mockProduits, mockFonctions,
+  mockSocietes, mockEditeurs, mockContacts, mockProduits, mockFonctions,
   getProduitsByEditeur, getRattachementInfo,
 } from './mockReferentiels';
 import { mockContrats, mockCommandes, mockDocuments, getEditeurLabel, getSocieteLabelContrat } from './mockContrats';
@@ -45,17 +45,6 @@ export const SEARCH_REGISTRY = [
     getContext: item => `${getProduitsByEditeur(item.id).length} produit${getProduitsByEditeur(item.id).length > 1 ? 's' : ''}`,
     getDetailPath: item => `/referentiels/editeurs/${item.id}`,
     getListPath: () => '/referentiels/editeurs',
-  },
-  {
-    key: 'revendeurs',
-    label: 'Revendeurs',
-    icon: Store,
-    getData: () => mockRevendeurs,
-    fields: item => [item.raison_sociale, item.siret, item.email],
-    getResultLabel: item => item.raison_sociale,
-    getContext: item => item.siret ?? item.email ?? '',
-    getDetailPath: item => `/referentiels/revendeurs/${item.id}`,
-    getListPath: () => '/referentiels/revendeurs',
   },
   {
     key: 'contacts',

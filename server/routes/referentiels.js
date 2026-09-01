@@ -25,9 +25,10 @@ router.get("/types-contrat", (req, res) =>
 // quatre champs servis ici, et deballer() dans src/services/http.js rend le
 // changement de forme transparent pour le selecteur du formulaire contrat.
 
-router.get("/revendeurs", (req, res) =>
-  liste(res, `SELECT id, raison_sociale FROM revendeur ORDER BY raison_sociale`, "GET /revendeurs"));
-
+// GET /revendeurs a demenage vers routes/revendeurs.js, qui sert le referentiel
+// complet du module 1 sous enveloppe normalisee. La projection y conserve id et
+// raison_sociale, et masque par defaut les revendeurs desactives : un revendeur
+// retire du catalogue n'a plus a etre proposable a la saisie.
 router.get("/modes-commande", (req, res) =>
     liste(res, `SELECT id, code, label FROM mode_commande ORDER BY label`, "GET /modes-commande"));
 

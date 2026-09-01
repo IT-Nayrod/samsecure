@@ -19,6 +19,9 @@ const NOMS_CHAMPS = {
   actif: "statut",
   date_finale: "date de désactivation",
   date_mise_en_fonction: "date de mise en fonction",
+  raison_sociale: "raison sociale",
+  siret: "SIRET",
+  iban: "IBAN",
 };
 
 // Les dates sont stockees en text ISO (yyyy-mm-jj) depuis le correctif du
@@ -157,6 +160,23 @@ export function traduireEvenement(ligne, idCompteCible) {
     case "CONNEXION":
       libelle = ip ? `Connexion depuis ${ip}${parActeur}` : `Connexion${parActeur}`;
       details = ip ? { ip } : null;
+      break;
+
+    case "REVENDEUR_CREE":
+      libelle = `Revendeur créé${parActeur}`;
+      break;
+
+    case "REVENDEUR_MODIFIE":
+      libelle = `Revendeur modifié : ${champsLisibles}${parActeur}`;
+      details = { champs_modifies: champs.map((c) => NOMS_CHAMPS[c] || c) };
+      break;
+
+    case "REVENDEUR_DESACTIVE":
+      libelle = `Revendeur désactivé${parActeur}`;
+      break;
+
+    case "REVENDEUR_REACTIVE":
+      libelle = `Revendeur réactivé${parActeur}`;
       break;
 
     default:

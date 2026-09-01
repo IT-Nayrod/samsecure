@@ -699,9 +699,9 @@ par le circuit unique de la #53, avec ses propres codes 3300-3314.
 | 5211 | erreur | La raison sociale est obligatoire | POST, PATCH /api/editeurs |
 | 5212 | erreur | Un editeur porte deja cette raison sociale | POST, PATCH /api/editeurs |
 | 5213 | erreur | Suppression impossible : rattachements | DELETE /api/editeurs/:id |
-| 5230 | trace | Editeur cree | POST /api/editeurs |
-| 5231 | trace | Editeur modifie | PATCH /api/editeurs/:id |
-| 5232 | trace | Editeur supprime | DELETE /api/editeurs/:id |
+| 5290 | trace | Editeur cree | POST /api/editeurs |
+| 5291 | trace | Editeur modifie | PATCH /api/editeurs/:id |
+| 5292 | trace | Editeur supprime | DELETE /api/editeurs/:id |
 | 5299 | erreur | Erreur serveur inattendue (referentiel editeurs) | toutes |
 | 5300 | succes | Liste des logiciels | GET /api/logiciels |
 | 5301 | succes | Detail du logiciel | GET /api/logiciels/:id |
@@ -780,3 +780,71 @@ Recherche incrementale des editeurs (code 5205, migration Commune 042) :
 - route litterale declaree avant `/editeurs/:id`, qui capturerait sinon
   "recherche" comme un identifiant, cote routeur comme cote
   routesPermissions.js.
+
+
+## Referentiel revendeurs (module 1)
+
+Plage 5220-5239, seedee par la migration Commune 045 et rendue continue par la
+043, qui a deplace les trois traces editeurs vers 5290-5292. Decoupage :
+5220-5226 succes, 5227-5236 erreurs, 5237-5239 traces audit_log. La plage n'a
+pas de x99 : l'erreur serveur du module est 5236.
+
+Routeur `server/routes/revendeurs.js`. Socle Tenant : migration 044 (colonne
+actif, updated_at et son trigger, fonctions normaliser_texte et
+cle_rapprochement, index, unicite partielle du SIRET). Permissions : lecture
+`consulter_referentiels`, ecriture `gerer_referentiels` (admin_sam, manager_dsi
+et it_ops par la matrice 011 ; financier en est exclu). Aucune permission
+nouvelle.
+
+| Code | Type | Libelle | Emis par |
+|---|---|---|---|
+| 5220 | succes | Liste des revendeurs | GET /api/revendeurs |
+| 5221 | succes | Detail du revendeur | GET /api/revendeurs/:id |
+| 5222 | succes | Revendeur cree | POST /api/revendeurs |
+| 5223 | succes | Revendeur modifie | PATCH /api/revendeurs/:id |
+| 5224 | succes | Revendeur desactive | POST /api/revendeurs/:id/desactiver |
+| 5225 | succes | Revendeur reactive | POST /api/revendeurs/:id/reactiver |
+| 5226 | succes | Suggestions de revendeurs | GET /api/revendeurs/recherche |
+| 5227 | erreur | Revendeur introuvable | GET/PATCH /api/revendeurs/:id, changements d'etat |
+| 5228 | erreur | La raison sociale est obligatoire | POST, PATCH /api/revendeurs |
+| 5229 | erreur | Le SIRET doit contenir 14 chiffres | POST, PATCH /api/revendeurs |
+| 5230 | erreur | Un revendeur porte deja ce SIRET | POST, PATCH /api/revendeurs |
+| 5231 | erreur | Un revendeur au nom tres proche existe deja | POST, PATCH /api/revendeurs |
+| 5232 | erreur | IBAN invalide | POST, PATCH /api/revendeurs |
+| 5233 | erreur | Adresse email invalide | POST, PATCH /api/revendeurs |
+| 5234 | erreur | Ce revendeur est deja desactive | POST /api/revendeurs/:id/desactiver |
+| 5235 | erreur | Ce revendeur est deja actif | POST /api/revendeurs/:id/reactiver |
+| 5236 | erreur | Erreur serveur inattendue (referentiel revendeurs) | toutes |
+| 5237 | trace | Revendeur cree | POST /api/revendeurs |
+| 5238 | trace | Revendeur modifie | PATCH /api/revendeurs/:id |
+| 5239 | trace | Statut du revendeur modifie | POST /api/revendeurs/:id/desactiver et /reactiver |
+
+Points de lecture :
+
+- pas de suppression : quatre tables referencent un revendeur (contrat,
+  commande, licence, maintenance_historique) et doivent continuer de le nommer.
+  Le retrait est une desactivation reversible, sur le modele acte par la
+  migration 022 pour utilisateur. `date_suppression` n'est pas reprise, la 022
+  l'ayant justement abandonnee ;
+- GET /revendeurs masque les desactives par defaut : cette route sert aussi de
+  selecteur aux formulaires contrat et commande. `inclure_inactifs=1` les sert
+  avec les autres, la colonne `actif` permettant de les distinguer ;
+- la route a change de forme : servie jusqu'ici en reponse nue par
+  `referentiels.js`, elle sort desormais sous enveloppe normalisee. Elle
+  conserve id et raison_sociale, et `deballer()` dans src/services/http.js rend
+  le changement transparent pour ses appelants ;
+- 5230 et 5231 portent l'existant dans `details.existant`, avec `details.motif`
+  a `siret` ou `raison_sociale`. Ce n'est pas un simple refus : l'ecran doit
+  pouvoir ouvrir la fiche existante, ou proposer sa reactivation si elle est
+  desactivee. Un refus sec conduirait a recreer le meme revendeur sous un
+  troisieme nom ;
+- le rapprochement des noms passe par `cle_rapprochement()` (migration 044), qui
+  retire accents, casse, ponctuation et forme juridique : "SCC France",
+  "S.C.C. FRANCE" et "SCC France SAS" ont la meme cle. Aucune extension n'est
+  requise, pg_trgm et fuzzystrmatch n'etant pas installes ;
+- la recherche est insensible a la casse et aux accents par `normaliser_texte()`
+  applique des deux cotes de la comparaison. Les jokers LIKE (`%`, `_`) sont
+  echappes ;
+- l'unicite du SIRET (index partiel, migration 044) n'est qu'un garde-fou de
+  derniere ligne : elle n'attrape que la course entre deux creations
+  simultanees, la detection applicative faisant le travail avant.
