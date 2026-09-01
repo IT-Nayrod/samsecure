@@ -5,7 +5,7 @@
 // referentiel editeurs en a besoin a son tour, et deux copies auraient
 // diverge a la premiere evolution des seuils.
 //
-// Depuis la migration 043 (#116), precalcul_conformite est alimentee par
+// Depuis la migration 046 (#116), precalcul_conformite est alimentee par
 // triggers sur licence et affectation : GET /conformite la lit. Les fragments
 // de ce module restent la definition du calcul a la lecture, employee par
 // licences.js, editeurs.js et le chemin filtre par societe de conformite.js
@@ -75,17 +75,17 @@ export async function balanceParProduit(client) {
 // Seuils de conformite (#116)
 // ---------------------------------------------------------------------------
 
-// Valeurs de repli, identiques aux defauts seedes par les migrations 043
-// (seuil_dashboard, Tenant) et 044 (default_seuil_dashboard, Commune) : elles
+// Valeurs de repli, identiques aux defauts seedes par les migrations 046
+// (seuil_dashboard, Tenant) et 047 (default_seuil_dashboard, Commune) : elles
 // ne servent que si les deux tables sont muettes.
 export const SEUIL_TAUX_DEFAUT = 90;
 export const SEUIL_MONTANT_DEFAUT = 10000;
 
 // Seuils effectifs : tenant (seuil_dashboard) puis defaut Commune
 // (default_seuil_dashboard) puis constante. Deux requetes bornees par appel,
-// jamais une par ligne. Le pendant SQL est conformite_seuil() (043), employe
+// jamais une par ligne. Le pendant SQL est conformite_seuil() (046), employe
 // par les triggers, qui ne peut lire que le tenant : la chaine est fermee par
-// le seed 043 qui diffuse les defauts Commune dans seuil_dashboard.
+// le seed 046 qui diffuse les defauts Commune dans seuil_dashboard.
 export async function seuilsConformite() {
   const lire = async (pool, table) => {
     const { rows } = await pool.query(
@@ -105,7 +105,7 @@ export async function seuilsConformite() {
 }
 
 // Statut d'une balance, seuils parametres. Pendant JS de conformite_statut()
-// (043) : depassement prime, puis attention au taux ou a l'ecart valorise
+// (046) : depassement prime, puis attention au taux ou a l'ecart valorise
 // negatif au-dela du seuil en montant, conforme sinon. La branche montant est
 // aujourd'hui couverte par le depassement (un ecart valorise negatif suppose
 // usages > droits) : conservee telle que la regle #116 l'enonce.

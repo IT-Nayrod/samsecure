@@ -1,6 +1,6 @@
 -- ============================================================================
--- SamSecure - BDD Commune - Migration 044
--- Fichier   : 044_commune_code_retour_conformite.sql
+-- SamSecure - BDD Commune - Migration 047
+-- Fichier   : 047_commune_code_retour_conformite.sql
 -- Objet     : module 3, conformite, qualite des saisies et indice de
 --             confiance (US #116).
 --             1) seed de code_retour : plage 4300-4399 (conformite, module 3)
@@ -9,7 +9,7 @@
 --                filtre et de validation, x99 (ou 5449) erreur serveur.
 --                Libelles reportes dans server/docs/codes_retour.md.
 --             2) seuils de conformite par defaut dans default_seuil_dashboard
---                (pendant Commune du seed Tenant de la 043) : taux
+--                (pendant Commune du seed Tenant de la 046) : taux
 --                d'attention en pourcent et seuil en montant sur l'ecart
 --                valorise negatif. La structure existante suffit, la colonne
 --                unite portant le type du seuil (commentaire du DDL 002 :
@@ -52,7 +52,7 @@ ON CONFLICT (code) DO UPDATE
 
 -- ----------------------------------------------------------------------------
 -- Seuils de conformite par defaut (echelle 1). Diffusion vers seuil_dashboard
--- par rapprochement widget_code + echelle (voie seedee en direct par la 043
+-- par rapprochement widget_code + echelle (voie seedee en direct par la 046
 -- cote Tenant, comme les referentiels 003/007/010).
 -- ----------------------------------------------------------------------------
 INSERT INTO default_seuil_dashboard (widget_code, echelle, valeur, unite, direction) VALUES

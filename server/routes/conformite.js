@@ -1,8 +1,8 @@
 // Conformite par produit : droits contre usages, valorisation, statut
-// (US #116, module 3). Enveloppe normalisee, codes 4300-4399 (migration 044).
+// (US #116, module 3). Enveloppe normalisee, codes 4300-4399 (migration 047).
 //
 // Source nominale : precalcul_conformite, alimentee par les triggers de la
-// migration 043 sur licence et affectation. Le precalcul est par produit,
+// migration 046 sur licence et affectation. Le precalcul est par produit,
 // sans axe societe : le filtre id_societe et la synthese par societe sont
 // calcules a la volee avec les memes regles (droits = licences des commandes
 // de la societe payeuse, usages = affectations declarees par la societe).
@@ -174,7 +174,7 @@ async function lignesPourSociete(idSociete, { idProduit, idsProduits }, seuils) 
 }
 
 // Valorisation et statut d'une balance brute (droits, usages, cout actif) :
-// memes formules que recalculer_precalcul_conformite (043).
+// memes formules que recalculer_precalcul_conformite (046).
 function valoriser(r, seuils, derniereMaj) {
   const prix = r.droits_total > 0 ? arrondi2(r.cout_actif / r.droits_total) : null;
   const ecart = r.droits_total - r.usages_total;

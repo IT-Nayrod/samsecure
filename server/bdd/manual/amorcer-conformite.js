@@ -1,5 +1,5 @@
 // Reconstruction complete de precalcul_conformite depuis les licences et les
-// affectations. L'amorçage initial est fait par la migration 043 ; ce script
+// affectations. L'amorçage initial est fait par la migration 046 ; ce script
 // sert a reparer une derive (ecriture SQL directe) et surtout a rafraichir la
 // balance au fil des jours : les droits dependent de CURRENT_DATE (une
 // souscription echue sort de la balance le jour meme) alors que les triggers

@@ -1,6 +1,6 @@
 -- ============================================================================
--- SamSecure - BDD Tenant - Migration 043
--- Fichier   : 043_tenant_conformite_precalcul.sql
+-- SamSecure - BDD Tenant - Migration 046
+-- Fichier   : 046_tenant_conformite_precalcul.sql
 -- Objet     : module 3, conformite (US #116). Alimentation de
 --             precalcul_conformite, table presente depuis 002 mais jamais
 --             ecrite (constat repris dans server/utils/conformite.js).
@@ -70,7 +70,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_precalcul_conformite_produit
 
 -- ----------------------------------------------------------------------------
 -- 3. Seuils de conformite (echelle 1 de seuil_dashboard, structure inchangee)
---    Pendant Commune : default_seuil_dashboard, seede par la migration 044.
+--    Pendant Commune : default_seuil_dashboard, seede par la migration 047.
 --    DO NOTHING et non DO UPDATE : un seuil deja personnalise par le client
 --    ne doit jamais etre ecrase par une livraison.
 -- ----------------------------------------------------------------------------
@@ -95,7 +95,7 @@ RETURNS NUMERIC AS $$
 $$ LANGUAGE sql STABLE;
 
 COMMENT ON FUNCTION conformite_seuil IS
-  'Seuil de conformite du tenant (seuil_dashboard, echelle 1), sinon le defaut passe en argument. Miroir des defauts Commune seedes par 044.';
+  'Seuil de conformite du tenant (seuil_dashboard, echelle 1), sinon le defaut passe en argument. Miroir des defauts Commune seedes par 047.';
 
 -- ----------------------------------------------------------------------------
 -- 5. Statut de conformite d'une balance. Regle US #116 : depassement prime,
@@ -295,7 +295,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 COMMENT ON FUNCTION recalculer_conformite_complete IS
-  'Reconstruit precalcul_conformite depuis licences et affectations. Amorcage de la 043, reparation a la demande (manual/amorcer-conformite.js), execution quotidienne recommandee (droits dependants de CURRENT_DATE).';
+  'Reconstruit precalcul_conformite depuis licences et affectations. Amorcage de la 046, reparation a la demande (manual/amorcer-conformite.js), execution quotidienne recommandee (droits dependants de CURRENT_DATE).';
 
 -- ----------------------------------------------------------------------------
 -- 9. Amorcage : le parc existant entre dans le precalcul des la migration.

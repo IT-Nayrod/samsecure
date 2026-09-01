@@ -439,11 +439,11 @@ assumee), avec `droits_total` par produit (somme `licence.quantite`).
 
 ## Conformite (#116, module 3)
 
-Plage 4300-4399, seedee par la migration Commune 044. Routeur
+Plage 4300-4399, seedee par la migration Commune 047. Routeur
 `server/routes/conformite.js`. Source nominale : `precalcul_conformite`,
-alimentee par les triggers de la migration Tenant 043 sur licence et
+alimentee par les triggers de la migration Tenant 046 sur licence et
 affectation (insert, update, delete), amorcee par
-`recalculer_conformite_complete()` en fin de 043 et rejouable par
+`recalculer_conformite_complete()` en fin de 046 et rejouable par
 `server/bdd/manual/amorcer-conformite.js` (execution quotidienne recommandee :
 les droits dependent de CURRENT_DATE, les triggers ne partent qu'a
 l'ecriture). Le filtre `id_societe` et la synthese par societe sont calcules a
@@ -482,7 +482,7 @@ telle que la regle l'enonce).
 
 ## Qualite des saisies et indice de confiance (#116, module 3)
 
-Plage 5400-5449, seedee par la migration Commune 044. Routeur
+Plage 5400-5449, seedee par la migration Commune 047. Routeur
 `server/routes/qualite.js`, calcul pur de l'indice dans
 `server/utils/indiceConfiance.js` (teste au node:test).
 
@@ -516,7 +516,7 @@ rend des notes a 100, objets concernes listes dans les malus a zero point.
 | 5410 | erreur | Identifiant de société invalide | GET /api/confiance |
 | 5449 | erreur | Erreur serveur inattendue (module qualité et confiance) | les deux |
 
-Les libelles de la 044 sont accentues (consigne #116 : textes destines a
+Les libelles de la 047 sont accentues (consigne #116 : textes destines a
 l'ecran en francais accentue), la ou les migrations 025 a 042 sont en ASCII :
 homogeneisation du catalogue a arbitrer.
 

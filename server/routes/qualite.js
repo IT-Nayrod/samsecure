@@ -1,5 +1,5 @@
 // Qualite des saisies et indice de confiance (US #116, module 3).
-// Enveloppe normalisee, codes 5400-5449 (migration 044).
+// Enveloppe normalisee, codes 5400-5449 (migration 047).
 //
 // GET /qualite : detection a la volee, sans precalcul, croisee avec
 // anomalie_qualite. Une anomalie marquee resolue (resolution reelle ou faux

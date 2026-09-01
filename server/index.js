@@ -76,7 +76,7 @@ app.use("/api", budgetRouter);
 // la main si la route y etait restee, d'ou son retrait la-bas.
 app.use("/api", editeursRouter);
 app.use("/api", logicielsRouter);
-// Module 3, conformite : balance droits/usages precalculee (043), qualite des
+// Module 3, conformite : balance droits/usages precalculee (046), qualite des
 // saisies et indice de confiance (#116).
 app.use("/api", conformiteRouter);
 app.use("/api", qualiteRouter);
