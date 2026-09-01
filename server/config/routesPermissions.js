@@ -175,6 +175,16 @@ export const ROUTES_PERMISSIONS = [
   ["PATCH",  "/logiciels/:id",               "gerer_referentiels"],
   ["DELETE", "/logiciels/:id",               "gerer_referentiels"],
 
+  // Revendeurs. Litteraux et sous-chemins d'abord, /revendeurs/:id ensuite :
+  // la premiere regle qui matche gagne, et la route parametree capturerait
+  // sinon "recherche" comme un identifiant.
+  ["GET",    "/revendeurs/recherche",        "consulter_referentiels"],
+  ["POST",   "/revendeurs/:id/desactiver",   "gerer_referentiels"],
+  ["POST",   "/revendeurs/:id/reactiver",    "gerer_referentiels"],
+  ["GET",    "/revendeurs/:id",              "consulter_referentiels"],
+  ["POST",   "/revendeurs",                  "gerer_referentiels"],
+  ["PATCH",  "/revendeurs/:id",              "gerer_referentiels"],
+
   // ---- Organisation : societes ---------------------------------------------
   ["GET",    "/societes/:id/profils-orphelins", "gerer_referentiels"],
   ["GET",    "/societes",                    "consulter_referentiels"],

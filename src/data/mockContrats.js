@@ -1,7 +1,7 @@
 // mockContrats - source unique pour Contrats (echeancier/hierarchie), Commandes (financier)
 // et Documents (factures + preuves). Chaine complete et coherente avec mockDeploiement.js :
 // chaque licence remonte vers une commande puis un contrat dont l'editeur et la societe correspondent reellement.
-import { mockEditeurs, mockSocietes, mockRevendeurs } from './mockReferentiels';
+import { mockEditeurs, mockSocietes } from './mockReferentiels';
 
 export const mockModesCommande = ['Bon de commande', 'Devis signe', 'Bon de commande EDI', 'Verbal confirme par email'];
 export const mockTypesPreuve = ['Bon de livraison', 'Capture ecran portail editeur', 'Attestation editeur', 'Contrat signe scanne', 'Autre'];
@@ -116,10 +116,6 @@ export function getContratsBySociete(idSociete) {
   return mockContrats.filter(c => c.id_societe === idSociete);
 }
 
-export function getCommandesByRevendeur(idRevendeur) {
-  return mockCommandes.filter(k => k.id_revendeur === idRevendeur);
-}
-
 export function getCommandesBySociete(idSociete) {
   return mockCommandes.filter(k => k.id_societe === idSociete);
 }
@@ -163,8 +159,4 @@ export function getEditeurLabel(idEditeur) {
 
 export function getSocieteLabelContrat(idSociete) {
   return mockSocietes.find(s => s.id === idSociete)?.raison_sociale ?? null;
-}
-
-export function getRevendeurLabelCommande(idRevendeur) {
-  return mockRevendeurs.find(r => r.id === idRevendeur)?.raison_sociale ?? null;
 }

@@ -43,6 +43,32 @@ export const logicielsService = {
   removeEdition: (id, idEdition)  => http.delete(`/logiciels/${id}/editions/${idEdition}`),
 };
 
+export const revendeursService = {
+  // Les desactives sont masques par defaut cote API : cette meme route sert de
+  // selecteur aux formulaires contrat et commande, ou proposer un revendeur
+  // retire du catalogue serait une erreur.
+  list:   ({ inclureInactifs = false } = {}) =>
+    http.get(`/revendeurs${inclureInactifs ? '?inclure_inactifs=1' : ''}`),
+  get:    (id)          => http.get(`/revendeurs/${id}`),
+  create: (payload)     => http.post('/revendeurs', payload),
+  update: (id, payload) => http.patch(`/revendeurs/${id}`, payload),
+
+  // Pas de suppression : quatre tables referencent un revendeur et doivent
+  // continuer de le nommer. Le retrait est reversible.
+  desactiver: (id) => http.post(`/revendeurs/${id}/desactiver`),
+  reactiver:  (id) => http.post(`/revendeurs/${id}/reactiver`),
+
+  // Recherche incrementale du formulaire, appelee au fil de la frappe. Reponse
+  // pauvre et bornee ({ suggestions, total }), insensible a la casse et aux
+  // accents. exclure ecarte le revendeur en cours de modification.
+  rechercher: (q, { exclure, limite } = {}) => {
+    const params = new URLSearchParams({ q });
+    if (exclure) params.set('exclure', exclure);
+    if (limite) params.set('limite', String(limite));
+    return http.get(`/revendeurs/recherche?${params.toString()}`);
+  },
+};
+
 // Un produit porte les champs de son editeur a plat (editeur_label,
 // editeur_url_logo_defaut, editeur_url_logo_custom), l'editeur vivant dans
 // l'autre base et etant resolu par l'API. LogoEditeur attend la forme d'un

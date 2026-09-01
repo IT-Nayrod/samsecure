@@ -357,7 +357,7 @@ router.post("/editeurs", async (req, res) => {
 
     await log(client, req, "CREATE", "editeur", cree.id,
       `Creation de l'editeur "${raisonSociale}"`, corps);
-    // code_retour: 5230
+    // code_retour: 5290
     await auditer(client, req, {
       action: "EDITEUR_CREE", entiteType: "editeur", entiteId: cree.id,
       apres: { ...corps, raison_sociale: raisonSociale },
@@ -428,7 +428,7 @@ router.patch("/editeurs/:id", async (req, res) => {
       `Modification de l'editeur "${raisonSociale}"`, patch);
     // Trace probante : seuls les champs reellement modifies, jamais le corps
     // fusionne, sinon on lirait "mis a null" sur les champs conserves.
-    // code_retour: 5231
+    // code_retour: 5291
     const d = diff(existant[0], { ...corps, raison_sociale: raisonSociale });
     await auditer(client, req, {
       action: "EDITEUR_MODIFIE", entiteType: "editeur", entiteId: id,
@@ -508,7 +508,7 @@ router.delete("/editeurs/:id", async (req, res) => {
 
     await log(client, req, "DELETE", "editeur", id,
       `Suppression de l'editeur "${existant[0].raison_sociale}"`, null);
-    // code_retour: 5232
+    // code_retour: 5292
     await auditer(client, req, {
       action: "EDITEUR_SUPPRIME", entiteType: "editeur", entiteId: id, avant: existant[0],
     });
