@@ -32,7 +32,8 @@ commandes 3100-3199 | documents 3200-3299 | validation 3300-3399 |
 droits 3400-3499 | licences 4000-4099 (module 3, partie A) |
 affectations 4100-4199 (module 3, partie B) | inventaire 4200-4299 (module 3, #111) |
 conformite 4300-4399 (module 3, #116) | budget 5100-5199 (module 4, partie A, #146) |
-qualite des saisies et confiance 5400-5449 (module 3, #116)
+qualite des saisies et confiance 5400-5449 (module 3, #116) |
+notifications 5500-5549 (M3-notifications, #121)
 
 ## Transverse : socle d'envoi de mails (#87)
 
@@ -932,3 +933,72 @@ Points de lecture :
 - l'unicite du SIRET (index partiel, migration 044) n'est qu'un garde-fou de
   derniere ligne : elle n'attrape que la course entre deux creations
   simultanees, la detection applicative faisant le travail avant.
+
+## Notifications (#121, M3-notifications)
+
+Plage 5500-5549, seedee par la migration Commune 052. Routeur
+`server/routes/notifications.js`, moteur `server/utils/notifications/`
+(catalogue, regles pures, moteur, courriers, planificateur). Socle Tenant :
+migration 051 (colonnes sur `notification`, table `preference_notification`,
+index d'anti-doublon, verrou journalier, seuil `budget_taux_engagement`,
+fonction `purger_notifications()`). Les tables `alerte` et `notification` du
+schema 002 sont reutilisees, pas recreees.
+
+Permissions : toutes les routes sont personnelles (bornees a `req.user.id`
+dans le routeur) et declarees PUBLIC_AUTHENTIFIE, sauf le declenchement manuel
+du traitement planifie, reserve au profil Administrateur SAM par
+`gerer_connecteurs` (meme convention que /mails/test). Aucune permission
+nouvelle.
+
+| Code | Type | Libelle | Emis par |
+|---|---|---|---|
+| 5500 | succes | Liste des notifications | GET /api/notifications (filtre `lu`, `page`, `limite`) |
+| 5501 | succes | Compteur des notifications non lues | GET /api/notifications/compteur |
+| 5502 | succes | Notification marquee comme lue | PATCH /api/notifications/:id/lu |
+| 5503 | succes | Toutes les notifications ont ete marquees comme lues | POST /api/notifications/tout-lu |
+| 5504 | succes | Preferences de notification | GET /api/notifications/preferences |
+| 5505 | succes | Preferences de notification enregistrees | PUT /api/notifications/preferences |
+| 5506 | succes | Traitement planifie des notifications execute | POST /api/notifications/executer-planification |
+| 5510 | erreur | Notification introuvable | PATCH /api/notifications/:id/lu (404, y compris celle d'un autre utilisateur) |
+| 5511 | erreur | Identifiant de notification invalide | PATCH /api/notifications/:id/lu (400) |
+| 5512 | erreur | Le filtre lu doit valoir true ou false | GET /api/notifications |
+| 5513 | erreur | Pagination invalide | GET /api/notifications (`page` >= 1, `limite` de 1 a 200) |
+| 5514 | erreur | Type de notification inconnu | PUT /api/notifications/preferences (`details.type`) |
+| 5515 | erreur | Le reglage du courrier doit valoir immediat, quotidien ou desactive | PUT /api/notifications/preferences |
+| 5516 | erreur | Un traitement planifie est deja en cours | POST /api/notifications/executer-planification (409) |
+| 5517 | erreur | Les preferences doivent etre transmises sous forme de liste | PUT /api/notifications/preferences |
+| 5549 | erreur | Erreur serveur inattendue (module notifications) | toutes |
+
+Points de lecture :
+
+- huit types au pre-catalogue applicatif (`catalogue.js`) : echeance_contrat,
+  echeance_souscription, depassement_conformite, budget_seuil,
+  validation_en_attente, saisie_traitee, revalidation_echue ; le huitieme est
+  la reserve de structure (type en texte controle par le catalogue, un
+  nouveau type ne demande aucune migration) ;
+- la notification en application est toujours creee ; le courrier suit la
+  preference de l'utilisateur par type (immediat, quotidien, desactive),
+  defauts du catalogue sinon. Un refus de saisie force l'immediat sauf si le
+  courrier est desactive ;
+- anti-doublon : index unique (id_utilisateur, cle_evenement), insertion en
+  ON CONFLICT DO NOTHING ; une cle par contrat et palier, par licence, par
+  produit et jour de recalcul, par societe et exercice, par soumission, par
+  cycle de revalidation ;
+- destinataires par droits et portee : permissions effectives
+  (`permissionsEffectives`) et rattachement (`getAdminScope`) ; les profils de
+  la specification sont reconnus par leur permission signature (droits de
+  dashboard, `gerer_connecteurs` pour l'administrateur) ; sans
+  `consulter_kpi_financiers`, aucun montant dans le texte ni dans le
+  courrier (IT Ops recoit les quantites seules) ;
+- evenementiel : `soumettre()` du workflow (validation_en_attente) et le
+  traitement de `validation.js` (saisie_traitee), dans la transaction de
+  l'appelant sous SAVEPOINT, jamais bloquant ; planifie : 7 h Paris
+  (echeances, revalidations, conformite, budget, purge) et 7 h 30
+  (recapitulatif), rattrapage au demarrage, verrou journalier dans
+  `tache_asynchrone` ;
+- envois journalises sur la notification (statut, date, resultat, tentatives),
+  echec retente au passage suivant jusqu'a 5 tentatives ; sans SMTP configure,
+  le socle mail refuse (1001) et le passage n'insiste pas ;
+- les codes 1001 a 1003 du socle mail restent les etats d'envoi, ils ne sont
+  pas repris dans cette plage.
+
