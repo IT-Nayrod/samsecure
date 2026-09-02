@@ -175,6 +175,22 @@ export const ROUTES_PERMISSIONS = [
   ["GET",    "/dashboards/montants-totaux", "consulter_kpi_financiers"],
   ["GET",    "/dashboards/engages-payes",   "consulter_kpi_financiers"],
 
+  // ---- Notifications (#121) --------------------------------------------------
+  // Routes personnelles : chaque requete est bornee a l'utilisateur du jeton
+  // dans le routeur (id_utilisateur = req.user.id), aucune donnee d'autrui
+  // n'est lisible ni modifiable, d'ou PUBLIC_AUTHENTIFIE. Le declenchement
+  // manuel du traitement planifie est reserve au profil Administrateur SAM
+  // par gerer_connecteurs, seule permission que la matrice 011/021 ne donne
+  // qu'a admin_sam (meme convention que /mails/test). Les chemins litteraux
+  // precedent /notifications/:id/lu.
+  ["GET",    "/notifications/compteur",                PUBLIC_AUTHENTIFIE],
+  ["GET",    "/notifications/preferences",             PUBLIC_AUTHENTIFIE],
+  ["PUT",    "/notifications/preferences",             PUBLIC_AUTHENTIFIE],
+  ["POST",   "/notifications/tout-lu",                 PUBLIC_AUTHENTIFIE],
+  ["POST",   "/notifications/executer-planification",  "gerer_connecteurs"],
+  ["GET",    "/notifications",                         PUBLIC_AUTHENTIFIE],
+  ["PATCH",  "/notifications/:id/lu",                  PUBLIC_AUTHENTIFIE],
+
   // ---- Referentiels en lecture ---------------------------------------------
   ["GET",    "/produits",                    "consulter_referentiels"],
   ["GET",    "/unites-mesure",               "consulter_referentiels"],

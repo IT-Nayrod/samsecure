@@ -7,6 +7,7 @@
 // entree. L'historique des soumissions en decoule sans table supplementaire.
 
 import { apresTraitementAffectation } from "./revalidation.js";
+import { notifierSoumission } from "./notifications/moteur.js";
 
 // Catalogue des entites soumises au workflow. entite_id est polymorphe et ne
 // porte aucune FK SQL : ce catalogue est la seule barriere entre un
@@ -66,15 +67,28 @@ export const COLONNES_STATUT =
 // l'ecriture metier : une entite creee sans son entree de validation serait
 // invisible du workflow, donc jamais validable.
 export async function soumettre(client, entiteType, entiteId, idUtilisateur) {
-  const { rowCount } = await client.query(
+  const { rows } = await client.query(
     `INSERT INTO workflow_validation (entite_type, entite_id, id_soumis_par, id_statut)
-     SELECT $1, $2, $3, vs.id FROM validation_status vs WHERE vs.code = 'en_attente'`,
+     SELECT $1, $2, $3, vs.id FROM validation_status vs WHERE vs.code = 'en_attente'
+     RETURNING id`,
     [entiteType, entiteId, idUtilisateur || null]
   );
   // Zero ligne inseree signifie referentiel non seede : echouer bruyamment
   // vaut mieux qu'une entite sans statut.
-  if (!rowCount) {
+  if (!rows.length) {
     throw new Error("validation_status : le code 'en_attente' est absent du referentiel.");
+  }
+  // Notification validation_en_attente (#121) aux porteurs du droit de
+  // validation sur la portee, dans la meme transaction (SAVEPOINT interne) :
+  // elle n'existe que si la saisie est validee, et son echec ne fait jamais
+  // echouer la saisie. table et colonneLabel sortent du catalogue ci-dessus.
+  const cible = Object.prototype.hasOwnProperty.call(ENTITES_VALIDABLES, entiteType)
+    ? ENTITES_VALIDABLES[entiteType] : null;
+  if (cible) {
+    await notifierSoumission(client, {
+      entiteType, entiteId, table: cible.table, colonneLabel: colonneLabel(cible),
+      idAuteur: idUtilisateur || null, idWorkflow: rows[0].id,
+    });
   }
 }
 

@@ -2,6 +2,7 @@ import express from "express";
 import { tenantPool } from "../db.js";
 import { succes, erreur } from "../utils/reponse.js";
 import { ENTITES_VALIDABLES, lireStatutCourant, colonneLabel } from "../utils/validationWorkflow.js";
+import { notifierTraitement } from "../utils/notifications/moteur.js";
 
 const router = express.Router();
 
@@ -100,6 +101,15 @@ async function traiter(req, res, statutCible, motif) {
     }
 
     const label = existant[0].label;
+
+    // Notification saisie_traitee (#121) a l'auteur de la soumission, meme
+    // transaction (SAVEPOINT interne), jamais bloquante ; courrier immediat
+    // sur un refus, recapitulatif sur une validation.
+    await notifierTraitement(client, {
+      entiteType, entiteId, label, statut: statutCible, motif,
+      idWorkflow: courant.id, idTraitePar: req.user?.id || null,
+    });
+
     await log(client,
       statutCible === "valide" ? "VALIDATION" : "REFUS",
       entiteType, entiteId,
