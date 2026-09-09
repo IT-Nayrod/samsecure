@@ -1,4 +1,5 @@
-// UserSettingsPage - Section 4 Specs UX v0.5
+// Paramètres du compte connecté : informations, sécurité (mot de passe, second
+// facteur, sessions) et préférences de notification.
 import { useState } from 'react';
 import { Eye, EyeOff, QrCode } from 'lucide-react';
 import useAuth from '../../hooks/useAuth';

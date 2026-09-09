@@ -1,4 +1,4 @@
-// NotifPrefsPanel - Section 4 Specs UX v0.5
+// Préférences de notification de l'utilisateur, conservées dans localStorage.
 import useLocalStorage from '../../hooks/useLocalStorage';
 import { NOTIF_PREFS_DEFAULT, NOTIF_PREFS_LABELS } from '../../data/mockSettings';
 
