@@ -1,8 +1,8 @@
-// PreuveFormModal - depot d'une preuve : metadonnees puis fichier.
-// Deux appels API en sequence, conformement au decoupage des taches : la #48
-// cree la preuve avec ses metadonnees, la #49 lui attache le fichier. Si le
-// second echoue, la preuve existe deja : on le dit explicitement plutot que de
-// laisser croire a un echec total, et l'utilisateur peut reessayer le depot
+// PreuveFormModal - dépôt d'une preuve : métadonnées puis fichier.
+// Deux appels API en séquence, conformément au découpage des tâches : la #48
+// crée la preuve avec ses métadonnées, la #49 lui attache le fichier. Si le
+// second échoue, la preuve existe déjà : on le dit explicitement plutôt que de
+// laisser croire à un échec total, et l'utilisateur peut réessayer le dépôt
 // depuis la fiche.
 import { useState, useEffect } from 'react';
 import SlideOver from '../ui/SlideOver';
@@ -33,8 +33,8 @@ export default function PreuveFormModal({ isOpen, onClose, onDone, typesPreuve, 
     setErreur(null);
   }, [isOpen, typesPreuve, contratParDefaut, commandeParDefaut]);
 
-  // Le formulaire ne rejoue pas les regles du serveur, il empeche seulement
-  // d'envoyer une requete vouee au refus. Les messages affiches en cas d'echec
+  // Le formulaire ne rejoue pas les règles du serveur, il empêche seulement
+  // d'envoyer une requête vouée au refus. Les messages affichés en cas d'échec
   // restent ceux de l'API, mot pour mot.
   const complet = !!(file && form.label.trim() && form.id_type_preuve && (form.id_contrat || form.id_commande));
 
@@ -48,9 +48,9 @@ export default function PreuveFormModal({ isOpen, onClose, onDone, typesPreuve, 
         id_type_preuve: form.id_type_preuve,
         id_contrat: form.id_contrat || null,
         id_commande: form.id_commande || null,
-        // url_fichier est obligatoire en base : le depot qui suit le remplace
-        // par le nom physique reel. Cette valeur ne survit jamais a un depot
-        // reussi.
+        // url_fichier est obligatoire en base : le dépôt qui suit le remplace
+        // par le nom physique réel. Cette valeur ne survit jamais à un dépôt
+        // réussi.
         url_fichier: 'en-attente-de-depot',
       });
       await preuvesService.deposerFichier(creee.id, file);

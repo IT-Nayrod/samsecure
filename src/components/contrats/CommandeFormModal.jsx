@@ -1,5 +1,5 @@
-// CommandeFormModal - creation / edition d'une commande, branchee sur l'API.
-// Les messages d'erreur affiches sont ceux renvoyes par le serveur.
+// CommandeFormModal - création / édition d'une commande, branchée sur l'API.
+// Les messages d'erreur affichés sont ceux renvoyés par le serveur.
 import { useState, useEffect } from 'react';
 import SlideOver from '../ui/SlideOver';
 import Button from '../ui/Button';
@@ -58,14 +58,14 @@ export default function CommandeFormModal({
 
   // Confort de saisie : le bouton reste inactif tant que le montant n'est pas
   // Confort de saisie : le bouton reste inactif tant que le montant n'est pas
-  // strictement positif, pour eviter un aller-retour serveur previsible. Le
-  // message affiche en cas d'echec reste celui de l'API, jamais un texte local.
+  // strictement positif, pour éviter un aller-retour serveur prévisible. Le
+  // message affiché en cas d'échec reste celui de l'API, jamais un texte local.
   const montantValide = form.montant !== '' && Number(form.montant) > 0;
 
-  // Choisir un contrat propose sa societe signataire comme societe payeuse et son
-  // revendeur comme revendeur de la commande : des valeurs par defaut, que
-  // l'utilisateur reste libre de changer. La derivation ne joue qu'au changement
-  // de contrat : en modification, rien n'est ecrase tant que le contrat reste le meme.
+  // Choisir un contrat propose sa société signataire comme société payeuse et son
+  // revendeur comme revendeur de la commande : des valeurs par défaut, que
+  // l'utilisateur reste libre de changer. La dérivation ne joue qu'au changement
+  // de contrat : en modification, rien n'est écrasé tant que le contrat reste le même.
   function choisirContrat(idContrat) {
     const contrat = contrats.find(c => c.id === idContrat) ?? null;
     setForm(v => ({
@@ -133,9 +133,9 @@ export default function CommandeFormModal({
         <FormField label="Contrat" required>
           <select className={INPUT_CLS} value={form.id_contrat} onChange={e => choisirContrat(e.target.value)}>
             <option value="">Choisir...</option>
-            {/* Une nouvelle commande ne propose jamais un contrat archive ; en
-                edition, le contrat courant reste selectionnable meme archive,
-                marque comme tel (#96). */}
+            {/* Une nouvelle commande ne propose jamais un contrat archivé ; en
+                édition, le contrat courant reste sélectionnable même archivé,
+                marqué comme tel (#96). */}
             {contrats
               .filter(c => !c.archive || (isEdit && c.id === commande?.id_contrat))
               .map(c => <option key={c.id} value={c.id}>{c.label}{c.archive ? ' (Archivé)' : ''}</option>)}
