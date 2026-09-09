@@ -1,14 +1,14 @@
-// RevendeursPage - liste des revendeurs (Referentiels).
-// Donnees API : /revendeurs. Les compteurs de contrats, commandes et licences
-// sont servis par l'API et ne sont jamais recalcules ici.
+// RevendeursPage - liste des revendeurs (Référentiels).
+// Données API : /revendeurs. Les compteurs de contrats, commandes et licences
+// sont servis par l'API et ne sont jamais recalculés ici.
 //
-// Les desactives sont masques par defaut, comme cote serveur : un revendeur
-// retire du catalogue n'a pas a encombrer la liste courante. Une case les
-// ramene, la colonne Statut permettant de les distinguer.
+// Les désactivés sont masqués par défaut, comme côté serveur : un revendeur
+// retiré du catalogue n'a pas à encombrer la liste courante. Une case les
+// ramène, la colonne Statut permettant de les distinguer.
 //
-// La colonne "Nb contacts" a ete retiree : le module contacts n'est pas branche
-// et ses identifiants de mock ne correspondent a aucun revendeur reel. Elle
-// aurait affiche zero partout, ce qui se lit comme une information alors que
+// La colonne "Nb contacts" a été retirée : le module contacts n'est pas branché
+// et ses identifiants de mock ne correspondent à aucun revendeur réel. Elle
+// aurait affiché zéro partout, ce qui se lit comme une information alors que
 // c'en est l'absence.
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -68,8 +68,8 @@ export default function RevendeursPage() {
       (r.email ?? '').toLowerCase().includes(q));
   }, [revendeurs, debouncedSearch]);
 
-  // Le 409 de doublon n'est pas une erreur a jeter en toast : il porte
-  // l'existant, et c'est lui qui interesse l'utilisateur. L'erreur est relancee
+  // Le 409 de doublon n'est pas une erreur à jeter en toast : il porte
+  // l'existant, et c'est lui qui intéresse l'utilisateur. L'erreur est relancée
   // pour que le formulaire reste ouvert et garde la saisie.
   async function handleSave(data, existing) {
     try {

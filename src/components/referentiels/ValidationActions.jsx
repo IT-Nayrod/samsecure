@@ -12,8 +12,8 @@ export default function ValidationActions({ statut, onValidate, onRefuse, size =
 
   if (statut !== 'en_attente') return null;
 
-  // La modale ne se ferme que sur succes : si l'API refuse, le motif saisi ne
-  // doit pas etre perdu, l'erreur remonte deja en toast.
+  // La modale ne se ferme que sur succès : si l'API refuse, le motif saisi ne
+  // doit pas être perdu, l'erreur remonte déjà en toast.
   async function confirmRefuse() {
     setEnvoi(true);
     try {
@@ -21,8 +21,8 @@ export default function ValidationActions({ statut, onValidate, onRefuse, size =
       setRefuseOpen(false);
       setMotif('');
     } catch (err) {
-      // Jamais avale en silence : le message metier part deja en toast cote
-      // appelant, mais une erreur de cablage (handler absent) ne laisserait
+      // Jamais avalé en silence : le message métier part déjà en toast côté
+      // appelant, mais une erreur de câblage (handler absent) ne laisserait
       // sinon aucune trace et se lirait comme un bouton qui ne fait rien.
       console.error('[validation] refus impossible', err);
     } finally { setEnvoi(false); }

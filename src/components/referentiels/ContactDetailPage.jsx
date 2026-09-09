@@ -1,4 +1,4 @@
-// ContactDetailPage - fiche detail d'un contact
+// ContactDetailPage - fiche détail d'un contact
 import { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Pencil, Trash2 } from 'lucide-react';

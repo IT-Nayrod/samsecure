@@ -1,4 +1,4 @@
-// ContactFormModal - creation / edition d'un contact, avec selecteur d'entite de rattachement dependant du type
+// ContactFormModal - création / édition d'un contact, avec sélecteur d'entité de rattachement dépendant du type
 import { useState, useEffect } from 'react';
 import SlideOver from '../ui/SlideOver';
 import Button from '../ui/Button';
@@ -39,9 +39,9 @@ export default function ContactFormModal({ isOpen, onClose, onSave, contact }) {
   const [draftRestaure, setDraftRestaure] = useState(false);
   const [revendeurs, setRevendeurs] = useState([]);
 
-  // Les revendeurs viennent de l'API depuis la bascule du referentiel. Charges
-  // a l'ouverture seulement, et par optionnel() : un droit manquant sur le
-  // referentiel prive du selecteur, pas du formulaire entier.
+  // Les revendeurs viennent de l'API depuis la bascule du référentiel. Chargés
+  // à l'ouverture seulement, et par optionnel() : un droit manquant sur le
+  // référentiel prive du sélecteur, pas du formulaire entier.
   useEffect(() => {
     if (!isOpen) return;
     let annule = false;
@@ -75,7 +75,7 @@ export default function ContactFormModal({ isOpen, onClose, onSave, contact }) {
     setErrors({});
   }, [contact, isOpen, draftKey]);
 
-  // Le brouillon ne couvre que les champs texte (form) : la photo (data URL) n'est pas persistee pour eviter de saturer le localStorage
+  // Le brouillon ne couvre que les champs texte (form) : la photo (data URL) n'est pas persistée pour éviter de saturer le localStorage
   useEffect(() => {
     if (!isOpen) return;
     saveDraft(draftKey, form);
@@ -83,9 +83,9 @@ export default function ContactFormModal({ isOpen, onClose, onSave, contact }) {
 
   
 
-  // Les revendeurs viennent de l'API depuis la bascule du referentiel. Charges
-  // a l'ouverture seulement, et par optionnel() : un droit manquant sur le
-  // referentiel prive du selecteur, pas du formulaire entier.
+  // Les revendeurs viennent de l'API depuis la bascule du référentiel. Chargés
+  // à l'ouverture seulement, et par optionnel() : un droit manquant sur le
+  // référentiel prive du sélecteur, pas du formulaire entier.
   useEffect(() => {
     if (!isOpen) return;
     let annule = false;

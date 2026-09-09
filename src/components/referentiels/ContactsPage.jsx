@@ -1,4 +1,4 @@
-// ContactsPage - liste des contacts (Referentiels)
+// ContactsPage - liste des contacts (Référentiels)
 import { useState, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, LayoutGrid, List, Mail, Phone } from 'lucide-react';

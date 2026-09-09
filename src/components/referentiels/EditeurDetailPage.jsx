@@ -1,11 +1,11 @@
-// EditeurDetailPage - fiche detail d'un editeur.
-// Donnees API : /editeurs/:id. Les logiciels rattaches, le nombre de contrats,
-// la conformite et le caractere supprimable sont servis par l'API : ils
-// traversent les deux bases et ne sont jamais recalcules ici.
+// EditeurDetailPage - fiche détail d'un éditeur.
+// Données API : /editeurs/:id. Les logiciels rattachés, le nombre de contrats,
+// la conformité et le caractère supprimable sont servis par l'API : ils
+// traversent les deux bases et ne sont jamais recalculés ici.
 //
-// La section des contacts a ete retiree : leur module n'est pas branche sur la
-// base et ses identifiants de mock ne correspondent a aucun editeur reel. Elle
-// aurait affiche "aucun contact" quoi qu'il arrive.
+// La section des contacts a été retirée : leur module n'est pas branché sur la
+// base et ses identifiants de mock ne correspondent à aucun éditeur réel. Elle
+// aurait affiché "aucun contact" quoi qu'il arrive.
 import { useState, useCallback, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Pencil, Trash2 } from 'lucide-react';
@@ -57,8 +57,8 @@ export default function EditeurDetailPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  // La reponse de traitement porte les trois champs de statut servis par le
-  // detail : l'appliquer suffit, recharger la fiche serait inutile.
+  // La réponse de traitement porte les trois champs de statut servis par le
+  // détail : l'appliquer suffit, recharger la fiche serait inutile.
   const appliquer = useCallback(reponse => {
     setEditeur(prev => prev ? appliquerStatut(prev, reponse) : prev);
   }, []);
@@ -76,8 +76,8 @@ export default function EditeurDetailPage() {
       addToast({ type: 'success', message: 'Éditeur supprimé.' });
       navigate('/referentiels/editeurs');
     } catch (err) {
-      // 409 : rattachements. Le message du serveur enumere ce qui bloque, il
-      // remplace la modale de confirmation plutot que de la doubler.
+      // 409 : rattachements. Le message du serveur énumère ce qui bloque, il
+      // remplace la modale de confirmation plutôt que de la doubler.
       setDeleteOpen(false);
       setBlocage(err.message);
       addToast({ type: 'error', message: err.message });
@@ -103,7 +103,7 @@ export default function EditeurDetailPage() {
   }
 
   if (error) {
-    // 404 : l'editeur n'existe pas ou a ete supprime depuis un autre onglet.
+    // 404 : l'éditeur n'existe pas ou a été supprimé depuis un autre onglet.
     if (errorStatus === 404) {
       return (
         <div className="flex flex-col gap-6">

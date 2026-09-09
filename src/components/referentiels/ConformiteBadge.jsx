@@ -1,9 +1,9 @@
-// ConformiteBadge - balance droits contre usages, agregee par editeur.
+// ConformiteBadge - balance droits contre usages, agrégée par éditeur.
 //
-// La donnee vient de l'API (server/utils/conformite.js), qui la calcule a la
-// lecture sur les licences et les affectations reelles. Elle vaut null quand
-// l'editeur n'a aucun produit sous licence : il n'y a alors rien a rapprocher,
-// et un badge "conforme" laisserait croire a un controle qui n'a pas eu lieu.
+// La donnée vient de l'API (server/utils/conformite.js), qui la calcule à la
+// lecture sur les licences et les affectations réelles. Elle vaut null quand
+// l'éditeur n'a aucun produit sous licence : il n'y a alors rien à rapprocher,
+// et un badge "conforme" laisserait croire à un contrôle qui n'a pas eu lieu.
 import Badge from '../ui/Badge';
 
 const CONFIG = {

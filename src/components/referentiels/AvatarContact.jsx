@@ -1,4 +1,4 @@
-// AvatarContact - photo du contact si presente, sinon initiales prenom+nom sur fond colore
+// AvatarContact - photo du contact si présente, sinon initiales prenom+nom sur fond coloré
 import { colorForName, initialsFromParts } from '../../utils/avatar';
 import { getContactPhoto } from '../../utils/contactPhotos';
 

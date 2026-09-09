@@ -1,11 +1,11 @@
-// EditeursPage - liste des editeurs (Referentiels).
-// Donnees API : /editeurs. Les compteurs de produits et de contrats, ainsi que
-// la conformite, sont servis par l'API : ils traversent les deux bases et ne
-// sont jamais recalcules ici.
+// EditeursPage - liste des éditeurs (Référentiels).
+// Données API : /editeurs. Les compteurs de produits et de contrats, ainsi que
+// la conformité, sont servis par l'API : ils traversent les deux bases et ne
+// sont jamais recalculés ici.
 //
 // Les contacts ne figurent plus dans cette liste : leur module n'est pas
-// branche sur la base, et leurs identifiants de mock ne correspondent a aucun
-// editeur reel. La colonne aurait affiche zero partout, ce qui se lit comme
+// branché sur la base, et leurs identifiants de mock ne correspondent à aucun
+// éditeur réel. La colonne aurait affiché zéro partout, ce qui se lit comme
 // une information alors que c'en est l'absence.
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -63,7 +63,7 @@ export default function EditeursPage() {
       (e.pays ?? '').toLowerCase().includes(q));
   }, [editeurs, debouncedSearch]);
 
-  // L'erreur remonte a la modale, qui garde sa saisie ouverte : un doublon de
+  // L'erreur remonte à la modale, qui garde sa saisie ouverte : un doublon de
   // raison sociale se corrige sur place, il ne fait pas perdre le formulaire.
   async function handleSave(data, existing) {
     if (existing) {
