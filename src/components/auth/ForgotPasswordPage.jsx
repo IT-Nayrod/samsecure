@@ -1,4 +1,5 @@
-// ForgotPasswordPage - Section 2 Specs UX v0.5
+// Page publique de demande de réinitialisation du mot de passe. Le formulaire
+// n'appelle pas encore l'API : la soumission est simulée localement.
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, CheckCircle } from 'lucide-react';

@@ -1,10 +1,11 @@
-// TwoFactorPage - Section 2 Specs UX v0.5
+// Page de second facteur : saisie d'un code à six chiffres. Le code attendu est
+// fixé en dur pour la démonstration, sans appel API.
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ShieldCheck } from 'lucide-react';
 import Button from '../ui/Button';
 
-const VALID_CODE = '123456'; // demo
+const VALID_CODE = '123456'; // démo
 const MAX_ATTEMPTS = 3;
 
 export default function TwoFactorPage() {
