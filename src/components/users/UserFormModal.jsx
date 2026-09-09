@@ -1,5 +1,5 @@
 // UserFormModal - création / édition d'un utilisateur réel (identité,
-// rattachement, groupes). L'attribution de groupes se pilote directement ici
+// rattachement, groupés). L'attribution de groupes se pilote directement ici
 // (section Groupes) et en miroir depuis la fiche du groupe.
 import { useState, useEffect } from 'react';
 import SlideOver from '../ui/SlideOver';
@@ -114,7 +114,7 @@ export default function UserFormModal({ isOpen, onClose, onSubmit, user, initial
 
     // Réévalue CHAQUE attribution actuelle contre le nouveau rattachement, via
     // la même fonction que les cases à cocher (isGroupAssignable). Ne pas se
-    // contenter de comparer les sociétés retirées : un passage tenant →
+    // contenter de comparer les sociétés retirées : un passage tenant ->
     // spécifique retire une portée implicite (NULL) qu'un simple diff de
     // tableaux ne détecte pas, alors qu'il invalide potentiellement les
     // attributions prises à l'échelle tenant.

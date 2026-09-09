@@ -3,7 +3,7 @@
 // l'attribution, décocher la retire ; la portée découle automatiquement de
 // l'intersection rattachement (utilisateur) x diffusion (groupe), jamais
 // choisie ici. Sauvegarde immédiate à chaque case, comme la matrice de
-// permissions de la sandbox — SAUF pour un groupe qui n'est cochable que
+// permissions de la sandbox, SAUF pour un groupe qui n'est cochable que
 // grâce au rattachement en cours d'édition (non encore enregistré) : dans ce
 // cas la coche est mise en attente (onTogglePendingAddition) et n'est
 // réellement écrite qu'à l'enregistrement du formulaire, une fois le
@@ -74,7 +74,7 @@ export default function UserGroupsSection({
     const assignableNow = isGroupAssignable(userSocieteIds, groupSocieteIds);
     const assignableLive = isGroupAssignable(liveSocieteIds, groupSocieteIds);
     const staged = pendingAdditions?.has(group.id) || false;
-    // Sera retiré à l'enregistrement : actuellement attribué et valide, mais
+    // Sera retiré à l'enregistrement : actuellement attribué et validé, mais
     // la sélection de sociétés en cours (non enregistrée) fait disparaître
     // l'intersection.
     const willBeRemoved = attributedNow && assignableNow && !assignableLive;

@@ -1,24 +1,24 @@
-// StatutCompteModal - changement d'etat d'un compte, immediat ou programme.
+// StatutCompteModal - changement d'état d'un compte, immédiat ou programmé.
 //
-// Un seul composant pour les deux sens, activation et desactivation : les deux
-// gestes sont symetriques, et les separer ferait diverger deux formulaires qui
-// doivent se comporter de la meme facon.
+// Un seul composant pour les deux sens, activation et désactivation : les deux
+// gestes sont symétriques, et les séparer ferait diverger deux formulaires qui
+// doivent se comporter de la même façon.
 //
 // La suppression d'utilisateur n'existe plus (migration 023) : un compte se
-// retire en le desactivant, et se retrouve d'un clic.
+// retire en le désactivant, et se retrouve d'un clic.
 //
-//   Desactivation immediate  : actif = false, plus la date du jour, sans quoi
-//                              la colonne Date de desactivation resterait vide.
-//   Desactivation programmee : date_finale, deja controlee au login et dans le
+//   Désactivation immédiate  : actif = false, plus la date du jour, sans quoi
+//                              la colonne Date de désactivation resterait vide.
+//   Désactivation programmée : date_finale, déjà contrôlée au login et dans le
 //                              calcul des droits.
-//   Activation immediate     : actif = true, toute echeance effacee.
-//   Activation programmee    : actif = true ET date_mise_en_fonction future.
+//   Activation immédiate     : actif = true, toute échéance effacée.
+//   Activation programmée    : actif = true ET date_mise_en_fonction future.
 //
-// Ce dernier cas merite une explication : le compte passe bien a actif = true
-// des maintenant, ce qui peut surprendre. C'est necessaire. Aucun ordonnanceur
-// n'existe dans le projet, rien ne s'execute a une date : ce sont le login et
-// le calcul des droits qui evaluent date_mise_en_fonction a chaque appel et
-// refusent l'acces avant l'echeance. Laisser actif = false en attendant la
+// Ce dernier cas mérite une explication : le compte passe bien à actif = true
+// dès maintenant, ce qui peut surprendre. C'est nécessaire. Aucun ordonnanceur
+// n'existe dans le projet, rien ne s'exécute à une date : ce sont le login et
+// le calcul des droits qui évaluent date_mise_en_fonction à chaque appel et
+// refusent l'accès avant l'échéance. Laisser actif = false en attendant la
 // date ne produirait jamais aucune activation.
 import { useState } from 'react';
 import Modal from '../ui/Modal';
@@ -55,8 +55,8 @@ const TEXTES = {
     labelDate: "Premier jour d'activité",
     boutonImmediat: 'Réactiver maintenant',
     boutonProgramme: "Programmer l'activation",
-    // date_finale est effacee dans les deux cas : sans cela une echeance
-    // depassee continuerait de bloquer la connexion malgre la reactivation.
+    // date_finale est effacée dans les deux cas : sans cela une échéance
+    // dépassée continuerait de bloquer la connexion malgré la réactivation.
     payloadImmediat: () => ({ actif: true, date_finale: null, date_mise_en_fonction: null }),
     payloadProgramme: (date) => ({ actif: true, date_finale: null, date_mise_en_fonction: date }),
   },
@@ -82,7 +82,7 @@ export default function StatutCompteModal({ isOpen, utilisateur, sens = 'desacti
       await onConfirm(mode === 'immediate' ? t.payloadImmediat() : t.payloadProgramme(date));
       fermer();
     } catch {
-      // Le message d'erreur est deja affiche par l'appelant.
+      // Le message d'erreur est déjà affiché par l'appelant.
     } finally {
       setEnvoi(false);
     }

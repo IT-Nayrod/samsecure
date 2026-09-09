@@ -1,4 +1,4 @@
-// ProfileBadge - Section 3 Specs UX v0.5
+// Pastille d'un profil (groupe), colorée selon le code du catalogue.
 const PROFIL_CONFIG = {
   manager_dsi: { label: 'Manager DSI', cls: 'bg-blue-100 text-blue-800' },
   financier: { label: 'Financier', cls: 'bg-purple-100 text-purple-800' },

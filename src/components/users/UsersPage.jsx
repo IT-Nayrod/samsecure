@@ -18,13 +18,13 @@ import { usersService, societesService, groupsService, attributionsService } fro
 import { attribuerGroupe } from '../../utils/attributionScope';
 
 // Le statut Supprime n'existe plus : depuis la migration 022, le retrait d'un
-// compte est une desactivation. Un utilisateur retire reste dans la liste,
-// porte le statut Desactive et se reactive d'un clic.
+// compte est une désactivation. Un utilisateur retiré reste dans la liste,
+// porte le statut Désactivé et se réactive d'un clic.
 function computeStatus(u) {
   const today = new Date().toISOString().slice(0, 10);
   if (!u.actif) return { label: 'Désactivé', variant: 'neutral' };
-  // Une echeance depassee vaut desactivation : le login et le calcul des droits
-  // la refusent deja, l'ecran doit dire la meme chose.
+  // Une échéance dépassée vaut désactivation : le login et le calcul des droits
+  // la refusent déjà, l'écran doit dire la même chose.
   if (u.date_finale && u.date_finale < today) return { label: 'Désactivé (échéance)', variant: 'neutral' };
   if (u.date_mise_en_fonction && u.date_mise_en_fonction > today) return { label: 'Mise en fonction à venir', variant: 'warning' };
   if (u.date_finale) return { label: 'Fin programmée', variant: 'warning' };
@@ -32,8 +32,8 @@ function computeStatus(u) {
 }
 
 // Inactif au sens du serveur : le login et le calcul des droits refusent un
-// compte a actif = false comme un compte dont l'echeance est depassee. L'ecran
-// doit dire exactement la meme chose, sans quoi il montrerait comme actif un
+// compte à actif = false comme un compte dont l'échéance est dépassée. L'écran
+// doit dire exactement la même chose, sans quoi il montrerait comme actif un
 // compte que l'API refuse.
 function estInactif(u) {
   const today = new Date().toISOString().slice(0, 10);
@@ -110,7 +110,7 @@ export default function UsersPage() {
       const status = computeStatus(u);
       if (filterStatut === 'actifs'   && estInactif(u)) return false;
       if (filterStatut === 'inactifs' && !estInactif(u)) return false;
-      // Les autres valeurs restent un filtrage fin par libelle de statut.
+      // Les autres valeurs restent un filtrage fin par libellé de statut.
       if (filterStatut && !['actifs', 'inactifs', 'tous'].includes(filterStatut) && status.label !== filterStatut) return false;
       if (debouncedSearch) {
         const q = debouncedSearch.toLowerCase();
@@ -174,8 +174,8 @@ export default function UsersPage() {
     await load();
   }
 
-  // Les quatre cas passent par le meme appel : la modale a deja construit le
-  // payload, ne reste que le message a choisir.
+  // Les quatre cas passent par le même appel : la modale a déjà construit le
+  // payload, ne reste que le message à choisir.
   function messageStatut(payload) {
     if (payload.actif === false) return { type: 'info', message: 'Utilisateur désactivé.' };
     if (payload.date_finale) return { type: 'info', message: `Désactivation programmée au ${formatDate(payload.date_finale)}.` };
@@ -190,7 +190,7 @@ export default function UsersPage() {
       await load();
     } catch (err) {
       addToast({ type: 'error', message: err.message });
-      // Relance : la modale garde alors sa saisie au lieu de se fermer sur un echec.
+      // Relance : la modale garde alors sa saisie au lieu de se fermer sur un échec.
       throw err;
     }
   }
@@ -208,7 +208,7 @@ export default function UsersPage() {
       csvValue: r => formatDate(r.date_mise_en_fonction) },
     { key: 'date_finale', label: 'Date de désactivation', sortable: true,
       // Le tri porte sur la valeur brute, au format ISO : son ordre
-      // lexicographique est deja chronologique. Trier sur le rendu JJ/MM/AAAA
+      // lexicographique est déjà chronologique. Trier sur le rendu JJ/MM/AAAA
       // classerait par jour du mois.
       render: r => formatDate(r.date_finale) || '-',
       csvValue: r => formatDate(r.date_finale) },
@@ -273,13 +273,13 @@ export default function UsersPage() {
 
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
         <DataTable columns={columns} data={filtered} filename="utilisateurs" isLoading={isLoading} emptyState={{ message: 'Aucun utilisateur ne correspond aux filtres.' }} rowClassName={r => estInactif(r)
-          // L'attenuation porte sur les cellules et non sur la ligne :
+          // L'atténuation porte sur les cellules et non sur la ligne :
           // opacity sur le <tr> s'appliquerait aussi aux boutons d'action, et
-          // aucun enfant ne peut la contrarier, la propriete creant un
-          // contexte d'empilement. La derniere cellule, celle des actions, est
+          // aucun enfant ne peut la contrarier, la propriété créant un
+          // contexte d'empilement. La dernière cellule, celle des actions, est
           // donc exclue pour que les trois boutons restent nets et se lisent
-          // comme utilisables. Le fond colore reste porte par la ligne, il
-          // n'est pas concerne par l'opacite des cellules.
+          // comme utilisables. Le fond coloré reste porté par la ligne, il
+          // n'est pas concerné par l'opacité des cellules.
           ? '[&>td:not(:last-child)]:opacity-60 bg-[rgb(255_0_0_/_10%)]'
           : ''} />
       </div>
