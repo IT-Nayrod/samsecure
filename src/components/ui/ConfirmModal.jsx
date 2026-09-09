@@ -1,4 +1,4 @@
-// ConfirmModal - Section 8 Specs UX v0.5
+// Modale de confirmation d'une action, avec variante destructive.
 import { useState } from 'react';
 import Modal from './Modal';
 import Button from './Button';

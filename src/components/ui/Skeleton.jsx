@@ -1,4 +1,4 @@
-// Skeleton - Section 8 Specs UX v0.5
+// Lignes de chargement (squelette) pour les listes et les fiches.
 export default function Skeleton({ lines = 1, height = 'h-4', width = 'w-full' }) {
   return (
     <div className="flex flex-col gap-2">
