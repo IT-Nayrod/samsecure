@@ -1,11 +1,11 @@
-// inventaireService - acces API du module inventaire (#111).
-// Meme convention que documentsService : aucun fetch direct, http.js porte le
+// inventaireService - accès API du module inventaire (#111).
+// Même convention que documentsService : aucun fetch direct, http.js porte le
 // Bearer, le refresh sur 401, la normalisation des erreurs en ApiError
-// (message = champ "error", code = code_retour 4200-4299) et le deballage de
+// (message = champ "error", code = code_retour 4200-4299) et le déballage de
 // l'enveloppe { code, type, libelle, data }.
 //
-// Doctrine actee : l'outil constate et alerte, il ne cree ni ne modifie jamais
-// une affectation. Les quatre transitions ci-dessous ne touchent que le releve.
+// Doctrine actée : l'outil constate et alerte, il ne crée ni ne modifie jamais
+// une affectation. Les quatre transitions ci-dessous ne touchent que le relevé.
 import { http } from './http';
 
 function query(filtres = {}) {
@@ -16,9 +16,9 @@ function query(filtres = {}) {
 }
 
 export const inventaireService = {
-  // Import manuel d'un fichier csv de releve. Le champ doit s'appeler
-  // "fichier", nom attendu par multer cote serveur. id_societe optionnel :
-  // societe par defaut des lignes sans colonne societe.
+  // Import manuel d'un fichier csv de relevé. Le champ doit s'appeler
+  // "fichier", nom attendu par multer côté serveur. id_societe optionnel :
+  // société par défaut des lignes sans colonne societe.
   importer: ({ file, idSociete }) => {
     const fd = new FormData();
     fd.append('fichier', file);
@@ -44,7 +44,7 @@ export const inventaireService = {
   reouvrir:    (id)                => http.post(`/inventaire/releves/${id}/reouvrir`, {}),
 };
 
-// Route d'administration non enveloppee : liste nue { id, raison_sociale }.
+// Route d'administration non enveloppée : liste nue { id, raison_sociale }.
 export const societesInventaireService = {
   list: () => http.get('/societes'),
 };

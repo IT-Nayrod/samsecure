@@ -1,7 +1,7 @@
-// useContratsRef - liste des contrats en lecture seule, pour les ecrans qui n'ont
-  // besoin que d'un selecteur ou d'un libelle de contrat (commandes, documents).
+// useContratsRef - liste des contrats en lecture seule, pour les écrans qui n'ont
+  // besoin que d'un sélecteur ou d'un libellé de contrat (commandes, documents).
   // getContrat garde la signature du helper mock qu'il remplace, ce qui limite la
-  // retouche des composants a la ligne d'import.
+  // retouche des composants à la ligne d'import.
   import { useState, useEffect, useCallback, useMemo } from 'react';
   import { contratsService } from '../services/contratsService';
 

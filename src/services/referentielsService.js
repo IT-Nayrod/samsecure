@@ -1,14 +1,14 @@
-// referentielsService - referentiels du module 1 : editeurs et logiciels.
+// referentielsService - référentiels du module 1 : éditeurs et logiciels.
 //
-// Meme convention que les autres services : aucun fetch direct, http.js porte
+// Même convention que les autres services : aucun fetch direct, http.js porte
 // le Bearer, le refresh sur 401 et la normalisation des erreurs en ApiError
-// (message = champ "error" affiche tel quel, code = code_retour, #68) et le
-// deballage de l'enveloppe { code, type, libelle, data }.
+// (message = champ "error" affiché tel quel, code = code_retour, #68) et le
+// déballage de l'enveloppe { code, type, libelle, data }.
 //
-// Les logiciels melent deux origines, catalogue global et produits client, que
+// Les logiciels mêlent deux origines, catalogue global et produits client, que
 // l'API sert sous une forme unique : chaque ligne porte source et modifiable.
-// Le front n'a pas a savoir de quelle base elle vient, seulement si elle
-// s'ecrit.
+// Le front n'a pas à savoir de quelle base elle vient, seulement si elle
+// s'écrit.
 import { http } from './http';
 
 export const editeursService = {
@@ -18,10 +18,10 @@ export const editeursService = {
   update: (id, payload) => http.patch(`/editeurs/${id}`, payload),
   remove: (id)          => http.delete(`/editeurs/${id}`),
 
-  // Recherche incrementale du formulaire, appelee au fil de la frappe. Sert une
-  // reponse pauvre et bornee ({ suggestions, total }), sans les compteurs ni la
-  // conformite de list() : une frappe ne doit pas couter une lecture des deux
-  // bases. exclure ecarte l'editeur en cours de modification.
+  // Recherche incrémentale du formulaire, appelée au fil de la frappe. Sert une
+  // réponse pauvre et bornée ({ suggestions, total }), sans les compteurs ni la
+  // conformité de list() : une frappe ne doit pas coûter une lecture des deux
+  // bases. exclure écarte l'éditeur en cours de modification.
   rechercher: (q, { exclure, limite } = {}) => {
     const params = new URLSearchParams({ q });
     if (exclure) params.set('exclure', exclure);
@@ -44,23 +44,23 @@ export const logicielsService = {
 };
 
 export const revendeursService = {
-  // Les desactives sont masques par defaut cote API : cette meme route sert de
-  // selecteur aux formulaires contrat et commande, ou proposer un revendeur
-  // retire du catalogue serait une erreur.
+  // Les désactivés sont masqués par défaut côté API : cette même route sert de
+  // sélecteur aux formulaires contrat et commande, ou proposer un revendeur
+  // retiré du catalogue serait une erreur.
   list:   ({ inclureInactifs = false } = {}) =>
     http.get(`/revendeurs${inclureInactifs ? '?inclure_inactifs=1' : ''}`),
   get:    (id)          => http.get(`/revendeurs/${id}`),
   create: (payload)     => http.post('/revendeurs', payload),
   update: (id, payload) => http.patch(`/revendeurs/${id}`, payload),
 
-  // Pas de suppression : quatre tables referencent un revendeur et doivent
-  // continuer de le nommer. Le retrait est reversible.
+  // Pas de suppression : quatre tables référencent un revendeur et doivent
+  // continuer de le nommer. Le retrait est réversible.
   desactiver: (id) => http.post(`/revendeurs/${id}/desactiver`),
   reactiver:  (id) => http.post(`/revendeurs/${id}/reactiver`),
 
-  // Recherche incrementale du formulaire, appelee au fil de la frappe. Reponse
-  // pauvre et bornee ({ suggestions, total }), insensible a la casse et aux
-  // accents. exclure ecarte le revendeur en cours de modification.
+  // Recherche incrémentale du formulaire, appelée au fil de la frappe. Réponse
+  // pauvre et bornée ({ suggestions, total }), insensible à la casse et aux
+  // accents. exclure écarte le revendeur en cours de modification.
   rechercher: (q, { exclure, limite } = {}) => {
     const params = new URLSearchParams({ q });
     if (exclure) params.set('exclure', exclure);
@@ -69,10 +69,10 @@ export const revendeursService = {
   },
 };
 
-// Un produit porte les champs de son editeur a plat (editeur_label,
-// editeur_url_logo_defaut, editeur_url_logo_custom), l'editeur vivant dans
-// l'autre base et etant resolu par l'API. LogoEditeur attend la forme d'un
-// editeur : ce petit adaptateur evite de le recopier dans chaque ecran.
+// Un produit porte les champs de son éditeur à plat (editeur_label,
+// editeur_url_logo_defaut, editeur_url_logo_custom), l'éditeur vivant dans
+// l'autre base et étant résolu par l'API. LogoEditeur attend la forme d'un
+// éditeur : ce petit adaptateur évite de le recopier dans chaque écran.
 export function editeurDuProduit(produit) {
   if (!produit?.id_editeur) return null;
   return {

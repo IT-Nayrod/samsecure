@@ -1,4 +1,5 @@
-// NotifContext - Section 6 Specs UX v0.5
+// Contexte des notifications : liste en mémoire (données de démonstration),
+// lecture et archivage.
 import { createContext, useState, useCallback } from 'react';
 import { mockNotifications } from '../data/mockNotifications';
 

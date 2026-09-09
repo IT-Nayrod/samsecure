@@ -1,20 +1,20 @@
-// dashboardService - acces API du module dashboards (US #190, taches #191 et
-// #192). Meme convention que budgetService et contratsService : aucun fetch
+// dashboardService - accès API du module dashboards (US #190, tâches #191 et
+// #192). Même convention que budgetService et contratsService : aucun fetch
 // direct, http.js porte le Bearer, le refresh sur 401, la normalisation des
 // erreurs en ApiError (message = champ "error" de l'enveloppe, code =
-// code_retour 5450-5499) et le deballage de l'enveloppe.
-// Une fonction par appel, aucune logique metier.
+// code_retour 5450-5499) et le déballage de l'enveloppe.
+// Une fonction par appel, aucune logique métier.
 //
 // Deux familles d'appels :
-//   - le routeur dashboards (configuration, preferences, synthese, agregats
+//   - le routeur dashboards (configuration, préférences, synthèse, agrégats
 //     financiers par axe) ;
-//   - le contrat d'interface conformite / qualite / confiance, en cours
-//     d'ecriture en parallele : ces fonctions sont codees contre le contrat,
-//     un 404 a l'integration est rendu tel quel et le widget affiche son
-//     etat d'erreur propre.
+//   - le contrat d'interface conformité / qualité / confiance, en cours
+//     d'écriture en parallèle : ces fonctions sont codées contre le contrat,
+//     un 404 à l'intégration est rendu tel quel et le widget affiche son
+//     état d'erreur propre.
 import { http } from './http';
 
-// Un selecteur vide envoie '' : c'est une absence de filtre, jamais une valeur.
+// Un sélecteur vide envoie '' : c'est une absence de filtre, jamais une valeur.
 function query(filtres = {}) {
   const q = new URLSearchParams(
     Object.entries(filtres).filter(([, v]) => v !== undefined && v !== null && v !== '')
@@ -23,37 +23,37 @@ function query(filtres = {}) {
 }
 
 export const dashboardService = {
-  // Configuration complete : widgets par profil (defauts Commune surcharges
-  // par le tenant), seuils effectifs, preferences individuelles, profil actif.
+  // Configuration complète : widgets par profil (défauts Commune surchargés
+  // par le tenant), seuils effectifs, préférences individuelles, profil actif.
   configuration: () => http.get('/dashboards/configuration'),
 
-  // Masquage et ordre des widgets de l'utilisateur connecte.
+  // Masquage et ordre des widgets de l'utilisateur connecté.
   // prefs : [{ widget_code, visible, position }]
   enregistrerPreferences: (prefs) =>
     http.put('/dashboards/preferences', { preferences: prefs }),
 
-  // Compteurs du workflow de validation, fil des dernieres saisies,
-  // repartition des revalidations par proximite d'echeance.
+  // Compteurs du workflow de validation, fil des dernières saisies,
+  // répartition des revalidations par proximité d'échéance.
   synthese: () => http.get('/dashboards/synthese'),
 
-  // Montants totaux par axe (editeur, societe, produit), periode optionnelle
+  // Montants totaux par axe (editeur, societe, produit), période optionnelle
   // date_debut / date_fin sur la date de commande.
   montantsTotaux: (filtres = {}) => http.get(`/dashboards/montants-totaux${query(filtres)}`),
 
-  // Montants commandes et payes par editeur (precalcul_financier), periode
+  // Montants commandes et payés par éditeur (precalcul_financier), période
   // optionnelle date_debut / date_fin, filtre id_societe.
   engagesPayes: (filtres = {}) => http.get(`/dashboards/engages-payes${query(filtres)}`),
 };
 
-// Contrat d'interface conformite, qualite des saisies et indice de confiance
-// (routes ecrites en parallele sur le meme contrat).
+// Contrat d'interface conformité, qualité des saisies et indice de confiance
+// (routes écrites en parallèle sur le même contrat).
 export const conformiteService = {
-  // Filtres : id_societe, id_editeur, id_produit. Reponse : lignes[] par
+  // Filtres : id_societe, id_editeur, id_produit. Réponse : lignes[] par
   // produit (droits, usages, ecart, ecart_pct, ecart_valorise, statut) et
-  // agregats (nb par statut, ecarts valorises, derniere_maj).
+  // agrégats (nb par statut, écarts valorisés, derniere_maj).
   list: (filtres = {}) => http.get(`/conformite${query(filtres)}`),
 
-  // niveau : global, editeur ou societe. Memes agregats par ligne.
+  // niveau : global, éditeur ou société. Mêmes agrégats par ligne.
   synthese: (niveau = 'global') => http.get(`/conformite/synthese${query({ niveau })}`),
 };
 

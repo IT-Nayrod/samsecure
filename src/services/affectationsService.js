@@ -1,7 +1,7 @@
-// affectationsService - acces API du module 3, bloc affectations (#106).
-// Meme convention que commandesService : aucun fetch direct, http.js porte le
+// affectationsService - accès API du module 3, bloc affectations (#106).
+// Même convention que commandesService : aucun fetch direct, http.js porte le
 // Bearer, le refresh sur 401, la normalisation des erreurs en ApiError
-// (message = champ "error", code = code_retour) et le deballage de l'enveloppe.
+// (message = champ "error", code = code_retour) et le déballage de l'enveloppe.
 // La validation et le refus passent par validationService avec l'entite_type
 // "affectation" : circuit unique du module 2, pas de second workflow.
 import { http } from './http';
@@ -20,10 +20,10 @@ export const affectationsService = {
   update:    (id, payload)  => http.patch(`/affectations/${id}`, payload),
   remove:    (id)           => http.delete(`/affectations/${id}`),
   revalider: (id)           => http.post(`/affectations/${id}/revalider`),
-  // Decompte pour la conformite : somme brute par produit et societe.
+  // Décompte pour la conformité : somme brute par produit et société.
   decompte:  (filtres)      => http.get(avecParams('/affectations/decompte', filtres)),
-  // Historique des declarations (table historique_declaration) par societe,
-  // ou restreint a une affectation.
+  // Historique des déclarations (table historique_declaration) par société,
+  // ou restreint à une affectation.
   historique: (filtres)     => http.get(avecParams('/affectations/historique', filtres)),
 };
 
