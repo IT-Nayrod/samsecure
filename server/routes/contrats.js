@@ -1,3 +1,6 @@
+// Contrats du module 2 : saisie sous workflow de validation, rattachement à un
+// contrat cadre avec contrôle de cycle, archivage et restauration.
+
 import express from "express";
 import { tenantPool } from "../db.js";
 import { succes, erreur, erreurPivot } from "../utils/reponse.js";
@@ -7,10 +10,10 @@ import {
 
 const router = express.Router();
 
-// Convention du projet : helper de journalisation local a chaque routeur.
+// Convention du projet : helper de journalisation local à chaque routeur.
 // id_auteur est lu dans req.user (session JWT), comme le fait audit() : les
-// quatre routeurs de saisie sont montes apres authMiddleware, req.user est
-// donc toujours renseigne. Jamais un id arbitraire : la FK vers utilisateur
+// quatre routeurs de saisie sont montés après authMiddleware, req.user est
+// donc toujours renseigné. Jamais un id arbitraire : la FK vers utilisateur
 // ferait avorter la transaction en cours.
 async function log(client, req, action, entite_type, entite_id, description, payload) {
   try {
@@ -25,9 +28,9 @@ async function log(client, req, action, entite_type, entite_id, description, pay
   }
 }
 
-// Statut d'echeance : source unique de verite, jamais recalcule cote front.
+// Statut d'échéance : source unique de vérité, jamais recalculé côté front.
 // Ordre volontaire : perpetuel prime (pas de date_fin), puis expire prime sur
-// a_renouveler (un contrat echu n'est pas "a renouveler").
+// a_renouveler (un contrat échu n'est pas "a renouveler").
 const STATUT_ECHEANCE = `
   CASE
     WHEN c.date_fin IS NULL                              THEN 'perpetuel'
@@ -37,14 +40,14 @@ const STATUT_ECHEANCE = `
     ELSE 'actif'
   END AS statut_echeance`;
 
-// Projection identique en liste et en detail : garantit qu'aucun champ
-// n'apparaisse dans un ecran et pas dans l'autre.
+// Projection identique en liste et en détail : garantit qu'aucun champ
+// n'apparaisse dans un écran et pas dans l'autre.
 // Garde-fou : un :id non UUID part sinon en Postgres et ressort en 500 illisible
-// la ou le contrat est simplement introuvable.
+// là où le contrat est simplement introuvable.
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-// Projection identique en liste et en detail : garantit qu'aucun champ
-// n'apparaisse dans un ecran et pas dans l'autre.
+// Projection identique en liste et en détail : garantit qu'aucun champ
+// n'apparaisse dans un écran et pas dans l'autre.
 const SELECT_CONTRAT = `
   SELECT c.id, c.label,
          c.id_type_contrat, tc.code AS type_code, tc.label AS type_label,
@@ -71,9 +74,9 @@ const SELECT_CONTRAT = `
   LEFT JOIN utilisateur  ua ON ua.id = c.id_archive_par
   ${jointureStatut("contrat", "c")}`;
 
-// Trace probante de l'archivage, distincte du journal fonctionnel, meme gabarit
+// Trace probante de l'archivage, distincte du journal fonctionnel, même gabarit
 // que factures.js et preuves.js : elle n'avale pas ses erreurs, une trace
-// manquante doit faire echouer l'operation.
+// manquante doit faire échouer l'opération.
 async function audit(client, req, action, entiteId, avant, apres) {
   await client.query(
     `INSERT INTO audit_log (id_utilisateur, action, entite_type, entite_id,
@@ -86,11 +89,11 @@ async function audit(client, req, action, entiteId, avant, apres) {
   );
 }
 
-// Un contrat est supprimable tant qu'aucune de ses entrees workflow_validation
-// n'a atteint le statut valide ou a_revalider (#96). Les entrees en_attente et
-// refuse ne bloquent pas : toute creation par l'interface soumet le contrat,
-// sinon rien ne serait jamais supprimable. Les entrees traitees restent en
-// base apres une resoumission, l'historique fait donc foi. Au-dela, seul
+// Un contrat est supprimable tant qu'aucune de ses entrées workflow_validation
+// n'a atteint le statut valide ou a_revalider (#96). Les entrées en_attente et
+// refusé ne bloquent pas : toute création par l'interface soumet le contrat,
+// sinon rien ne serait jamais supprimable. Les entrées traitées restent en
+// base après une resoumission, l'historique fait donc foi. Au-delà, seul
 // l'archivage retire le contrat de la vue courante.
 async function jamaisValide(client, id) {
   const { rowCount } = await client.query(
@@ -102,7 +105,7 @@ async function jamaisValide(client, id) {
   return rowCount === 0;
 }
 
-// Colonnes metier ecrivables, dans l'ordre des parametres d'INSERT et d'UPDATE.
+// Colonnes métier écrivables, dans l'ordre des paramètres d'INSERT et d'UPDATE.
 const CHAMPS = [
   "label", "id_type_contrat", "id_editeur", "id_societe", "id_revendeur",
   "id_contrat_parent", "date_debut", "date_fin", "a_renouveler", "duree_resiliation",
@@ -110,7 +113,7 @@ const CHAMPS = [
 
 // Un <select> vide et un <input type="date"> vide envoient "" et non null.
 // Sans cette normalisation, "" part sur une colonne UUID ou DATE et produit une
-// 22P02 brute remontee en 500.
+// 22P02 brute remontée en 500.
 function normaliserCorps(body = {}) {
   const vide = (v) => (v === "" || v === undefined ? null : v);
   return {
@@ -127,8 +130,8 @@ function normaliserCorps(body = {}) {
   };
 }
 
-// Verifie l'existence d'une reference. Evite qu'un UUID inconnu remonte en
-// 23503 brute transformee en 500 illisible.
+// Vérifie l'existence d'une référence. Évite qu'un UUID inconnu remonte en
+// 23503 brute transformée en 500 illisible.
 async function existe(client, table, id) {
   if (!id) return true;
   const { rowCount } = await client.query(`SELECT 1 FROM ${table} WHERE id = $1`, [id]);
@@ -143,8 +146,8 @@ async function validerContrat(client, body) {
   if (!id_type_contrat)
     return { status: 400, code: 3012, error: "Le type de contrat est obligatoire." };
   // Obligatoires depuis le retour de Samuel (#95). Pas de NOT NULL en base : un
-  // contrat existant qui en manque reste consultable, il n'est refuse qu'a sa
-  // prochaine modification puisque le PATCH valide l'enregistrement fusionne.
+  // contrat existant qui en manque reste consultable, il n'est refusé qu'à sa
+  // prochaine modification puisque le PATCH valide l'enregistrement fusionné.
   if (!id_editeur)
     return { status: 400, code: 3022, error: "L'editeur est obligatoire." };
   if (!id_societe)
@@ -168,10 +171,10 @@ async function validerContrat(client, body) {
   return null;
 }
 
-// Rattachement : le parent est accepte quel que soit son type. Seul le cycle
-// est bloquant. Un parent non cadre est trace dans anomalie_qualite sans
-// empecher l'operation (decision du 10/08).
-// Retourne { erreur } bloquant, { anomalie } a inserer, ou {}.
+// Rattachement : le parent est accepté quel que soit son type. Seul le cycle
+// est bloquant. Un parent non cadré est tracé dans anomalie_qualite sans
+// empêcher l'opération (décision du 10/08).
+// Retourne { erreur } bloquant, { anomalie } à insérer, ou {}.
 async function verifierParent(client, idParent, idContrat) {
   if (!idParent) return {};
 
@@ -189,9 +192,9 @@ async function verifierParent(client, idParent, idContrat) {
     return { erreur: { status: 400, code: 3018, error: "Contrat parent introuvable." } };
   }
 
-  // Cycle : on remonte la chaine des parents depuis le parent vise. Si l'on
-  // retombe sur le contrat modifie, le rattachement fermerait une boucle.
-  // En creation (idContrat null), le controle est sans objet.
+  // Cycle : on remonte la chaîne des parents depuis le parent visé. Si l'on
+  // retombe sur le contrat modifié, le rattachement fermerait une boucle.
+  // En création (idContrat null), le contrôle est sans objet.
   if (idContrat) {
     const { rows: cycle } = await client.query(
       `WITH RECURSIVE chaine AS (
@@ -216,9 +219,9 @@ async function verifierParent(client, idParent, idContrat) {
   return { parent };
 }
 
-// Plage du parent : un enfant qui en sort n'est jamais refuse, il est trace dans
-// anomalie_qualite sous un type propre, distinct de l'incoherence de type cadre
-// pour que les deux signalements coexistent et se resolvent independamment.
+// Plage du parent : un enfant qui en sort n'est jamais refusé, il est tracé dans
+// anomalie_qualite sous un type propre, distinct de l'incohérence de type cadré
+// pour que les deux signalements coexistent et se résolvent indépendamment.
 function horsPlageParent(corps, parent) {
   if (!parent) return false;
   const debutAvant = parent.date_debut && corps.date_debut && corps.date_debut < parent.date_debut;
@@ -248,11 +251,11 @@ async function resoudreHorsPlageParent(client, idContrat) {
   );
 }
 
-// Premiere ecriture applicative dans anomalie_qualite : la table existe depuis
-// la migration 002 mais n'a jamais servi. Le vocabulaire pose ici fait
+// Première écriture applicative dans anomalie_qualite : la table existe depuis
+// la migration 002 mais n'a jamais servi. Le vocabulaire posé ici fait
 // convention pour les futurs producteurs d'anomalies.
-// Transactionnelle : le critere de validation exige que la ligne existe apres
-// l'operation, contrairement a log() qui avale ses erreurs.
+// Transactionnelle : le critère de validation exige que la ligne existe après
+// l'opération, contrairement à log() qui avale ses erreurs.
 async function signalerParentNonCadre(client, idContrat, labelContrat, labelParent) {
   // code_retour: 3021
   await client.query(
@@ -267,8 +270,8 @@ async function signalerParentNonCadre(client, idContrat, labelContrat, labelPare
   );
 }
 
-// Symetrique : quand le contrat est rattache a un cadre ou detache, l'anomalie
-// existante n'a plus lieu d'etre.
+// Symétrique : quand le contrat est rattaché à un cadre ou détaché, l'anomalie
+// existante n'a plus lieu d'être.
 async function resoudreAnomalieParent(client, idContrat) {
   await client.query(
     `UPDATE anomalie_qualite SET resolu = true
@@ -279,7 +282,7 @@ async function resoudreAnomalieParent(client, idContrat) {
 }
 router.get("/contrats", async (req, res) => {
   try {
-    // Les archives sont masques par defaut ; inclure_archives=1 les sert avec
+    // Les archives sont masquées par défaut ; inclure_archives=1 les sert avec
     // les autres, la colonne archive permettant au front de les distinguer.
     const inclureArchives = ["1", "true"].includes(String(req.query.inclure_archives ?? ""));
     const { rows } = await tenantPool.query(
@@ -299,15 +302,15 @@ router.get("/contrats/:id", async (req, res) => {
     const { rows } = await tenantPool.query(`${SELECT_CONTRAT} WHERE c.id = $1`, [id]);
     if (!rows.length) return erreur(res, 3010, { status: 404, message: "Contrat introuvable." });
 
-    // Memes compteurs que le garde-fou de suppression : la fiche detail affiche
-    // le nombre reel de rattachements sans dependre des modules non branches.
+    // Mêmes compteurs que le garde-fou de suppression : la fiche détail affiche
+    // le nombre réel de rattachements sans dépendre des modules non branchés.
     const { rows: [liens] } = await tenantPool.query(
       `SELECT (SELECT count(*) FROM commande WHERE id_contrat = $1)::int        AS nb_commandes,
               (SELECT count(*) FROM preuve   WHERE id_contrat = $1)::int        AS nb_preuves,
               (SELECT count(*) FROM contrat  WHERE id_contrat_parent = $1)::int AS nb_sous_contrats`,
       [id]);
 
-    // supprimable : l'API fait foi, le front n'affiche Supprimer que sur sa reponse.
+    // supprimable : l'API fait foi, le front n'affiche Supprimer que sur sa réponse.
     const supprimable = await jamaisValide(tenantPool, id);
 
     succes(res, 3001, { ...rows[0], ...liens, supprimable });
@@ -352,9 +355,9 @@ router.post("/contrats", async (req, res) => {
       await signalerHorsPlageParent(client, cree.id, label, parent.parent.label);
     }
 
-    // Toute saisie part en attente de validation, dans la meme transaction que
-    // l'ecriture metier : un contrat cree sans son entree de workflow serait
-    // invisible du controle, donc jamais validable.
+    // Toute saisie part en attente de validation, dans la même transaction que
+    // l'écriture métier : un contrat créé sans son entrée de workflow serait
+    // invisible du contrôle, donc jamais validable.
     await soumettre(client, "contrat", cree.id, req.user?.id);
 
     await log(client, req, "CREATE", "contrat", cree.id, `Creation du contrat "${label}"`, corps);
@@ -383,7 +386,7 @@ router.patch("/contrats/:id", async (req, res) => {
       return erreur(res, 3010, { status: 404, message: "Contrat introuvable." });
     }
 
-    // Dates lues en texte : validerContrat compare des chaines ISO, un objet
+    // Dates lues en texte : validerContrat compare des chaînes ISO, un objet
     // Date de pg fausserait la comparaison date_debut > date_fin.
     const { rows: existant } = await client.query(
       `SELECT label, id_type_contrat, id_editeur, id_societe, id_revendeur, id_contrat_parent,
@@ -395,7 +398,7 @@ router.patch("/contrats/:id", async (req, res) => {
       return erreur(res, 3010, { status: 404, message: "Contrat introuvable." });
     }
 
-    // Un contrat archive est fige jusqu'a sa restauration (#96).
+    // Un contrat archivé est figé jusqu'à sa restauration (#96).
     if (existant[0].archive) {
       await client.query("ROLLBACK");
       return erreur(res, 3026, { status: 409,
@@ -403,8 +406,8 @@ router.patch("/contrats/:id", async (req, res) => {
     }
     delete existant[0].archive;
 
-    // Fusion avant validation : un PATCH partiel ne doit pas echouer sur un
-    // champ obligatoire qui n'a simplement pas ete transmis.
+    // Fusion avant validation : un PATCH partiel ne doit pas échouer sur un
+    // champ obligatoire qui n'a simplement pas été transmis.
     const patch = normaliserCorps(req.body);
     const corps = { ...existant[0] };
     for (const champ of CHAMPS) {
@@ -435,14 +438,14 @@ router.patch("/contrats/:id", async (req, res) => {
        corps.duree_resiliation, id]
     );
 
-    // Rattachement a un cadre ou detachement : l'anomalie eventuelle n'a plus lieu d'etre.
+    // Rattachement à un cadre ou détachement : l'anomalie éventuelle n'a plus lieu d'être.
     if (parent.anomalie) await signalerParentNonCadre(client, id, label, parent.anomalie.parentLabel);
     else await resoudreAnomalieParent(client, id);
     if (horsPlageParent(corps, parent.parent)) await signalerHorsPlageParent(client, id, label, parent.parent.label);
     else await resoudreHorsPlageParent(client, id);
 
-    // Une modification est une saisie : un contrat valide qui change repasse en
-    // attente, sans comparaison avant/apres. Decision de la #53.
+    // Une modification est une saisie : un contrat validé qui change repasse en
+    // attente, sans comparaison avant/après. Décision de la #53.
     await soumettre(client, "contrat", id, req.user?.id);
 
     await log(client, req, "UPDATE", "contrat", id, `Modification du contrat "${label}"`, patch);
@@ -477,18 +480,18 @@ router.delete("/contrats/:id", async (req, res) => {
       return erreur(res, 3010, { status: 404, message: "Contrat introuvable." });
     }
 
-    // Suppression reservee au contrat jamais valide (#96). Un contrat deja
-    // valide ou a revalider s'archive : rien n'est efface ici, la transaction
-    // est simplement annulee.
+    // Suppression réservée au contrat jamais validé (#96). Un contrat déjà
+    // validé ou à revalider s'archive : rien n'est effacé ici, la transaction
+    // est simplement annulée.
     if (!(await jamaisValide(client, id))) {
       await client.query("ROLLBACK");
       return erreur(res, 3027, { status: 409,
         message: "Suppression impossible : ce contrat a deja ete valide. Archivez-le." });
     }
 
-    // Les 3 FK entrantes du DDL v4. licence.id_contrat a ete supprimee par la
-    // migration 014 : les licences sont protegees transitivement, la
-    // suppression d'une commande controlant deja licence.id_commande.
+    // Les 3 FK entrantes du DDL v4. licence.id_contrat a été supprimée par la
+    // migration 014 : les licences sont protégées transitivement, la
+    // suppression d'une commande contrôlant déjà licence.id_commande.
     const { rows: [liens] } = await client.query(
       `SELECT (SELECT count(*) FROM commande WHERE id_contrat = $1)        AS commandes,
               (SELECT count(*) FROM preuve   WHERE id_contrat = $1)        AS preuves,
@@ -511,7 +514,7 @@ router.delete("/contrats/:id", async (req, res) => {
 
     await client.query(`DELETE FROM anomalie_qualite WHERE entite_type = 'contrat' AND entite_id = $1`, [id]);
     // workflow_validation.entite_id est polymorphe et sans FK : le nettoyage est
-    // applicatif, dans la meme transaction que la suppression.
+    // applicatif, dans la même transaction que la suppression.
     await purgerValidations(client, "contrat", id);
     await client.query(`DELETE FROM contrat WHERE id = $1`, [id]);
     await log(client, req, "DELETE", "contrat", id, `Suppression du contrat "${existant[0].label}"`, null);
@@ -527,7 +530,7 @@ router.delete("/contrats/:id", async (req, res) => {
 });
 
 // Archivage (#96) : retire le contrat de la vue courante sans rien effacer.
-// Meme droit que la suppression (saisir_contrat, routesPermissions.js). Aucune
+// Même droit que la suppression (saisir_contrat, routesPermissions.js). Aucune
 // cascade : sous-contrats et commandes restent tels quels.
 router.post("/contrats/:id/archiver", async (req, res) => {
   const { id } = req.params;

@@ -1,16 +1,16 @@
-// Traduction des entrees d'audit_log en evenements lisibles.
+// Traduction des entrées d'audit_log en événements lisibles.
 //
-// Vit a part de la route : les libelles sont un contrat avec le front et avec
+// Vit à part de la route : les libellés sont un contrat avec le front et avec
 // Samuel, ils doivent se relire d'un bloc sans traverser du SQL. Aucune
-// dependance a la base, la fonction est pure et testable telle quelle.
+// dépendance à la base, la fonction est pure et testable telle quelle.
 //
-// Gabarit acte le 13/08 : l'acteur ferme systematiquement la ligne, apres les
-// details eventuels. "par l'utilisateur" quand l'acteur est le titulaire du
-// compte lui-meme.
+// Gabarit acté le 13/08 : l'acteur ferme systématiquement la ligne, après les
+// détails éventuels. "par l'utilisateur" quand l'acteur est le titulaire du
+// compte lui-même.
 import { filtrerSensibles } from "./audit.js";
 
-// Noms metier des colonnes, pour que le libelle d'une modification nomme des
-// champs comprehensibles et non des identifiants techniques.
+// Noms métier des colonnes, pour que le libellé d'une modification nomme des
+// champs compréhensibles et non des identifiants techniques.
 const NOMS_CHAMPS = {
   nom: "nom",
   prenom: "prénom",
@@ -24,8 +24,8 @@ const NOMS_CHAMPS = {
   iban: "IBAN",
 };
 
-// Les dates sont stockees en text ISO (yyyy-mm-jj) depuis le correctif du
-// RETURNING. Le repli sur la chaine brute couvre les entrees anterieures, qui
+// Les dates sont stockées en text ISO (yyyy-mm-jj) depuis le correctif du
+// RETURNING. Le repli sur la chaîne brute couvre les entrées antérieures, qui
 // portent une date au format long : mieux vaut afficher "Fri Aug 14" que rien.
 function formatDateFr(valeur) {
   if (!valeur) return null;
@@ -40,7 +40,7 @@ function formatHorodatage(d) {
          `${p(date.getHours())}:${p(date.getMinutes())}`;
 }
 
-// L'adresse IP arrive souvent en IPv4 mappee IPv6 (::ffff:127.0.0.1) : la
+// L'adresse IP arrive souvent en IPv4 mappée IPv6 (::ffff:127.0.0.1) : la
 // forme longue n'apporte rien a un lecteur humain.
 function formatIp(ip) {
   if (!ip) return null;
@@ -51,8 +51,8 @@ export function traduireEvenement(ligne, idCompteCible) {
   const av = filtrerSensibles(ligne.valeur_avant) || {};
   const ap = filtrerSensibles(ligne.valeur_apres) || {};
   // Acteur : le titulaire agissant sur son propre compte devient
-  // "l'utilisateur". Un acteur inconnu, cas de la creation reconstituee depuis
-  // created_at, ne produit aucune mention plutot qu'un "par null".
+  // "l'utilisateur". Un acteur inconnu, cas de la création reconstituée depuis
+  // created_at, ne produit aucune mention plutôt qu'un "par null".
   let acteur = null;
   if (ligne.id_acteur && ligne.id_acteur === idCompteCible) acteur = "l'utilisateur";
   else if (ligne.acteur_prenom || ligne.acteur_nom) {
@@ -82,8 +82,8 @@ export function traduireEvenement(ligne, idCompteCible) {
       break;
     
     case "REINITIALISATION_DEMANDEE":
-      // mail_envoye absent sur les traces anterieures au socle mail (#87) :
-      // le libelle historique reste "envoyé", seul un echec explicite le change.
+      // mail_envoye absent sur les traces antérieures au socle mail (#87) :
+      // le libellé historique reste "envoyé", seul un échec explicite le change.
       libelle = ap.mail_envoye === false
         ? `Lien de réinitialisation émis, mail non envoyé${parActeur}`
         : `Lien de réinitialisation envoyé${parActeur}`;
@@ -133,7 +133,7 @@ export function traduireEvenement(ligne, idCompteCible) {
       break;
 
     case "EXCEPTION_AJOUTEE": {
-      // Le type de l'exception est nomme en clair : "accorde" et "retire" sont
+      // Le type de l'exception est nommé en clair : "accorde" et "retire" sont
       // le vocabulaire de la base, pas celui d'un lecteur.
       const sens = ap.type === "retire" ? "de retrait" : "d'accord";
       libelle = `Exception ${sens} sur "${ap.permission || "inconnue"}" ajoutée sur ${ap.portee || "toutes sociétés"}${parActeur}`;
@@ -180,9 +180,9 @@ export function traduireEvenement(ligne, idCompteCible) {
       break;
 
     default:
-      // Une action inconnue reste lisible plutot que d'etre masquee : une
-      // trace probante ne doit jamais disparaitre d'un historique parce que
-      // le traducteur n'a pas ete mis a jour.
+      // Une action inconnue reste lisible plutôt que d'être masquée : une
+      // trace probante ne doit jamais disparaître d'un historique parce que
+      // le traducteur n'a pas été mis à jour.
       libelle = `${ligne.action}${parActeur}`;
   }
 

@@ -1,30 +1,30 @@
-// budget - lignes budgetaires par licence, previsionnel et alloue (US #146,
+// Lignes budgétaires par licence, prévisionnel et alloué (US #146,
 // module 4 partie A).
 //
-// Meme convention que licences.js et commandes.js : enveloppe normalisee
-// (server/utils/reponse.js, codes 5100-5199 seedes par la migration 034),
+// Même convention que licences.js et commandes.js : enveloppe normalisée
+// (server/utils/reponse.js, codes 5100-5199 seedés par la migration 034),
 // helper log() vers journal_ecriture avec id_auteur, trace probante auditer()
-// vers audit_log sur chaque ecriture, controle d'existence des references avant
-// INSERT, transaction par ecriture, relecture de la projection apres commit.
+// vers audit_log sur chaque écriture, contrôle d'existence des références avant
+// INSERT, transaction par écriture, relecture de la projection après commit.
 //
-// Doctrine budget : l'organisation payeuse n'est JAMAIS stockee ni saisie sur
-// la ligne. Elle se deduit de la chaine licence -> commande d'origine ->
-// societe (commande.id_societe), et l'editeur du contrat de cette commande
+// Doctrine budget : l'organisation payeuse n'est JAMAIS stockée ni saisie sur
+// la ligne. Elle se déduit de la chaîne licence -> commande d'origine ->
+// société (commande.id_societe), et l'éditeur du contrat de cette commande
 // (contrat.id_editeur). La table budget ne porte que id_licence.
 //
-// Previsionnel et alloue vivent dans la table budget. L'engage vient des
-// donnees reelles, les commandes, lues dans precalcul_financier (016, 017) ou
-// directement dans commande quand le filtre descend a la licence ou au contrat
-// (le precalcul n'a pas ces axes) : jamais melange au previsionnel saisi, pas
-// de double previsionnel.
+// Prévisionnel et alloué vivent dans la table budget. L'engagé vient des
+// données réelles, les commandes, lues dans precalcul_financier (016, 017) ou
+// directement dans commande quand le filtre descend à la licence ou au contrat
+// (le précalcul n'a pas ces axes) : jamais mélangé au prévisionnel saisi, pas
+// de double prévisionnel.
 //
 // Exercices fiscaux : fonctions SQL exercice_fiscal_de / _debut / _fin
-// (migration 033), source unique. Un exercice est identifie par l'annee
-// civile de son premier jour ; le debut d'exercice est celui de la societe
-// payeuse, a defaut celui du tenant (tenant_config), a defaut le 1er janvier.
+// (migration 033), source unique. Un exercice est identifié par l'année
+// civile de son premier jour ; le début d'exercice est celui de la société
+// payeuse, à défaut celui du tenant (tenant_config), à défaut le 1er janvier.
 //
-// Les montants ne sont pas masques ici : la US donne la lecture du module a
-// IT Ops sans reserve, et une ligne budgetaire est par nature un montant.
+// Les montants ne sont pas masqués ici : la US donne la lecture du module à
+// IT Ops sans réserve, et une ligne budgétaire est par nature un montant.
 import express from "express";
 import { tenantPool, commonPool } from "../db.js";
 import { succes, erreur, erreurPivot } from "../utils/reponse.js";
@@ -32,9 +32,9 @@ import { auditer, diff } from "../utils/audit.js";
 
 const router = express.Router();
 
-// Convention du projet : helper de journalisation local a chaque routeur.
-// id_auteur est lu dans req.user (session JWT) : le routeur est monte apres
-// authMiddleware, req.user est donc toujours renseigne.
+// Convention du projet : helper de journalisation local à chaque routeur.
+// id_auteur est lu dans req.user (session JWT) : le routeur est monté après
+// authMiddleware, req.user est donc toujours renseigné.
 async function log(client, req, action, entite_type, entite_id, description, payload) {
   try {
     await client.query(
@@ -52,26 +52,26 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TYPES = ["previsionnel", "alloue"];
 
-// Facteur d'inflation constant impose par la US (3,5 % par an). Les colonnes
+// Facteur d'inflation constant imposé par la US (3,5 % par an). Les colonnes
 // tenant_config.taux_hausse_annuelle_defaut et editeur.taux_hausse_annuelle
-// existent et pourront le remplacer par decision ulterieure ; elles ne sont
+// existent et pourront le remplacer par décision ultérieure ; elles ne sont
 // pas lues ici.
 const TAUX_INFLATION = 0.035;
 
-// Borne de DECIMAL(12,2) : au-dela, Postgres repond 22003 en 500 illisible.
+// Borne de DECIMAL(12,2) : au-delà, Postgres répond 22003 en 500 illisible.
 const MAX_DECIMAL = 9999999999.99;
 
-// Debut d'exercice applicable a une ligne : societe payeuse, sinon tenant,
+// Début d'exercice applicable à une ligne : société payeuse, sinon tenant,
 // sinon 1er janvier (sentinelle 2000, seuls jour et mois significatifs).
-// tenant_config est a ligne unique ; le LATERAL ... LIMIT 1 garantit qu'une
-// base sans ligne (aucun tenant provisionne) ou avec plusieurs ne casse ni ne
+// tenant_config est à ligne unique ; le LATERAL ... LIMIT 1 garantit qu'une
+// base sans ligne (aucun tenant provisionné) ou avec plusieurs ne casse ni ne
 // duplique rien.
 const JOIN_TENANT = `LEFT JOIN LATERAL (SELECT debut_exercice_fiscal_defaut FROM tenant_config LIMIT 1) tc ON true`;
 const DEBUT_EXERCICE = `COALESCE(s.debut_exercice_fiscal, tc.debut_exercice_fiscal_defaut, DATE '2000-01-01')`;
 
-// Projection identique en liste et en detail. Tout ce qui n'est pas une
-// colonne de budget est deduit : commande, contrat, editeur et societe par la
-// chaine, exercice par la fonction 033 sur date_debut.
+// Projection identique en liste et en détail. Tout ce qui n'est pas une
+// colonne de budget est déduit : commande, contrat, éditeur et société par la
+// chaîne, exercice par la fonction 033 sur date_debut.
 const SELECT_BUDGET = `
   SELECT b.id, b.id_licence, b.type,
          b.montant_capex::float8  AS montant_capex,
@@ -109,11 +109,11 @@ const CHAMPS = [
 ];
 
 // ---------------------------------------------------------------------------
-// Resolution du catalogue (BDD Commune)
+// Résolution du catalogue (BDD Commune)
 // ---------------------------------------------------------------------------
 
 // Les produits vivent en BDD Commune : aucune jointure possible, l'API fait le
-// pont. Une requete par reponse, jamais une par ligne.
+// pont. Une requête par réponse, jamais une par ligne.
 async function resoudreProduits(rows) {
   const ids = [...new Set(rows.map((r) => r.id_produit).filter(Boolean))];
   const produits = new Map();
@@ -148,9 +148,9 @@ async function existe(client, table, id) {
 
 const uuidValide = (v) => !v || UUID_RE.test(v);
 
-// Format ISO et date reelle : "2026-02-30" passe l'expression reguliere mais
-// sortirait en 22008 brute. Comparaison sur la forme normalisee pour refuser
-// aussi les depassements que Date recale (le 30 fevrier devient le 2 mars).
+// Format ISO et date réelle : "2026-02-30" passe l'expression régulière mais
+// sortirait en 22008 brute. Comparaison sur la forme normalisée pour refuser
+// aussi les dépassements que Date recale (le 30 février devient le 2 mars).
 function dateValide(s) {
   if (!DATE_RE.test(s)) return false;
   const t = Date.parse(`${s}T00:00:00Z`);
@@ -159,12 +159,12 @@ function dateValide(s) {
 
 const montantValide = (v) => Number.isFinite(v) && v >= 0 && v <= MAX_DECIMAL;
 
-// Un selecteur vide envoie "" : c'est une absence de valeur, jamais 0.
+// Un sélecteur vide envoie "" : c'est une absence de valeur, jamais 0.
 const absent = (v) => v === undefined || v === null || v === "";
 
-// Exercice demande en query string : absent (null), valide (entier borne), ou
-// refus 5124. Meme lecture pour la liste, l'engage, la synthese et le
-// preremplissage.
+// Exercice demandé en query string : absent (null), valide (entier borné), ou
+// refus 5124. Même lecture pour la liste, l'engagé, la synthèse et le
+// préremplissage.
 function lireExercice(v) {
   if (absent(v)) return { exercice: null };
   const ex = Number(v);
@@ -174,7 +174,7 @@ function lireExercice(v) {
 }
 
 // Un <select> vide et un <input type="date"> vide envoient "" et non null ;
-// Number("") vaut 0, d'ou le passage par vide() avant conversion.
+// Number("") vaut 0, d'où le passage par vide() avant conversion.
 function normaliserCorps(body = {}) {
   const vide = (v) => (v === "" || v === undefined ? null : v);
   const nombre = (v) => (vide(v) === null ? null : Number(v));
@@ -216,15 +216,15 @@ async function validerBudget(client, c) {
     return { status: 400, code: 5120, error: "Le montant OPEX doit etre un montant positif ou nul." };
   if (c.quantite_opex !== null && !montantValide(c.quantite_opex))
     return { status: 400, code: 5121, error: "La quantite OPEX doit etre un nombre positif ou nul." };
-  // Doublon de ck_budget_un_montant. Zero reste admis : un alloue a zero est
-  // une decision, pas une absence de saisie.
+  // Doublon de ck_budget_un_montant. Zéro reste admis : un alloué à zéro est
+  // une décision, pas une absence de saisie.
   if (c.montant_capex === null && c.montant_opex === null)
     return { status: 400, code: 5122, error: "Une ligne budgetaire porte au moins un montant, CAPEX ou OPEX." };
   return null;
 }
 
-// Etat de la ligne tel qu'il est audite : les colonnes brutes, pas la
-// projection (les libelles deduits ne sont pas des donnees de la ligne).
+// État de la ligne tel qu'il est audité : les colonnes brutes, pas la
+// projection (les libellés déduits ne sont pas des données de la ligne).
 const COLONNES_BRUTES = `id_licence, type,
     montant_capex::float8 AS montant_capex, quantite_capex::float8 AS quantite_capex,
     date_capex::text AS date_capex,
@@ -240,12 +240,12 @@ async function lireBrute(client, id, verrou = false) {
 const introuvable = (res) => erreur(res, 5110, { status: 404, message: "Ligne budgetaire introuvable." });
 
 // ---------------------------------------------------------------------------
-// Bornes d'exercice et de periode, communes a la liste, a l'engage et a la
-// synthese
+// Bornes d'exercice et de période, communes à la liste, à l'engagé et à la
+// synthèse
 // ---------------------------------------------------------------------------
 
-// Debut d'exercice applicable : celui de la societe demandee, sinon celui du
-// tenant. Renvoie null si la societe n'existe pas.
+// Début d'exercice applicable : celui de la société demandée, sinon celui du
+// tenant. Renvoie null si la société n'existe pas.
 async function debutExercice(idSociete) {
   const { rows: [r] } = await tenantPool.query(
     `SELECT s.id AS id_societe,
@@ -258,8 +258,8 @@ async function debutExercice(idSociete) {
   return r.debut;
 }
 
-// Deux modes, comme /commandes/agregats : exercice fiscal (par defaut
-// l'exercice courant de la societe ou du tenant), ou plage date_debut /
+// Deux modes, comme /commandes/agregats : exercice fiscal (par défaut
+// l'exercice courant de la société ou du tenant), ou plage date_debut /
 // date_fin libre. Renvoie soit { pivot } (refus), soit { bornes }.
 async function resoudreBornes(query) {
   const { exercice, date_debut, date_fin, id_societe } = query;
@@ -293,8 +293,8 @@ async function resoudreBornes(query) {
                      date_debut: b.date_debut, date_fin: b.date_fin, debut_exercice_fiscal: debut } };
 }
 
-// Bornes mensuelles d'une plage : le precalcul etant mensuel, une plage au
-// jour pres est servie au mois pres et les bornes appliquees sont renvoyees.
+// Bornes mensuelles d'une plage : le précalcul étant mensuel, une plage au
+// jour près est servie au mois près et les bornes appliquées sont renvoyées.
 function moisEntre(debut, fin) {
   const out = [];
   let [a, m] = debut.split("-").map(Number);
@@ -308,7 +308,7 @@ function moisEntre(debut, fin) {
 
 const centime = (x) => Math.round(x * 100) / 100;
 
-// Filtres d'axe communs a l'engage et a la synthese. Renvoie { pivot } ou
+// Filtres d'axe communs à l'engagé et à la synthèse. Renvoie { pivot } ou
 // { filtres }.
 function lireFiltresAxes(query) {
   const filtres = {};
@@ -321,14 +321,14 @@ function lireFiltresAxes(query) {
   return { filtres };
 }
 
-// Engage par mois, lu dans les donnees reelles. Source precalcul_financier
-// (axes editeur, societe, periode) tant que le filtre reste sur ces axes ;
-// des qu'il descend au contrat ou a la licence, axes que le precalcul n'a
-// pas, lecture directe de commande, sa source de verite (016 : "le precalcul
-// n'est qu'un cache"). Les deux chemins produisent les memes mesures.
-// Par licence, l'engage est le montant ENTIER des commandes d'origine de la
-// licence : une commande qui porte plusieurs licences n'est pas ventilee
-// entre elles (hypothese v0.5, ventilation a arbitrer avec Samuel).
+// Engagé par mois, lu dans les données réelles. Source precalcul_financier
+// (axes éditeur, société, période) tant que le filtre reste sur ces axes ;
+// dès qu'il descend au contrat ou à la licence, axes que le précalcul n'a
+// pas, lecture directe de commande, sa source de vérité (016 : "le précalcul
+// n'est qu'un cache"). Les deux chemins produisent les mêmes mesures.
+// Par licence, l'engagé est le montant ENTIER des commandes d'origine de la
+// licence : une commande qui porte plusieurs licences n'est pas ventilée
+// entre elles (hypothèse v0.5, ventilation à arbitrer avec Samuel).
 async function lireEngage(moisDebut, moisFin, f) {
   const parLicenceOuContrat = f.id_contrat || f.id_licence;
   const { rows } = parLicenceOuContrat
@@ -367,15 +367,15 @@ async function lireEngage(moisDebut, moisFin, f) {
 const CLES_ENGAGE = ["montant_commande", "montant_a_renouveler", "nb_commandes", "nb_a_renouveler"];
 
 // ---------------------------------------------------------------------------
-// Routes de lecture agregee, declarees AVANT /budget/:id : sinon Express fait
-// correspondre "engage", "synthese" ou "preremplissage" au parametre.
+// Routes de lecture agrégée, déclarées AVANT /budget/:id : sinon Express fait
+// correspondre "engage", "synthese" ou "preremplissage" au paramètre.
 // ---------------------------------------------------------------------------
 
-// Projection previsionnelle a partir de la maintenance en cours de la
-// licence. Rien n'est ecrit : la ligne renvoyee est prete a etre POSTee.
-// Base = periodes de maintenance_historique en cours a la date du jour (debut
-// atteint, fin nulle ou a venir), licence non arretee ; cout lu comme un cout
-// annuel. Exercice cible par defaut = exercice courant de la societe payeuse
+// Projection prévisionnelle à partir de la maintenance en cours de la
+// licence. Rien n'est écrit : la ligne renvoyée est prête à être POSTee.
+// Base = périodes de maintenance_historique en cours à la date du jour (début
+// atteint, fin nulle ou à venir), licence non arrêtée ; coût lu comme un coût
+// annuel. Exercice cible par défaut = exercice courant de la société payeuse
 // + 1 ; facteur = (1 + 3,5 %) ^ (cible - courant), jamais moins de 1.
 router.get("/budget/preremplissage", async (req, res) => {
   try {
@@ -421,8 +421,8 @@ router.get("/budget/preremplissage", async (req, res) => {
               exercice_fiscal_fin($1::int, $2::date)::text   AS date_fin`,
       [exerciceCible, licence.debut_exercice_fiscal]);
 
-    // Meme regle de statut que licences.js (STATUT_MAINTENANCE) : une
-    // maintenance arretee (version figee) ou absente (a_maintenance false, y
+    // Même règle de statut que licences.js (STATUT_MAINTENANCE) : une
+    // maintenance arrêtée (version figée) ou absente (a_maintenance false, y
     // compris par PATCH /licences) ne se projette pas, la base est vide quel
     // que soit l'historique.
     const arretee = licence.date_arret_maintenance !== null;
@@ -444,8 +444,8 @@ router.get("/budget/preremplissage", async (req, res) => {
     const nbCoutsInconnus = base.filter((h) => h.cout === null).length;
     const montantOpex = centime(baseMontant * facteur);
 
-    // Lignes deja saisies sur l'exercice cible : le front les affiche pour
-    // eviter un doublon de previsionnel.
+    // Lignes déjà saisies sur l'exercice cible : le front les affiche pour
+    // éviter un doublon de prévisionnel.
     const { rows: existantes } = await tenantPool.query(
       `SELECT b.id, b.type,
               b.date_debut::text AS date_debut, b.date_fin::text AS date_fin,
@@ -477,7 +477,7 @@ router.get("/budget/preremplissage", async (req, res) => {
       facteur_inflation: Math.round(facteur * 1e6) / 1e6,
       maintenance_arretee: arretee,
       // Raison d'une base vide, pour que le front affiche le bon message
-      // avec le 5130 : arretee, absente, ou aucune periode en cours.
+      // avec le 5130 : arrêtée, absente, ou aucune période en cours.
       motif_base_vide: base.length ? null
         : (arretee ? "maintenance_arretee"
           : (!licence.a_maintenance ? "maintenance_absente" : "aucune_periode_en_cours")),
@@ -498,8 +498,8 @@ router.get("/budget/preremplissage", async (req, res) => {
       lignes_existantes: existantes,
     };
 
-    // Un seul code par reponse : la projection vide prime sur la societe
-    // indeterminee, qui prime sur le succes plein.
+    // Un seul code par réponse : la projection vide prime sur la société
+    // indéterminée, qui prime sur le succès plein.
     const code = !base.length ? 5130 : (licence.id_societe === null ? 5131 : 5105);
     succes(res, code, data);
   } catch (err) {
@@ -508,8 +508,8 @@ router.get("/budget/preremplissage", async (req, res) => {
   }
 });
 
-// Engage, lu exclusivement dans les donnees reelles (commandes). Aucun
-// previsionnel n'entre ici.
+// Engagé, lu exclusivement dans les données réelles (commandes). Aucun
+// prévisionnel n'entre ici.
 router.get("/budget/engage", async (req, res) => {
   try {
     const axes = lireFiltresAxes(req.query);
@@ -522,14 +522,14 @@ router.get("/budget/engage", async (req, res) => {
     const moisFin = bornes.date_fin.slice(0, 7);
     const { source, parPeriode } = await lireEngage(moisDebut, moisFin, axes.filtres);
 
-    // Tous les mois de la plage sont renvoyes, les mois sans commande a 0.
+    // Tous les mois de la plage sont renvoyés, les mois sans commande à 0.
     const mois = moisEntre(moisDebut, moisFin).map((periode) => {
       const l = parPeriode.get(periode);
       const sortie = { periode, mois: Number(periode.slice(5)) };
       for (const c of CLES_ENGAGE) sortie[c] = l ? l[c] : 0;
       return sortie;
     });
-    // Totaux derives des mois, jamais requetes separement.
+    // Totaux dérivés des mois, jamais requêtés séparément.
     const totaux = {};
     for (const c of CLES_ENGAGE) totaux[c] = centime(mois.reduce((t, m) => t + m[c], 0));
 
@@ -548,10 +548,10 @@ router.get("/budget/engage", async (req, res) => {
   }
 });
 
-// Synthese mensuelle previsionnel / alloue / engage sur une periode. CAPEX
-// impute au mois de COALESCE(date_capex, date_debut), OPEX lisse a parts
-// egales sur les mois de [date_debut, date_fin] de la ligne (hypothese v0.5).
-// Sommes en numeric cote SQL, cast en float8 a la sortie seulement.
+// Synthèse mensuelle prévisionnel / alloué / engagé sur une période. CAPEX
+// imputé au mois de COALESCE(date_capex, date_debut), OPEX lissé à parts
+// égales sur les mois de [date_debut, date_fin] de la ligne (hypothèse v0.5).
+// Sommes en numeric côté SQL, cast en float8 à la sortie seulement.
 router.get("/budget/synthese", async (req, res) => {
   try {
     const axes = lireFiltresAxes(req.query);
@@ -595,11 +595,11 @@ router.get("/budget/synthese", async (req, res) => {
         ORDER BY m.periode`,
       [bornes.date_debut, bornes.date_fin, f.id_societe, f.id_editeur, f.id_contrat, f.id_licence]);
 
-    // Nombre de lignes qui recoupent la periode, par type : le front sait ainsi
-    // si une synthese a zero vient d'une absence de saisie ou de montants nuls.
-    // Meme granularite mensuelle que l'imputation ci-dessus (OPEX sur les mois
-    // de la ligne, CAPEX au mois de date_capex) : une ligne comptee est une
-    // ligne qui contribue, et reciproquement.
+    // Nombre de lignes qui recoupent la période, par type : le front sait ainsi
+    // si une synthèse à zéro vient d'une absence de saisie ou de montants nuls.
+    // Même granularité mensuelle que l'imputation ci-dessus (OPEX sur les mois
+    // de la ligne, CAPEX au mois de date_capex) : une ligne comptée est une
+    // ligne qui contribue, et réciproquement.
     const { rows: nbLignes } = await tenantPool.query(
       `SELECT b.type, count(*)::int AS nb
          FROM budget b
@@ -652,15 +652,15 @@ router.get("/budget/synthese", async (req, res) => {
     });
 
     // Totaux sommes sur les valeurs brutes puis arrondis une seule fois : douze
-    // parts de 100/12 redonnent 100. Un total peut differer d'un centime de la
-    // somme des mois affiches, c'est le prix d'un total juste.
+    // parts de 100/12 redonnent 100. Un total peut différer d'un centime de la
+    // somme des mois affichés, c'est le prix d'un total juste.
     const somme = (cle) => centime(bruts.reduce((t, m) => t + m[cle], 0));
     const totaux = {};
     for (const c of CLES_MONTANTS) totaux[c] = somme(c);
     totaux.nb_commandes = bruts.reduce((t, m) => t + m.nb_commandes, 0);
     totaux.ecart_previsionnel_alloue = centime(totaux.alloue - totaux.previsionnel);
     totaux.ecart_alloue_engage = centime(totaux.alloue - totaux.engage);
-    // Taux en pourcentage, null sans alloue : un taux sur zero n'a pas de sens.
+    // Taux en pourcentage, null sans alloué : un taux sur zéro n'a pas de sens.
     totaux.taux_engagement = totaux.alloue > 0 ? centime((totaux.engage / totaux.alloue) * 100) : null;
 
     succes(res, 5107, {
@@ -683,9 +683,9 @@ router.get("/budget/synthese", async (req, res) => {
 // CRUD
 // ---------------------------------------------------------------------------
 
-// Filtres optionnels : id_licence, id_societe (payeuse deduite), id_editeur
-// (editeur du contrat deduit), id_contrat, id_commande, type, exercice
-// (exercice fiscal de la societe payeuse de chaque ligne, contenant
+// Filtres optionnels : id_licence, id_societe (payeuse déduite), id_editeur
+// (éditeur du contrat déduit), id_contrat, id_commande, type, exercice
+// (exercice fiscal de la société payeuse de chaque ligne, contenant
 // date_debut), ou plage date_debut / date_fin (recouvrement).
 router.get("/budget", async (req, res) => {
   try {
@@ -708,8 +708,8 @@ router.get("/budget", async (req, res) => {
       plageFin = q.date_fin;
     }
 
-    // Filtres poses sur la projection (sous-requete) : l'exercice est une
-    // colonne calculee, inutilisable dans le WHERE de la requete interne.
+    // Filtres posés sur la projection (sous-requête) : l'exercice est une
+    // colonne calculée, inutilisable dans le WHERE de la requête interne.
     const { rows } = await tenantPool.query(
       `SELECT * FROM (${SELECT_BUDGET}) x
         WHERE ($1::uuid IS NULL OR x.id_licence  = $1::uuid)
@@ -744,10 +744,10 @@ router.get("/budget/:id", async (req, res) => {
   }
 });
 
-// Relecture de la projection apres COMMIT. L'ecriture est acquise : un echec
-// de relecture (BDD Commune indisponible pour le libelle produit, pool sature)
-// ne doit ni provoquer un ROLLBACK hors transaction, ni repondre 500, ce qui
-// ferait rejouer une creation deja faite. La reponse se replie sur l'id.
+// Relecture de la projection après COMMIT. L'écriture est acquise : un échec
+// de relecture (BDD Commune indisponible pour le libellé produit, pool saturé)
+// ne doit ni provoquer un ROLLBACK hors transaction, ni répondre 500, ce qui
+// ferait rejouer une création déjà faite. La réponse se replie sur l'id.
 async function relireApresCommit(id) {
   try {
     return await lireLigne(id);
@@ -805,8 +805,8 @@ router.patch("/budget/:id", async (req, res) => {
     const avant = await lireBrute(client, id, true);
     if (!avant) { await client.query("ROLLBACK"); return introuvable(res); }
 
-    // Fusion avant validation : un PATCH partiel ne doit pas echouer sur un
-    // champ obligatoire qui n'a simplement pas ete transmis.
+    // Fusion avant validation : un PATCH partiel ne doit pas échouer sur un
+    // champ obligatoire qui n'a simplement pas été transmis.
     const patch = normaliserCorps(req.body);
     const corps = {};
     const transmis = {};
@@ -830,10 +830,10 @@ router.patch("/budget/:id", async (req, res) => {
 
     const apres = await lireBrute(client, id);
     const d = diff(avant, apres);
-    // Trace probante (code 5151), diff avant/apres.
+    // Trace probante (code 5151), diff avant/après.
     await auditer(client, req, { action: "BUDGET_MODIFIE", entiteType: "budget", entiteId: id, avant: d.avant, apres: d.apres });
-    // Seuls les champs reellement transmis sont journalises : le corps
-    // normalise entier ferait lire "mis a null" sur les champs conserves.
+    // Seuls les champs réellement transmis sont journalisés : le corps
+    // normalisé entier ferait lire "mis à null" sur les champs conservés.
     await log(client, req, "UPDATE", "budget", id,
       `Modification de la ligne budgetaire ${corps.type} sur la licence ${corps.id_licence}`, transmis);
     await client.query("COMMIT");
@@ -850,7 +850,7 @@ router.patch("/budget/:id", async (req, res) => {
 });
 
 // Aucune FK entrante sur budget : la suppression est physique et sans
-// garde-fou de rattachement. L'acces est porte par supprimer_budget
+// garde-fou de rattachement. L'accès est porté par supprimer_budget
 // (routesPermissions.js, migrations 035 et 036).
 router.delete("/budget/:id", async (req, res) => {
   const { id } = req.params;
@@ -863,7 +863,7 @@ router.delete("/budget/:id", async (req, res) => {
     if (!avant) { await client.query("ROLLBACK"); return introuvable(res); }
 
     await client.query(`DELETE FROM budget WHERE id = $1`, [id]);
-    // Trace probante (code 5152) : l'etat supprime est conserve en valeur_avant.
+    // Trace probante (code 5152) : l'état supprimé est conservé en valeur_avant.
     await auditer(client, req, { action: "BUDGET_SUPPRIME", entiteType: "budget", entiteId: id, avant });
     await log(client, req, "DELETE", "budget", id,
       `Suppression de la ligne budgetaire ${avant.type} sur la licence ${avant.id_licence}`, null);

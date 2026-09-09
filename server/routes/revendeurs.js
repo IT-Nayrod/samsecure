@@ -1,25 +1,25 @@
-// revendeurs - referentiel des revendeurs (module 1).
+// Référentiel des revendeurs (module 1).
 //
-// Meme convention que contrats.js, editeurs.js et licences.js : enveloppe
-// normalisee (server/utils/reponse.js, codes 5220-5239 seedes par la migration
+// Même convention que contrats.js, editeurs.js et licences.js : enveloppe
+// normalisée (server/utils/reponse.js, codes 5220-5239 seedés par la migration
 // 045), helper log() vers journal_ecriture avec id_auteur, trace probante
-// auditer() vers audit_log sur chaque ecriture, transaction par ecriture,
-// relecture de la projection apres commit.
+// auditer() vers audit_log sur chaque écriture, transaction par écriture,
+// relecture de la projection après commit.
 //
 // Ce routeur remplace le GET /revendeurs de referentiels.js, qui servait une
-// liste nue de deux colonnes aux selecteurs des formulaires contrat et
+// liste nue de deux colonnes aux sélecteurs des formulaires contrat et
 // commande. La projection conserve id et raison_sociale ; deballer() dans
 // src/services/http.js rend la bascule vers l'enveloppe transparente pour ses
-// appelants, et le filtrage des desactives leur evite de proposer a la saisie
-// un revendeur retire du catalogue.
+// appelants, et le filtrage des désactivés leur évite de proposer à la saisie
+// un revendeur retiré du catalogue.
 //
-// Pas de suppression : quatre tables referencent un revendeur (contrat,
+// Pas de suppression : quatre tables référencent un revendeur (contrat,
 // commande, licence, maintenance_historique) et ces lignes doivent continuer de
-// le nommer. Le retrait est une desactivation, reversible.
+// le nommer. Le retrait est une désactivation, réversible.
 //
-// Pas de workflow de validation : contrairement a l'editeur, le revendeur n'est
-// pas soumis au circuit de la #53. A ouvrir si la doctrine change, en
-// l'ajoutant a ENTITES_VALIDABLES.
+// Pas de workflow de validation : contrairement à l'éditeur, le revendeur n'est
+// pas soumis au circuit de la #53. À ouvrir si la doctrine change, en
+// l'ajoutant à ENTITES_VALIDABLES.
 import express from "express";
 import { tenantPool } from "../db.js";
 import { succes, erreur, erreurPivot } from "../utils/reponse.js";
@@ -27,10 +27,10 @@ import { auditer, diff } from "../utils/audit.js";
 
 const router = express.Router();
 
-// Convention du projet : helper de journalisation local a chaque routeur.
-// id_auteur est lu dans req.user (session JWT) : le routeur est monte apres
-// authMiddleware, req.user est donc toujours renseigne. Il avale ses erreurs,
-// une trace fonctionnelle manquante ne doit pas annuler l'ecriture. La trace
+// Convention du projet : helper de journalisation local à chaque routeur.
+// id_auteur est lu dans req.user (session JWT) : le routeur est monté après
+// authMiddleware, req.user est donc toujours renseigné. Il avale ses erreurs,
+// une trace fonctionnelle manquante ne doit pas annuler l'écriture. La trace
 // probante, elle, passe par auditer() et n'avale rien.
 async function log(client, req, action, entite_type, entite_id, description, payload) {
   try {
@@ -46,12 +46,12 @@ async function log(client, req, action, entite_type, entite_id, description, pay
 }
 
 // Garde-fou : un :id non UUID part sinon en Postgres et ressort en 500
-// illisible la ou le revendeur est simplement introuvable.
+// illisible là où le revendeur est simplement introuvable.
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-// Projection identique en liste et en detail : garantit qu'aucun champ
-// n'apparaisse dans un ecran et pas dans l'autre. Les compteurs disent ce que
-// le revendeur porte, et fondent le message de desactivation.
+// Projection identique en liste et en détail : garantit qu'aucun champ
+// n'apparaisse dans un écran et pas dans l'autre. Les compteurs disent ce que
+// le revendeur porte, et fondent le message de désactivation.
 const SELECT_REVENDEUR = `
   SELECT r.id, r.raison_sociale, r.siret, r.iban, r.email, r.actif,
          r.created_at, r.updated_at,
@@ -61,17 +61,17 @@ const SELECT_REVENDEUR = `
   FROM revendeur r`;
 
 // Projection courte des suggestions et des propositions de doublon : de quoi
-// reconnaitre l'existant, sans les compteurs qui coutent trois sous-requetes.
+// reconnaître l'existant, sans les compteurs qui coûtent trois sous-requêtes.
 const SELECT_COURT = `
   SELECT r.id, r.raison_sociale, r.siret, r.actif FROM revendeur r`;
 
-// Colonnes metier ecrivables, dans l'ordre des parametres d'INSERT et d'UPDATE.
+// Colonnes métier écrivables, dans l'ordre des paramètres d'INSERT et d'UPDATE.
 const CHAMPS = ["raison_sociale", "siret", "iban", "email"];
 
 // Un <input> vide envoie "" et non null : sans normalisation, "" partirait en
-// base et deux revendeurs sans SIRET porteraient la meme chaine vide, que
-// l'index unique refuserait. Le SIRET est debarrasse de ses espaces, l'IBAN de
-// ses espaces et mis en majuscules, comme le fait la saisie a l'ecran.
+// base et deux revendeurs sans SIRET porteraient la même chaîne vide, que
+// l'index unique refuserait. Le SIRET est débarrassé de ses espaces, l'IBAN de
+// ses espaces et mis en majuscules, comme le fait la saisie à l'écran.
 function normaliserCorps(body = {}) {
   const vide = (v) => (v === "" || v === undefined || v === null ? null : v);
   const siret = vide(body.siret);
@@ -87,16 +87,16 @@ function normaliserCorps(body = {}) {
 
 // ---- Validation --------------------------------------------------------------
 
-// Le SIRET n'est pas obligatoire, mais s'il est saisi il est complet. Meme
-// regle que validateSiret cote front (src/utils/validation.js:13), portee ici
-// pour qu'un appel direct a l'API ne la contourne pas.
+// Le SIRET n'est pas obligatoire, mais s'il est saisi il est complet. Même
+// règle que validateSiret côté front (src/utils/validation.js:13), portée ici
+// pour qu'un appel direct à l'API ne la contourne pas.
 function siretValide(siret) {
   return /^\d{14}$/.test(siret);
 }
 
-// Structure puis cle de controle mod 97, comme validateIban cote front. Le
-// modulo se fait par tranches : le nombre reconstitue depasse largement
-// Number.MAX_SAFE_INTEGER et un parseInt rendrait un resultat faux sans bruit.
+// Structure puis clé de contrôle mod 97, comme validateIban côté front. Le
+// modulo se fait par tranches : le nombre reconstitué dépasse largement
+// Number.MAX_SAFE_INTEGER et un parseInt rendrait un résultat faux sans bruit.
 function ibanValide(iban) {
   if (!/^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$/.test(iban)) return false;
   const reordonne = iban.slice(4) + iban.slice(0, 4);
@@ -124,17 +124,17 @@ function validerRevendeur(corps) {
   return null;
 }
 
-// Detection de doublon, deux passes.
+// Détection de doublon, deux passes.
 //
-// Le SIRET d'abord : c'est l'identifiant legal, son egalite ne se discute pas.
-// Puis la cle de rapprochement (migration 044), qui rapproche "SCC France",
+// Le SIRET d'abord : c'est l'identifiant légal, son égalité ne se discute pas.
+// Puis la clé de rapprochement (migration 044), qui rapproche "SCC France",
 // "S.C.C. FRANCE" et "SCC France SAS". C'est la que se joue l'essentiel : un
-// revendeur est presque toujours resaisi sous une forme voisine, jamais a
+// revendeur est presque toujours resaisi sous une forme voisine, jamais à
 // l'identique.
 //
-// L'existant est rendu a l'appelant, et non seulement signale : l'ecran doit
-// pouvoir proposer de l'ouvrir, ou de le reactiver s'il avait ete retire du
-// catalogue. Un refus sec conduirait a le recreer sous un troisieme nom.
+// L'existant est rendu à l'appelant, et non seulement signalé : l'écran doit
+// pouvoir proposer de l'ouvrir, ou de le réactiver s'il avait été retiré du
+// catalogue. Un refus sec conduirait à le recréer sous un troisième nom.
 async function chercherDoublon(client, corps, idExclu) {
   const exclu = idExclu || null;
 
@@ -162,8 +162,8 @@ async function chercherDoublon(client, corps, idExclu) {
   return null;
 }
 
-// Message du refus. Un existant desactive appelle une reactivation, pas une
-// creation : le dire evite le troisieme doublon.
+// Message du refus. Un existant désactivé appelle une réactivation, pas une
+// création : le dire évite le troisième doublon.
 function messageDoublon(doublon) {
   const e = doublon.existant;
   const tete = doublon.motif === "siret"
@@ -174,18 +174,18 @@ function messageDoublon(doublon) {
     : `${tete} Ce revendeur est desactive : reactivez-le plutot que d'en creer un second.`;
 }
 
-// Violation de uq_revendeur_siret : deux creations concurrentes passent la
-// detection applicative et se croisent sur l'index.
+// Violation de uq_revendeur_siret : deux créations concurrentes passent la
+// détection applicative et se croisent sur l'index.
 function conflitSiret(err) {
   return err?.code === "23505" && String(err.constraint || "").includes("revendeur_siret");
 }
 
 // ---- Lecture ------------------------------------------------------------------
 
-// Les desactives sont masques par defaut : cette route sert aussi de selecteur
-// aux formulaires contrat et commande, ou proposer un revendeur retire du
+// Les désactivés sont masqués par défaut : cette route sert aussi de sélecteur
+// aux formulaires contrat et commande, où proposer un revendeur retiré du
 // catalogue serait une erreur. inclure_inactifs=1 les sert avec les autres,
-// la colonne actif permettant a l'ecran de les distinguer.
+// la colonne actif permettant à l'écran de les distinguer.
 router.get("/revendeurs", async (req, res) => {
   try {
     const inclureInactifs = ["1", "true"].includes(String(req.query.inclure_inactifs ?? ""));
@@ -198,42 +198,42 @@ router.get("/revendeurs", async (req, res) => {
   }
 });
 
-// Recherche incrementale, appelee au fil de la frappe.
+// Recherche incrémentale, appelée au fil de la frappe.
 //
-// Insensible a la casse et aux accents : normaliser_texte est applique des deux
-// cotes de la comparaison (migration 044). Le client qui tape "systemes" trouve
+// Insensible à la casse et aux accents : normaliser_texte est appliqué des deux
+// côtés de la comparaison (migration 044). Le client qui tape "systemes" trouve
 // "Systèmes", celui qui tape "ECONOCOM" trouve "Econocom". Sans cela, il
-// faudrait que la saisie porte les memes accents que la fiche, ce qu'aucun
-// utilisateur ne fera, et le doublon naitrait de cet echec de recherche.
+// faudrait que la saisie porte les mêmes accents que la fiche, ce qu'aucun
+// utilisateur ne fera, et le doublon naîtrait de cet échec de recherche.
 //
-// Volontairement pauvre : ni compteurs ni IBAN, contrairement a la liste. Une
-// frappe ne doit couter qu'une seule requete, bornee par LIMIT.
+// Volontairement pauvre : ni compteurs ni IBAN, contrairement à la liste. Une
+// frappe ne doit coûter qu'une seule requête, bornée par LIMIT.
 //
-// Montee en charge : le joker en tete interdit l'usage de idx_revendeur_nom_norm,
-// la recherche est un parcours sequentiel. Sur quelques milliers de lignes il se
-// compte en millisecondes et le debounce du front espace les appels. Au-dela, la
-// reponse est un index trigramme (pg_trgm), non pose ici : l'extension demande
-// des droits que le role applicatif n'a pas forcement.
+// Montée en charge : le joker en tête interdit l'usage de idx_revendeur_nom_norm,
+// la recherche est un parcours séquentiel. Sur quelques milliers de lignes il se
+// compte en millisecondes et le debounce du front espace les appels. Au-delà, la
+// réponse est un index trigramme (pg_trgm), non posé ici : l'extension demande
+// des droits que le rôle applicatif n'a pas forcément.
 //
-// Declaree avant /revendeurs/:id : la route parametree capturerait sinon
-// "recherche" comme un identifiant. Meme regle cote routesPermissions.js.
+// Déclarée avant /revendeurs/:id : la route paramétrée capturerait sinon
+// "recherche" comme un identifiant. Même règle côté routesPermissions.js.
 router.get("/revendeurs/recherche", async (req, res) => {
   try {
     const brut = typeof req.query.q === "string" ? req.query.q.trim() : "";
-    // Une saisie vide ne suggere rien : renvoyer le referentiel entier a chaque
-    // ouverture du formulaire n'aiderait personne et couterait cher.
+    // Une saisie vide ne suggère rien : renvoyer le référentiel entier à chaque
+    // ouverture du formulaire n'aiderait personne et coûterait cher.
     if (!brut) return succes(res, 5226, { suggestions: [], total: 0 });
 
-    // % et _ sont les jokers de LIKE : sans echappement, un client tapant
-    // "100%" interrogerait le referentiel avec un joker au milieu de son texte.
+    // % et _ sont les jokers de LIKE : sans échappement, un client tapant
+    // "100%" interrogerait le référentiel avec un joker au milieu de son texte.
     const motif = brut.replace(/([\\%_])/g, "\\$1");
     const exclu = UUID_RE.test(String(req.query.exclure ?? "")) ? req.query.exclure : null;
     const limite = Math.min(Math.max(parseInt(req.query.limite, 10) || 8, 1), 25);
 
-    // count(*) OVER () : le total des correspondances sans seconde requete, pour
-    // que l'ecran puisse dire combien de resultats ne sont pas montres.
-    // L'ordre place la correspondance exacte en tete, puis celles qui commencent
-    // par le texte saisi, puis le reste ; les actifs avant les desactives.
+    // count(*) OVER () : le total des correspondances sans seconde requête, pour
+    // que l'écran puisse dire combien de résultats ne sont pas montrés.
+    // L'ordre place la correspondance exacte en tête, puis celles qui commencent
+    // par le texte saisi, puis le reste ; les actifs avant les désactivés.
     const { rows } = await tenantPool.query(
       `SELECT r.id, r.raison_sociale, r.siret, r.actif,
               normaliser_texte(r.raison_sociale) = normaliser_texte($1) AS exact,
@@ -279,7 +279,7 @@ router.get("/revendeurs/:id", async (req, res) => {
   }
 });
 
-// ---- Ecriture -----------------------------------------------------------------
+// ---- Écriture -----------------------------------------------------------------
 
 router.post("/revendeurs", async (req, res) => {
   const corps = normaliserCorps(req.body);
@@ -293,8 +293,8 @@ router.post("/revendeurs", async (req, res) => {
       return erreurPivot(res, invalide);
     }
 
-    // L'existant part dans details : l'ecran doit pouvoir l'ouvrir ou le
-    // reactiver, pas seulement apprendre qu'il existe.
+    // L'existant part dans détails : l'écran doit pouvoir l'ouvrir ou le
+    // réactiver, pas seulement apprendre qu'il existe.
     const doublon = await chercherDoublon(client, corps, null);
     if (doublon) {
       await client.query("ROLLBACK");
@@ -352,8 +352,8 @@ router.patch("/revendeurs/:id", async (req, res) => {
       return erreur(res, 5227, { status: 404, message: "Revendeur introuvable." });
     }
 
-    // Fusion avant validation : un PATCH partiel ne doit pas echouer sur un
-    // champ obligatoire qui n'a simplement pas ete transmis.
+    // Fusion avant validation : un PATCH partiel ne doit pas échouer sur un
+    // champ obligatoire qui n'a simplement pas été transmis.
     const patch = normaliserCorps(req.body);
     const corps = { ...existant[0] };
     for (const champ of CHAMPS) {
@@ -366,8 +366,8 @@ router.patch("/revendeurs/:id", async (req, res) => {
       return erreurPivot(res, invalide);
     }
 
-    // Le revendeur modifie est exclu : il ne se signale pas a lui-meme comme un
-    // doublon de lui-meme.
+    // Le revendeur modifié est exclu : il ne se signale pas à lui-même comme un
+    // doublon de lui-même.
     const doublon = await chercherDoublon(client, corps, id);
     if (doublon) {
       await client.query("ROLLBACK");
@@ -385,8 +385,8 @@ router.patch("/revendeurs/:id", async (req, res) => {
 
     await log(client, req, "UPDATE", "revendeur", id,
       `Modification du revendeur "${raisonSociale}"`, patch);
-    // Trace probante : seuls les champs reellement modifies, jamais le corps
-    // fusionne, sinon on lirait "mis a null" sur les champs conserves.
+    // Trace probante : seuls les champs réellement modifiés, jamais le corps
+    // fusionné, sinon on lirait "mis à null" sur les champs conservés.
     // code_retour: 5238
     const d = diff(existant[0], { ...corps, raison_sociale: raisonSociale });
     await auditer(client, req, {
@@ -410,10 +410,10 @@ router.patch("/revendeurs/:id", async (req, res) => {
   }
 });
 
-// Desactivation et reactivation : un seul traitement, l'etat cible et les
-// libelles seuls changent. Rien n'est efface : les contrats, commandes et
-// licences qui portent le revendeur continuent de le nommer, il disparait
-// seulement des selecteurs de saisie.
+// Désactivation et réactivation : un seul traitement, l'état cible et les
+// libellés seuls changent. Rien n'est effacé : les contrats, commandes et
+// licences qui portent le revendeur continuent de le nommer, il disparaît
+// seulement des sélecteurs de saisie.
 async function changerEtat(req, res, actifCible) {
   const { id } = req.params;
   const client = await tenantPool.connect();
@@ -425,8 +425,8 @@ async function changerEtat(req, res, actifCible) {
       return erreur(res, 5227, { status: 404, message: "Revendeur introuvable." });
     }
 
-    // FOR UPDATE : deux desactivations concurrentes ne doivent pas produire
-    // deux traces pour un seul changement d'etat.
+    // FOR UPDATE : deux désactivations concurrentes ne doivent pas produire
+    // deux traces pour un seul changement d'état.
     const { rows: existant } = await client.query(
       `SELECT raison_sociale, actif FROM revendeur WHERE id = $1 FOR UPDATE`, [id]);
     if (!existant.length) {
@@ -434,8 +434,8 @@ async function changerEtat(req, res, actifCible) {
       return erreur(res, 5227, { status: 404, message: "Revendeur introuvable." });
     }
 
-    // Etat deja atteint : refus explicite plutot qu'un succes silencieux, qui
-    // ferait croire a une action et laisserait une trace pour rien.
+    // État déjà atteint : refus explicite plutôt qu'un succès silencieux, qui
+    // ferait croire à une action et laisserait une trace pour rien.
     if (existant[0].actif === actifCible) {
       await client.query("ROLLBACK");
       return actifCible

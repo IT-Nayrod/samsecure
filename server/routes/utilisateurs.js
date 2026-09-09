@@ -1,3 +1,7 @@
+// Comptes utilisateurs : création, modification, rattachements aux sociétés,
+// historique probant et gestion du mot de passe (définition, génération,
+// lien de réinitialisation).
+
 import express from "express";
 import bcrypt from "bcryptjs";
 import { tenantPool } from "../db.js";
@@ -23,8 +27,8 @@ async function log(client, action, entite_type, entite_id, description, payload)
   }
 }
 
-// Tous les comptes sont servis, desactives compris : la suppression n'existe
-// plus, un compte retire doit rester visible pour etre reactivable.
+// Tous les comptes sont servis, désactivés compris : la suppression n'existe
+// plus, un compte retiré doit rester visible pour être réactivable.
 router.get("/utilisateurs", async (req, res) => {
   try {
     const scope = await getAdminScope(req.user.id);
@@ -69,10 +73,10 @@ router.post("/utilisateurs", async (req, res) => {
       placeholders.push(`$${values.length}`);
     }
 
-    // Rien n'est pose si l'administrateur ne demande rien : la colonne reste a
-    // NULL. Elle valait CURRENT_DATE par defaut, ce qui remplissait la colonne
-    // Mise en fonction de tous les comptes avec leur date de creation, sans
-    // qu'aucune mise en fonction ait ete programmee. Une date d'echeance ne
+    // Rien n'est posé si l'administrateur ne demande rien : la colonne reste à
+    // NULL. Elle valait CURRENT_DATE par défaut, ce qui remplissait la colonne
+    // Mise en fonction de tous les comptes avec leur date de création, sans
+    // qu'aucune mise en fonction ait été programmée. Une date d'échéance ne
     // doit exister que si quelqu'un l'a voulue.
     if (date_mise_en_fonction !== undefined && date_mise_en_fonction !== null && date_mise_en_fonction !== "") {
       fields.push("date_mise_en_fonction");
@@ -94,8 +98,8 @@ router.post("/utilisateurs", async (req, res) => {
       apres: { nom, prenom, email, actif: actif ?? true, langue: langue || "fr",
                date_finale: date_finale ?? null, date_mise_en_fonction: date_mise_en_fonction ?? null },
     });
-    // Le mot de passe initial est un evenement distinct : c'est lui qui ouvre
-    // l'acces, et il doit se lire seul dans l'historique. Aucune valeur,
+    // Le mot de passe initial est un événement distinct : c'est lui qui ouvre
+    // l'accès, et il doit se lire seul dans l'historique. Aucune valeur,
     // aucun hash, l'action porte toute l'information.
     // code_retour: 2010
     await auditer(client, req, {
@@ -140,8 +144,8 @@ router.patch("/utilisateurs/:id", async (req, res) => {
 
     if (setFields.length === 0) return res.status(400).json({ error: "Aucun champ à modifier" });
 
-    // Etat anterieur, indispensable au diff. mot_de_passe_hash n'est pas
-    // selectionne : il n'a rien a faire dans une trace, et cette route ne le
+    // État antérieur, indispensable au diff. mot_de_passe_hash n'est pas
+    // sélectionné : il n'a rien à faire dans une trace, et cette route ne le
     // modifie pas.
     const { rows: avantRows } = await client.query(
       `SELECT nom, prenom, email, actif, langue,
@@ -152,9 +156,9 @@ router.patch("/utilisateurs/:id", async (req, res) => {
 
     const { rows } = await client.query(
       // Cast en text obligatoire : sans lui pg renvoie un objet Date, et la
-      // comparaison avec l'etat anterieur, deja lu en text, ne peut jamais
-      // etre vraie. Le diff signalait donc des champs inchanges, et la date
-      // ecrite dans la trace ressortait sous la forme "Fri Aug 14".
+      // comparaison avec l'état antérieur, déjà lu en text, ne peut jamais
+      // être vraie. Le diff signalait donc des champs inchangés, et la date
+      // écrite dans la trace ressortait sous la forme "Fri Aug 14".
       `UPDATE utilisateur SET ${setFields.join(", ")} WHERE id = $1
        RETURNING id, nom, prenom, email, actif, langue,
                  date_finale::text AS date_finale,
@@ -166,15 +170,15 @@ router.patch("/utilisateurs/:id", async (req, res) => {
     const apres = {
       nom: rows[0].nom, prenom: rows[0].prenom, email: rows[0].email,
       actif: rows[0].actif, langue: rows[0].langue,
-      // Deja en text depuis le RETURNING, aucune conversion a faire.
+      // Déjà en text depuis le RETURNING, aucune conversion à faire.
       date_finale: rows[0].date_finale,
       date_mise_en_fonction: rows[0].date_mise_en_fonction,
     };
     const d = diff(avant, apres);
 
-    // Les champs couverts par un evenement dedie sortent du diff : sans cela
-    // un meme changement produirait deux lignes d'historique, l'evenement
-    // explicite et une modification generique redondante.
+    // Les champs couverts par un événement dédié sortent du diff : sans cela
+    // un même changement produirait deux lignes d'historique, l'événement
+    // explicite et une modification générique redondante.
     const retirerDuDiff = (champ) => {
       if (d.avant) delete d.avant[champ];
       if (d.apres) {
@@ -183,8 +187,8 @@ router.patch("/utilisateurs/:id", async (req, res) => {
       }
     };
 
-    // Un changement d'etat n'est pas une modification comme une autre : il se
-    // lit seul dans la trace, sans avoir a comparer deux JSONB. Les trois cas
+    // Un changement d'état n'est pas une modification comme une autre : il se
+    // lit seul dans la trace, sans avoir à comparer deux JSONB. Les trois cas
     // sont exclusifs et priment sur UTILISATEUR_MODIFIE.
     if (avant.actif !== apres.actif) {
       // code_retour: 2002
@@ -198,9 +202,9 @@ router.patch("/utilisateurs/:id", async (req, res) => {
       retirerDuDiff("actif");
       retirerDuDiff("date_finale");
     } else if (avant.date_finale !== apres.date_finale) {
-      // Pose ou levee d'une echeance : c'est une decision d'administrateur,
-      // tracee au moment ou elle est prise. Rien ne sera ecrit a l'echeance
-      // elle-meme, aucun ordonnanceur n'existe (STOP planification).
+      // Pose ou levée d'une échéance : c'est une décision d'administrateur,
+      // tracée au moment où elle est prise. Rien ne sera écrit à l'échéance
+      // elle-même, aucun ordonnanceur n'existe (STOP planification).
       // code_retour: 2004
       // code_retour: 2005
       await auditer(client, req, {
@@ -221,11 +225,11 @@ router.patch("/utilisateurs/:id", async (req, res) => {
       retirerDuDiff("date_mise_en_fonction");
     }
 
-    // Journalise le diff filtre et non req.body : le corps de la requete
-    // pourrait porter un champ sensible le jour ou cette route en acceptera un.
+    // Journalise le diff filtré et non req.body : le corps de la requête
+    // pourrait porter un champ sensible le jour où cette route en acceptera un.
     await log(client, "UPDATE", "utilisateur", id, `Utilisateur "${rows[0].prenom} ${rows[0].nom}" modifié`, d.apres);
 
-    // Les autres champs modifies dans la meme requete, s'il y en a.
+    // Les autres champs modifiés dans la même requête, s'il y en a.
     if (d.apres) {
       // code_retour: 2001
       await auditer(client, req, {
@@ -237,9 +241,9 @@ router.patch("/utilisateurs/:id", async (req, res) => {
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("PATCH /utilisateurs/:id error", err);
-    // 23505 : violation de l'unicite de utilisateur.email. Ce message ne doit
-    // sortir que dans ce cas precis. Le renvoyer pour toute erreur faisait
-    // mentir l'interface et masquait la cause reelle des pannes de cette route.
+    // 23505 : violation de l'unicité de utilisateur.email. Ce message ne doit
+    // sortir que dans ce cas précis. Le renvoyer pour toute erreur faisait
+    // mentir l'interface et masquait la cause réelle des pannes de cette route.
     // code_retour: 2007
     if (err.code === "23505") {
       return res.status(409).json({ error: "Cet email est déjà utilisé." });
@@ -251,9 +255,9 @@ router.patch("/utilisateurs/:id", async (req, res) => {
 });
 
 // La suppression d'un utilisateur n'existe plus, migration 022 : le retrait
-// d'un compte se fait par desactivation, PATCH /utilisateurs/:id { actif:
-// false }. Un compte desactive reste visible a l'ecran et reactivable, la ou
-// un compte supprime disparaissait de la liste et n'etait plus recuperable que
+// d'un compte se fait par désactivation, PATCH /utilisateurs/:id { actif:
+// false }. Un compte désactivé reste visible à l'écran et réactivable, là où
+// un compte supprimé disparaissait de la liste et n'était plus récupérable que
 // par une intervention en base.
 
 router.post("/utilisateurs/:id/societes", async (req, res) => {
@@ -278,22 +282,22 @@ router.post("/utilisateurs/:id/societes", async (req, res) => {
 });
 
 // GET /api/utilisateurs/:id/historique
-// Lecture seule de la trace probante d'un compte. N'ecrit rien, ne modifie
+// Lecture seule de la trace probante d'un compte. N'écrit rien, ne modifie
 // rien : consulter un historique ne doit pas en produire une ligne.
 router.get("/utilisateurs/:id/historique", async (req, res) => {
   const { id } = req.params;
 
   // Garde-fou : un :id non UUID partirait en Postgres et ressortirait en 22P02
-  // brute remontee en 500, la ou le compte est simplement introuvable.
+  // brute remontée en 500, là où le compte est simplement introuvable.
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
     // code_retour: 2050
     return res.status(404).json({ error: "Utilisateur introuvable" });
   }
 
-  // Meme controle de perimetre que les autres routes d'administration : un
+  // Même contrôle de périmètre que les autres routes d'administration : un
   // administrateur restreint ne lit pas l'historique d'un compte hors de ses
-  // societes. La permission gerer_utilisateurs est deja exigee en amont par le
-  // middleware, ceci en est le complement par societe.
+  // sociétés. La permission gerer_utilisateurs est déjà exigée en amont par le
+  // middleware, ceci en est le complément par société.
   const scope = await getAdminScope(req.user.id);
   if (!(await isUserInScope(id, scope))) {
     // code_retour: 2051
@@ -344,7 +348,7 @@ router.get("/utilisateurs/:id/historique", async (req, res) => {
     );
 
     // count(*) OVER () ne renvoie aucune ligne sur une page vide : le total
-    // doit alors etre relu, sinon une page hors bornes annoncerait un
+    // doit alors être relu, sinon une page hors bornes annoncerait un
     // historique vide au lieu de sa vraie taille.
     let total;
     if (rows.length) {
@@ -434,9 +438,9 @@ router.delete("/utilisateurs/:id/societes/:societeId", async (req, res) => {
   }
 });
 
-// Coeur commun aux deux endpoints : la difference tient a l'origine de la
-// valeur, saisie ou generee. Tout le reste, politique, hachage, revocation et
-// trace, est identique et ne doit exister qu'en un exemplaire.
+// Cœur commun aux deux endpoints : la différence tient à l'origine de la
+// valeur, saisie ou générée. Tout le reste, politique, hachage, révocation et
+// tracé, est identique et ne doit exister qu'en un exemplaire.
 async function appliquerMotDePasse(req, res, { valeur, action }) {
   const { id } = req.params;
 
@@ -461,9 +465,9 @@ async function appliquerMotDePasse(req, res, { valeur, action }) {
     const hash = await bcrypt.hash(valeur, 10);
     await client.query(`UPDATE utilisateur SET mot_de_passe_hash = $2 WHERE id = $1`, [id, hash]);
 
-    // Revocation des sessions ouvertes du compte cible. Sans elle, un mot de
-    // passe redefini pour reprendre la main sur un compte compromis ne protege
-    // de rien : les jetons en cours restent valides jusqu'a sept jours.
+    // Révocation des sessions ouvertes du compte cible. Sans elle, un mot de
+    // passe redéfini pour reprendre la main sur un compte compromis ne protège
+    // de rien : les jetons en cours restent valides jusqu'à sept jours.
     const { rowCount: sessionsRevoquees } = await client.query(
       `UPDATE session_token SET revoked = true
         WHERE id_utilisateur = $1 AND revoked = false`, [id]);
@@ -472,8 +476,8 @@ async function appliquerMotDePasse(req, res, { valeur, action }) {
       `Mot de passe de "${cible[0].prenom} ${cible[0].nom}" redéfini`, null);
 
     // Aucune valeur, aucun hash, aucune longueur : l'action et son acteur
-    // suffisent. filtrerSensibles retirerait de toute facon toute cle portant
-    // mot_de_passe ou hash, ceci est la premiere barriere.
+    // suffisent. filtrerSensibles retirerait de toute façon toute clé portant
+    // mot_de_passe ou hash, ceci est la première barrière.
     // code_retour: 2010
     // code_retour: 2018
     await auditer(client, req, {
@@ -496,7 +500,7 @@ async function appliquerMotDePasse(req, res, { valeur, action }) {
 }
 
 // PUT /api/utilisateurs/:id/mot-de-passe
-// Definition par un administrateur d'une valeur qu'il a choisie.
+// Définition par un administrateur d'une valeur qu'il a choisie.
 router.put("/utilisateurs/:id/mot-de-passe", async (req, res) => {
   const { mot_de_passe } = req.body || {};
 
@@ -505,9 +509,9 @@ router.put("/utilisateurs/:id/mot-de-passe", async (req, res) => {
     return res.status(400).json({ error: "Le mot de passe est obligatoire." });
   }
 
-  // La politique est appliquee ici et non seulement dans le formulaire : un
-  // appel direct doit se heurter a la meme regle, avec le detail de ce qui
-  // manque plutot qu'un refus muet.
+  // La politique est appliquée ici et non seulement dans le formulaire : un
+  // appel direct doit se heurter à la même règle, avec le détail de ce qui
+  // manque plutôt qu'un refus muet.
   const manques = verifierPolitique(mot_de_passe);
   // code_retour: 2015
   if (manques.length) {
@@ -523,14 +527,14 @@ router.put("/utilisateurs/:id/mot-de-passe", async (req, res) => {
   });
   if (!resultat) return;
 
-  // Jamais la valeur, jamais le hash, meme en confirmation.
+  // Jamais la valeur, jamais le hash, même en confirmation.
   // code_retour: 2013
   res.json({ message: "Mot de passe défini.", sessions_revoquees: resultat.sessionsRevoquees });
 });
 
 // POST /api/utilisateurs/:id/mot-de-passe/generer
-// Genere une valeur conforme, l'applique, et la renvoie UNE SEULE FOIS : elle
-// n'est stockee nulle part ailleurs qu'en hash bcrypt et ne sera jamais
+// Génère une valeur conforme, l'applique, et la renvoie UNE SEULE FOIS : elle
+// n'est stockée nulle part ailleurs qu'en hash bcrypt et ne sera jamais
 // relisible.
 router.post("/utilisateurs/:id/mot-de-passe/generer", async (req, res) => {
   const valeur = genererMotDePasse();
@@ -550,7 +554,7 @@ router.post("/utilisateurs/:id/mot-de-passe/generer", async (req, res) => {
 });
 
 // POST /api/utilisateurs/:id/mot-de-passe/reinitialisation
-// Emet un lien de reinitialisation a destination du titulaire du compte.
+// Émet un lien de réinitialisation à destination du titulaire du compte.
 router.post("/utilisateurs/:id/mot-de-passe/reinitialisation", async (req, res) => {
   const { id } = req.params;
 
@@ -577,7 +581,7 @@ router.post("/utilisateurs/:id/mot-de-passe/reinitialisation", async (req, res) 
       return res.status(409).json({ error: "Ce compte est désactivé : réactivez-le avant d'envoyer un lien." });
     }
 
-    // Les liens anterieurs non consommes sont neutralises : deux liens valides
+    // Les liens antérieurs non consommés sont neutralisés : deux liens valides
     // en circulation doublent la surface d'attaque sans rien apporter.
     await client.query(
       `UPDATE reset_password_token SET utilise = true
@@ -594,11 +598,11 @@ router.post("/utilisateurs/:id/mot-de-passe/reinitialisation", async (req, res) 
     // /reset-password/:token), la seule qui existe pour cette page.
     const lien = `${process.env.URL_PUBLIQUE || ""}/reset-password/${jeton}`;
 
-    // Envoi par le socle #15 (tache #87). Le lien ne transite que par ce mail :
-    // il n'est ni journalise, ni renvoye a l'administrateur. Un echec d'envoi
-    // ne fait pas echouer la demande : le jeton reste valable, l'etat est
-    // rendu a l'administrateur qui peut relancer (le lien precedent sera
-    // alors invalide).
+    // Envoi par le socle #15 (tâche #87). Le lien ne transite que par ce mail :
+    // il n'est ni journalisé, ni renvoyé à l'administrateur. Un échec d'envoi
+    // ne fait pas échouer la demande : le jeton reste valable, l'état est
+    // rendu à l'administrateur qui peut relancer (le lien précédent sera
+    // alors invalidé).
     // code_retour: 2011
     const mail = await envoyerMail({
       destinataire: cible[0].email,
@@ -616,7 +620,7 @@ router.post("/utilisateurs/:id/mot-de-passe/reinitialisation", async (req, res) 
       `Lien de réinitialisation ${mail.envoye ? "envoyé" : "émis, mail non envoyé"} pour "${cible[0].prenom} ${cible[0].nom}"`, null);
 
     // Ni le jeton, ni le lien, ni aucune valeur : seul le fait qu'une demande
-    // a ete emise, par qui, pour quel compte, et si le mail est parti.
+    // a été émise, par qui, pour quel compte, et si le mail est parti.
     // code_retour: 2028
     await auditer(client, req, {
       action: "REINITIALISATION_DEMANDEE",

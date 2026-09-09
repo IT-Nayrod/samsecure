@@ -1,18 +1,18 @@
-// Qualite des saisies et indice de confiance (US #116, module 3).
-// Enveloppe normalisee, codes 5400-5449 (migration 047).
+// Qualité des saisies et indice de confiance (US #116, module 3).
+// Enveloppe normalisée, codes 5400-5449 (migration 047).
 //
-// GET /qualite : detection a la volee, sans precalcul, croisee avec
-// anomalie_qualite. Une anomalie marquee resolue (resolution reelle ou faux
+// GET /qualite : détection à la volée, sans précalcul, croisée avec
+// anomalie_qualite. Une anomalie marquée résolue (résolution réelle ou faux
 // positif, la table ne distingue pas : resolu = true couvre les deux) exclut
-// l'element meme s'il est encore detecte ; une anomalie deja ouverte est
-// servie sans doublon ; une detection nouvelle est inseree avec son type, sa
-// gravite et sa description, dans la transaction de la lecture. C'est la
-// seule ecriture de ce routeur, et elle alimente la composante coherence de
+// l'élément même s'il est encore détecté ; une anomalie déjà ouverte est
+// servie sans doublon ; une détection nouvelle est insérée avec son type, sa
+// gravité et sa description, dans la transaction de la lecture. C'est la
+// seule écriture de ce routeur, et elle alimente la composante cohérence de
 // l'indice de confiance.
 //
-// GET /confiance : note sur 100 par perimetre (tenant ou societe), ponderee
-// par la valeur (cout des licences actives). Le calcul est porte par la
-// fonction pure server/utils/indiceConfiance.js, testee au node:test ; ce
+// GET /confiance : note sur 100 par périmètre (tenant ou société), pondérée
+// par la valeur (coût des licences actives). Le calcul est porté par la
+// fonction pure server/utils/indiceConfiance.js, testée au node:test ; ce
 // routeur ne fait que lire les faits en base.
 import express from "express";
 import { tenantPool, commonPool } from "../db.js";
@@ -28,12 +28,12 @@ const router = express.Router();
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // ---------------------------------------------------------------------------
-// GET /qualite : detections
+// GET /qualite : détections
 // ---------------------------------------------------------------------------
 
-// Types de ce producteur. Le vocabulaire complete celui pose par contrats.js
+// Types de ce producteur. Le vocabulaire complète celui posé par contrats.js
 // (incoherence, hors_plage_parent) et inventaire.js (ligne_import) : ces
-// anomalies-la ont leurs propres producteurs et ne sont pas reservies ici.
+// anomalies-là ont leurs propres producteurs et ne sont pas reservies ici.
 const TYPES_DETECTION = [
   "licence_sans_contrat", "contrat_sans_justificatif", "commande_sans_preuve",
   "doublon_affectation", "doublon_produit", "champ_obligatoire_vide",
@@ -41,8 +41,8 @@ const TYPES_DETECTION = [
 
 const ORDRE_GRAVITE = { critique: 0, attention: 1, info: 2 };
 
-// Chaque detection rend des elements { type_anomalie, gravite, entite_type,
-// entite_id, libelle, description }. Les requetes sont bornees : une par
+// Chaque détection rend des éléments { type_anomalie, gravite, entite_type,
+// entite_id, libelle, description }. Les requêtes sont bornées : une par
 // famille, jamais une par ligne.
 async function detecterLicencesSansContrat(client) {
   const { rows } = await client.query(
@@ -98,10 +98,10 @@ async function detecterCommandesSansPreuve(client) {
   }));
 }
 
-// Doublon potentiel : meme reference client (casse et espaces ignores) et
-// meme produit, saisies non refusees. La premiere declaration fait foi, les
-// suivantes sont signalees : pas de deduplication dans le decompte (regle
-// 4106), le doublon est un signal de qualite, jamais une correction.
+// Doublon potentiel : même référence client (casse et espaces ignorés) et
+// même produit, saisies non refusées. La première déclaration fait foi, les
+// suivantes sont signalées : pas de déduplication dans le décompte (règle
+// 4106), le doublon est un signal de qualité, jamais une correction.
 async function detecterDoublonsAffectation(client) {
   const { rows } = await client.query(
     `SELECT a.id, a.reference_client AS libelle,
@@ -138,7 +138,7 @@ async function detecterDoublonsAffectation(client) {
 }
 
 // Doublon potentiel de produit : logiciels client en double entre eux, ou
-// portant le libelle d'un produit du catalogue commun. Le croisement avec la
+// portant le libellé d'un produit du catalogue commun. Le croisement avec la
 // BDD Commune est applicatif : aucune jointure ne traverse les deux bases.
 async function detecterDoublonsProduit(client) {
   const { rows } = await client.query(
@@ -180,9 +180,9 @@ async function detecterDoublonsProduit(client) {
   return elements;
 }
 
-// Champs obligatoires vides : les obligatoires de chaque formulaire (regles
-// des routeurs #41, #44, #102, #106), sur des lignes qui peuvent leur etre
-// anterieures. Une anomalie par entite, les champs manquants dans la
+// Champs obligatoires vides : les obligatoires de chaque formulaire (règles
+// des routeurs #41, #44, #102, #106), sur des lignes qui peuvent leur être
+// antérieures. Une anomalie par entité, les champs manquants dans la
 // description.
 async function detecterChampsVides(client) {
   const familles = [
@@ -260,7 +260,7 @@ router.get("/qualite", async (req, res) => {
       ...(await detecterChampsVides(client)),
     ];
 
-    // Croisement avec le stock : une seule requete pour tout l'etat connu.
+    // Croisement avec le stock : une seule requête pour tout l'état connu.
     const { rows: connues } = await client.query(
       `SELECT entite_type, entite_id, type_anomalie,
               bool_or(NOT resolu) AS ouverte, bool_or(resolu) AS resolue
@@ -274,7 +274,7 @@ router.get("/qualite", async (req, res) => {
     const elements = [];
     for (const e of detectes) {
       const connu = etat.get(`${e.entite_type}|${e.entite_id}|${e.type_anomalie}`);
-      // Resolue sans reouverture = traitee ou faux positif : exclue.
+      // Résolue sans réouverture = traitée ou faux positif : exclue.
       if (connu && connu.resolue && !connu.ouverte) continue;
       elements.push(e);
       if (!connu) {
@@ -316,9 +316,9 @@ router.get("/confiance", async (req, res) => {
       return erreur(res, 5410, { status: 400, message: "Identifiant de societe invalide." });
     }
 
-    // Licences actives du perimetre (societe payeuse via la commande), avec
-    // leurs 4 liens d'exhaustivite et la presence d'une anomalie ouverte sur
-    // la licence ou sa chaine (commande, contrat) : un objet multi-anomalies
+    // Licences actives du périmètre (société payeuse via la commande), avec
+    // leurs 4 liens d'exhaustivité et la présence d'une anomalie ouverte sur
+    // la licence ou sa chaîne (commande, contrat) : un objet multi-anomalies
     // ne compte qu'une fois, l'EXISTS s'en charge.
     const { rows: licences } = await tenantPool.query(
       `SELECT l.id,
@@ -343,11 +343,11 @@ router.get("/confiance", async (req, res) => {
           AND ($1::uuid IS NULL OR c.id_societe = $1::uuid)`,
       [idSociete]);
 
-    // Affectations validees du perimetre (societe declarante), licences
-    // actives seulement : la ponderation est le cout des licences actives.
-    // Valeur d'une affectation : sa quantite au prix unitaire de sa licence.
-    // Fraiche = echeance de revalidation non depassee ; une affectation
-    // validee sans echeance (cas residuel) reste fraiche.
+    // Affectations validées du périmètre (société déclarante), licences
+    // actives seulement : la pondération est le coût des licences actives.
+    // Valeur d'une affectation : sa quantité au prix unitaire de sa licence.
+    // Fraîche = échéance de revalidation non dépassée ; une affectation
+    // validée sans échéance (cas résiduel) reste fraîche.
     const { rows: affectations } = await tenantPool.query(
       `SELECT a.id,
               CASE WHEN l.quantite > 0 AND l.cout_licence IS NOT NULL
@@ -366,7 +366,7 @@ router.get("/confiance", async (req, res) => {
 
     const resultat = calculerIndiceConfiance({ licences, affectations });
 
-    // valeur_totale est un montant : meme regle de masquage que les couts du
+    // valeur_totale est un montant : même règle de masquage que les coûts du
     // module licences. Les notes et les points de malus restent servis, ce
     // sont des indices et non des montants.
     const { permissions } = await permissionsEffectives(req.user.id);

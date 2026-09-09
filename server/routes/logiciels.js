@@ -1,24 +1,24 @@
-// logiciels - referentiel des produits, ecran Referentiels > Logiciels (module 1).
+// Référentiel des produits, écran Référentiels > Logiciels (module 1).
 //
-// Deux tables sous un seul ecran, et c'est la doctrine posee en 001 et 002 :
+// Deux tables sous un seul écran, et c'est la doctrine posée en 001 et 002 :
 //   - produit_referentiel (BDD Commune) est le catalogue global maintenu par
-//     SamSecure, partage entre tous les clients en lecture seule. Aucune
-//     ecriture ne part d'ici : une modification faite depuis un espace client
-//     s'imposerait a tous les autres.
+//     SamSecure, partagé entre tous les clients en lecture seule. Aucune
+//     écriture ne part d'ici : une modification faite depuis un espace client
+//     s'imposerait à tous les autres.
 //   - produit_client (BDD Tenant) porte les logiciels propres au client.
-//     C'est la seule table que ce routeur ecrit.
-// La reponse porte donc source, catalogue ou client, et le front n'ouvre
-// l'edition que sur les seconds. Toute ecriture visant un identifiant du
-// catalogue est refusee en 409, jamais silencieusement ignoree.
+//     C'est la seule table que ce routeur écrit.
+// La réponse porte donc source, catalogue ou client, et le front n'ouvre
+// l'édition que sur les seconds. Toute écriture visant un identifiant du
+// catalogue est refusée en 409, jamais silencieusement ignorée.
 //
-// Aucune jointure ne traverse les deux bases : la fusion, la resolution des
-// editeurs et le comptage des licences sont applicatifs, en une requete par
-// reponse et jamais par ligne, comme referentielsLicences.js et inventaire.js.
+// Aucune jointure ne traverse les deux bases : la fusion, la résolution des
+// éditeurs et le comptage des licences sont applicatifs, en une requête par
+// réponse et jamais par ligne, comme referentielsLicences.js et inventaire.js.
 //
 // Distinct de GET /produits (referentielsLicences.js), qui sert le seul
-// catalogue global au selecteur du formulaire licence et reste inchange.
+// catalogue global au sélecteur du formulaire licence et reste inchangé.
 //
-// Enveloppe normalisee, codes 5300-5399 seedes par la migration 041.
+// Enveloppe normalisée, codes 5300-5399 seedés par la migration 041.
 import express from "express";
 import { tenantPool, commonPool } from "../db.js";
 import { succes, erreur, erreurPivot } from "../utils/reponse.js";
@@ -27,9 +27,9 @@ import { soumettre, purgerValidations, jointureStatut, COLONNES_STATUT } from ".
 
 const router = express.Router();
 
-// Convention du projet : helper de journalisation local a chaque routeur.
+// Convention du projet : helper de journalisation local à chaque routeur.
 // Il avale ses erreurs, une trace fonctionnelle manquante ne doit pas annuler
-// l'ecriture.
+// l'écriture.
 async function log(client, req, action, entite_type, entite_id, description, payload) {
   try {
     await client.query(
@@ -45,7 +45,7 @@ async function log(client, req, action, entite_type, entite_id, description, pay
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-// Auteur de la derniere soumission, en pendant de jointureStatut qui sert le
+// Auteur de la dernière soumission, en pendant de jointureStatut qui sert le
 // statut sans son auteur.
 const JOINTURE_SOUMETTEUR = `
   LEFT JOIN LATERAL (
@@ -77,10 +77,10 @@ function normaliserCorps(body = {}) {
   };
 }
 
-// ---- Lectures et resolutions ------------------------------------------------
+// ---- Lectures et résolutions ------------------------------------------------
 
-// Declinaisons d'une base, indexees par produit. Sert les quatre tables :
-// version et edition en Commune, version_client et edition_client en Tenant.
+// Déclinaisons d'une base, indexées par produit. Sert les quatre tables :
+// version et édition en Commune, version_client et edition_client en Tenant.
 async function declinaisons(client, table) {
   const { rows } = await client.query(
     `SELECT id, id_produit, label FROM ${table} ORDER BY label`);
@@ -93,16 +93,16 @@ async function declinaisons(client, table) {
   return index;
 }
 
-// Editeurs resolus en une passe. Les produits du catalogue portent un
+// Éditeurs résolus en une passe. Les produits du catalogue portent un
 // id_editeur qui vise la BDD Tenant sans FK possible : un identifiant inconnu
-// ressort avec un libelle null plutot qu'en erreur.
+// ressort avec un libellé null plutôt qu'en erreur.
 async function editeursParId() {
   const { rows } = await tenantPool.query(
     `SELECT id, raison_sociale, url_logo_defaut, url_logo_custom FROM editeur`);
   return new Map(rows.map((e) => [e.id, e]));
 }
 
-// Licences par produit. licence.id_produit est polymorphe : il designe un
+// Licences par produit. licence.id_produit est polymorphe : il désigne un
 // produit du catalogue ou un produit client, sans FK ni discriminant
 // (inventaire.js:56). Le comptage vaut donc pour les deux.
 async function licencesParProduit(client) {
@@ -124,13 +124,13 @@ function habiller(ligne, source, editeurs, versions, editions, licences) {
     editions: editions.get(ligne.id) ?? [],
     nb_licences: licences.get(ligne.id) ?? 0,
     // Le catalogue global ne se modifie pas depuis un espace client : l'API
-    // fait foi, le front n'affiche Editer et Supprimer que sur sa reponse.
+    // fait foi, le front n'affiche Éditer et Supprimer que sur sa réponse.
     modifiable: source === "client",
   };
 }
 
 // Catalogue global. Les produits n'ont pas de statut de validation : ils ne
-// sont pas saisis par le client, ils lui sont livres.
+// sont pas saisis par le client, ils lui sont livrés.
 async function chargerCatalogue(editeurs, licences) {
   const [{ rows }, versions, editions] = await Promise.all([
     commonPool.query(
@@ -163,8 +163,8 @@ async function existeTenant(client, table, id) {
 }
 
 // Le parent peut vivre dans l'une ou l'autre base : produit_client.id_produit_parent
-// est une reference logique sans FK, precisement pour qu'un logiciel maison
-// puisse se rattacher a une suite du catalogue global (002_tenant_schema.sql:290).
+// est une référence logique sans FK, précisément pour qu'un logiciel maison
+// puisse se rattacher à une suite du catalogue global (002_tenant_schema.sql:290).
 async function parentExiste(client, idParent) {
   if (!idParent) return true;
   if (await existeTenant(client, "produit_client", idParent)) return true;
@@ -173,12 +173,12 @@ async function parentExiste(client, idParent) {
   return rowCount > 0;
 }
 
-// Cycle : on remonte la chaine des parents depuis le parent vise. Si l'on
-// retombe sur le produit modifie, le rattachement fermerait une boucle.
-// La remontee s'arrete au premier parent du catalogue : il n'est pas modifiable
-// depuis ici, sa propre hierarchie est protegee par une FK auto-referencee et
+// Cycle : on remonte la chaîne des parents depuis le parent visé. Si l'on
+// retombe sur le produit modifié, le rattachement fermerait une boucle.
+// La remontée s'arrête au premier parent du catalogue : il n'est pas modifiable
+// depuis ici, sa propre hiérarchie est protégée par une FK auto-référencée et
 // ne peut donc pas redescendre vers un produit client.
-// En creation (idProduit null), le controle est sans objet.
+// En création (idProduit null), le contrôle est sans objet.
 async function fermeUneBoucle(client, idParent, idProduit) {
   if (!idParent || !idProduit) return false;
   const { rows } = await client.query(`SELECT id, id_produit_parent FROM produit_client`);
@@ -187,7 +187,7 @@ async function fermeUneBoucle(client, idParent, idProduit) {
   let courant = idParent;
   while (courant) {
     if (courant === idProduit) return true;
-    if (vus.has(courant)) return false;  // boucle preexistante, sans rapport
+    if (vus.has(courant)) return false;  // boucle préexistante, sans rapport
     vus.add(courant);
     courant = parentDe.get(courant) ?? null;
   }
@@ -210,9 +210,9 @@ async function validerProduit(client, corps, idProduit) {
   return null;
 }
 
-// Barriere commune a toutes les ecritures : l'identifiant doit designer un
+// Barrière commune à toutes les écritures : l'identifiant doit désigner un
 // produit client existant. Un identifiant du catalogue global rend 409 et non
-// 404 : le produit existe, c'est l'ecriture qui n'a pas lieu d'etre.
+// 404 : le produit existe, c'est l'écriture qui n'a pas lieu d'être.
 async function chargerProduitClientEcrivable(client, id) {
   if (!UUID_RE.test(id)) {
     return { erreur: { status: 404, code: 5310, error: "Logiciel introuvable." } };
@@ -239,7 +239,7 @@ router.get("/logiciels", async (req, res) => {
       chargerCatalogue(editeurs, licences),
       chargerProduitsClient(editeurs, licences),
     ]);
-    // Tri unique sur le libelle : les deux origines se melent dans la liste et
+    // Tri unique sur le libellé : les deux origines se mêlent dans la liste et
     // dans l'arborescence, la source n'est qu'une colonne.
     const tous = [...catalogue, ...client].sort((a, b) =>
       a.label.localeCompare(b.label, "fr", { numeric: true }));
@@ -285,7 +285,7 @@ router.get("/logiciels/:id", async (req, res) => {
   }
 });
 
-// ---- Ecriture ---------------------------------------------------------------
+// ---- Écriture ---------------------------------------------------------------
 
 router.post("/logiciels", async (req, res) => {
   const corps = normaliserCorps(req.body);
@@ -342,8 +342,8 @@ router.patch("/logiciels/:id", async (req, res) => {
       return erreurPivot(res, cible.erreur);
     }
 
-    // Fusion avant validation : un PATCH partiel ne doit pas echouer sur un
-    // champ obligatoire qui n'a simplement pas ete transmis.
+    // Fusion avant validation : un PATCH partiel ne doit pas échouer sur un
+    // champ obligatoire qui n'a simplement pas été transmis.
     const patch = normaliserCorps(req.body);
     const avant = { label: cible.produit.label, id_editeur: cible.produit.id_editeur,
                     id_produit_parent: cible.produit.id_produit_parent };
@@ -405,9 +405,9 @@ router.delete("/logiciels/:id", async (req, res) => {
       return erreurPivot(res, cible.erreur);
     }
 
-    // Les declinaisons partent en cascade avec le produit (FK ON DELETE
+    // Les déclinaisons partent en cascade avec le produit (FK ON DELETE
     // CASCADE, migration 040). Licences et sous-produits, eux, bloquent : rien
-    // ne doit disparaitre sous les pieds du module 3.
+    // ne doit disparaître sous les pieds du module 3.
     const { rows: [liens] } = await client.query(
       `SELECT (SELECT count(*) FROM licence        WHERE id_produit = $1)::int        AS licences,
               (SELECT count(*) FROM produit_client WHERE id_produit_parent = $1)::int AS sous_produits`,
@@ -448,12 +448,12 @@ router.delete("/logiciels/:id", async (req, res) => {
   }
 });
 
-// ---- Declinaisons des produits client ---------------------------------------
+// ---- Déclinaisons des produits client ---------------------------------------
 
-// version_client et edition_client se manipulent a l'identique : meme forme,
-// meme unicite, memes controles. Un seul couple de handlers, parametre par le
+// version_client et edition_client se manipulent à l'identique : même forme,
+// même unicité, mêmes contrôles. Un seul couple de handlers, paramétré par le
 // vocabulaire de chacune. Les noms de table sortent de ce catalogue et jamais
-// d'un parametre de route.
+// d'un paramètre de route.
 const DECLINAISONS = {
   versions: {
     table: "version_client", singulier: "version", accord: "la version",
@@ -532,7 +532,7 @@ function retirerDeclinaison(type) {
           message: `${d.singulier.charAt(0).toUpperCase()}${d.singulier.slice(1)} introuvable.` });
       }
 
-      // Le produit est dans la clause : une declinaison d'un autre produit ne
+      // Le produit est dans la clause : une déclinaison d'un autre produit ne
       // se supprime pas par cette route.
       const { rows } = await client.query(
         `DELETE FROM ${d.table} WHERE id = $1 AND id_produit = $2 RETURNING label`,

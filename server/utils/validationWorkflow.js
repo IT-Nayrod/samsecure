@@ -1,23 +1,23 @@
 // Workflow de validation des saisies (#53).
 //
 // Les tables contrat, commande, facture et preuve ne portent aucune colonne de
-// statut et ne doivent pas en porter : le statut d'une entite est la derniere
-// entree de workflow_validation qui la designe. Chaque saisie, creation comme
-// modification, insere une entree en_attente ; le traitement met a jour cette
-// entree. L'historique des soumissions en decoule sans table supplementaire.
+// statut et ne doivent pas en porter : le statut d'une entité est la dernière
+// entrée de workflow_validation qui la désigne. Chaque saisie, création comme
+// modification, insère une entrée en_attente ; le traitement met à jour cette
+// entrée. L'historique des soumissions en découle sans table supplémentaire.
 
 import { apresTraitementAffectation } from "./revalidation.js";
 
-// Catalogue des entites soumises au workflow. entite_id est polymorphe et ne
-// porte aucune FK SQL : ce catalogue est la seule barriere entre un
-// entite_type recu en parametre de route et un nom de table reel. Il ne doit
-// jamais etre etendu a partir d'une entree utilisateur.
-// apresTraitement (optionnel) : hook execute par validation.js dans la
-// transaction du traitement, apres la mise a jour de l'entree. C'est par lui
+// Catalogue des entités soumises au workflow. entite_id est polymorphe et ne
+// porte aucune FK SQL : ce catalogue est la seule barrière entre un
+// entite_type reçu en paramètre de route et un nom de table réel. Il ne doit
+// jamais être étendu à partir d'une entrée utilisateur.
+// apresTraitement (optionnel) : hook exécuté par validation.js dans la
+// transaction du traitement, après la mise à jour de l'entrée. C'est par lui
 // que le module 3 branche son cycle de revalidation sur le circuit unique,
 // sans second workflow ni seconde file (#106).
-// colonneLabel (optionnel) : colonne portant le libelle lisible de l'entite,
-// pour les messages de journal. Les cinq entites de saisie nomment la leur
+// colonneLabel (optionnel) : colonne portant le libellé lisible de l'entité,
+// pour les messages de journal. Les cinq entités de saisie nomment la leur
 // label, les tiers du module 1 la nomment raison_sociale.
 export const ENTITES_VALIDABLES = {
   contrat:        { table: "contrat",        introuvable: "Contrat introuvable." },
@@ -31,19 +31,19 @@ export const ENTITES_VALIDABLES = {
   produit_client: { table: "produit_client", introuvable: "Logiciel introuvable." },
 };
 
-// Comme table, la valeur sort du catalogue et jamais d'un parametre de route :
-// son interpolation dans une requete est sure ici, et nulle part ailleurs.
+// Comme table, la valeur sort du catalogue et jamais d'un paramètre de route :
+// son interpolation dans une requête est sûre ici, et nulle part ailleurs.
 export function colonneLabel(cible) {
   return cible.colonneLabel || "label";
 }
 
-// Fragment a coller dans les projections de liste et de detail. Le LATERAL sert
-// la derniere entree seule, sans sous-requete par colonne, et s'appuie sur
+// Fragment à coller dans les projections de liste et de détail. Le LATERAL sert
+// la dernière entrée seule, sans sous-requête par colonne, et s'appuie sur
 // idx_workflow_entite.
-// message_refus n'est expose que sur un refus : la validation efface le motif,
-// ce CASE immunise en plus la lecture contre une donnee residuelle.
+// message_refus n'est exposé que sur un refus : la validation efface le motif,
+// ce CASE immunise en plus la lecture contre une donnée résiduelle.
 // entiteType et alias sont des constantes du code, jamais des valeurs de
-// requete : l'interpolation est sure ici et nulle part ailleurs.
+// requête : l'interpolation est sûre ici et nulle part ailleurs.
 export function jointureStatut(entiteType, alias) {
   return `
   LEFT JOIN LATERAL (
@@ -58,12 +58,12 @@ export function jointureStatut(entiteType, alias) {
   ) wv ON true`;
 }
 
-// Colonnes a ajouter a la liste du SELECT, en pendant de jointureStatut.
+// Colonnes à ajouter à la liste du SELECT, en pendant de jointureStatut.
 export const COLONNES_STATUT =
   "wv.statut_validation, wv.statut_validation_label, wv.message_refus";
 
-// Une saisie, creation ou modification. Appelee dans la transaction de
-// l'ecriture metier : une entite creee sans son entree de validation serait
+// Une saisie, création ou modification. Appelée dans la transaction de
+// l'écriture métier : une entité créée sans son entrée de validation serait
 // invisible du workflow, donc jamais validable.
 export async function soumettre(client, entiteType, entiteId, idUtilisateur) {
   const { rowCount } = await client.query(
@@ -71,17 +71,17 @@ export async function soumettre(client, entiteType, entiteId, idUtilisateur) {
      SELECT $1, $2, $3, vs.id FROM validation_status vs WHERE vs.code = 'en_attente'`,
     [entiteType, entiteId, idUtilisateur || null]
   );
-  // Zero ligne inseree signifie referentiel non seede : echouer bruyamment
-  // vaut mieux qu'une entite sans statut.
+  // Zéro ligne insérée signifie référentiel non seedé : échouer bruyamment
+  // vaut mieux qu'une entité sans statut.
   if (!rowCount) {
     throw new Error("validation_status : le code 'en_attente' est absent du referentiel.");
   }
 }
 
-// Derniere entree de l'entite, ou null. verrou pose un FOR UPDATE sur la ligne
-// pour que deux traitements concurrents ne traitent pas deux fois la meme
-// saisie. Il ne protege pas d'une soumission concurrente, cas ou le traitement
-// porte sur l'entree qui existait au debut de la transaction.
+// Dernière entrée de l'entité, ou null. verrou pose un FOR UPDATE sur la ligne
+// pour que deux traitements concurrents ne traitent pas deux fois la même
+// saisie. Il ne protège pas d'une soumission concurrente, cas où le traitement
+// porte sur l'entrée qui existait au début de la transaction.
 export async function lireStatutCourant(client, entiteType, entiteId, verrou = false) {
   const { rows } = await client.query(
     `SELECT w.id, w.message_refus, vs.code AS statut, vs.label AS statut_label
@@ -96,8 +96,8 @@ export async function lireStatutCourant(client, entiteType, entiteId, verrou = f
   return rows[0] || null;
 }
 
-// Nettoyage applicatif a la suppression de l'entite. entite_id ne porte aucune
-// FK : sans cet appel, les entrees survivraient a leur entite.
+// Nettoyage applicatif à la suppression de l'entité. entite_id ne porte aucune
+// FK : sans cet appel, les entrées survivraient à leur entité.
 export async function purgerValidations(client, entiteType, entiteId) {
   await client.query(
     `DELETE FROM workflow_validation WHERE entite_type = $1 AND entite_id = $2`,

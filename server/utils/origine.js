@@ -1,20 +1,20 @@
-// Controle de l'origine des appels sensibles.
+// Contrôle de l'origine des appels sensibles.
 //
-// Portee reelle de ce controle, a ne pas surestimer : l'authentification du
-// projet passe par un jeton Bearer en en-tete et jamais par un cookie, donc un
-// site tiers ne peut pas forger d'appel au nom d'un administrateur connecte.
-// Un attaquant qui detient deja un jeton falsifie cet en-tete en une ligne.
-// Ce controle sert donc a interdire les appels hors interface par commodite et
-// a les rendre visibles, pas a arreter une attaque.
+// Portée réelle de ce contrôle, à ne pas surestimer : l'authentification du
+// projet passe par un jeton Bearer en en-tête et jamais par un cookie, donc un
+// site tiers ne peut pas forger d'appel au nom d'un administrateur connecté.
+// Un attaquant qui détient déjà un jeton falsifie cet en-tête en une ligne.
+// Ce contrôle sert donc à interdire les appels hors interface par commodité et
+// à les rendre visibles, pas à arrêter une attaque.
 //
-// D'ou l'interrupteur : actif la ou le parcours est fige (staging, production),
-// inactif en developpement ou les appels directs sont l'outil de travail.
+// D'où l'interrupteur : actif là où le parcours est figé (staging, production),
+// inactif en développement où les appels directs sont l'outil de travail.
 const STRICT = process.env.ORIGINE_STRICTE === "true";
 
 const AUTORISEES = (process.env.ORIGINES_AUTORISEES || "")
   .split(",").map((o) => o.trim()).filter(Boolean);
 
-// Renvoie null si l'appel est acceptable, sinon un refus pret a servir.
+// Renvoie null si l'appel est acceptable, sinon un refus prêt à servir.
 export function verifierOrigine(req) {
   // Referer en repli : certaines navigations ne posent pas Origin.
   const origine = req.get("origin") || (req.get("referer") ? new URL(req.get("referer")).origin : null);

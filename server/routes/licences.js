@@ -1,18 +1,18 @@
-// licences - patrimoine des droits acquis (US #102, module 3 partie A).
+// Licences : patrimoine des droits acquis (US #102, module 3 partie A).
 //
-// Meme convention que contrats.js et commandes.js : enveloppe normalisee
-// (server/utils/reponse.js, codes 4000-4099 seedes par la migration 028),
+// Même convention que contrats.js et commandes.js : enveloppe normalisée
+// (server/utils/reponse.js, codes 4000-4099 seedés par la migration 028),
 // helper log() vers journal_ecriture avec id_auteur, trace probante auditer()
-// vers audit_log sur chaque ecriture, controle d'existence des references avant
-// INSERT, transaction par ecriture, relecture de la projection apres commit.
+// vers audit_log sur chaque écriture, contrôle d'existence des références avant
+// INSERT, transaction par écriture, relecture de la projection après commit.
 //
-// Le contrat n'est jamais rattache directement a la licence : il se deduit de
+// Le contrat n'est jamais rattaché directement à la licence : il se déduit de
 // la commande (licence.id_commande -> commande.id_contrat), la migration 014
-// ayant supprime licence.id_contrat. La societe payeuse suit la meme chaine
-// (commande.id_societe), conformement a la doctrine budget.
+// ayant supprimé licence.id_contrat. La société payeuse suit la même chaîne
+// (commande.id_societe), conformément à la doctrine budget.
 //
-// produit, edition et version vivent en BDD Commune : aucune jointure SQL
-// possible, les libelles sont resolus ici apres lecture (resoudreCatalogue).
+// produit, édition et version vivent en BDD Commune : aucune jointure SQL
+// possible, les libellés sont résolus ici après lecture (resoudreCatalogue).
 import express from "express";
 import { tenantPool, commonPool } from "../db.js";
 import { succes, erreur, erreurPivot } from "../utils/reponse.js";
@@ -21,9 +21,9 @@ import { permissionsEffectives } from "../utils/droitsUtilisateur.js";
 
 const router = express.Router();
 
-// Convention du projet : helper de journalisation local a chaque routeur.
-// id_auteur est lu dans req.user (session JWT) : le routeur est monte apres
-// authMiddleware, req.user est donc toujours renseigne.
+// Convention du projet : helper de journalisation local à chaque routeur.
+// id_auteur est lu dans req.user (session JWT) : le routeur est monté après
+// authMiddleware, req.user est donc toujours renseigné.
 async function log(client, req, action, entite_type, entite_id, description, payload) {
   try {
     await client.query(
@@ -41,15 +41,15 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TYPES = ["perpetuelle", "souscription"];
 
-// Souscription echue : le jour meme de sa date de fin, sans tolerance
-// (hypothese v0.5 assumee). Une perpetuelle n'expire jamais. Une souscription
-// sans date de fin (donnee anterieure a la validation) reste active.
+// Souscription échue : le jour même de sa date de fin, sans tolérance
+// (hypothèse v0.5 assumée). Une perpétuelle n'expire jamais. Une souscription
+// sans date de fin (donnée antérieure à la validation) reste active.
 const EXPIREE = `(l.type = 'souscription' AND l.date_fin_souscription IS NOT NULL
                   AND l.date_fin_souscription < CURRENT_DATE)`;
 
-// Statut d'echeance : meme vocabulaire que contrats et commandes, pour que
-// StatutEcheanceBadge serve les trois ecrans. Source unique, jamais recalcule
-// cote front.
+// Statut d'échéance : même vocabulaire que contrats et commandes, pour que
+// StatutEcheanceBadge serve les trois écrans. Source unique, jamais recalculé
+// côté front.
 const STATUT_ECHEANCE = `
   CASE
     WHEN l.type = 'perpetuelle' OR l.date_fin_souscription IS NULL          THEN 'perpetuel'
@@ -58,8 +58,8 @@ const STATUT_ECHEANCE = `
     ELSE 'actif'
   END AS statut_echeance`;
 
-// Statut de maintenance : arretee (version figee) prime sur tout, puis echue
-// si la date de fin est depassee, active, ou aucune.
+// Statut de maintenance : arrêtée (version figée) prime sur tout, puis échue
+// si la date de fin est dépassée, active, ou aucune.
 const STATUT_MAINTENANCE = `
   CASE
     WHEN l.date_arret_maintenance IS NOT NULL                                  THEN 'arretee'
@@ -68,10 +68,10 @@ const STATUT_MAINTENANCE = `
     ELSE 'active'
   END AS statut_maintenance`;
 
-// Balance de conformite par produit : droits = quantites des licences non
-// expirees, usage declare = affectations de toutes les licences du produit
-// (un usage declare sur une licence echue reste un usage). Seuils repris de
-// l'ancien mock : depassement au-dela des droits, attention a 90 %.
+// Balance de conformité par produit : droits = quantités des licences non
+// expirées, usage déclaré = affectations de toutes les licences du produit
+// (un usage déclaré sur une licence échue reste un usage). Seuils repris de
+// l'ancien mock : dépassement au-delà des droits, attention à 90 %.
 const SELECT_LICENCE = `
   WITH usage_licence AS (
     SELECT a.id_licence, sum(a.quantite)::int AS quantite
@@ -147,13 +147,13 @@ const CHAMPS = [
 ];
 
 // ---------------------------------------------------------------------------
-// Resolution du catalogue (BDD Commune) et masquage des montants
+// Résolution du catalogue (BDD Commune) et masquage des montants
 // ---------------------------------------------------------------------------
 
 // Pose produit_label, produit_sku, id_editeur, editeur_label, edition_label,
-// version_label et version_figee_label sur chaque ligne. Une seule requete
-// Commune pour les produits, une pour editions et versions, une Tenant pour
-// les editeurs : jamais une requete par ligne.
+// version_label et version_figee_label sur chaque ligne. Une seule requête
+// Commune pour les produits, une pour éditions et versions, une Tenant pour
+// les éditeurs : jamais une requête par ligne.
 async function resoudreCatalogue(rows) {
   if (!rows.length) return rows;
   const idsProduits = [...new Set(rows.map((r) => r.id_produit).filter(Boolean))];
@@ -198,10 +198,10 @@ async function resoudreCatalogue(rows) {
 }
 
 // Montants visibles avec consulter_kpi_financiers seulement : Admin, Manager
-// DSI et Financier la detiennent, IT Ops non. Meme calcul que le middleware
-// (droitsUtilisateur.js) : le front applique la meme regle par hasPermission.
-// Les montants masques sortent a null avec montants_masques = true, jamais
-// caviardes en chaine : un consommateur ne doit pas confondre "masque" et "0".
+// DSI et Financier la détiennent, IT Ops non. Même calcul que le middleware
+// (droitsUtilisateur.js) : le front applique la même règle par hasPermission.
+// Les montants masqués sortent à null avec montants_masques = true, jamais
+// caviardés en chaîne : un consommateur ne doit pas confondre "masque" et "0".
 async function montantsVisibles(req) {
   const { permissions } = await permissionsEffectives(req.user.id);
   return permissions.has("consulter_kpi_financiers");
@@ -234,7 +234,7 @@ async function existe(client, table, id) {
   return rowCount > 0;
 }
 
-// Reference vers la BDD Commune : produit, ou declinaison rattachee au produit.
+// Référence vers la BDD Commune : produit, ou déclinaison rattachée au produit.
 async function produitExiste(id) {
   const { rowCount } = await commonPool.query(`SELECT 1 FROM produit_referentiel WHERE id = $1`, [id]);
   return rowCount > 0;
@@ -269,8 +269,8 @@ function normaliserCorps(body = {}) {
   };
 }
 
-// Les UUID sont controles avant toute requete : un UUID malforme part sinon en
-// Postgres et ressort en 22P02 illisible la ou la reference est simplement
+// Les UUID sont contrôlés avant toute requête : un UUID malformé part sinon en
+// Postgres et ressort en 22P02 illisible là où la référence est simplement
 // introuvable.
 const uuidValide = (v) => !v || UUID_RE.test(v);
 
@@ -292,8 +292,8 @@ async function validerLicence(client, corps) {
     return { status: 400, code: 4017, error: "Unite de mesure introuvable." };
   if (!TYPES.includes(c.type))
     return { status: 400, code: 4018, error: "Le type de licence doit etre perpetuelle ou souscription." };
-  // Zero accepte : c'est la borne du CHECK licence_quantite_check, et une
-  // licence a zero droit reste un fait (lot epuise, retire). Le front impose 1.
+  // Zéro accepté : c'est la borne du CHECK licence_quantite_check, et une
+  // licence à zéro droit reste un fait (lot épuisé, retiré). Le front impose 1.
   if (!Number.isInteger(c.quantite) || c.quantite < 0)
     return { status: 400, code: 4019, error: "La quantite doit etre un entier positif ou nul." };
   if (c.cout_licence !== null && (!Number.isFinite(c.cout_licence) || c.cout_licence < 0))
@@ -309,9 +309,9 @@ async function validerLicence(client, corps) {
   return null;
 }
 
-// Une perpetuelle ne porte pas de date de fin de souscription : elle est
-// effacee plutot que refusee, un changement de type ne doit pas obliger a
-// vider le champ a la main.
+// Une perpétuelle ne porte pas de date de fin de souscription : elle est
+// effacée plutôt que refusée, un changement de type ne doit pas obliger à
+// vider le champ à la main.
 function coherer(corps) {
   if (corps.type === "perpetuelle") corps.date_fin_souscription = null;
   return corps;
@@ -349,8 +349,8 @@ async function validerMaintenance(client, m) {
 
 const CHAMPS_MAINTENANCE = ["id_mainteneur", "id_revendeur", "date_debut", "date_fin", "cout"];
 
-// Etat de la licence tel qu'il est audite : les colonnes brutes, pas la
-// projection (les libelles resolus ne sont pas des donnees de la licence).
+// État de la licence tel qu'il est audité : les colonnes brutes, pas la
+// projection (les libellés résolus ne sont pas des données de la licence).
 const COLONNES_BRUTES = `label, id_produit, id_edition, id_version, id_commande, id_revendeur,
     id_unite_mesure, quantite, type, cout_licence::float8 AS cout_licence,
     date_fin_souscription::text AS date_fin_souscription, a_maintenance,
@@ -407,7 +407,7 @@ router.get("/licences/:id", async (req, res) => {
     const licence = await lireLicence(id, req);
     if (!licence) return introuvable(res);
 
-    // Compteurs de rattachements, les memes que le garde-fou de suppression.
+    // Compteurs de rattachements, les mêmes que le garde-fou de suppression.
     const { rows: [liens] } = await tenantPool.query(
       `SELECT (SELECT count(*) FROM affectation             WHERE id_licence = $1)::int AS nb_affectations,
               (SELECT count(*) FROM budget                  WHERE id_licence = $1)::int AS nb_budgets,
@@ -464,8 +464,8 @@ router.patch("/licences/:id", async (req, res) => {
     const avant = await lireBrute(client, id, true);
     if (!avant) { await client.query("ROLLBACK"); return introuvable(res); }
 
-    // Fusion avant validation : un PATCH partiel ne doit pas echouer sur un
-    // champ obligatoire qui n'a simplement pas ete transmis.
+    // Fusion avant validation : un PATCH partiel ne doit pas échouer sur un
+    // champ obligatoire qui n'a simplement pas été transmis.
     const patch = normaliserCorps(req.body);
     const corps = {};
     for (const champ of CHAMPS) {
@@ -476,7 +476,7 @@ router.patch("/licences/:id", async (req, res) => {
     const invalide = await validerLicence(client, corps);
     if (invalide) { await client.query("ROLLBACK"); return erreurPivot(res, invalide); }
 
-    // Changer de produit invalide une version figee qui lui etait propre.
+    // Changer de produit invalide une version figée qui lui était propre.
     const versionFigee = corps.id_produit === avant.id_produit ? avant.version_figee_id : null;
 
     await client.query(
@@ -514,7 +514,7 @@ router.delete("/licences/:id", async (req, res) => {
     if (!avant) { await client.query("ROLLBACK"); return introuvable(res); }
 
     // FK entrantes sans cascade du DDL v4 : affectation et budget. L'historique
-    // de maintenance tombe avec la licence (ON DELETE CASCADE), il n'est pas
+    // de maintenance tombé avec la licence (ON DELETE CASCADE), il n'est pas
     // bloquant.
     const { rows: [liens] } = await client.query(
       `SELECT (SELECT count(*) FROM affectation WHERE id_licence = $1) AS affectations,
@@ -568,8 +568,8 @@ router.get("/licences/:id/maintenance", async (req, res) => {
   }
 });
 
-// Ajouter une periode signifie que la licence est sous maintenance : le
-// drapeau passe a true (sauf maintenance arretee, que seule la reprise leve)
+// Ajouter une période signifie que la licence est sous maintenance : le
+// drapeau passe à true (sauf maintenance arrêtée, que seule la reprise lève)
 // et la date de fin de maintenance de la licence s'aligne sur la fin la plus
 // lointaine connue.
 async function repercuterSurLicence(client, idLicence) {
@@ -697,13 +697,13 @@ router.delete("/licences/:id/maintenance/:mid", async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// Arret et reprise de maintenance
+// Arrêt et reprise de maintenance
 // ---------------------------------------------------------------------------
 
-// L'arret fige la version (version_figee_id, par defaut la version courante de
-// la licence) et la date d'arret. Il ne retire aucun droit quantitatif : la
-// quantite et le type ne bougent pas. Les periodes d'historique ouvertes ou
-// courant au-dela sont closes a la date d'arret, et a_maintenance passe a false.
+// L'arrêt fige la version (version_figee_id, par défaut la version courante de
+// la licence) et la date d'arrêt. Il ne retire aucun droit quantitatif : la
+// quantité et le type ne bougent pas. Les périodes d'historique ouvertes ou
+// courant au-delà sont closes à la date d'arrêt, et a_maintenance passe à false.
 router.post("/licences/:id/arret-maintenance", async (req, res) => {
   const { id } = req.params;
   const client = await tenantPool.connect();
@@ -729,9 +729,9 @@ router.post("/licences/:id/arret-maintenance", async (req, res) => {
       await client.query("ROLLBACK");
       return erreur(res, 4041, { status: 400, message: "La date d'arret est invalide." });
     }
-    // Version figee : celle transmise, sinon la version courante de la licence.
-    // Une licence sans version connue est figee "sans version" : l'arret reste
-    // enregistre, la version pourra etre posee par une modification ulterieure.
+    // Version figée : celle transmise, sinon la version courante de la licence.
+    // Une licence sans version connue est figée "sans version" : l'arrêt reste
+    // enregistré, la version pourra être posée par une modification ultérieure.
     const versionFigee = Object.prototype.hasOwnProperty.call(req.body ?? {}, "version_figee_id")
       ? (req.body.version_figee_id || null) : avant.id_version;
     if (versionFigee && (!UUID_RE.test(versionFigee) || !(await declinaisonDuProduit("version", versionFigee, avant.id_produit)))) {
@@ -744,9 +744,9 @@ router.post("/licences/:id/arret-maintenance", async (req, res) => {
           SET a_maintenance = false, version_figee_id = $1, date_arret_maintenance = $2,
               date_fin_maintenance = $2
         WHERE id = $3`, [versionFigee, dateArret, id]);
-    // Cloture des periodes encore ouvertes ou courant au-dela de l'arret, a
-    // la date d'arret, sans jamais violer ck_maintenance_dates : une
-    // maintenance arretee ne peut plus etre "en cours" dans l'historique.
+    // Clôture des périodes encore ouvertes ou courant au-delà de l'arrêt, à
+    // la date d'arrêt, sans jamais violer ck_maintenance_dates : une
+    // maintenance arrêtée ne peut plus être "en cours" dans l'historique.
     await client.query(
       `UPDATE maintenance_historique
           SET date_fin = greatest(date_debut, $1::date)
@@ -769,9 +769,9 @@ router.post("/licences/:id/arret-maintenance", async (req, res) => {
   }
 });
 
-// Annule un arret : libere la version figee et remet la licence sous
-// maintenance. L'historique n'est pas retouche, la periode close reste close ;
-// une nouvelle periode se saisit ensuite.
+// Annule un arrêt : libère la version figée et remet la licence sous
+// maintenance. L'historique n'est pas retouché, la période close reste close ;
+// une nouvelle période se saisit ensuite.
 router.post("/licences/:id/reprise-maintenance", async (req, res) => {
   const { id } = req.params;
   const client = await tenantPool.connect();

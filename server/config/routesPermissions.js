@@ -1,36 +1,36 @@
-// Table de correspondance entre les routes de l'API et la permission exigee.
+// Table de correspondance entre les routes de l'API et la permission exigée.
 //
-// Source unique et auditable du controle d'acces serveur : aucune permission
-// n'est declaree ailleurs, dans aucun routeur. Lire ce fichier suffit a savoir
+// Source unique et auditable du contrôle d'accès serveur : aucune permission
+// n'est déclarée ailleurs, dans aucun routeur. Lire ce fichier suffit à savoir
 // qui peut faire quoi.
 //
-// Regle de securite : le controle est fail-closed. Une route protegee absente
-// de cette table est refusee, elle n'est pas laissee passer. Ajouter une route
-// a l'API impose donc d'ajouter sa ligne ici, l'oubli se voit immediatement.
+// Règle de sécurité : le contrôle est fail-closed. Une route protégée absente
+// de cette table est refusée, elle n'est pas laissée passer. Ajouter une route
+// à l'API impose donc d'ajouter sa ligne ici, l'oubli se voit immédiatement.
 //
-// L'ORDRE COMPTE : la premiere regle qui correspond gagne. Les chemins
-// litteraux doivent preceder les chemins parametres de meme longueur,
+// L'ORDRE COMPTE : la première règle qui correspond gagne. Les chemins
+// littéraux doivent précéder les chemins paramétrés de même longueur,
 // /commandes/agregats avant /commandes/:id.
 //
-// Codes disponibles, referentiel permission (29 codes, 7 modules) :
+// Codes disponibles, référentiel permission (29 codes, 7 modules) :
 //   administration : gerer_utilisateurs, gerer_exceptions_droit,
 //                    consulter_audit_log, gerer_connecteurs
 //   droits_usage   : consulter_contrats, consulter_factures, saisir_contrat,
 //                    saisir_commande, deposer_facture_preuve
-//   deploiement    : valider_saisie, consulter_licences, consulter_inventaire,
+//   déploiement    : valider_saisie, consulter_licences, consulter_inventaire,
 //                    saisir_licence, saisir_affectation, rapprocher_inventaire,
 //                    importer_inventaire (#111, 28e code)
 //   organisation   : consulter_referentiels, gerer_referentiels, gerer_contacts
 //   budget         : consulter_budget, saisir_budget, consulter_kpi_financiers,
 //                    supprimer_budget (#146, 29e code)
 //   dashboards     : acceder_dashboard_manager_dsi, _financier, _it_ops
-//                    (migration 010) : pilotent le selecteur de dashboard,
-//                    les routes de donnees suivent les droits metier
+//                    (migration 010) : pilotent le sélecteur de dashboard,
+//                    les routes de données suivent les droits métier
 //   rapports       : non encore branche sur l'API
 //
-// PUBLIC_AUTHENTIFIE : accessible a tout porteur d'un jeton valide, sans
-// permission particuliere. A n'employer que pour les routes qui ne divulguent
-// et ne modifient aucune donnee metier.
+// PUBLIC_AUTHENTIFIE : accessible à tout porteur d'un jeton valide, sans
+// permission particulière. À n'employer que pour les routes qui ne divulguent
+// et ne modifient aucune donnée métier.
 export const PUBLIC_AUTHENTIFIE = null;
 
 export const ROUTES_PERMISSIONS = [
@@ -40,13 +40,13 @@ export const ROUTES_PERMISSIONS = [
   ["POST",   "/contrats",                    "saisir_contrat"],
   ["PATCH",  "/contrats/:id",                "saisir_contrat"],
   ["DELETE", "/contrats/:id",                "saisir_contrat"],
-  // Archivage (#96) : meme droit que la suppression qu'il remplace.
+  // Archivage (#96) : même droit que la suppression qu'il remplace.
   ["POST",   "/contrats/:id/archiver",       "saisir_contrat"],
   ["POST",   "/contrats/:id/restaurer",      "saisir_contrat"],
 
   // ---- Droits d'usage : commandes ------------------------------------------
-  // Les deux chemins litteraux passent avant /commandes/:id.
-  // Les agregats sont un KPI financier, les manques appartiennent au module
+  // Les deux chemins littéraux passent avant /commandes/:id.
+  // Les agrégats sont un KPI financier, les manques appartiennent au module
   // documents : ni l'un ni l'autre ne se lit avec le droit de saisie.
   ["GET",    "/commandes/agregats",          "consulter_kpi_financiers"],
   ["GET",    "/commandes/manques",           "consulter_factures"],
@@ -75,14 +75,14 @@ export const ROUTES_PERMISSIONS = [
 
   // ---- Workflow de validation (#53) ----------------------------------------
   // Le droit de traiter une saisie est distinct du droit de la produire :
-  // c'est le sens de la story Droits annoncee a la #53.
+  // c'est le sens de la story Droits annoncée à la #53.
   ["POST",   "/validation/:type/:id/valider", "valider_saisie"],
   ["POST",   "/validation/:type/:id/refuser", "valider_saisie"],
 
-  // ---- Deploiement : licences (#102) ---------------------------------------
+  // ---- Déploiement : licences (#102) ---------------------------------------
   // Le droit de lire un montant est distinct du droit de lire la licence :
-  // consulter_kpi_financiers est evalue dans le routeur (masquage des couts),
-  // pas ici. Les sous-routes de maintenance suivent les memes deux droits.
+  // consulter_kpi_financiers est évalué dans le routeur (masquage des coûts),
+  // pas ici. Les sous-routes de maintenance suivent les mêmes deux droits.
   ["GET",    "/licences",                              "consulter_licences"],
   ["GET",    "/licences/:id",                          "consulter_licences"],
   ["GET",    "/licences/:id/maintenance",              "consulter_licences"],
@@ -95,12 +95,12 @@ export const ROUTES_PERMISSIONS = [
   ["POST",   "/licences/:id/arret-maintenance",        "saisir_licence"],
   ["POST",   "/licences/:id/reprise-maintenance",      "saisir_licence"],
 
-  // ---- Module 3 : affectations, usage declare et revalidation (#106) --------
+  // ---- Module 3 : affectations, usage déclaré et revalidation (#106) --------
   // Lecture : consulter_inventaire (Financier, IT Ops, Manager DSI). Saisie :
   // saisir_affectation (IT Ops, IT Data input, et Manager DSI par la matrice
   // 011). Revalidation : valider_saisie, comme le traitement du circuit unique.
-  // Les chemins litteraux decompte et historique passent avant /affectations/:id.
-  // GET /licences est servi par le routeur licences (#102), regle ci-dessus.
+  // Les chemins littéraux décompte et historique passent avant /affectations/:id.
+  // GET /licences est servi par le routeur licences (#102), règle ci-dessus.
   ["GET",    "/affectations/decompte",        "consulter_inventaire"],
   ["GET",    "/affectations/historique",      "consulter_inventaire"],
   ["GET",    "/affectations",                 "consulter_inventaire"],
@@ -111,11 +111,11 @@ export const ROUTES_PERMISSIONS = [
   ["DELETE", "/affectations/:id",             "saisir_affectation"],
 
   // ---- Inventaire (#111, module 3) ------------------------------------------
-  // Les chemins litteraux /inventaire/ecarts et /inventaire/affectations
+  // Les chemins littéraux /inventaire/ecarts et /inventaire/affectations
   // passent avant /inventaire/releves/:id. L'import exige un droit propre,
-  // importer_inventaire (migrations 031 et 032), detenu par admin_sam et
-  // manager_dsi : consulter et rapprocher ne suffisent pas a introduire des
-  // donnees dans le parc. Le rapprochement ne touche jamais une affectation.
+  // importer_inventaire (migrations 031 et 032), détenu par admin_sam et
+  // manager_dsi : consulter et rapprocher ne suffisent pas à introduire des
+  // données dans le parc. Le rapprochement ne touche jamais une affectation.
   ["GET",    "/inventaire/imports",                       "consulter_inventaire"],
   ["POST",   "/inventaire/imports",                       "importer_inventaire"],
   ["GET",    "/inventaire/imports/:id",                   "consulter_inventaire"],
@@ -130,13 +130,13 @@ export const ROUTES_PERMISSIONS = [
 
   // ---- Module 4 : budget (#146) ---------------------------------------------
   // Lecture : consulter_budget (Admin, Manager DSI, Financier, IT Ops). Saisie
-  // et preremplissage : saisir_budget (Admin, Manager DSI, Financier, et IT
-  // Ops par la matrice 011, conservee telle quelle : la US le place en
-  // lecture, ecart a valider avec Samuel, question "IT Ops et le financier").
+  // et préremplissage : saisir_budget (Admin, Manager DSI, Financier, et IT
+  // Ops par la matrice 011, conservée telle quelle : la US le place en
+  // lecture, écart à valider avec Samuel, question "IT Ops et le financier").
   // Suppression : supprimer_budget, permission propre (035 Commune, 036
-  // Tenant) detenue par Admin, Manager DSI et Financier : la saisie ne vaut
-  // pas droit de supprimer. Les montants ne sont pas masques dans ce module.
-  // Les chemins litteraux passent avant /budget/:id.
+  // Tenant) détenue par Admin, Manager DSI et Financier : la saisie ne vaut
+  // pas droit de supprimer. Les montants ne sont pas masqués dans ce module.
+  // Les chemins littéraux passent avant /budget/:id.
   ["GET",    "/budget/preremplissage",       "saisir_budget"],
   ["GET",    "/budget/engage",               "consulter_budget"],
   ["GET",    "/budget/synthese",             "consulter_budget"],
@@ -146,36 +146,36 @@ export const ROUTES_PERMISSIONS = [
   ["PATCH",  "/budget/:id",                  "saisir_budget"],
   ["DELETE", "/budget/:id",                  "supprimer_budget"],
 
-  // ---- Module 3 : conformite, qualite des saisies, confiance (#116) ---------
-  // Permissions existantes reutilisees, aucun code ajoute au referentiel.
-  // Conformite et confiance : consulter_licences (la balance et l'indice
-  // pesent le patrimoine de licences ; les montants y sont masques sans
-  // consulter_kpi_financiers, evalue dans le routeur comme pour les couts du
-  // module licences). Qualite : consulter_inventaire, la vue operationnelle
-  // du module 3 (meme lectorat que les affectations et les ecarts). Les
+  // ---- Module 3 : conformité, qualité des saisies, confiance (#116) ---------
+  // Permissions existantes réutilisées, aucun code ajouté au référentiel.
+  // Conformité et confiance : consulter_licences (la balance et l'indice
+  // pèsent le patrimoine de licences ; les montants y sont masqués sans
+  // consulter_kpi_financiers, évalué dans le routeur comme pour les coûts du
+  // module licences). Qualité : consulter_inventaire, la vue opérationnelle
+  // du module 3 (même lectorat que les affectations et les écarts). Les
   // permissions dashboards (acceder_dashboard_*) ne conviennent pas : chacune
-  // est propre a un persona et le controle central n'exprime pas de OU.
-  // Le chemin litteral /conformite/synthese passe avant /conformite.
+  // est propre à un persona et le contrôle central n'exprime pas de OU.
+  // Le chemin littéral /conformite/synthese passe avant /conformite.
   ["GET",    "/conformite/synthese",        "consulter_licences"],
   ["GET",    "/conformite",                 "consulter_licences"],
   ["GET",    "/qualite",                    "consulter_inventaire"],
   ["GET",    "/confiance",                  "consulter_licences"],
   // ---- Module 4 : dashboards (#190) -----------------------------------------
-  // Configuration et preferences : donnees de parametrage et de confort
-  // strictement personnelles, aucun montant ni donnee metier, d'ou
-  // PUBLIC_AUTHENTIFIE. La synthese agrege le workflow de validation et les
+  // Configuration et préférences : données de paramétrage et de confort
+  // strictement personnelles, aucun montant ni donnée métier, d'où
+  // PUBLIC_AUTHENTIFIE. La synthèse agrège le workflow de validation et les
   // revalidations du module 3 : elle suit consulter_inventaire, le droit de
   // lecture de ce module (Manager DSI et IT Ops le portent, la matrice 011
-  // fait foi). Les deux agregats financiers portent des montants : ils suivent
-  // consulter_kpi_financiers, que la matrice refuse a it_ops : le masquage des
-  // montants pour IT Ops est ainsi tenu cote serveur, pas seulement a l'ecran.
+  // fait foi). Les deux agrégats financiers portent des montants : ils suivent
+  // consulter_kpi_financiers, que la matrice refuse à it_ops : le masquage des
+  // montants pour IT Ops est ainsi tenu côté serveur, pas seulement à l'écran.
   ["GET",    "/dashboards/configuration",   PUBLIC_AUTHENTIFIE],
   ["PUT",    "/dashboards/preferences",     PUBLIC_AUTHENTIFIE],
   ["GET",    "/dashboards/synthese",        "consulter_inventaire"],
   ["GET",    "/dashboards/montants-totaux", "consulter_kpi_financiers"],
   ["GET",    "/dashboards/engages-payes",   "consulter_kpi_financiers"],
 
-  // ---- Referentiels en lecture ---------------------------------------------
+  // ---- Référentiels en lecture ---------------------------------------------
   ["GET",    "/produits",                    "consulter_referentiels"],
   ["GET",    "/unites-mesure",               "consulter_referentiels"],
   ["GET",    "/mainteneurs",                 "consulter_referentiels"],
@@ -185,11 +185,11 @@ export const ROUTES_PERMISSIONS = [
   ["GET",    "/modes-commande",              "consulter_referentiels"],
   ["GET",    "/types-preuve",                "consulter_referentiels"],
 
-  // ---- Referentiels du module 1 : editeurs et logiciels ---------------------
-  // Lecture et ecriture separees par le meme couple que les societes.
-  // Les chemins litteraux precedent les chemins parametres, et les
-  // declinaisons precedent /logiciels/:id : la premiere regle qui matche gagne.
-  // Recherche incrementale du formulaire editeur : litterale, donc declaree
+  // ---- Référentiels du module 1 : éditeurs et logiciels ---------------------
+  // Lecture et écriture séparées par le même couple que les sociétés.
+  // Les chemins littéraux précèdent les chemins paramétrés, et les
+  // déclinaisons précèdent /logiciels/:id : la première règle qui matche gagne.
+  // Recherche incrémentale du formulaire éditeur : littérale, donc déclarée
   // avant /editeurs/:id qui capturerait sinon "recherche" comme identifiant.
   ["GET",    "/editeurs/recherche",          "consulter_referentiels"],
   ["GET",    "/editeurs/:id",                "consulter_referentiels"],
@@ -207,8 +207,8 @@ export const ROUTES_PERMISSIONS = [
   ["PATCH",  "/logiciels/:id",               "gerer_referentiels"],
   ["DELETE", "/logiciels/:id",               "gerer_referentiels"],
 
-  // Revendeurs. Litteraux et sous-chemins d'abord, /revendeurs/:id ensuite :
-  // la premiere regle qui matche gagne, et la route parametree capturerait
+  // Revendeurs. Littéraux et sous-chemins d'abord, /revendeurs/:id ensuite :
+  // la première règle qui matche gagné, et la route paramétrée capturerait
   // sinon "recherche" comme un identifiant.
   ["GET",    "/revendeurs/recherche",        "consulter_referentiels"],
   ["POST",   "/revendeurs/:id/desactiver",   "gerer_referentiels"],
@@ -217,7 +217,7 @@ export const ROUTES_PERMISSIONS = [
   ["POST",   "/revendeurs",                  "gerer_referentiels"],
   ["PATCH",  "/revendeurs/:id",              "gerer_referentiels"],
 
-  // ---- Organisation : societes ---------------------------------------------
+  // ---- Organisation : sociétés ---------------------------------------------
   ["GET",    "/societes/:id/profils-orphelins", "gerer_referentiels"],
   ["GET",    "/societes",                    "consulter_referentiels"],
   ["POST",   "/societes",                    "gerer_referentiels"],
@@ -225,7 +225,7 @@ export const ROUTES_PERMISSIONS = [
   ["DELETE", "/societes/:id",                "gerer_referentiels"],
 
   // ---- Administration : exceptions de droits -------------------------------
-  // Declarees avant les routes /utilisateurs/:id/... generiques.
+  // Déclarées avant les routes /utilisateurs/:id/... génériques.
   ["GET",    "/exceptions",                              "gerer_exceptions_droit"],
   ["GET",    "/utilisateurs/:id/exceptions",             "gerer_exceptions_droit"],
   ["POST",   "/utilisateurs/:id/exceptions",             "gerer_exceptions_droit"],
@@ -265,15 +265,15 @@ export const ROUTES_PERMISSIONS = [
   ["GET",    "/permissions",                             "gerer_utilisateurs"],
 
   // ---- Mails (#87) ---------------------------------------------------------
-  // Test de la configuration SMTP. gerer_connecteurs n'est detenue que par le
-  // groupe admin_sam (matrice 011/021) : la route est de fait reservee au
+  // Test de la configuration SMTP. gerer_connecteurs n'est détenue que par le
+  // groupe admin_sam (matrice 011/021) : la route est de fait réservée au
   // profil administrateur, sans nommer de profil ici.
   ["POST",   "/mails/test",                  "gerer_connecteurs"],
 
   // ---- Journal -------------------------------------------------------------
-  // La lecture du journal est une consultation d'audit. L'ecriture reste
-  // ouverte a tout utilisateur authentifie : c'est une trace produite par ses
-  // propres actions, la lui refuser ferait perdre la trace, pas la proteger.
+  // La lecture du journal est une consultation d'audit. L'écriture reste
+  // ouverte à tout utilisateur authentifié : c'est une trace produite par ses
+  // propres actions, la lui refuser ferait perdre la trace, pas la protéger.
   ["GET",    "/journal",                     "consulter_audit_log"],
   ["POST",   "/journal",                     PUBLIC_AUTHENTIFIE],
 ];

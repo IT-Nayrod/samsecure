@@ -1,9 +1,9 @@
-// referentielsLicences - listes de reference du module 3 (licences), en lecture
-// seule, pour les selecteurs du formulaire licence et les filtres de la page.
+// Listes de référence du module 3 (licences), en lecture
+// seule, pour les sélecteurs du formulaire licence et les filtres de la page.
 //
 // Distinct de referentiels.js : le catalogue des produits vit en BDD Commune
-// (produit_referentiel, version, edition), et l'editeur de chaque produit est
-// un lien logique vers la BDD Tenant, resolu ici. Enveloppe normalisee (#68),
+// (produit_referentiel, version, edition), et l'éditeur de chaque produit est
+// un lien logique vers la BDD Tenant, résolu ici. Enveloppe normalisée (#68),
 // codes 4050-4059 (migration 028), contrairement aux listes historiques de
 // referentiels.js qui restent nues.
 import express from "express";
@@ -12,9 +12,9 @@ import { succes, erreur } from "../utils/reponse.js";
 
 const router = express.Router();
 
-// Catalogue complet en un appel : produits avec leurs versions et editions
-// imbriquees, tries par libelle. Le formulaire n'a ainsi qu'une source pour
-// les trois selecteurs dependants (produit, puis edition et version).
+// Catalogue complet en un appel : produits avec leurs versions et éditions
+// imbriquées, triés par libellé. Le formulaire n'a ainsi qu'une source pour
+// les trois sélecteurs dépendants (produit, puis édition et version).
 router.get("/produits", async (req, res) => {
   try {
     const [{ rows: produits }, { rows: versions }, { rows: editions }] = await Promise.all([

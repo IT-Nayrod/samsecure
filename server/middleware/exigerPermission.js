@@ -1,32 +1,32 @@
-// Controle des permissions sur toutes les routes protegees de l'API.
+// Contrôle des permissions sur toutes les routes protégées de l'API.
 //
-// Raison d'etre : jusqu'ici les 70 routes protegees ne verifiaient que la
-// validite du jeton. Masquer un bouton cote front n'est pas un controle
-// d'acces, la requete HTTP reste emissible a la main. Ce middleware ferme
-// cette porte, cote serveur, pour toute methode et tout chemin.
+// Sans lui, une route protégée ne vérifierait que la validité du jeton. Masquer
+// un bouton côté front n'est pas un contrôle d'accès, la requête HTTP reste
+// émissible à la main : ce middleware ferme cette porte, côté serveur, pour
+// toute méthode et tout chemin.
 //
-// Il est monte une seule fois dans index.js, apres authMiddleware et avant les
-// routeurs metier. Aucun routeur ne declare de permission : la table
+// Il est monté une seule fois dans index.js, après authMiddleware et avant les
+// routeurs métier. Aucun routeur ne déclare de permission : la table
 // config/routesPermissions.js est la seule source.
 import { ROUTES_PERMISSIONS } from "../config/routesPermissions.js";
 import { permissionsEffectives } from "../utils/droitsUtilisateur.js";
 import { erreur } from "../utils/reponse.js";
 
-// RBAC_STRICT=false journalise le refus sans bloquer : sert a observer les
-// refus reels sur un environnement avant de couper. Toute autre valeur, y
-// compris l'absence de variable, vaut mode strict. Un defaut permissif serait
-// un piege : un .env incomplet desactiverait silencieusement la securite.
+// RBAC_STRICT=false journalise le refus sans bloquer : sert à observer les
+// refus réels sur un environnement avant de couper. Toute autre valeur, y
+// compris l'absence de variable, vaut mode strict. Un défaut permissif serait
+// un piège : un .env incomplet désactiverait silencieusement la sécurité.
 const STRICT = process.env.RBAC_STRICT !== "false";
 
-// Un chemin Express devient une expression ancree : /profils/:id/societes
+// Un chemin Express devient une expression ancrée : /profils/:id/societes
 // accepte /profils/<uuid>/societes et rien d'autre. Ancrage aux deux bouts
-// pour qu'une regle courte ne capture pas un chemin plus long.
-// Insensible a la casse (flag i), comme le routage d'Express 5 (router 2,
-// path-to-regexp 8, caseSensitive false par defaut) : le middleware doit
-// reconnaitre exactement les memes chemins que les routeurs. Sans le flag,
-// /budget/Preremplissage echappait a la regle litterale, tombait sur la
-// regle /budget/:id (droit de lecture) puis etait servi par le handler de
-// preremplissage (droit de saisie) : revue #146, le meme contournement
+// pour qu'une règle courte ne capture pas un chemin plus long.
+// Insensible à la casse (flag i), comme le routage d'Express 5 (router 2,
+// path-to-regexp 8, caseSensitive false par défaut) : le middleware doit
+// reconnaître exactement les mêmes chemins que les routeurs. Sans le flag,
+// /budget/Preremplissage échappait à la règle littérale, tombait sur la
+// règle /budget/:id (droit de lecture) puis était servi par le handler de
+// préremplissage (droit de saisie) : revue #146, le même contournement
 // touchait /commandes/Agregats.
 function versRegex(chemin) {
   const motif = chemin
@@ -41,13 +41,13 @@ const REGLES = ROUTES_PERMISSIONS.map(([methode, chemin, permission]) => ({
 }));
 
 export function controlePermissions(req, res, next) {
-  // La premiere regle qui correspond gagne, d'ou l'ordre de la table.
+  // La première règle qui correspond gagne, d'où l'ordre de la table.
   const regle = REGLES.find(
     (r) => r.methode === req.method && r.regex.test(req.path)
   );
 
-  // Fail-closed : une route protegee absente de la table est refusee. Le cas
-  // signale une route ajoutee sans sa ligne de permission, il doit se voir.
+  // Fail-closed : une route protégée absente de la table est refusée. Le cas
+  // signale une route ajoutée sans sa ligne de permission, il doit se voir.
   if (!regle) {
     console.error(`[rbac] route non declaree : ${req.method} ${req.path}`);
     if (!STRICT) return next();
@@ -69,7 +69,7 @@ export function controlePermissions(req, res, next) {
         return next();
       }
       console.warn(refus);
-      // Le droit manquant est nomme : le support et le simulateur de droits
+      // Le droit manquant est nommé : le support et le simulateur de droits
       // doivent pouvoir dire quelle permission attribuer, sans lire les logs.
       erreur(res, 3400, {
         status: 403,

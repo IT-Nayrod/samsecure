@@ -1,19 +1,19 @@
-// Enveloppe de reponse normalisee (#68).
+// Enveloppe de réponse normalisée (#68).
 //
-// Chaque reponse de l'API porte un code numerique du catalogue code_retour
+// Chaque réponse de l'API porte un code numérique du catalogue code_retour
 // (BDD Commune, migrations 024 et 025), distinct du statut HTTP qui reste
-// decide route par route. Forme :
-//   succes : { code, type: "succes", libelle, data }
+// décidé route par route. Forme :
+//   succès : { code, type: "succes", libelle, data }
 //   erreur : { code, type: "erreur", libelle, error, details? }
-// La cle "error" est conservee : c'est celle que lit src/services/http.js et
-// le simulateur. Par defaut elle vaut le libelle du catalogue ; une route peut
-// la surcharger par un message plus precis (liste de bloquants, permission
-// manquante). Le code est aussi pose en en-tete X-Code-Retour, seul vecteur
-// possible pour une reponse binaire (sendFile).
+// La clé "error" est conservée : c'est celle que lit src/services/http.js et
+// le simulateur. Par défaut elle vaut le libellé du catalogue ; une route peut
+// la surcharger par un message plus précis (liste de bloquants, permission
+// manquante). Le code est aussi posé en en-tête X-Code-Retour, seul vecteur
+// possible pour une réponse binaire (sendFile).
 //
-// Le catalogue est charge une fois au demarrage (premier usage applicatif de
-// commonPool). Un code absent du catalogue ne casse jamais une reponse : le
-// libelle vaut null et l'ecart est signale en console, a corriger par un seed.
+// Le catalogue est chargé une fois au démarrage (premier usage applicatif de
+// commonPool). Un code absent du catalogue ne casse jamais une réponse : le
+// libellé vaut null et l'écart est signalé en console, à corriger par un seed.
 import { commonPool } from "../db.js";
 
 const catalogue = new Map();
@@ -54,7 +54,7 @@ export function erreur(res, code, { status = 400, message, details } = {}) {
   return res.status(status).json(corps);
 }
 
-// Objets pivots { status, code, error, details? } renvoyes par les helpers de
+// Objets pivots { status, code, error, details? } renvoyés par les helpers de
 // validation (valider(), validerFichier(), erreurReception()).
 export function erreurPivot(res, pivot) {
   return erreur(res, pivot.code, {
