@@ -1,4 +1,4 @@
-// BuilderColumnsSection - Selection et ordre des colonnes - SamSecure v0.5
+// Sélection et ordre des colonnes du constructeur de rapport.
 import { ArrowUp, ArrowDown, X } from 'lucide-react';
 
 export default function BuilderColumnsSection({ champsDisponibles, colonnes, onChange }) {
@@ -49,7 +49,7 @@ export default function BuilderColumnsSection({ champsDisponibles, colonnes, onC
         </div>
       </div>
 
-      {/* Colonnes selectionnees avec ordre */}
+      {/* Colonnes sélectionnées avec ordre */}
       {colonnes.length > 0 && (
         <div>
           <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Ordre des colonnes</p>

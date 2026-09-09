@@ -1,4 +1,4 @@
-// CustomReportBuilderPage - Constructeur de rapport personnalise - SamSecure v0.5
+// Constructeur de rapport personnalisé.
 // Route : /rapports/personnalise
 import { useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -79,7 +79,7 @@ export default function CustomReportBuilderPage() {
     setConfig(prev => ({ ...prev, ...patch }));
   }
 
-  // Quand on change de domaine : reinitialiser colonnes, filtres, etc.
+  // Quand on change de domaine : réinitialiser colonnes, filtres, etc.
   function changerDomaine(domaine) {
     const def = fieldsDictionary[domaine]?.colonnesDefaut ?? [];
     setConfig(prev => ({
@@ -197,7 +197,7 @@ export default function CustomReportBuilderPage() {
 
   const configPanel = (
     <div className="flex flex-col h-full">
-      {/* En-tete */}
+      {/* En-tête */}
       <div className="px-5 py-4 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center gap-2 mb-3">
           <SlidersHorizontal className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
@@ -215,7 +215,7 @@ export default function CustomReportBuilderPage() {
         </div>
       </div>
 
-      {/* Sections accordeon */}
+      {/* Sections accordéon */}
       <div className="flex-1 overflow-y-auto">
         {SECTIONS.map(section => (
           <div key={section.id} className="border-b border-gray-100 dark:border-gray-700/50">
@@ -238,7 +238,7 @@ export default function CustomReportBuilderPage() {
         ))}
       </div>
 
-      {/* Bouton generer */}
+      {/* Bouton générer */}
       <div className="px-5 py-4 border-t border-gray-200 dark:border-gray-700">
         <button
           onClick={generer}

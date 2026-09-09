@@ -1,4 +1,4 @@
-// ReportCard - Carte d'un rapport dans la grille de liste - SamSecure v0.5
+// Carte d'un rapport dans la grille de liste.
 import { useState } from 'react';
 import { FileBarChart } from 'lucide-react';
 import { REPORT_ICONS } from '../../data/reportsCatalog';

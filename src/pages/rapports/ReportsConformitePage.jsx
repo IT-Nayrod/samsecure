@@ -1,4 +1,4 @@
-// ReportsConformitePage - Liste des 6 rapports de conformite - SamSecure v0.5
+// Liste des six rapports de conformité.
 import { Link } from 'react-router-dom';
 import { SlidersHorizontal, ShieldCheck } from 'lucide-react';
 import ReportCard from '../../components/rapports/ReportCard';
@@ -9,7 +9,7 @@ const rapports = getReportsByCategorie('conformite');
 export default function ReportsConformitePage() {
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-8">
-      {/* En-tete */}
+      {/* En-tête */}
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1">

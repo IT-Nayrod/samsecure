@@ -1,4 +1,4 @@
-// ReportsOptimisationPage - Liste des 6 rapports d'optimisation - SamSecure v0.5
+// Liste des six rapports d'optimisation.
 import { Link } from 'react-router-dom';
 import { SlidersHorizontal, TrendingUp } from 'lucide-react';
 import ReportCard from '../../components/rapports/ReportCard';
@@ -9,7 +9,7 @@ const rapports = getReportsByCategorie('optimisation');
 export default function ReportsOptimisationPage() {
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-8">
-      {/* En-tete */}
+      {/* En-tête */}
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
@@ -37,7 +37,7 @@ export default function ReportsOptimisationPage() {
         ))}
       </div>
 
-      {/* Lien vers conformite */}
+      {/* Lien vers conformité */}
       <div className="pt-4 border-t border-gray-200 dark:border-gray-700 flex justify-center">
         <Link to="/rapports/conformite" className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">
           Voir aussi les rapports de conformité

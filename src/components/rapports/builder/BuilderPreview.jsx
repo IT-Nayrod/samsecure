@@ -1,4 +1,4 @@
-// BuilderPreview - Apercu en direct du rapport personnalise (debounce 400ms) - SamSecure v0.5
+// Aperçu en direct du rapport personnalisé, recalculé après un délai de 400 ms.
 import { useState, useEffect, useMemo } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -81,7 +81,7 @@ export default function BuilderPreview({ config, champsDisponibles }) {
   const titre = debouncedConfig?.options?.titre || 'Aperçu';
   const showRowNumbers = debouncedConfig?.options?.afficherNumerosLignes ?? false;
 
-  // Donnees graphique
+  // Données graphique
   const graphiqueConfig = debouncedConfig?.graphique;
   const groupement = debouncedConfig?.groupement;
   const graphiqueData = useMemo(() => {
@@ -98,7 +98,7 @@ export default function BuilderPreview({ config, champsDisponibles }) {
 
   return (
     <div className="h-full flex flex-col">
-      {/* En-tete apercu */}
+      {/* En-tête aperçu */}
       <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
         <div>
           <h2 className="font-semibold text-gray-900 dark:text-white text-base">{titre}</h2>

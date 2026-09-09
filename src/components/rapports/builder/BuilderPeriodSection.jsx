@@ -1,4 +1,4 @@
-// BuilderPeriodSection - Selecteur de periode inline pour le builder - SamSecure v0.5
+// Sélecteur de période intégré au constructeur de rapport.
 import { useMemo } from 'react';
 import {
   getAnneesDisponibles, getPeriodeAnneeCalendaire, getExercicesFiscaux,
@@ -96,7 +96,7 @@ export default function BuilderPeriodSection({ periode, onChange, champDate, onC
         <p className="text-xs text-gray-400 dark:text-gray-500">{resolved.label ?? `${resolved.dateDebut} - ${resolved.dateFin}`}</p>
       )}
 
-      {/* Champ date d'application */}
+      {/* Champ daté d'application */}
       {champsDateOptions?.length > 0 && (
         <div>
           <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Appliquer la période sur</label>

@@ -1,4 +1,4 @@
-// BuilderFiltersSection - Gestion des filtres dynamiques - SamSecure v0.5
+// Gestion des filtres dynamiques du constructeur de rapport.
 import { Plus, X } from 'lucide-react';
 
 const OPERATEURS_TEXTE = [
@@ -109,7 +109,7 @@ export default function BuilderFiltersSection({ champs, filtres, logique, onFilt
                   <X className="w-3.5 h-3.5" />
                 </button>
               </div>
-              {/* Operateur */}
+              {/* Opérateur */}
               <select
                 value={f.operateur}
                 onChange={e => modifierFiltre(idx, { operateur: e.target.value, valeur: '' })}
