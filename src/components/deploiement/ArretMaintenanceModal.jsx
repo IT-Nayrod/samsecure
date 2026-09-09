@@ -1,5 +1,5 @@
-// ArretMaintenanceModal - arret de la maintenance d'une licence : date d'arret
-// et version figee (par defaut la version courante). L'API (4009) fige la
+// ArretMaintenanceModal - arrêt de la maintenance d'une licence : date d'arrêt
+// et version figée (par défaut la version courante). L'API (4009) fige la
 // version et la date sans retirer de droit quantitatif.
 import { useState, useEffect } from 'react';
 import Modal from '../ui/Modal';

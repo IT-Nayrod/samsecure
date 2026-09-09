@@ -1,8 +1,8 @@
-// EcheancesFrise - frise des echeances de maintenance et de souscription du
-// parc, sur une fenetre glissante de 3 mois en arriere et 18 mois en avant.
+// EcheancesFrise - frise des échéances de maintenance et de souscription du
+// parc, sur une fenêtre glissante de 3 mois en arrière et 18 mois en avant.
 // Chaque licence porteuse d'une date (date_fin_maintenance, date_fin_souscription)
-// est posee proportionnellement sur l'axe ; ce qui est deja echu se lit a
-// gauche du repere "aujourd'hui". Les statuts viennent de l'API, la frise ne
+// est posée proportionnellement sur l'axe ; ce qui est déjà échu se lit à
+// gauche du repère "aujourd'hui". Les statuts viennent de l'API, la frise ne
 // calcule que la position.
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -58,7 +58,7 @@ export default function EcheancesFrise({ licences }) {
     return { debut, fin, points, aujourdhuiPct: pct(aujourdhui) };
   }, [licences]);
 
-  // Graduations mensuelles, libellees tous les 3 mois pour rester lisibles.
+  // Graduations mensuelles, libellées tous les 3 mois pour rester lisibles.
   const graduations = useMemo(() => {
     const out = [];
     const total = MOIS_AVANT + MOIS_APRES;

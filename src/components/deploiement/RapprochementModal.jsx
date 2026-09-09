@@ -1,8 +1,8 @@
-// RapprochementModal - rapprochement manuel d'un releve constate (#111).
-// Trois decisions humaines : associer a une affectation existante (candidates
-// de meme reference en tete, puis toute affectation par recherche), marquer en
-// ecart assume, rejeter avec motif. Aucune creation d'affectation ici : c'est
-// la doctrine actee, l'outil constate et alerte.
+// RapprochementModal - rapprochement manuel d'un relevé constaté (#111).
+// Trois décisions humaines : associer à une affectation existante (candidates
+// de même référence en tête, puis toute affectation par recherche), marquer en
+// écart assumé, rejeter avec motif. Aucune création d'affectation ici : c'est
+// la doctrine actée, l'outil constate et alerte.
 import { useState, useEffect, useMemo } from 'react';
 import Modal from '../ui/Modal';
 import Button from '../ui/Button';

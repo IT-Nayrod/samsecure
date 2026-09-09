@@ -1,6 +1,6 @@
 // HistoriqueDeclarations - lecture de historique_declaration (#106) par
-// societe ou par affectation. Chaque ligne est une ecriture metier tracee par
-// l'API : creation, modification, suppression, validation, refus, revalidation.
+// société ou par affectation. Chaque ligne est une écriture métier tracée par
+// l'API : création, modification, suppression, validation, refus, revalidation.
 import { useEffect, useState } from 'react';
 import { affectationsService } from '../../services/affectationsService';
 import { optionnel } from '../../services/http';
