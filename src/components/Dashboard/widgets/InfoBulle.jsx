@@ -1,6 +1,6 @@
-// Bulle d'information (i) portee par chaque widget : explique la donnee
-// affichee et son mode de calcul (#192). Accessible au clavier (focus) comme
-// a la souris (survol).
+// Bulle d'information (i) portée par chaque widget : explique la donnée
+// affichée et son mode de calcul (#192). Accessible au clavier (focus) comme
+// à la souris (survol).
 import { useState } from 'react';
 import { Info } from 'lucide-react';
 

@@ -1,6 +1,6 @@
-// Widgets histogrammes des dashboards, branches sur les donnees reelles (#192).
-// Echeanciers contrats et commandes (12 mois glissants a partir du mois
-// courant), montants totaux par axe, echeances de tresorerie. L'usage 12 mois
+// Widgets histogrammes des dashboards, branchés sur les données réelles (#192).
+// Échéanciers contrats et commandes (12 mois glissants à partir du mois
+// courant), montants totaux par axe, échéances de trésorerie. L'usage 12 mois
 // glissants attend une source d'historisation qui n'existe pas encore.
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -33,7 +33,7 @@ function libelleMois(periode) {
   return `${MOIS_COURTS[mois - 1]} ${String(annee).slice(2)}`;
 }
 
-// Douze periodes YYYY-MM a partir du mois courant.
+// Douze périodes YYYY-MM à partir du mois courant.
 function fenetre12Mois() {
   const out = [];
   const d = new Date();
@@ -80,10 +80,10 @@ const TooltipSombre = ({ active, payload, label, details }) => {
   );
 };
 
-// ─── Échéances contrats / commandes (12 mois glissants) ─────────────────────
-// variante 'contrats' : liste des contrats, detail par editeur.
-// variante 'commandes' : liste des commandes, detail par contrat de
-// rattachement (la commande ne porte pas d'editeur en propre).
+// --- Échéances contrats / commandes (12 mois glissants) ---------------------
+// variante 'contrats' : liste des contrats, détail par éditeur.
+// variante 'commandes' : liste des commandes, détail par contrat de
+// rattachement (la commande ne porte pas d'éditeur en propre).
 export function EcheancesWidget({ variante }) {
   const navigate = useNavigate();
   const codeWidget = variante === 'commandes' ? 'echeances-commandes' : 'echeances-contrats';
@@ -107,9 +107,9 @@ export function EcheancesWidget({ variante }) {
   const moisCourant = fenetre[0];
 
   for (const ligne of data ?? []) {
-    if (!ligne.date_fin || ligne.jours_restants == null) continue;  // perpetuel ou sans date
-    // Une echeance deja passee reste a piloter : elle est portee au mois
-    // courant, en rouge, plutot que perdue hors fenetre.
+    if (!ligne.date_fin || ligne.jours_restants == null) continue;  // perpétuel ou sans date
+    // Une échéance déjà passée reste à piloter : elle est portée au mois
+    // courant, en rouge, plutôt que perdue hors fenêtre.
     const periode = ligne.date_fin.slice(0, 7) < moisCourant ? moisCourant : ligne.date_fin.slice(0, 7);
     if (!fenetre.includes(periode)) continue;
     const cle = libelleMois(periode);
@@ -169,7 +169,7 @@ export function EcheancesWidget({ variante }) {
   );
 }
 
-// ─── Montants totaux par axe (Manager DSI) ──────────────────────────────────
+// --- Montants totaux par axe (Manager DSI) ----------------------------------
 const AXES = [
   { valeur: 'editeur', label: 'Par éditeur' },
   { valeur: 'societe', label: 'Par société' },
@@ -266,7 +266,7 @@ export function MontantsTotauxWidget() {
   );
 }
 
-// ─── Échéances de trésorerie (Financier) ────────────────────────────────────
+// --- Échéances de trésorerie (Financier) ------------------------------------
 export function EcheancesTresorerieWidget({ periode }) {
   const navigate = useNavigate();
   const [idEditeur, setIdEditeur] = useState('');
@@ -346,9 +346,9 @@ export function EcheancesTresorerieWidget({ periode }) {
   );
 }
 
-// ─── Usage 12 mois glissants (IT Ops) ───────────────────────────────────────
-// L'historique mensuel des affectations n'est enregistre nulle part : aucune
-// table ne photographie l'usage passe. Etat propre en attendant le module.
+// --- Usage 12 mois glissants (IT Ops) ---------------------------------------
+// L'historique mensuel des affectations n'est enregistré nulle part : aucune
+// table ne photographie l'usage passé. État propre en attendant le module.
 export function Usage12MoisWidget() {
   return (
     <CadreWidget

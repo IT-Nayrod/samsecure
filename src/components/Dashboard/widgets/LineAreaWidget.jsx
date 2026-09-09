@@ -1,9 +1,9 @@
 // Coût des licences manquantes (Financier), branche sur le contrat
-// conformite (#192). L'ecart valorise negatif mesure ce que couteraient les
-// droits manquants face a l'usage declare : c'est le seuil en montant du
+// conformité (#192). L'écart valorisé négatif mesure ce que coûteraient les
+// droits manquants face à l'usage déclaré : c'est le seuil en montant du
 // module (bornes en euros de la configuration). L'ancienne courbe sur 16 mois
-// necessitait un historique mensuel qui n'est enregistre nulle part : le
-// widget affiche l'etat courant, la serie temporelle viendra avec
+// nécessitait un historique mensuel qui n'est enregistré nulle part : le
+// widget affiche l'état courant, la série temporelle viendra avec
 // l'historisation.
 import { useNavigate } from 'react-router-dom';
 import CadreWidget from './CadreWidget';

@@ -1,8 +1,8 @@
-// Écart usage vs droits par éditeur, branche sur le contrat conformite (#192).
-// Colorimetrie inversee : vert = usage proche des droits, rouge = ecart eleve,
-// rouge sombre = depassement (usage superieur aux droits). Les montants
-// presents dans la reponse (prix, ecart valorise) ne sont jamais affiches ici :
-// le widget est partage avec le profil IT Ops.
+// Écart usage vs droits par éditeur, branché sur le contrat conformité (#192).
+// Colorimétrie inversée : vert = usage proche des droits, rouge = écart élevé,
+// rouge sombre = dépassement (usage supérieur aux droits). Les montants
+// présents dans la réponse (prix, écart valorisé) ne sont jamais affichés ici :
+// le widget est partagé avec le profil IT Ops.
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -33,7 +33,7 @@ function fabriqueCouleur(seuils) {
   return (droits, usages) => {
     if (!droits && !usages) return THRESHOLD_GREEN;
     if (usages > droits) {
-      // Manque de droits : l'ampleur se mesure sur les droits detenus.
+      // Manque de droits : l'ampleur se mesure sur les droits détenus.
       const abs = droits > 0 ? ((usages - droits) / droits) * 100 : 100;
       if (abs > b4) return THRESHOLD_DARK_RED;
       if (abs > b3) return THRESHOLD_RED;
@@ -61,7 +61,7 @@ export function EcartUsageDroitsWidget() {
 
   const couleurDe = fabriqueCouleur(seuils);
 
-  // Agregation des lignes produit par editeur, en quantites uniquement.
+  // Agrégation des lignes produit par éditeur, en quantités uniquement.
   const parEditeur = new Map();
   for (const l of data?.lignes ?? []) {
     const cle = l.id_editeur ?? 'sans-editeur';

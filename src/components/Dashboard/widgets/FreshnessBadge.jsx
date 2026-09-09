@@ -1,5 +1,5 @@
-// Etiquette de fraicheur des donnees : affichee uniquement quand l'API
-// fournit derniere_maj, jamais estimee localement (#192).
+// Étiquette de fraîcheur des données : affichée uniquement quand l'API
+// fournit derniere_maj, jamais estimée localement (#192).
 export default function FreshnessBadge({ dateIso }) {
   if (!dateIso) return null;
 

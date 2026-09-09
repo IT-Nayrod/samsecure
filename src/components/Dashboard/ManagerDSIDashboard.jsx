@@ -1,6 +1,6 @@
-// Dashboard Manager DSI (#192) : pilotage global, donnees reelles.
+// Dashboard Manager DSI (#192) : pilotage global, données réelles.
 // La composition (visibilite, ordre) vient de la configuration API et des
-// preferences individuelles, rendue par GrilleDashboard.
+// préférences individuelles, rendue par GrilleDashboard.
 import GrilleDashboard from './GrilleDashboard';
 import AlertesWidget from './widgets/AlertesWidget';
 import { EcartUsageDroitsWidget } from './widgets/BarChartWidget';

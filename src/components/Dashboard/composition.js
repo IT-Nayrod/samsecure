@@ -1,7 +1,7 @@
 // Composition des dashboards (#192) : ordre de maquette par profil, titres
-// lisibles des widgets, et resolution de la liste effective a afficher a
-// partir de la configuration API (default_profil_widget surcharge par le
-// tenant) et des preferences individuelles (preference_dashboard).
+// lisibles des widgets, et résolution de la liste effective à afficher à
+// partir de la configuration API (default_profil_widget surchargé par le
+// tenant) et des préférences individuelles (preference_dashboard).
 export const ORDRES = {
   manager_dsi: [
     'alertes', 'indice-confiance', 'validations-attente', 'qualite-saisies',
@@ -50,11 +50,11 @@ export const TITRES_WIDGETS = {
 };
 
 // Liste effective d'un dashboard : widgets de la configuration du profil
-// (acces_autorise vrai), ordonnee par la maquette puis par les positions des
-// preferences ; la visibilite suit la preference, sinon visible_defaut.
-// Tant que la configuration n'est pas seedee (migration 050 non jouee), la
-// composition de la maquette sert de defaut : c'est de la presentation, pas
-// une donnee.
+// (acces_autorise vrai), ordonnée par la maquette puis par les positions des
+// préférences ; la visibilité suit la préférence, sinon visible_defaut.
+// Tant que la configuration n'est pas seedée (migration 050 non jouée), la
+// composition de la maquette sert de défaut : c'est de la présentation, pas
+// une donnée.
 export function composerListe(widgetsProfil, preferences, ordreDefaut) {
   const configures = new Map(
     (widgetsProfil ?? []).map((w) => [w.widget_code, w])

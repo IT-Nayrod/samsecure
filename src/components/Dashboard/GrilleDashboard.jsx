@@ -1,6 +1,6 @@
 // Grille commune des trois dashboards (#192) : rend les widgets du profil
-// dans l'ordre effectif (configuration + preferences), masque ceux que
-// l'utilisateur a retires, et propose leur reaffichage en mode
+// dans l'ordre effectif (configuration + préférences), masque ceux que
+// l'utilisateur a retirés, et propose leur réaffichage en mode
 // personnalisation.
 import { Eye } from 'lucide-react';
 import { useContexteDashboard } from './ContexteDashboard';
