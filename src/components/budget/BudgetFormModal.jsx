@@ -1,12 +1,12 @@
-// BudgetFormModal - Section Saisie Budget - SamSecure v0.5
-// Creation et modification d'une ligne budgetaire par l'API (POST / PATCH
-// /budget). La licence est choisie dans la liste reelle des licences ;
-// l'organisation payeuse, le contrat et l'editeur qui en decoulent sont
-// affiches en lecture seule, jamais saisis. En previsionnel, la selection de
-// la licence appelle GET /budget/preremplissage : montant et quantite OPEX
-// d'apres la maintenance en cours et l'inflation calculee par l'API, bornes de
-// l'exercice cible, aucun CAPEX propose, le tout modifiable. Les regles de
-// validation serveur (5111 a 5122) sont rendues telles quelles en toast.
+// Formulaire de saisie d'une ligne budgétaire.
+// Création et modification d'une ligne budgétaire par l'API (POST / PATCH
+// /budget). La licence est choisie dans la liste réelle des licences ;
+// l'organisation payeuse, le contrat et l'éditeur qui en découlent sont
+// affichés en lecture seule, jamais saisis. En prévisionnel, la sélection de
+// la licence appelle GET /budget/preremplissage : montant et quantité OPEX
+// d'après la maintenance en cours et l'inflation calculée par l'API, bornes de
+// l'exercice cible, aucun CAPEX proposé, le tout modifiable. Les règles de
+// validation serveur (5111 à 5122) sont rendues telles quelles en toast.
 import { useState, useEffect, useMemo, useRef } from 'react';
 import SlideOver from '../ui/SlideOver';
 import Button from '../ui/Button';
@@ -70,16 +70,16 @@ export default function BudgetFormModal({
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [draftRestaure, setDraftRestaure] = useState(false);
-  // Derniere reponse de preremplissage et jeton de la derniere demande : une
-  // reponse tardive d'une licence deselectionnee ne doit pas ecraser la saisie.
+  // Dernière réponse de préremplissage et jeton de la dernière demande : une
+  // réponse tardive d'une licence désélectionnée ne doit pas écraser la saisie.
   const [prefill, setPrefill] = useState(null);
   const [prefillEnCours, setPrefillEnCours] = useState(false);
   const demande = useRef(0);
 
   const licence = useMemo(() => licences.find(l => l.id === form.id_licence) ?? null, [licences, form.id_licence]);
 
-  // Organisation deduite, en lecture seule : la licence choisie (projection
-  // /licences), a defaut la ligne editee (projection /budget) quand la liste
+  // Organisation déduite, en lecture seule : la licence choisie (projection
+  // /licences), à défaut la ligne éditée (projection /budget) quand la liste
   // des licences n'est pas accessible.
   const organisation = useMemo(() => {
     if (licence) return licence;
@@ -95,10 +95,10 @@ export default function BudgetFormModal({
       const p = await budgetService.preremplissage({ id_licence: idLicence, exercice });
       if (jeton !== demande.current) return;
       setPrefill(p);
-      // La ligne proposee est celle que l'API a preparee : montant OPEX annuel
-      // borne sur l'exercice cible, CAPEX absent (null). Quand la base n'est
-      // pas vide, ses bornes remplacent celles de la periode affichee : un
-      // montant annuel pose sur un trimestre serait faux. Tout reste modifiable.
+      // La ligne proposée est celle que l'API a préparée : montant OPEX annuel
+      // borné sur l'exercice cible, CAPEX absent (null). Quand la base n'est
+      // pas vide, ses bornes remplacent celles de la période affichée : un
+      // montant annuel posé sur un trimestre serait faux. Tout reste modifiable.
       const proposee = !p.motif_base_vide && p.ligne;
       setForm(prev => ({
         ...prev,
@@ -133,7 +133,7 @@ export default function BudgetFormModal({
     setDraftRestaure(false);
     const initial = formInitial(ligne, defaultDateDebut, defaultDateFin, lockedLicenceId);
     setForm(initial);
-    // Licence verrouillee (fiche licence) en creation : proposition immediate.
+    // Licence verrouillée (fiche licence) en création : proposition immédiate.
     if (!ligne && lockedLicenceId && initial.type === 'previsionnel') demanderPreremplissage(lockedLicenceId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ligne, isOpen, draftKey, defaultDateDebut, defaultDateFin, lockedLicenceId]);
@@ -143,8 +143,8 @@ export default function BudgetFormModal({
     saveDraft(draftKey, form);
   }, [form, isOpen, draftKey]);
 
-  // Toute nouvelle selection invalide la demande de preremplissage en cours :
-  // une reponse tardive pour l'ancienne licence ou l'ancien type est ignoree.
+  // Toute nouvelle sélection invalide la demande de préremplissage en cours :
+  // une réponse tardive pour l'ancienne licence ou l'ancien type est ignorée.
   function invaliderPreremplissage() {
     demande.current += 1;
     setPrefill(null);
@@ -162,8 +162,8 @@ export default function BudgetFormModal({
   function handleTypeChange(type) {
     setForm(prev => ({ ...prev, type }));
     invaliderPreremplissage();
-    // Retour au previsionnel : proposition seulement si rien n'a ete saisi,
-    // pour ne pas ecraser des montants deja renseignes.
+    // Retour au prévisionnel : proposition seulement si rien n'a été saisi,
+    // pour ne pas écraser des montants déjà renseignés.
     if (type === 'previsionnel' && !isEdit && form.id_licence && montantsVides()) demanderPreremplissage(form.id_licence);
   }
 
@@ -175,8 +175,8 @@ export default function BudgetFormModal({
     setErrors({});
   }
 
-  // Memes regles que l'API (5111 a 5122), pour un retour immediat ; l'API
-  // reste l'autorite et son message est affiche tel quel en cas de refus.
+  // Mêmes règles que l'API (5111 à 5122), pour un retour immédiat ; l'API
+  // reste l'autorité et son message est affiché tel quel en cas de refus.
   function validate() {
     const e = {};
     if (!form.id_licence) e.id_licence = 'La licence est obligatoire.';
@@ -275,7 +275,7 @@ export default function BudgetFormModal({
                   {licences.map(l => (
                     <option key={l.id} value={l.id}>{libelleLicence(l)}</option>
                   ))}
-                  {/* Ligne editee dont la licence n'est plus dans la liste (droit ou filtre) : conservee. */}
+                  {/* Ligne éditée dont la licence n'est plus dans la liste (droit ou filtre) : conservée. */}
                   {form.id_licence && !licences.some(l => l.id === form.id_licence) && (
                     <option value={form.id_licence}>{libelleLicence(ligne) || 'Licence de la ligne'}</option>
                   )}
@@ -291,8 +291,8 @@ export default function BudgetFormModal({
                       ? organisation.societe_label
                       : <span className="text-gray-500">Non déterminée (licence sans commande)</span>}
                   </span>
-                  {/* Editeur volontairement absent : /licences sert l'editeur du produit,
-                      la ligne budgetaire porte celui du contrat, les deux peuvent differer. */}
+                  {/* Éditeur volontairement absent : /licences sert l'éditeur du produit,
+                      la ligne budgétaire porte celui du contrat, les deux peuvent différer. */}
                   {organisation && (organisation.contrat_label || organisation.commande_label) && (
                     <span className="text-xs text-gray-500 dark:text-gray-400">
                       {[

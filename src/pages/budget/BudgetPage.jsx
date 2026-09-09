@@ -1,14 +1,14 @@
-// BudgetPage - Section Budget - SamSecure v0.5
-// Onglets Visualisation / Saisie, perimetre organisation + periode dans le
+// Page du module budget.
+// Onglets Visualisation / Saisie, périmètre organisation + période dans le
 // state, onglet actif via query param ?tab=visualisation|saisie.
-// Donnees API : lignes (GET /budget), indicateurs (GET /budget/synthese),
-// engage par licence (GET /budget/engage). La periode resolue par
+// Données API : lignes (GET /budget), indicateurs (GET /budget/synthese),
+// engagé par licence (GET /budget/engage). La période résolue par
 // PeriodeSelector est transmise en plage date_debut / date_fin : le trimestre
-// n'a pas d'exercice, et en vue consolidee l'exercice de la societe mere
+// n'a pas d'exercice, et en vue consolidée l'exercice de la société mère
 // s'applique aux filiales (#164). L'API n'accepte qu'un id_societe : la
-// consolidation fait un appel de synthese par societe du perimetre et cumule.
-// Acces : page sur consulter_budget (route), creation et modification sur
-// saisir_budget, suppression sur supprimer_budget ; l'API reste l'autorite.
+// consolidation fait un appel de synthèse par société du périmètre et cumulé.
+// Accès : page sur consulter_budget (route), création et modification sur
+// saisir_budget, suppression sur supprimer_budget ; l'API reste l'autorité.
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Plus, X } from 'lucide-react';
@@ -44,18 +44,18 @@ export default function BudgetPage() {
   const licenceFilter = searchParams.get('licence') ?? '';
   const contratFilter = searchParams.get('contrat') ?? '';
 
-  // Referentiels accessoires : organisations (hierarchie, exercice fiscal) et
-  // licences (formulaire). Un droit manquant sur eux prive de ces commodites,
+  // Référentiels accessoires : organisations (hiérarchie, exercice fiscal) et
+  // licences (formulaire). Un droit manquant sur eux prive de ces commodités,
   // pas de la page.
   const [societes, setSocietes] = useState([]);
   const [licences, setLicences] = useState([]);
 
-  // Organisation : perimetre controle depuis la page
+  // Organisation : périmètre contrôlé depuis la page
   const [societeId, setSocieteId] = useState('');
   const [consolider, setConsolider] = useState(true);
   const [periode, setPeriode] = useState(null);
 
-  // Donnees budget
+  // Données budget
   const [lignes, setLignes] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -65,9 +65,9 @@ export default function BudgetPage() {
   const [syntheseLoading, setSyntheseLoading] = useState(true);
   const [syntheseErreur, setSyntheseErreur] = useState(null);
   const [engageParLicence, setEngageParLicence] = useState(new Map());
-  // Jeton de la derniere demande : une reponse tardive n'ecrase pas la plus recente.
+  // Jeton de la dernière demande : une réponse tardive n'écrase pas la plus récente.
   const demande = useRef(0);
-  // Referentiel des societes lu au moment de la demande, sans relancer le
+  // Référentiel des sociétés lu au moment de la demande, sans relancer le
   // chargement quand il arrive.
   const societesRef = useRef([]);
   societesRef.current = societes;
@@ -94,16 +94,16 @@ export default function BudgetPage() {
 
   const societesTriees = useMemo(() => sortByHierarchy(societes), [societes]);
 
-  // Perimetre effectif : null = toutes, [ids] = perimetre restreint
+  // Périmètre effectif : null = toutes, [ids] = périmètre restreint
   const societeIds = useMemo(
     () => perimetreSocietes(societeId || null, consolider, societes),
     [societeId, consolider, societes]
   );
 
-  // Exercice fiscal du selecteur de periode : celui de l'organisation
-  // selectionnee (en consolidation, l'exercice de la societe mere s'applique
-  // aux filiales). Sans organisation, defaut du composant (1er janvier) : aucune
-  // route ne sert le defaut du tenant.
+  // Exercice fiscal du sélecteur de période : celui de l'organisation
+  // sélectionnée (en consolidation, l'exercice de la société mère s'applique
+  // aux filiales). Sans organisation, défaut du composant (1er janvier) : aucune
+  // route ne sert le défaut du tenant.
   const debutExercice = useMemo(
     () => societes.find(x => x.id === societeId)?.debut_exercice_fiscal ?? null,
     [societes, societeId]
@@ -126,12 +126,12 @@ export default function BudgetPage() {
     setSyntheseLoading(true);
     setSyntheseErreur(null);
 
-    // Syntheses lancees en parallele de la liste : une par societe du
-    // perimetre, ou une seule sans filtre (lignes sans societe comprises).
+    // Synthèses lancées en parallèle de la liste : une par société du
+    // périmètre, ou une seule sans filtre (lignes sans société comprises).
     const synthesePromise = perimetre
       ? Promise.all(perimetre.map(id => budgetService.synthese({ ...base, id_societe: id }).then(r => [id, r])))
       : budgetService.synthese(base).then(r => [[null, r]]);
-    // Un rejet consomme ici, puis relu plus bas : sans ce catch, un echec avant
+    // Un rejet consommé ici, puis relu plus bas : sans ce catch, un échec avant
     // la liste ferait un rejet sans consommateur.
     synthesePromise.catch(() => {});
 
@@ -156,8 +156,8 @@ export default function BudgetPage() {
       return;
     }
 
-    // Engage par licence distincte de la liste affichee (GET /budget/engage).
-    // Un echec isole laisse la ligne sans engage, il ne condamne pas la page.
+    // Engagé par licence distincte de la liste affichée (GET /budget/engage).
+    // Un échec isolé laisse la ligne sans engagé, il ne condamne pas la page.
     const idsLicences = [...new Set(lignesPerimetre.map(l => l.id_licence))];
     setEngageParLicence(new Map());
     Promise.all(idsLicences.map(id =>
@@ -169,7 +169,7 @@ export default function BudgetPage() {
       setEngageParLicence(new Map(resultats));
     });
 
-    // Indicateurs et repartition par organisation.
+    // Indicateurs et répartition par organisation.
     try {
       const syntheses = await synthesePromise;
       if (jeton !== demande.current) return;
@@ -178,11 +178,11 @@ export default function BudgetPage() {
         setTotaux(cumulerTotaux(syntheses.map(([, s]) => s.totaux)));
       } else {
         setTotaux(parSociete.get(null)?.totaux ?? null);
-        // Repartition : une synthese par societe connue (referentiel) ou
-        // presente dans les lignes, pour ne pas oublier une societe qui n'a
-        // que de l'engage. Les lignes sans societe payeuse ne peuvent pas etre
-        // filtrees par l'API : comptees dans les indicateurs, signalees sous
-        // la repartition.
+        // Répartition : une synthèse par société connue (référentiel) ou
+        // présente dans les lignes, pour ne pas oublier une société qui n'a
+        // que de l'engagé. Les lignes sans société payeuse ne peuvent pas être
+        // filtrées par l'API : comptées dans les indicateurs, signalées sous
+        // la répartition.
         const cibles = [...new Set([
           ...societesRef.current.map(s => s.id),
           ...lignesPerimetre.map(l => l.id_societe).filter(Boolean),
@@ -207,9 +207,9 @@ export default function BudgetPage() {
 
   useEffect(() => { loadBudget(); }, [loadBudget]);
 
-  // Lignes de la repartition, dans l'ordre hierarchique des organisations ;
-  // une societe absente du referentiel (droit manquant) garde le libelle
-  // servi par les lignes budgetaires.
+  // Lignes de la répartition, dans l'ordre hiérarchique des organisations ;
+  // une société absente du référentiel (droit manquant) garde le libellé
+  // servi par les lignes budgétaires.
   const repartition = useMemo(() => {
     const rows = [];
     const vues = new Set();
@@ -226,7 +226,7 @@ export default function BudgetPage() {
     return rows;
   }, [societesTriees, synthesesParSociete, lignes]);
 
-  // Libelles des chips de filtre : lignes servies, a defaut liste des licences.
+  // Libellés des chips de filtre : lignes servies, à défaut liste des licences.
   const licenceFilterLabel = useMemo(() => {
     if (!licenceFilter) return null;
     const ligne = lignes.find(l => l.id_licence === licenceFilter);
@@ -242,13 +242,13 @@ export default function BudgetPage() {
       ?? 'contrat sélectionné';
   }, [contratFilter, lignes, licences]);
 
-  // Lignes sans societe payeuse (licence sans commande) : dans les indicateurs
-  // de la vue "Toutes les organisations", hors repartition.
+  // Lignes sans société payeuse (licence sans commande) : dans les indicateurs
+  // de la vue "Toutes les organisations", hors répartition.
   const nbSansSociete = useMemo(() => lignes.filter(l => !l.id_societe).length, [lignes]);
 
   const handlePeriodChange = useCallback((p) => setPeriode(p), []);
 
-  // Drill-down depuis le tableau de repartition
+  // Drill-down depuis le tableau de répartition
   function handleSelectSociete(id) {
     setSocieteId(id);
     setConsolider(false);
@@ -276,7 +276,7 @@ export default function BudgetPage() {
     setLigneASupprimer(ligne);
   }
 
-  // Apres toute ecriture : liste, indicateurs et engage recharges.
+  // Après toute écriture : liste, indicateurs et engagé rechargés.
   function handleSaved() {
     setLigneEnEdition(null);
     loadBudget();
@@ -292,7 +292,7 @@ export default function BudgetPage() {
     }
   }
 
-  // Bornes ISO calendaires fournies par le selecteur (toISOString basculerait en UTC et reculerait d'un jour)
+  // Bornes ISO calendaires fournies par le sélecteur (toISOString basculerait en UTC et reculerait d'un jour)
   const defaultDateDebut = periode?.dateDebut;
   const defaultDateFin = periode?.dateFin;
   const exerciceCible = exerciceDePeriode(periode);
@@ -375,10 +375,10 @@ export default function BudgetPage() {
     <div className="flex flex-col gap-6">
       {enTete}
 
-      {/* Indicateurs (periode + organisation), servis par la synthese */}
+      {/* Indicateurs (période + organisation), servis par la synthèse */}
       <BudgetKPIBar totaux={totaux} isLoading={syntheseLoading} erreur={syntheseErreur} />
 
-      {/* Repartition par organisation (visualisation uniquement, masquee si 1 seule org) */}
+      {/* Répartition par organisation (visualisation uniquement, masquée si 1 seule org) */}
       {tab === 'visualisation' && !syntheseLoading && (
         <>
           <BudgetOrgBreakdown lignes={repartition} onSelectSociete={handleSelectSociete} />
@@ -399,7 +399,7 @@ export default function BudgetPage() {
         </div>
       )}
 
-      {/* Tableau des lignes ; etat vide avec acces a la saisie si le droit le permet */}
+      {/* Tableau des lignes ; état vide avec accès à la saisie si le droit le permet */}
       {vide ? (
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
           <EmptyState
@@ -421,7 +421,7 @@ export default function BudgetPage() {
         />
       )}
 
-      {/* Modal creation / edition */}
+      {/* Modal création / édition */}
       <BudgetFormModal
         isOpen={formOpen}
         onClose={() => { setFormOpen(false); setLigneEnEdition(null); }}
