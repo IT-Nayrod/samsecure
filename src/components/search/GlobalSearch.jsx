@@ -1,4 +1,5 @@
-// GlobalSearch - Section 7 Specs UX v0.5 - recherche transverse, groupee par categorie via searchRegistry
+// Recherche transverse de la barre supérieure : interroge le registre des
+// entités (searchRegistry) et groupe les résultats par catégorie.
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Loader2 } from 'lucide-react';
