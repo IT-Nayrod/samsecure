@@ -1,4 +1,4 @@
-// UnauthorizedPage - Section 10 Specs UX v0.5
+// Page d'accès refusé, avec retour au tableau de bord.
 import { Link } from 'react-router-dom';
 import { ShieldOff } from 'lucide-react';
 import Button from '../components/ui/Button';

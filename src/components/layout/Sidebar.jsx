@@ -1,4 +1,5 @@
-// Sidebar - Section 1.2 Specs UX v0.5
+// Barre latérale de navigation : entrées filtrées par les permissions réelles
+// de l'utilisateur, bloc administration et identité du compte.
 // Règle d'affichage (itération courante) : aucun bridage par rôle, à
 // l'exception de la section ADMINISTRATION, dont chaque entrée est mappée
 // sur sa permission réelle du catalogue. Une entrée sans `permission` est
@@ -47,7 +48,7 @@ const MENU = [
   {
     section: 'BUDGET',
     items: [
-      // Page branchee sur l'API (#148) : entree mappee sur sa permission reelle.
+      // Page branchée sur l'API (#148) : entrée mappée sur sa permission réelle.
       { label: 'Budget', icon: PiggyBank, path: '/budget', permission: 'consulter_budget' },
     ],
   },

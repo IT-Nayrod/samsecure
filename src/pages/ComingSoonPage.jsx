@@ -1,4 +1,4 @@
-// ComingSoonPage - Section 10 Specs UX v0.5
+// Page d'attente d'une section non encore développée.
 import { useLocation } from 'react-router-dom';
 import { Construction } from 'lucide-react';
 
