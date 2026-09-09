@@ -1,4 +1,4 @@
-// formDraft - persistance des brouillons de formulaire (panneaux lateraux) dans localStorage
+// formDraft - persistance des brouillons de formulaire (panneaux latéraux) dans localStorage
 // Permet de ne pas perdre une saisie en cours si le panneau se ferme ou si la page se recharge.
 const PREFIX = 'ss_draft_';
 
@@ -15,7 +15,7 @@ export function saveDraft(key, value) {
   try {
     localStorage.setItem(PREFIX + key, JSON.stringify(value));
   } catch {
-    // stockage indisponible (navigation privee, quota) : la saisie reste fonctionnelle, simplement non persistee
+    // stockage indisponible (navigation privée, quota) : la saisie reste fonctionnelle, simplement non persistée
   }
 }
 

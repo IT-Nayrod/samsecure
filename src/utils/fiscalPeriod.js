@@ -1,5 +1,5 @@
-// fiscalPeriod - periodes nommees (fiscale_courante, civile_precedente, glissantes...) pour Commandes et Dashboard
-// Le calcul d'exercice fiscal est delegue a src/utils/periode.js (US #164), seule implementation du projet.
+// fiscalPeriod - périodes nommées (fiscale_courante, civile_precedente, glissantes...) pour Commandes et Dashboard
+// Le calcul d'exercice fiscal est délégué à src/utils/periode.js (US #164), seule implémentation du projet.
 import { mockSocietes } from '../data/mockReferentiels';
 import { mockTenant } from '../data/mockSettings';
 import {
@@ -21,10 +21,10 @@ function lastDayOfMonth(year, monthIndex) {
   return new Date(year, monthIndex + 1, 0);
 }
 
-// Resout le debut d'exercice fiscal applicable.
-// debutExercice fourni par l'appelant prime : c'est la voie des ecrans branches
+// Résout le début d'exercice fiscal applicable.
+// debutExercice fourni par l'appelant prime : c'est la voie des écrans branchés
 // sur l'API. Le repli sur les mocks reste en place pour budget et dashboard,
-// qui ne sont pas encore branches (module 4).
+// qui ne sont pas encore branchés (module 4).
 export function getDebutExerciceFiscal(societeId, debutExercice = null) {
   if (debutExercice) return debutExercice;
   if (societeId) {
@@ -34,21 +34,21 @@ export function getDebutExerciceFiscal(societeId, debutExercice = null) {
   return mockTenant.debut_exercice_fiscal ?? { jour: 1, mois: 1 };
 }
 
-// societe.debut_exercice_fiscal est une colonne DATE cote base : seuls le jour
-// et le mois portent du sens, l'annee est arbitraire.
+// societe.debut_exercice_fiscal est une colonne DATE côté base : seuls le jour
+// et le mois portent du sens, l'année est arbitraire.
 export function debutExerciceDepuisDate(dateIso) {
   if (!dateIso) return null;
   return normaliserDebutExercice(dateIso);
 }
 
-// Plage [debut, fin] de l'exercice fiscal contenant `reference`, decale de `yearOffset` exercices
+// Plage [debut, fin] de l'exercice fiscal contenant `reference`, décalé de `yearOffset` exercices
 function fiscalYearRange(reference, debutExercice, yearOffset = 0) {
   const { debut, fin } = exerciceFiscal(reference, debutExercice, yearOffset);
   return { debut, fin };
 }
 
-// Resout une periode nommee en plage de dates concretes
-// societeId : si fourni, utilise l'exercice fiscal de cette societe ; sinon le defaut tenant (vues agregees)
+// Résout une période nommée en plage de dates concrètes
+// societeId : si fourni, utilise l'exercice fiscal de cette société ; sinon le défaut tenant (vues agrégées)
 export function resolveFiscalPeriod(periodeKey, { societeId = null, debutExercice = null, customDebut = null, customFin = null, now = new Date() } = {}) {
   const debut = getDebutExerciceFiscal(societeId, debutExercice);
 
@@ -81,8 +81,8 @@ export function resolveFiscalPeriod(periodeKey, { societeId = null, debutExercic
   }
 }
 
-// Exercice fiscal identifie par l'annee de son anniversaire de demarrage (ex. exercice qui debute le 01/04/2026 -> '2026')
-// Utilise comme cle pour les budgets (mockBudgets.js), independamment de la societe consultee
+// Exercice fiscal identifié par l'année de son anniversaire de démarrage (ex. exercice qui débute le 01/04/2026 -> '2026')
+// Utilisé comme clé pour les budgets (mockBudgets.js), indépendamment de la société consultée
 export function getExerciceFiscalKey(societeId, offsetExercices = 0, now = new Date()) {
   const range = fiscalYearRange(now, getDebutExerciceFiscal(societeId), offsetExercices);
   return String(range.debut.getFullYear());
@@ -106,7 +106,7 @@ export function formatPeriodeLabel(range) {
 }
 
 // Bornes en YYYY-MM-DD, sans passer par toISOString qui bascule en UTC et
-// pourrait reculer d'un jour selon le fuseau. Meme implementation que periode.js.
+// pourrait reculer d'un jour selon le fuseau. Même implémentation que periode.js.
 export function toIsoDate(d) {
   return toIsoDatePartage(d);
 }

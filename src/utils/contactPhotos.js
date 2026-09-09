@@ -1,5 +1,5 @@
-// contactPhotos - stockage v0.5 des photos contact (data URL en localStorage, par id contact)
-// Isole derriere ces fonctions : en v1+ ce sera un appel API vers photo_url, seul ce fichier changera.
+// Stockage local des photos de contact (data URL en localStorage, par identifiant de contact).
+// Isolé derrière ces fonctions : en v1+ ce sera un appel API vers photo_url, seul ce fichier changera.
 const STORAGE_KEY = 'samsecure_photos_contacts';
 
 function readAll() {

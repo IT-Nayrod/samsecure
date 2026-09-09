@@ -15,14 +15,14 @@
   gap: 20px;
 }
 
-/* Grille 12 colonnes pour Manager DSI V2 (Ligne 1 × 4, L2/L3 × 2, L4 × 3) */
+/* Grille 12 colonnes pour Manager DSI V2 (Ligne 1 x 4, L2/L3 x 2, L4 x 3) */
 .dash-grid-12 {
   display: grid;
   grid-template-columns: repeat(12, 1fr);
   gap: 20px;
 }
 
-/* ── Tablette (≤ 1024px) ──────────────────────────────────────────────────── */
+/* -- Tablette (<= 1024px) ---------------------------------------------------- */
 @media (max-width: 1024px) {
   .dash-grid {
     grid-template-columns: repeat(2, 1fr);
@@ -36,17 +36,17 @@
     grid-column: span 2;
   }
 
-  /* Ligne 1 Manager DSI : 4 KPIs → 2 × 6 col (2 par ligne) */
+  /* Ligne 1 Manager DSI : 4 KPIs -> 2 x 6 col (2 par ligne) */
   .dash-grid-12 > [style*="span 3"] {
     grid-column: span 6;
   }
-  /* Lignes 2–3 (span 6) et ligne 4 (span 4) restent lisibles */
+  /* Lignes 2 à 3 (span 6) et ligne 4 (span 4) restent lisibles */
   .dash-grid-12 > [style*="span 4"] {
     grid-column: span 6;
   }
 }
 
-/* ── Mobile (≤ 640px) ────────────────────────────────────────────────────── */
+/* -- Mobile (<= 640px) ------------------------------------------------------ */
 @media (max-width: 640px) {
   .dash-grid {
     grid-template-columns: 1fr;

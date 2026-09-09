@@ -8,9 +8,9 @@ function escapeRegExp(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-// Construit une regex qui matche `query` independamment des accents et de la casse,
-// pour pouvoir a la fois tester une correspondance et surligner la portion trouvee
-// dans la chaine d'origine (pas de decalage d'index comme avec une normalisation NFD).
+// Construit une regex qui matche `query` indépendamment des accents et de la casse,
+// pour pouvoir à la fois tester une correspondance et surligner la portion trouvée
+// dans la chaîne d'origine (pas de décalage d'index comme avec une normalisation NFD).
 export function buildSearchRegex(query) {
   const pattern = escapeRegExp(query).replace(/[a-z]/gi, ch => {
     const lower = ch.toLowerCase();
@@ -25,8 +25,8 @@ export function matches(regex, value) {
   return regex.test(String(value));
 }
 
-// Interroge l'ensemble du registre pour une requete donnee, filtre par les
-// permissions reelles de l'utilisateur (une entree sans `permission` est
+// Interroge l'ensemble du registre pour une requête donnée, filtre par les
+// permissions réelles de l'utilisateur (une entrée sans `permission` est
 // visible par tous).
 // Retourne un tableau de groupes { entry, items, total } (total >= items.length si limite atteinte).
 export function runSearch(registry, query, hasPermission, limit = 5) {
