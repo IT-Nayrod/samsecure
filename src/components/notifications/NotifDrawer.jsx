@@ -1,4 +1,5 @@
-// NotifDrawer - Section 6 Specs UX v0.5
+// Tiroir des notifications : onglets non lues et toutes, lecture, archivage et
+// navigation vers l'écran concerné.
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X } from 'lucide-react';

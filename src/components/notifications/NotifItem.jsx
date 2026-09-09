@@ -1,4 +1,5 @@
-// NotifItem - Section 6 Specs UX v0.5
+// Ligne d'une notification dans le tiroir : icône selon le type, ancienneté,
+// actions de lecture et d'archivage.
 import { Bell, AlertTriangle, CheckCircle, Clock, X } from 'lucide-react';
 import { timeAgo } from '../../utils/dateUtils';
 
