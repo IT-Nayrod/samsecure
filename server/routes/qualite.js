@@ -11,9 +11,14 @@
 // l'indice de confiance.
 //
 // GET /confiance : note sur 100 par périmètre (tenant ou société), pondérée
-// par la valeur (coût des licences actives). Le calcul est porté par la
-// fonction pure server/utils/indiceConfiance.js, testée au node:test ; ce
-// routeur ne fait que lire les faits en base.
+// par la valeur (coût des licences actives) avec une part plancher pour les
+// objets non valorisés. Le calcul est porté par la fonction pure
+// server/utils/indiceConfiance.js, testée au node:test ; ce routeur ne fait
+// que lire les faits en base. Depuis le 10/09/2026 (#190), la composante
+// cohérence reçoit TOUTES les anomalies ouvertes du périmètre : le stock
+// anomalie_qualite, tous producteurs confondus, et les détections à la volée
+// de /qualite (en lecture seule ici, rien n'est inséré), y compris sur des
+// objets sans licence reliée.
 import express from "express";
 import { tenantPool, commonPool } from "../db.js";
 import { succes, erreur } from "../utils/reponse.js";
@@ -360,6 +365,24 @@ router.get("/qualite", async (req, res) => {
 // GET /confiance
 // ---------------------------------------------------------------------------
 
+// Objets rattachables à une société, sous la forme "type|id", pour borner
+// les anomalies au périmètre demandé.
+async function objetsDeLaSociete(idSociete) {
+  const { rows } = await tenantPool.query(
+    `SELECT 'contrat' AS entite_type, ct.id AS entite_id FROM contrat ct WHERE ct.id_societe = $1
+     UNION ALL
+     SELECT 'commande', c.id FROM commande c WHERE c.id_societe = $1
+     UNION ALL
+     SELECT 'licence', l.id FROM licence l JOIN commande c ON c.id = l.id_commande WHERE c.id_societe = $1
+     UNION ALL
+     SELECT 'affectation', a.id FROM affectation a WHERE a.id_societe = $1
+     UNION ALL
+     SELECT DISTINCT 'produit', l.id_produit FROM affectation a JOIN licence l ON l.id = a.id_licence
+      WHERE a.id_societe = $1 AND l.id_produit IS NOT NULL`,
+    [idSociete]);
+  return new Set(rows.map((r) => `${r.entite_type}|${r.entite_id}`));
+}
+
 router.get("/confiance", async (req, res) => {
   try {
     const idSociete = req.query.id_societe || null;
@@ -368,11 +391,11 @@ router.get("/confiance", async (req, res) => {
     }
 
     // Licences actives du périmètre (société payeuse via la commande), avec
-    // leurs 4 liens d'exhaustivité et la présence d'une anomalie ouverte sur
-    // la licence ou sa chaîne (commande, contrat) : un objet multi-anomalies
-    // ne compte qu'une fois, l'EXISTS s'en charge.
+    // leurs 4 liens d'exhaustivité et leur chaîne (commande, contrat) : la
+    // fonction de calcul rattache à la licence les anomalies qui visent la
+    // licence, sa commande ou son contrat.
     const { rows: licences } = await tenantPool.query(
-      `SELECT l.id,
+      `SELECT l.id, l.id_commande, c.id_contrat,
               coalesce(l.cout_licence, 0)::float8 AS valeur,
               (l.id_commande IS NOT NULL) AS a_commande,
               (c.id_contrat IS NOT NULL)  AS a_contrat,
@@ -380,13 +403,7 @@ router.get("/confiance", async (req, res) => {
               (EXISTS (SELECT 1 FROM facture f WHERE f.id_commande = l.id_commande)
                OR EXISTS (SELECT 1 FROM preuve p WHERE p.id_commande = l.id_commande)
                OR EXISTS (SELECT 1 FROM preuve p2 WHERE p2.id_contrat = c.id_contrat))
-                AS a_justificatif,
-              EXISTS (SELECT 1 FROM anomalie_qualite aq
-                       WHERE aq.resolu = false
-                         AND ((aq.entite_type = 'licence'  AND aq.entite_id = l.id)
-                           OR (aq.entite_type = 'commande' AND aq.entite_id = l.id_commande)
-                           OR (aq.entite_type = 'contrat'  AND aq.entite_id = c.id_contrat)))
-                AS a_anomalie
+                AS a_justificatif
          FROM licence l
          LEFT JOIN commande c ON c.id = l.id_commande
          LEFT JOIN contrat ct ON ct.id = c.id_contrat
@@ -415,7 +432,27 @@ router.get("/confiance", async (req, res) => {
           AND ($1::uuid IS NULL OR a.id_societe = $1::uuid)`,
       [idSociete]);
 
-    const resultat = calculerIndiceConfiance({ licences, affectations });
+    // Anomalies ouvertes du périmètre : stock (tous types, tous producteurs)
+    // et détections à la volée non marquées résolues, sans écriture. Sur une
+    // société, seules les anomalies portées par ses objets comptent (contrats
+    // et commandes de la société, licences qu'elle paie, affectations qu'elle
+    // déclare, produits sur lesquels elle déclare des usages) ; les objets
+    // sans axe société (logiciels client, imports) restent au périmètre
+    // tenant.
+    const etatStock = await lireEtatStock(tenantPool);
+    const detectes = await croiserAvecStock(
+      tenantPool, await detecterTout(tenantPool), etatStock, { persister: false });
+    let anomalies = [
+      ...etatStock.filter((r) => r.ouverte)
+        .map((r) => ({ entite_type: r.entite_type, entite_id: r.entite_id })),
+      ...detectes.map((e) => ({ entite_type: e.entite_type, entite_id: e.entite_id })),
+    ];
+    if (idSociete) {
+      const perimetre = await objetsDeLaSociete(idSociete);
+      anomalies = anomalies.filter((a) => perimetre.has(`${a.entite_type}|${a.entite_id}`));
+    }
+
+    const resultat = calculerIndiceConfiance({ licences, affectations, anomalies });
 
     // valeur_totale est un montant : même règle de masquage que les coûts du
     // module licences. Les notes et les points de malus restent servis, ce
