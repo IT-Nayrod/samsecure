@@ -624,24 +624,24 @@ cout de maintenance) servis a null avec `montants_masques: true` sans
 | 4007 | succes | Periode de maintenance modifiee | PATCH /api/licences/:id/maintenance/:mid |
 | 4008 | succes | Periode de maintenance supprimee | DELETE /api/licences/:id/maintenance/:mid |
 | 4009 | succes | Maintenance arretee, version figee | POST /api/licences/:id/arret-maintenance |
-| 4010 | erreur | Licence introuvable | GET/PATCH/DELETE /api/licences/:id et sous-routes (400 sur un filtre invalide de la liste) |
+| 4010 | erreur | Licence introuvable | GET/PATCH/DELETE /api/licences/:id et sous-routes (400 sur un filtre invalide de la liste ; 400 "Licence renouvelee introuvable" et 409 boucle de succession sur id_licence_predecesseur, #209) |
 | 4011 | erreur | Le produit est obligatoire | POST, PATCH /api/licences |
 | 4012 | erreur | Produit introuvable au catalogue | POST, PATCH /api/licences |
 | 4013 | erreur | Edition introuvable ou etrangere au produit | POST, PATCH /api/licences |
-| 4014 | erreur | Version introuvable ou etrangere au produit | POST, PATCH /api/licences |
+| 4014 | erreur | Version introuvable ou etrangere au produit | POST, PATCH /api/licences ; POST, PATCH .../maintenance (id_version de la periode, #209) |
 | 4015 | erreur | Commande introuvable | POST, PATCH /api/licences |
 | 4016 | erreur | Revendeur introuvable | POST, PATCH /api/licences et maintenance |
 | 4017 | erreur | Unite de mesure introuvable | POST, PATCH /api/licences |
-| 4018 | erreur | Le type de licence doit etre perpetuelle ou souscription | POST, PATCH /api/licences, GET /api/licences?type= |
+| 4018 | erreur | Le type de licence doit etre perpetuelle ou souscription | POST, PATCH /api/licences, GET /api/licences?type= (message rendu depuis #209 : "Type de licence inconnu.", le type est valide contre type_licence) |
 | 4019 | erreur | La quantite doit etre un entier positif ou nul | POST, PATCH /api/licences |
 | 4020 | erreur | Le cout doit etre un montant positif ou nul | POST, PATCH /api/licences |
-| 4021 | erreur | La date de fin de souscription est obligatoire pour une souscription | POST, PATCH /api/licences |
+| 4021 | erreur | La date de fin de souscription est obligatoire pour une souscription | POST, PATCH /api/licences (message rendu depuis #209 : "La date de fin est obligatoire pour une licence de type <label>.", selon type_licence.regle_date_fin) |
 | 4022 | erreur | Mainteneur introuvable | POST, PATCH /api/licences et maintenance |
-| 4023 | erreur | Suppression impossible : elements lies | DELETE /api/licences/:id (409, details = compteurs affectations et budgets) |
+| 4023 | erreur | Suppression impossible : elements lies | DELETE /api/licences/:id (409, details = compteurs affectations, budgets et successeurs) |
 | 4024 | erreur | Date invalide | POST, PATCH /api/licences et maintenance |
 | 4030 | erreur | Periode de maintenance introuvable | PATCH/DELETE /api/licences/:id/maintenance/:mid |
-| 4031 | erreur | La date de debut est obligatoire | POST, PATCH .../maintenance |
-| 4032 | erreur | La date de fin doit etre posterieure a la date de debut | POST, PATCH .../maintenance |
+| 4031 | erreur | La date de debut est obligatoire | POST, PATCH .../maintenance ; POST, PATCH /api/licences (message rendu : "La date de debut est obligatoire pour une licence de type <label>.", selon type_licence.regle_date_debut, #209) |
+| 4032 | erreur | La date de fin doit etre posterieure a la date de debut | POST, PATCH .../maintenance ; POST, PATCH /api/licences (date_debut et date_fin_souscription, #209) |
 | 4033 | erreur | Le cout de maintenance doit etre un montant positif ou nul | POST, PATCH .../maintenance |
 | 4040 | erreur | La maintenance de cette licence est deja arretee | POST .../arret-maintenance (409) |
 | 4041 | erreur | La date d'arret est invalide | POST .../arret-maintenance |
@@ -655,11 +655,25 @@ cout de maintenance) servis a null avec `montants_masques: true` sans
 | 4059 | erreur | Erreur serveur inattendue (referentiels du module licences) | les trois |
 | 4099 | erreur | Erreur serveur inattendue (module licences) | toutes |
 
-Regles v0.5 assumees : une souscription est `expire` le jour meme de sa date
-de fin, sans tolerance, et sort de la balance droits/usage ; l'arret de
-maintenance fige `version_figee_id` (par defaut la version courante) et
-`date_arret_maintenance` sans retirer de droit quantitatif ; les licences ne
-passent pas par le workflow de validation (#53).
+Regles v0.5 assumees : une licence portant une date de fin (souscription,
+essai) est `expire` le jour meme de cette date, sans tolerance, et sort de la
+balance droits/usage ; l'arret de maintenance fige `version_figee_id` (par
+defaut la version courante) et `date_arret_maintenance` sans retirer de droit
+quantitatif ; les licences ne passent pas par le workflow de validation (#53).
+
+Stories #209 et #210 (migrations 055 et 056, 10/09/2026) : aucun nouveau
+code. Les regles de dates par type (type_licence), la version portee par la
+maintenance (D59), l'historique des versions (D60, servi dans
+`historique_versions` de GET /api/licences/:id, code 4001) et le lien de
+succession (D35, `id_licence_predecesseur`) reutilisent les codes existants
+avec un message rendu (`error`) interpole par la route, comme 3020 ou 3130 :
+4018 (type inconnu), 4021 et 4031 (date de fin ou de debut obligatoire pour
+le type), 4032 (fin anterieure au debut), 4014 (version d'une periode de
+maintenance), 4010 (licence renouvelee introuvable ou boucle), 4023
+(successeurs bloquants). Les libelles seedes par la 028 restent ceux du
+catalogue ; leur realignement (par exemple 4018 "Type de licence inconnu")
+demande une migration Commune ulterieure, hors des numeros 055 et 056
+reserves au chantier.
 
 ## Inventaire, import et ecarts (#111, module 3)
 
