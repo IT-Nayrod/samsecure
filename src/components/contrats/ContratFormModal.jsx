@@ -8,6 +8,7 @@ import FormField from '../ui/FormField';
 import { contratsService } from '../../services/contratsService';
 import { loadDraft, saveDraft, clearDraft } from '../../utils/formDraft';
 import { useToast } from '../../hooks/useToast';
+import { libelleContrat } from './libelleContrat';
 
 const INPUT_CLS = 'w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white';
 
@@ -202,7 +203,7 @@ export default function ContratFormModal({
         <FormField label="Contrat cadre parent" hint="Optionnel, seuls les contrats de type cadre sont proposés ; ses dates sont reprises, modifiables ensuite">
           <select className={INPUT_CLS} value={form.id_contrat_parent} onChange={e => choisirParent(e.target.value)}>
             <option value="">Aucun</option>
-            {parentOptions.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+            {parentOptions.map(c => <option key={c.id} value={c.id}>{libelleContrat(c.label, c.societe_label)}</option>)}
           </select>
         </FormField>
         <div className="grid grid-cols-2 gap-4">

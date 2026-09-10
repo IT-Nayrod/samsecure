@@ -14,6 +14,7 @@ import Button from '../ui/Button';
 import FormField from '../ui/FormField';
 import DocumentUploadField from './DocumentUploadField';
 import { preuvesService } from '../../services/documentsService';
+import { libelleContrat } from './libelleContrat';
 
 const INPUT_CLS = 'w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white';
 
@@ -168,7 +169,7 @@ export default function PreuveFormModal({
               <select className={INPUT_CLS} value={form.id_contrat}
                 onChange={e => setForm(v => ({ ...v, id_contrat: e.target.value }))}>
                 <option value="">Sélectionnez un contrat</option>
-                {contrats.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                {contrats.map(c => <option key={c.id} value={c.id}>{libelleContrat(c.label, c.societe_label)}</option>)}
               </select>
             </FormField>
           )}

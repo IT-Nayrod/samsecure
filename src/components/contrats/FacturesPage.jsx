@@ -26,6 +26,7 @@ import ManqueBadge from './ManqueBadge';
 import DeploiementKpiCard from '../deploiement/DeploiementKpiCard';
 import PreuveFormModal from './PreuveFormModal';
 import FactureFormModal from './FactureFormModal';
+import { libelleContrat } from './libelleContrat';
 import useRbac from '../../hooks/useRbac';
 import { useToast } from '../../hooks/useToast';
 import { formatDate } from '../../utils/dateUtils';
@@ -276,7 +277,7 @@ export default function FacturesPage() {
         </select>
         <select value={filterContrat} onChange={e => setFilterContrat(e.target.value)} className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="">Tous les contrats</option>
-          {contrats.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+          {contrats.map(c => <option key={c.id} value={c.id}>{libelleContrat(c.label, c.societe_label)}</option>)}
         </select>
         <select value={filterCommande} onChange={e => setFilterCommande(e.target.value)} className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="">Toutes les commandes</option>
