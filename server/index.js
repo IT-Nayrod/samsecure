@@ -37,6 +37,8 @@ import conformiteRouter from "./routes/conformite.js";
 import qualiteRouter from "./routes/qualite.js";
 import dashboardsRouter from "./routes/dashboards.js";
 import contactsRouter from "./routes/contacts.js";
+import notificationsRouter from "./routes/notifications.js";
+import { demarrerPlanificateur } from "./utils/notifications/planificateur.js";
 
 const app = express();
 app.use(cors());
@@ -86,6 +88,9 @@ app.use("/api", conformiteRouter);
 app.use("/api", qualiteRouter);
 app.use("/api", dashboardsRouter);
 app.use("/api", contactsRouter);
+// Notifications (#121) : routes personnelles de l'utilisateur connecte et
+// declenchement manuel du traitement planifie (administrateur).
+app.use("/api", notificationsRouter);
 
 app.use("/api", (req, res) => {
   res.status(404).json({ error: "Ressource introuvable." });
@@ -110,4 +115,12 @@ app.listen(PORT, () => {
     `API SamSecure [${APP_ENV}] sur http://localhost:${PORT}` +
     `-> ${process.env.PGDATABASE_TENANT}`
   );
+  // Planificateur des notifications (#121) : passages quotidiens a 7 h et
+  // 7 h 30 heure de Paris, rattrapage au demarrage si l'heure est passee.
+  // Demarre apres l'ecoute : un echec de planification ne bloque jamais l'API.
+  try {
+    demarrerPlanificateur();
+  } catch (err) {
+    console.error("[notifications] planificateur non demarre :", err.message);
+  }
 });
