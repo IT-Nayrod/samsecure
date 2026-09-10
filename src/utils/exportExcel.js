@@ -1,4 +1,4 @@
-// exportExcel.js - Generateur SpreadsheetML 2 feuilles : Constat + Donnees - SamSecure v0.5
+// Générateur SpreadsheetML à deux feuilles (Constat et Données) pour l'export d'un rapport.
 // Format .xls (XML) : pas de librairie externe, supporte les feuilles multiples et les styles.
 
 const fmtEur = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
@@ -38,7 +38,7 @@ function formatKpiTexte(val, format) {
   }
 }
 
-// --- Formatage cellule donnees (pour la feuille Donnees) ---
+// --- Formatage cellule données (pour la feuille Données) ---
 function formatCellData(val, format) {
   if (val == null || val === '') return { v: '', t: 'String' };
   switch (format) {
@@ -115,7 +115,7 @@ ${rows.join('\n')}
 </Worksheet>`;
 }
 
-// --- Feuille 2 : Donnees ---
+// --- Feuille 2 : Données ---
 function buildTableauSection(colonnes, lignes, sectionTitre) {
   const rows = [];
   if (sectionTitre) {
@@ -190,7 +190,7 @@ const STYLES = `<Styles>
 </Style>
 </Styles>`;
 
-// --- Point d'entree ---
+// --- Point d'entrée ---
 export function exporterExcel({
   titre, description, periode,
   kpisDef, kpisData,

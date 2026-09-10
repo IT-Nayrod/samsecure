@@ -1,6 +1,6 @@
 // StatutMaintenanceBadge - statut de maintenance d'une licence.
-// Les 4 valeurs sont celles renvoyees par l'API (licences.js, STATUT_MAINTENANCE) :
-// active / echue / arretee / aucune. Aucune n'est calculee ici.
+// Les 4 valeurs sont celles renvoyées par l'API (licences.js, STATUT_MAINTENANCE) :
+// active / echue / arretee / aucune. Aucune n'est calculée ici.
 import { ShieldOff } from 'lucide-react';
 import Badge from '../ui/Badge';
 

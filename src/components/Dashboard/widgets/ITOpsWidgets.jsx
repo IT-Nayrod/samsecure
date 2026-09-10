@@ -1,5 +1,5 @@
-// Widgets operationnels du dashboard IT Ops (#192) : ecarts d'inventaire
-// (donnees reelles du module 3) et collecteurs (module a venir).
+// Widgets opérationnels du dashboard IT Ops (#192) : écarts d'inventaire
+// (données réelles du module 3) et collecteurs (module à venir).
 import { useNavigate } from 'react-router-dom';
 import CadreWidget from './CadreWidget';
 import useSourceDashboard from '../useSourceDashboard';
@@ -9,7 +9,7 @@ import { THRESHOLD_ORANGE, THRESHOLD_BLUE } from '../couleurs';
 import { ROUTES_DRILL } from '../drill';
 import { inventaireService } from '../../../services/inventaireService';
 
-// ─── Écarts d'inventaire ────────────────────────────────────────────────────
+// --- Écarts d'inventaire ----------------------------------------------------
 export function EcartsInventaireWidget() {
   const navigate = useNavigate();
   const seuils = useSeuils('ecarts-inventaire');
@@ -58,7 +58,7 @@ export function EcartsInventaireWidget() {
   );
 }
 
-// ─── Collecteurs ────────────────────────────────────────────────────────────
+// --- Collecteurs ------------------------------------------------------------
 export function CollecteursWidget() {
   return (
     <CadreWidget

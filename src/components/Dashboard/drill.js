@@ -1,6 +1,6 @@
-// Cibles de drill-down des widgets (#192) : chaque widget mene a l'ecran
-// concerne, avec les filtres preselectionnes que les pages savent deja lire
-// dans l'URL (parametres constates dans les pages des modules 2 et 3 :
+// Cibles de drill-down des widgets (#192) : chaque widget mène à l'écran
+// concerné, avec les filtres présélectionnés que les pages savent déjà lire
+// dans l'URL (paramètres constatés dans les pages des modules 2 et 3 :
 // contrats ?editeur ?societe, commandes ?societe ?contrat, factures ?contrat
 // ?commande, licences ?produit, affectations ?produit ?societe, inventaire
 // ?produit, budget ?tab ?licence ?contrat). Les identifiants sont des UUID.
@@ -22,7 +22,7 @@ function avecParams(chemin, params) {
   return q ? `${chemin}?${q}` : chemin;
 }
 
-// Fiche de l'entite du workflow de validation : memes types que le catalogue
+// Fiche de l'entité du workflow de validation : mêmes types que le catalogue
 // serveur ENTITES_VALIDABLES.
 export function routeEntite(entiteType, entiteId) {
   switch (entiteType) {

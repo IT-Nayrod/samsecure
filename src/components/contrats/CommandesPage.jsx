@@ -1,6 +1,6 @@
-// CommandesPage - vue financiere et transactionnelle des commandes (Droits d'usage)
+// CommandesPage - vue financière et transactionnelle des commandes (Droits d'usage)
 // Montants, timeline et KPI viennent tous de /api/commandes/agregats : aucun
-// montant n'est calcule ici. La liste est filtree sur les bornes mensuelles
+// montant n'est calculé ici. La liste est filtrée sur les bornes mensuelles
 // que l'API renvoie, ce qui garantit qu'elle ne peut pas diverger du graphe.
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -42,13 +42,13 @@ export default function CommandesPage() {
   const [revendeurs, setRevendeurs] = useState([]);
   const [modes, setModes] = useState([]);
   const [agregats, setAgregats] = useState(null);
-  // Volet budget (#148) : synthese budgetaire sur la meme periode et la meme
-  // societe que les agregats. null = droit consulter_budget absent.
+  // Volet budget (#148) : synthèse budgétaire sur la même période et la même
+  // société que les agrégats. null = droit consulter_budget absent.
   const [budget, setBudget] = useState(null);
   const [budgetErreur, setBudgetErreur] = useState(null);
   const [budgetLoading, setBudgetLoading] = useState(true);
-  // Jeton de la derniere demande d'agregats : une reponse tardive d'une autre
-  // periode ou societe n'ecrase pas la plus recente.
+  // Jeton de la dernière demande d'agrégats : une réponse tardive d'une autre
+  // période ou société n'écrase pas la plus récente.
   const demandeAgregats = useRef(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -68,8 +68,8 @@ export default function CommandesPage() {
 
   const societeActive = filterSociete || societeParam || null;
 
-  // Le referentiel se charge une fois, les agregats a chaque changement de
-  // periode ou de societe : ce sont les deux seuls axes que porte le precalcul.
+  // Le référentiel se charge une fois, les agrégats à chaque changement de
+  // période ou de société : ce sont les deux seuls axes que porte le précalcul.
   const loadReferentiel = useCallback(async () => {
     setIsLoading(true);
     setError(null);
@@ -79,8 +79,8 @@ export default function CommandesPage() {
       // filtres et formulaire.
       const [k, c, s, r, m] = await Promise.all([
         commandesService.list(),
-        // Archives inclus : une commande existante peut pointer un contrat archive,
-        // le formulaire d'edition doit pouvoir l'afficher (#96).
+        // Archives inclus : une commande existante peut pointer un contrat archivé,
+        // le formulaire d'édition doit pouvoir l'afficher (#96).
         optionnel(contratsService.list({ inclureArchives: true })),
         optionnel(societesService.list()),
         optionnel(referentielsContratsService.revendeurs()),
@@ -101,9 +101,9 @@ export default function CommandesPage() {
     if (!periode?.debut || !periode?.fin) return;
     const jeton = ++demandeAgregats.current;
     try {
-      // consulter_kpi_financiers est une permission a part : un IT Ops lit ses
-      // commandes sans acceder aux tableaux de bord financiers. Son refus retire
-      // le graphe et les KPI, il ne condamne pas l'ecran.
+      // consulter_kpi_financiers est une permission à part : un IT Ops lit ses
+      // commandes sans accéder aux tableaux de bord financiers. Son refus retire
+      // le graphe et les KPI, il ne condamne pas l'écran.
       const a = await optionnel(commandesService.agregats({
         dateDebut: toIsoDate(periode.debut),
         dateFin: toIsoDate(periode.fin),
@@ -118,7 +118,7 @@ export default function CommandesPage() {
       addToast({ type: 'error', message: err.message });
     }
     // Le volet budget suit consulter_budget : son refus ou sa panne retire le
-    // volet, il ne condamne ni les agregats ni la liste.
+    // volet, il ne condamne ni les agrégats ni la liste.
     setBudgetLoading(true);
     setBudgetErreur(null);
     try {
@@ -148,27 +148,27 @@ export default function CommandesPage() {
   }, [loadReferentiel, loadAgregats]);
 
   // Ni loadReferentiel ni loadAgregats : le statut de validation n'entre dans
-  // aucun agregat financier, seule la ligne concernee change.
+  // aucun agrégat financier, seule la ligne concernée change.
   const appliquer = useCallback(reponse => {
     setCommandes(prev => prev.map(k => k.id === reponse.entite_id ? appliquerStatut(k, reponse) : k));
   }, []);
   const { valider, refuser } = useValidation(appliquer);
 
-  // L'exercice fiscal vient de la societe filtree, a defaut l'annee civile :
-  // il n'existe pas d'endpoint sur tenant_config pour un defaut de tenant.
+  // L'exercice fiscal vient de la société filtrée, à défaut l'année civile :
+  // il n'existe pas d'endpoint sur tenant_config pour un défaut de tenant.
   const debutExercice = useMemo(() => {
     const s = societes.find((x) => x.id === societeActive);
     return debutExerciceDepuisDate(s?.debut_exercice_fiscal) ?? { jour: 1, mois: 1 };
   }, [societes, societeActive]);
 
-  // Filtrage sur les bornes MENSUELLES renvoyees par l'API et non sur la plage
-  // du selecteur : le precalcul est mensuel, aligner la liste dessus est la
-    // seule facon de garantir l'egalite au centime entre liste, timeline et KPI.
+  // Filtrage sur les bornes MENSUELLES renvoyées par l'API et non sur la plage
+  // du sélecteur : le précalcul est mensuel, aligner la liste dessus est la
+    // seule façon de garantir l'égalité au centime entre liste, timeline et KPI.
   const dansPeriode = useMemo(() => {
-    // Sans agregats, la liste perd sa reference de bornes. C'est le cas d'un
+    // Sans agrégats, la liste perd sa référence de bornes. C'est le cas d'un
     // porteur de consulter_contrats sans consulter_kpi_financiers : il a droit
-    // a ses commandes, pas aux tableaux de bord financiers. On sert alors la
-    // liste entiere plutot qu'une liste vide, l'egalite au centime avec la
+    // à ses commandes, pas aux tableaux de bord financiers. On sert alors la
+    // liste entière plutôt qu'une liste vide, l'égalité au centime avec la
     // timeline et les KPI n'ayant plus d'objet puisqu'ils ne s'affichent pas.
     if (!agregats) return commandes;
     return commandes.filter((k) => {
@@ -289,9 +289,9 @@ export default function CommandesPage() {
 
       <PeriodeFiscaleSelector debutExercice={debutExercice} onChange={setPeriode} />
 
-      {/* Tout ce bloc vit des agregats financiers. Sans le droit
-          consulter_kpi_financiers ils ne sont pas servis : afficher des KPI a
-          zero et une timeline vide ferait croire a une absence de commandes,
+      {/* Tout ce bloc vit des agrégats financiers. Sans le droit
+          consulter_kpi_financiers ils ne sont pas servis : afficher des KPI à
+          zéro et une timeline vide ferait croire à une absence de commandes,
           alors que la liste plus bas les montre toutes. */}
       {!agregats && (
         <p className="text-sm text-gray-500 bg-gray-50 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
@@ -330,8 +330,8 @@ export default function CommandesPage() {
             <p className="text-xs text-gray-500 mb-1">Réalisé (commandes)</p>
             <p className="text-lg font-semibold text-gray-900 dark:text-white">{euros(totaux.montant_commande)}</p>
           </div>
-          {/* Volet budget (#148) : alloue et ecart servis par la synthese
-              budgetaire sur la meme periode et la meme societe. */}
+          {/* Volet budget (#148) : alloué et écart servis par la synthèse
+              budgétaire sur la même période et la même société. */}
           {budgetLoading ? (
             <div>
               <p className="text-xs text-gray-500 mb-1">Alloué (CAPEX + OPEX)</p>

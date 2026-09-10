@@ -1,13 +1,13 @@
-// useSuggestions - elements deja references qui correspondent a une saisie en
-// cours, quel que soit le referentiel interroge.
+// useSuggestions - éléments déjà références qui correspondent à une saisie en
+// cours, quel que soit le référentiel interrogé.
 //
-// Raison d'etre : un referentiel peut compter des milliers de lignes. Personne
-// ne peut verifier de visu qu'une fiche en est absente, et le doublon nait de
-// cette impossibilite, pas d'une inattention. Les suggestions se montrent
-// pendant la frappe, la ou l'erreur se commet, et non a l'enregistrement, ou la
-// contrainte d'unicite rendrait un 409 apres coup.
+// Raison d'être : un référentiel peut compter des milliers de lignes. Personne
+// ne peut vérifier de visu qu'une fiche en est absente, et le doublon naît de
+// cette impossibilité, pas d'une inattention. Les suggestions se montrent
+// pendant la frappe, là où l'erreur se commet, et non à l'enregistrement, ou la
+// contrainte d'unicité rendrait un 409 après coup.
 //
-// Le hook ne decide rien : il rend ce qui existe. C'est l'ecran qui choisit
+// Le hook ne décide rien : il rend ce qui existe. C'est l'écran qui choisit
 // quoi en faire.
 import { useState, useEffect, useRef } from 'react';
 import useDebounce from './useDebounce';
@@ -18,10 +18,10 @@ export default function useSuggestions(rechercher, saisie, { exclureId, actif = 
   const [suggestions, setSuggestions] = useState([]);
   const [total, setTotal] = useState(0);
   const [chargement, setChargement] = useState(false);
-  // Numero de la derniere requete lancee. Une frappe rapide en declenche
-  // plusieurs, dont les reponses peuvent revenir dans le desordre : sans ce
-  // garde-fou, une reponse ancienne ecraserait une plus recente et l'ecran
-  // afficherait les suggestions d'un texte deja efface.
+  // Numéro de la dernière requête lancée. Une frappe rapide en déclenche
+  // plusieurs, dont les réponses peuvent revenir dans le désordre : sans ce
+  // garde-fou, une réponse ancienne écraserait une plus récente et l'écran
+  // afficherait les suggestions d'un texte déjà effacé.
   const derniere = useRef(0);
 
   useEffect(() => {
@@ -45,9 +45,9 @@ export default function useSuggestions(rechercher, saisie, { exclureId, actif = 
       })
       .catch(err => {
         if (annule || numero !== derniere.current) return;
-        // Une suggestion est une commodite : son echec ne doit jamais empecher
-        // la saisie. L'ecart reste visible en console, et l'unicite est de
-        // toute facon garantie par la base a l'enregistrement.
+        // Une suggestion est une commodité : son échec ne doit jamais empêcher
+        // la saisie. L'écart reste visible en console, et l'unicité est de
+        // toute façon garantie par la base à l'enregistrement.
         console.info('[suggestions] recherche indisponible :', err.message);
         setSuggestions([]);
         setTotal(0);
@@ -57,14 +57,14 @@ export default function useSuggestions(rechercher, saisie, { exclureId, actif = 
       });
 
     return () => { annule = true; };
-    // rechercher est volontairement hors dependances : les services exposent
-    // des fonctions recreees a chaque rendu, les y mettre relancerait une
-    // requete a chaque frappe, debounce compris.
+    // rechercher est volontairement hors dépendances : les services exposent
+    // des fonctions recréées à chaque rendu, les y mettre relancerait une
+    // requête à chaque frappe, debounce compris.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [valeur, exclureId, actif]);
 
-  // Correspondance exacte a la casse et aux accents pres : c'est le doublon
-  // franc, celui que la base refusera. L'ecran s'en sert pour prevenir avant
+  // Correspondance exacte à la casse et aux accents près : c'est le doublon
+  // franc, celui que la base refusera. L'écran s'en sert pour prévenir avant
   // l'envoi.
   const exact = suggestions.find(e => e.exact) ?? null;
 

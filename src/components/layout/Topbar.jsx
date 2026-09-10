@@ -1,4 +1,5 @@
-// Topbar - Section 1.3 Specs UX v0.5
+// Barre supérieure : fil d'Ariane, recherche transverse, notifications et menu
+// du compte connecté.
 import { useState, useRef, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Bell, Menu, LogOut, User, ChevronRight, ChevronDown } from 'lucide-react';
@@ -18,7 +19,7 @@ const BREADCRUMBS = {
 
 function getBreadcrumb(pathname) {
   if (BREADCRUMBS[pathname]) return BREADCRUMBS[pathname];
-  // Prefixes les plus specifiques d'abord : certaines pages ont change de section
+  // Préfixes les plus spécifiques d'abord : certaines pages ont changé de section
   // dans le menu sans changer d'URL (Organisation -> Administration, Licences -> Droits d'usage).
   const prefixes = [
     ['/referentiels/organisation', 'Administration'],

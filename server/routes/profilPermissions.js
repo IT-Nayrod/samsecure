@@ -1,3 +1,5 @@
+// Permissions d'un profil : consultation, ajout et retrait, journalisés.
+
 import express from "express";
 import { tenantPool } from "../db.js";
 

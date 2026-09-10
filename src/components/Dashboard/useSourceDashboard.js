@@ -1,12 +1,12 @@
-// Cache de sources partagees entre widgets (#192).
+// Cache de sources partagées entre widgets (#192).
 //
-// Plusieurs widgets d'un meme dashboard lisent la meme ressource (la liste
-// des contrats sert deux widgets, la synthese budget deux autres, la
-// conformite trois). Ce module ne charge chaque source qu'une fois et la
-// distribue ; chaque widget garde neanmoins ses propres etats de chargement
+// Plusieurs widgets d'un même dashboard lisent la même ressource (la liste
+// des contrats sert deux widgets, la synthèse budget deux autres, la
+// conformité trois). Ce module ne charge chaque source qu'une fois et la
+// distribue ; chaque widget garde néanmoins ses propres états de chargement
 // et d'erreur, et son bouton "Reessayer" relance la source pour tous ses
-// consommateurs. Le cache est vide a chaque montage de DashboardPage : les
-// donnees sont fraiches a chaque visite, jamais figees d'une navigation a
+// consommateurs. Le cache est vide à chaque montage de DashboardPage : les
+// données sont fraîches à chaque visite, jamais figées d'une navigation à
 // l'autre.
 import { useEffect, useReducer } from 'react';
 
@@ -56,10 +56,10 @@ export function viderSourcesDashboard() {
   }
 }
 
-// cle : identifiant de la source, parametres compris (ex : "conformite:tout",
+// clé : identifiant de la source, paramètres compris (ex : "conformite:tout",
 // "budget-synthese:2026-01-01:2026-12-31"). chargeur : fonction sans argument
-// renvoyant la promesse de donnees. Deux widgets qui donnent la meme cle
-// doivent donner un chargeur equivalent : le dernier monte gagne.
+// renvoyant la promesse de données. Deux widgets qui donnent la même clé
+// doivent donner un chargeur équivalent : le dernier monté gagne.
 export default function useSourceDashboard(cle, chargeur) {
   const [, maj] = useReducer((x) => x + 1, 0);
 
@@ -69,8 +69,8 @@ export default function useSourceDashboard(cle, chargeur) {
     e.abonnes.add(maj);
     charger(cle);
     return () => { e.abonnes.delete(maj); };
-    // Le chargeur est volontairement hors dependances : il est recree a chaque
-    // rendu mais ne varie qu'avec la cle, qui porte tous les parametres.
+    // Le chargeur est volontairement hors dépendances : il est recréé à chaque
+    // rendu mais ne varie qu'avec la clé, qui porte tous les paramètres.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cle]);
 

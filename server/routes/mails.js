@@ -1,12 +1,12 @@
-// Test du socle d'envoi de mails (tache #87).
+// Test du socle d'envoi de mails (tâche #87).
 //
-// Une seule route, reservee a l'administration : envoyer un mail de test pour
-// verifier la configuration SMTP d'un environnement sans passer par un
-// parcours metier. Le destinataire par defaut est l'administrateur qui appelle,
+// Une seule route, réservée à l'administration : envoyer un mail de test pour
+// vérifier la configuration SMTP d'un environnement sans passer par un
+// parcours métier. Le destinataire par défaut est l'administrateur qui appelle,
 // son adresse vient de la session, jamais d'une constante.
 //
-// Permission exigee : gerer_connecteurs (voir routesPermissions.js). Elle n'est
-// detenue que par le groupe admin_sam dans la matrice 011/021, ce qui reserve
+// Permission exigée : gerer_connecteurs (voir routesPermissions.js). Elle n'est
+// détenue que par le groupe admin_sam dans la matrice 011/021, ce qui réserve
 // la route au profil administrateur sans coder un nom de profil ici.
 import express from "express";
 import { envoyerMail } from "../utils/mail.js";
@@ -24,10 +24,10 @@ router.post("/mails/test", async (req, res) => {
         `Il a été demandé par ${req.user.email || "un administrateur"}. Aucune action n'est attendue de votre part.`,
     });
 
-    // L'echec d'envoi est un etat, pas une erreur HTTP : la route a fait son
-    // travail, c'est le transport qui a refuse. 200 avec envoye = false, et le
-    // message propre du socle a afficher tel quel.
-    // code_retour: 1010 (envoye) / 1011 (non envoye)
+    // L'échec d'envoi est un état, pas une erreur HTTP : la route a fait son
+    // travail, c'est le transport qui a refusé. 200 avec envoye = false, et le
+    // message propre du socle à afficher tel quel.
+    // code_retour: 1010 (envoyé) / 1011 (non envoyé)
     res.json({
       envoye: etat.envoye,
       destinataire,

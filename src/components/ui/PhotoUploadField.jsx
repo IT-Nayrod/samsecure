@@ -1,4 +1,4 @@
-// PhotoUploadField - zone d'upload de photo (clic ou glisser-deposer), apercu rond immediat
+// PhotoUploadField - zone d'upload de photo (clic ou glisser-déposer), aperçu rond immédiat
 import { useRef, useState } from 'react';
 import { Upload, Trash2 } from 'lucide-react';
 import { validateImageFile } from '../../utils/validation';

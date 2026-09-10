@@ -1,4 +1,4 @@
-// OrganisationFormModal - creation / edition d'une organisation (societe reelle)
+// OrganisationFormModal - création / édition d'une organisation (société réelle)
 import { useState, useEffect } from 'react';
 import SlideOver from '../ui/SlideOver';
 import Button from '../ui/Button';
@@ -8,8 +8,8 @@ import { sortByHierarchy } from '../../utils/societeHierarchy';
 
 const INPUT_CLS = 'w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white';
 
-// Une organisation ne peut pas etre sa propre ascendante : on retire l'organisation
-// editee et toutes ses descendantes des options de parente.
+// Une organisation ne peut pas être sa propre ascendante : on retire l'organisation
+// éditée et toutes ses descendantes des options de parente.
 function getDescendantIds(organisations, rootId) {
   const ids = new Set();
   let frontier = [rootId];

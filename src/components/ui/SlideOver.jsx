@@ -1,6 +1,6 @@
-// SlideOver - panneau lateral droit pour les formulaires de saisie (remplace Modal pour la creation/edition)
-// Reste visible la liste/page en arriere-plan : permet de garder le contexte pendant la saisie.
-// Meme API que Modal (isOpen, onClose, title, size, children, footer) pour une migration a cout nul.
+// SlideOver - panneau latéral droit pour les formulaires de saisie (remplace Modal pour la création/édition)
+// Reste visible la liste/page en arrière-plan : permet de garder le contexte pendant la saisie.
+// Même API que Modal (isOpen, onClose, title, size, children, footer) pour une migration à coût nul.
 import { useEffect } from 'react';
 import { X } from 'lucide-react';
 

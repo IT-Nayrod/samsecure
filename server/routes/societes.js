@@ -1,9 +1,12 @@
+// Sociétés du tenant : création, modification, suppression et détection des
+// profils qui deviendraient orphelins après un retrait.
+
 import express from "express";
 import { tenantPool } from "../db.js";
 
 const router = express.Router();
 
-// Helper : logger en base
+// Journalisation en base, locale au routeur.
 async function log(client, action, entite_type, entite_id, description, payload) {
   await client.query(
     `INSERT INTO journal_ecriture (action, entite_type, entite_id, description, payload)

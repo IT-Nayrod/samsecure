@@ -1,7 +1,7 @@
-// Dashboard IT Ops (#192) : suivi operationnel, donnees reelles.
-// Aucun widget de ce dashboard n'affiche de montant : la composition seedee
+// Dashboard IT Ops (#192) : suivi opérationnel, données réelles.
+// Aucun widget de ce dashboard n'affiche de montant : la composition seedée
 // (migration 050) refuse explicitement les widgets financiers au profil
-// it_ops, et l'API refuse les agregats financiers a qui n'a pas
+// it_ops, et l'API refuse les agrégats financiers à qui n'a pas
 // consulter_kpi_financiers.
 import GrilleDashboard from './GrilleDashboard';
 import AlertesWidget from './widgets/AlertesWidget';

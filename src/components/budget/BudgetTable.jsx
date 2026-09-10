@@ -1,10 +1,10 @@
-// BudgetTable - Section Budget - SamSecure v0.5
-// Lignes servies par GET /budget (organisation, contrat, editeur et produit
-// deduits par l'API, jamais recalcules ici). L'engage par licence vient de
+// Tableau des lignes budgétaires.
+// Lignes servies par GET /budget (organisation, contrat, éditeur et produit
+// déduits par l'API, jamais recalculés ici). L'engagé par licence vient de
 // GET /budget/engage (BudgetPage fait un appel par licence distincte) ; la
-// barre de progression rapporte cet engage au montant de la ligne, avec le
-// code couleur de BudgetProgressBar. Filtres type, contrat, editeur et produit
-// construits a partir des lignes elles-memes.
+// barre de progression rapporte cet engagé au montant de la ligne, avec le
+// code couleur de BudgetProgressBar. Filtres type, contrat, éditeur et produit
+// construits à partir des lignes elles-mêmes.
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Pencil, Trash2 } from 'lucide-react';
@@ -40,8 +40,8 @@ export default function BudgetTable({
   const editeursUniques = useMemo(() => optionsDepuisLignes(lignes, 'id_editeur', 'editeur_label'), [lignes]);
   const produitsUniques = useMemo(() => optionsDepuisLignes(lignes, 'id_produit', 'produit_label'), [lignes]);
 
-  // Un filtre dont l'option a disparu apres rechargement (ligne supprimee,
-  // periode changee) ne s'applique plus : sinon tableau vide sans explication.
+  // Un filtre dont l'option a disparu après rechargement (ligne supprimée,
+  // période changée) ne s'applique plus : sinon tableau vide sans explication.
   const contratActif = contratsUniques.some(c => c.id === filtreContrat) ? filtreContrat : '';
   const editeurActif = editeursUniques.some(e => e.id === filtreEditeur) ? filtreEditeur : '';
   const produitActif = produitsUniques.some(p => p.id === filtreProduit) ? filtreProduit : '';
@@ -159,8 +159,8 @@ export default function BudgetTable({
     },
     {
       key: 'engage',
-      // La barre rapporte l'engage de la licence au total CAPEX + OPEX de la
-      // ligne : la somme est nommee dans l'intitule et sous la barre.
+      // La barre rapporte l'engagé de la licence au total CAPEX + OPEX de la
+      // ligne : la somme est nommée dans l'intitulé et sous la barre.
       label: 'Engagé / total ligne (CAPEX + OPEX)',
       sortable: true,
       getValue: row => row.engage ?? -1,

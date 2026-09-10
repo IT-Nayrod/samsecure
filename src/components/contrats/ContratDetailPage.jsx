@@ -1,5 +1,5 @@
-// ContratDetailPage - fiche detail d'un contrat : identite, echeance, hierarchie, rattachements.
-// Donnees API. La suppression s'appuie sur le refus du serveur, pas sur un garde-fou local.
+// ContratDetailPage - fiche détail d'un contrat : identité, échéance, hiérarchie, rattachements.
+// Données API. La suppression s'appuie sur le refus du serveur, pas sur un garde-fou local.
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Pencil, Trash2, ChevronDown, XCircle, Archive, ArchiveRestore } from 'lucide-react';
@@ -53,11 +53,11 @@ export default function ContratDetailPage() {
     setIntrouvable(false);
     try {
       // Seule la fiche est indispensable. La liste sert aux sous-contrats, les
-      // referentiels au formulaire d'edition.
+      // référentiels au formulaire d'édition.
       const [c, tous, t, e, s, r] = await Promise.all([
         contratsService.get(id),
-        // Archives inclus : la hierarchie doit rester complete, un sous-contrat
-        // archive existe toujours. Le formulaire ecarte lui-meme les archives.
+        // Archives inclus : la hiérarchie doit rester complète, un sous-contrat
+        // archivé existe toujours. Le formulaire écarte lui-même les archives.
         optionnel(contratsService.list({ inclureArchives: true })),
         optionnel(referentielsContratsService.typesContrat()),
         optionnel(referentielsContratsService.editeurs()),
@@ -71,7 +71,7 @@ export default function ContratDetailPage() {
       setSocietes(s);
       setRevendeurs(r);
     } catch (err) {
-      // 404 : le contrat n'existe pas ou vient d'etre supprime, ce n'est pas une panne.
+      // 404 : le contrat n'existe pas ou vient d'être supprimé, ce n'est pas une panne.
       if (err.status === 404) setIntrouvable(true);
       else { setError(err.message); setErrorStatus(err.status); addToast({ type: 'error', message: err.message }); }
     } finally {
@@ -95,7 +95,7 @@ export default function ContratDetailPage() {
       addToast({ type: 'success', message: 'Contrat supprimé.' });
       navigate('/contrats/liste');
     } catch (err) {
-      // Message du serveur affiche tel quel : "Suppression impossible : ce contrat porte ..."
+      // Message du serveur affiché tel quel : "Suppression impossible : ce contrat porte ..."
       addToast({ type: 'error', message: err.message, persistent: true });
     }
   }
@@ -182,8 +182,8 @@ export default function ContratDetailPage() {
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Un contrat archive est fige : ni traitement, ni edition, ni
-              archivage a nouveau. Seule la restauration, dans le bandeau. */}
+          {/* Un contrat archivé est figé : ni traitement, ni édition, ni
+              archivage à nouveau. Seule la restauration, dans le bandeau. */}
           {!contrat.archive && canValidate && <ValidationActions
             statut={contrat.statut_validation}
             onValidate={() => valider('contrat', contrat.id)}
@@ -199,8 +199,8 @@ export default function ContratDetailPage() {
               <Archive size={14} /> Archiver
             </Button>
           )}
-          {/* Supprimer n'est propose que si l'API declare le contrat supprimable
-              (jamais valide ni a revalider) ; le refus serveur reste la regle. */}
+          {/* Supprimer n'est proposé que si l'API déclare le contrat supprimable
+              (jamais validé ni à revalider) ; le refus serveur reste la règle. */}
           {!contrat.archive && canDelete && contrat.supprimable && (
             <Button variant="destructive" size="sm" onClick={() => setDeleteOpen(true)}>
               <Trash2 size={14} /> Supprimer
@@ -336,7 +336,7 @@ export default function ContratDetailPage() {
         </section>
       </div>
 
-      {/* Section Budget (depliee par defaut) */}
+      {/* Section Budget (dépliée par défaut) */}
       <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
         <button
           onClick={() => setBudgetOpen(v => !v)}

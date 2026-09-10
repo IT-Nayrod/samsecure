@@ -1,4 +1,4 @@
-// ReportKPIs - Bandeau de KPIs d'un rapport genere - SamSecure v0.5
+// Bandeau des indicateurs d'un rapport généré.
 const fmt = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
 const fmtNb = new Intl.NumberFormat('fr-FR');
 

@@ -1,5 +1,5 @@
-// SavedTemplatesPanel - Tiroir de gestion des modeles sauvegardes - SamSecure v0.5
-// Cle localStorage : 'ss_report_templates'
+// Tiroir de gestion des modèles de rapport sauvegardés.
+// Clé localStorage : 'ss_report_templates'
 import { useState, useEffect } from 'react';
 import { X, Trash2, Download, FolderOpen } from 'lucide-react';
 
@@ -75,7 +75,7 @@ export default function SavedTemplatesPanel({ isOpen, onClose, onCharger, config
           </div>
         </div>
 
-        {/* Liste des modeles */}
+        {/* Liste des modèles */}
         <div className="flex-1 overflow-y-auto">
           {modeles.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-40 gap-2 text-gray-400 dark:text-gray-500">

@@ -1,6 +1,6 @@
-// ImportReleveModal - import manuel d'un fichier csv de releve (#111).
-// Colonnes minimales : produit (identifiant ou libelle), reference, quantite ;
-// colonne societe optionnelle. Le serveur juge ligne a ligne, la modale rend
+// ImportReleveModal - import manuel d'un fichier csv de relevé (#111).
+// Colonnes minimales : produit (identifiant ou libelle), référence, quantité ;
+// colonne societe optionnelle. Le serveur juge ligne à ligne, la modale rend
 // son verdict (statut global et erreurs) sans reformuler.
 import { useState, useEffect } from 'react';
 import { Upload } from 'lucide-react';
@@ -24,8 +24,8 @@ export default function ImportReleveModal({ isOpen, onClose, onImported }) {
   useEffect(() => {
     if (!isOpen) return;
     setFile(null); setIdSociete(''); setError(null); setResultat(null);
-    // Liste accessoire : sans le droit sur les referentiels, l'import reste
-    // possible, seule la societe par defaut n'est pas proposee.
+    // Liste accessoire : sans le droit sur les référentiels, l'import reste
+    // possible, seule la société par défaut n'est pas proposée.
     optionnel(societesInventaireService.list()).then(setSocietes);
   }, [isOpen]);
 
@@ -42,7 +42,7 @@ export default function ImportReleveModal({ isOpen, onClose, onImported }) {
           ? `Import effectué : ${data.import.nb_releves} relevé(s).`
           : `Import partiel : ${data.import.nb_releves} relevé(s), ${data.erreurs.length} ligne(s) en erreur.` });
     } catch (err) {
-      // 4228 : aucune ligne exploitable, l'import est trace en echec et les
+      // 4228 : aucune ligne exploitable, l'import est tracé en échec et les
       // erreurs sont jointes dans details.
       if (err.code === 4228 && err.details) {
         setResultat({ import: err.details.import, erreurs: err.details.erreurs });

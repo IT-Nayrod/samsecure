@@ -1,7 +1,7 @@
-// Coût par logiciel (Financier), branche sur les agregats dashboards (#192).
-// Somme des couts des licences non expirees du parc, par produit, avec la
+// Coût par logiciel (Financier), branche sur les agrégats dashboards (#192).
+// Somme des coûts des licences non expirées du parc, par produit, avec la
 // part de chaque produit dans le total. Le clic sur une ligne ouvre la liste
-// des licences filtree sur le produit.
+// des licences filtrée sur le produit.
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowUp, ArrowDown } from 'lucide-react';

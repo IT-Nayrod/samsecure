@@ -1,4 +1,4 @@
-// adminService - accès aux ressources d'administration (utilisateurs, groupes,
+// adminService - accès aux ressources d'administration (utilisateurs, groupés,
 // permissions, attributions, exceptions, sociétés, journal). Normalise ici
 // l'asymétrie du contrat de la sandbox : lecture en clés aplaties
 // (idsociete, raisonsociale...), écriture en snake_case (id_societe...).
@@ -43,11 +43,11 @@ export const usersService = {
   list: () => http.get('/utilisateurs'),
   create: (payload) => http.post('/utilisateurs', payload),
   update: (id, payload) => http.patch(`/utilisateurs/${id}`, payload),
-  // Historique probant d'un compte, lecture seule. La pagination est portee
-  // par l'API, 20 evenements par page.
+  // Historique probant d'un compte, lecture seule. La pagination est portée
+  // par l'API, 20 événements par page.
   historique: (id, page = 1) => http.get(`/utilisateurs/${id}/historique?page=${page}`),
   // Trois actions de la story mot de passe. Aucune ne renvoie de hash, et
-  // seule la generation renvoie une valeur, une seule fois.
+  // seule la génération renvoie une valeur, une seule fois.
   definirMotDePasse: (id, motDePasse) =>
     http.put(`/utilisateurs/${id}/mot-de-passe`, { mot_de_passe: motDePasse }),
   genererMotDePasse: (id) => http.post(`/utilisateurs/${id}/mot-de-passe/generer`),

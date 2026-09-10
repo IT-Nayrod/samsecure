@@ -1,11 +1,11 @@
 // Cadre commun de tous les widgets de dashboard (#192).
 //
 // Porte les invariants de la story #190 : bulle d'information (i) sur chaque
-// widget, etiquette de fraicheur quand l'API fournit derniere_maj, etats de
-// chargement, de vide et d'erreur (message de l'enveloppe, bouton Reessayer),
-// etat propre "Disponible avec le module ..." pour les donnees dont la source
-// n'existe pas encore, et drill-down : la carte entiere est cliquable et mene
-// a l'ecran concerne (onOuvrir), les zones interactives internes arretent la
+// widget, étiquette de fraîcheur quand l'API fournit derniere_maj, états de
+// chargement, de vide et d'erreur (message de l'enveloppe, bouton Réessayer),
+// état propre "Disponible avec le module ..." pour les données dont la source
+// n'existe pas encore, et drill-down : la carte entière est cliquable et mène
+// à l'écran concerné (onOuvrir), les zones interactives internes arrêtent la
 // propagation.
 import { AlertTriangle, EyeOff, ChevronUp, ChevronDown } from 'lucide-react';
 import Card from '../../ui/Card';

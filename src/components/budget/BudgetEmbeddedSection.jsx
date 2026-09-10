@@ -1,12 +1,12 @@
-// BudgetEmbeddedSection - Bloc budget embarque dans fiches Contrat et Licence - SamSecure v0.5
-// mode='licence' : lignes budgetaires brutes de la licence (GET /budget?id_licence),
+// Bloc budget embarqué dans les fiches Contrat et Licence.
+// mode='licence' : lignes budgétaires brutes de la licence (GET /budget?id_licence),
 //   indicateurs de la licence (GET /budget/synthese?id_licence), saisie avec
-//   licence verrouillee selon saisir_budget, suppression selon supprimer_budget.
-// mode='contrat' : indicateurs agreges du contrat (GET /budget/synthese?id_contrat)
-//   et repartition par licence (une synthese par licence des lignes du contrat),
+//   licence verrouillée selon saisir_budget, suppression selon supprimer_budget.
+// mode='contrat' : indicateurs agrégés du contrat (GET /budget/synthese?id_contrat)
+//   et répartition par licence (une synthèse par licence des lignes du contrat),
 //   en lecture seule, lien vers la page Budget globale.
-// Periode : PeriodeSelector partage (#164), exercice fiscal de l'organisation
-// de la fiche (societe payeuse de la licence, societe signataire du contrat).
+// Période : PeriodeSelector partagé (#164), exercice fiscal de l'organisation
+// de la fiche (société payeuse de la licence, société signataire du contrat).
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Plus, Pencil, Trash2, ExternalLink } from 'lucide-react';
@@ -32,7 +32,7 @@ import { useToast } from '../../hooks/useToast';
 const TH_CLS = 'px-3 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide whitespace-nowrap';
 
 // Exercice fiscal de l'organisation de la fiche, lu dans /societes (ressource
-// accessoire : sans le droit, defaut du composant de periode).
+// accessoire : sans le droit, défaut du composant de période).
 function useDebutExercice(idSociete) {
   const [debut, setDebut] = useState(null);
   useEffect(() => {
@@ -239,7 +239,7 @@ function ModeContrat({ id, contrat }) {
       setTotaux(synthese.totaux);
       setNbLignes(lignes.length);
 
-      // Repartition par licence : une synthese par licence du contrat, meme
+      // Répartition par licence : une synthèse par licence du contrat, même
       // lissage que les indicateurs du contrat.
       const licences = new Map();
       for (const l of lignes) {
@@ -263,14 +263,14 @@ function ModeContrat({ id, contrat }) {
 
   useEffect(() => { load(); }, [load]);
 
-  // Vide seulement sans aucune ligne ni engage : des lignes a zero existent.
+  // Vide seulement sans aucune ligne ni engagé : des lignes à zéro existent.
   const vide = !isLoading && !error && nbLignes === 0 && totauxVides(totaux);
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <PeriodeSelector debutExercice={debutExercice} onChange={setPeriode} />
-        {/* Sans consulter_budget, la page Budget refuserait aussi : lien retire. */}
+        {/* Sans consulter_budget, la page Budget refuserait aussi : lien retiré. */}
         {errorStatus !== 403 && (
           <Link to={`/budget?contrat=${id}`} className="flex items-center gap-1.5 text-sm text-blue-700 dark:text-blue-400 hover:underline">
             <ExternalLink size={14} /> Voir tout le budget
@@ -337,7 +337,7 @@ function ModeContrat({ id, contrat }) {
 }
 
 // licence / contrat : objet de la fiche parente (projection API), pour
-// l'organisation de reference et le libelle de la licence verrouillee.
+// l'organisation de référence et le libellé de la licence verrouillée.
 export default function BudgetEmbeddedSection({ mode, id, licence = null, contrat = null }) {
   if (mode === 'licence') return <ModeLicence id={id} licence={licence} />;
   if (mode === 'contrat') return <ModeContrat id={id} contrat={contrat} />;

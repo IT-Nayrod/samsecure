@@ -1,4 +1,4 @@
-// DocumentIcon - vignette placeholder pour un document mocke (pas de vrai fichier en v0.5)
+// Vignette générique d'un document sans aperçu de fichier.
 import { FileText, Image, File } from 'lucide-react';
 
 function extensionDe(nomFichier) {

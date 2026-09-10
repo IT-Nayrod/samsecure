@@ -1,4 +1,5 @@
-// AppLayout - Section 1 Specs UX v0.5
+// Gabarit des pages authentifiées : barre latérale, barre supérieure, zone de
+// contenu et conteneur de toasts.
 import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';

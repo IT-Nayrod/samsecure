@@ -1,4 +1,4 @@
-// Breadcrumb - fil d'Ariane generique reutilisable
+// Breadcrumb - fil d'Ariane générique réutilisable
 import { Link } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
 

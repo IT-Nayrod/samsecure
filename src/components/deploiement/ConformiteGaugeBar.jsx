@@ -1,7 +1,5 @@
 // ConformiteGaugeBar - barre droits acquis vs usage, signature visuelle de la page Licences
-// Palette des etats de conformite : partagee avec les dashboards (#192, les
-// constantes ont quitte le fichier de donnees de demonstration, retire au
-// branchement des dashboards sur l'API).
+// Palette des états de conformité : partagée avec les dashboards (#192).
 import { THRESHOLD_GREEN, THRESHOLD_YELLOW, THRESHOLD_ORANGE, THRESHOLD_RED } from '../Dashboard/couleurs';
 
 const NIVEAU_COLOR = {

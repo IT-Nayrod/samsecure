@@ -1,15 +1,15 @@
-// documentsService - acces API du module documents.
-// Deux ressources distinctes, fidelement au schema : /api/preuves et
-// /api/factures. Le front les assemble pour l'ecran unifie, il ne fusionne pas
-// les modeles. Meme convention que commandesService : aucun fetch direct,
+// documentsService - accès API du module documents.
+// Deux ressources distinctes, fidèlement au schéma : /api/preuves et
+// /api/factures. Le front les assemble pour l'écran unifié, il ne fusionne pas
+// les modèles. Même convention que commandesService : aucun fetch direct,
 // http.js porte le Bearer, le refresh sur 401 et la normalisation des erreurs
-// en ApiError (message = champ "error" affiche tel quel, code = code_retour,
-// #68) et le deballage de l'enveloppe { code, type, libelle, data }. Le
-// telechargement de fichier (3206) reste un blob, code en en-tete X-Code-Retour.
+// en ApiError (message = champ "error" affiché tel quel, code = code_retour,
+// #68) et le déballage de l'enveloppe { code, type, libelle, data }. Le
+// téléchargement de fichier (3206) reste un blob, code en en-tête X-Code-Retour.
 import { http } from './http';
 
-// Les trois filtres sont communs aux deux ressources, pour que l'ecran unifie
-// applique un seul jeu de filtres a ses deux sources. Cote factures, contrat et
+// Les trois filtres sont communs aux deux ressources, pour que l'écran unifié
+// applique un seul jeu de filtres à ses deux sources. Côté factures, contrat et
 // type de preuve passent par les jointures : l'API s'en charge.
 function query({ idTypePreuve, idContrat, idCommande } = {}) {
   const p = new URLSearchParams();
@@ -27,16 +27,16 @@ export const preuvesService = {
   update: (id, payload) => http.patch(`/preuves/${id}`, payload),
   remove: (id)          => http.delete(`/preuves/${id}`),
 
-  // Depot du fichier sur une preuve deja creee. Le champ doit s'appeler
-  // "fichier", c'est le nom attendu par multer cote serveur.
+  // Dépôt du fichier sur une preuve déjà créée. Le champ doit s'appeler
+  // "fichier", c'est le nom attendu par multer côté serveur.
   deposerFichier: (id, file) => {
     const fd = new FormData();
     fd.append('fichier', file);
     return http.postForm(`/preuves/${id}/fichier`, fd);
   },
 
-  // Renvoie un objet URL local a ouvrir dans un onglet. L'appelant doit le
-  // liberer avec URL.revokeObjectURL.
+  // Renvoie un objet URL local à ouvrir dans un onglet. L'appelant doit le
+  // libérer avec URL.revokeObjectURL.
   fichierUrl: async (id) => URL.createObjectURL(await http.getBlob(`/preuves/${id}/fichier`)),
 };
 
@@ -46,8 +46,8 @@ export const facturesService = {
   update: (id, payload) => http.patch(`/factures/${id}`, payload),
   remove: (id)          => http.delete(`/factures/${id}`),
 
-  // Depot combine : fichier, preuve et facture en une transaction serveur.
-  // Il n'existe pas de creation de facture sans justificatif dans l'interface,
+  // Dépôt combiné : fichier, preuve et facture en une transaction serveur.
+  // Il n'existe pas de création de facture sans justificatif dans l'interface,
   // c'est l'arbitrage de flux rendu le 11/08.
   deposer: ({ file, label, idCommande, idTypePreuve, labelPreuve }) => {
     const fd = new FormData();
@@ -64,8 +64,8 @@ export const typesPreuveService = {
   list: () => http.get('/types-preuve'),
 };
 
-// Detection des manques : vue temps reel servie par le module commandes, mais
-// consommee par l'ecran Documents. La reponse est un objet, pas un tableau :
+// Détection des manques : vue temps réel servie par le module commandes, mais
+// consommée par l'écran Documents. La réponse est un objet, pas un tableau :
 // { filtres, total, total_sans_facture, total_sans_preuve, commandes }.
 export const manquesService = {
   list: ({ idSociete, idContrat, annee } = {}) => {

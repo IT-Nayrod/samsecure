@@ -1,18 +1,18 @@
-// inventaire - import manuel de releves, consultation, ecarts et rapprochement
-// (#111, module 3 C1 a C3).
+// Import manuel de relevés d'inventaire, consultation, écarts et rapprochement
+// (#111, module 3 C1 à C3).
 //
-// Doctrine actee : l'outil constate et alerte, il ne cree ni ne modifie jamais
+// Doctrine actée : l'outil constate et alerte, il ne crée ni ne modifie jamais
 // une affectation. Le rapprochement est manuel : un utilisateur associe une
-// ligne constatee a une affectation existante, ou la marque en ecart assume.
+// ligne constatée à une affectation existante, ou la marque en écart assumé.
 //
-// Aucune modification du schema v4. Ce que le schema ne modelise pas est porte
+// Aucune modification du schéma v4. Ce que le schéma ne modélise pas est porté
 // par les tables existantes :
-//   - inventaire_raw : une ligne par releve, url_fichier = "<fichier>#L<n>"
-//     (pointeur vers le fichier archive et la ligne), contenu relu du fichier
+//   - inventaire_raw : une ligne par relevé, url_fichier = "<fichier>#L<n>"
+//     (pointeur vers le fichier archivé et la ligne), contenu relu du fichier
 //     (utils/stockageInventaire.js) ;
 //   - log_import.type_import = "inventaire_csv:<fichier>" : lien import <->
-//     fichier archive, donc import <-> releves ;
-//   - anomalie_qualite : une ligne par erreur de ligne (entite log_import).
+//     fichier archivé, donc import <-> relevés ;
+//   - anomalie_qualite : une ligne par erreur de ligne (entité log_import).
 import express from "express";
 import { tenantPool, commonPool } from "../db.js";
 import { succes, erreur, erreurPivot } from "../utils/reponse.js";
@@ -43,9 +43,9 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const PREFIXE_IMPORT = "inventaire_csv:";
 const STATUTS = ["en_attente", "rapproche", "ecart_detecte", "rejete"];
 
-// Cle de comparaison des references : insensible a la casse et aux espaces.
-// C'est la seule regle de detection de candidate, volontairement stricte :
-// un rapprochement approximatif serait une decision, et la decision est
+// Clé de comparaison des références : insensible à la casse et aux espaces.
+// C'est la seule règle de détection de candidate, volontairement stricte :
+// un rapprochement approximatif serait une décision, et la décision est
 // humaine.
 const cleRef = (s) => String(s ?? "").replace(/\s+/g, "").toLowerCase();
 
@@ -53,9 +53,9 @@ const nomFichierImport = (typeImport) =>
   typeImport?.startsWith(PREFIXE_IMPORT) ? typeImport.slice(PREFIXE_IMPORT.length) : null;
 
 // ---------------------------------------------------------------------------
-// Resolution des produits. licence.id_produit et la colonne produit d'un
-// releve peuvent designer produit_referentiel (BDD Commune) ou produit_client
-// (Tenant) : les deux bases sont interrogees, l'API fait le pont.
+// Résolution des produits. licence.id_produit et la colonne produit d'un
+// relevé peuvent désigner produit_referentiel (BDD Commune) ou produit_client
+// (Tenant) : les deux bases sont interrogées, l'API fait le pont.
 // ---------------------------------------------------------------------------
 async function libellesProduits(ids) {
   const uniques = [...new Set(ids.filter((id) => id && UUID_RE.test(id)))];
@@ -71,8 +71,8 @@ async function libellesProduits(ids) {
 }
 
 // ---------------------------------------------------------------------------
-// Affectations : projection commune a la liste des rapprochables, aux
-// candidates et aux ecarts. Une affectation est un usage declare.
+// Affectations : projection commune à la liste des rapprochables, aux
+// candidates et aux écarts. Une affectation est un usage déclaré.
 // ---------------------------------------------------------------------------
 const SELECT_AFFECTATION = `
   SELECT a.id, a.label, a.reference_client, a.quantite, a.id_societe, s.raison_sociale AS societe_label,
@@ -101,9 +101,9 @@ function indexParReference(affectations) {
   return index;
 }
 
-// Un releve porte son affectation rapprochee (id_affectation) et, tant qu'il
-// n'est pas rapproche, ses candidates : les affectations de meme reference.
-// Les candidates sont calculees a la lecture, jamais ecrites.
+// Un relevé porte son affectation rapprochée (id_affectation) et, tant qu'il
+// n'est pas rapproché, ses candidates : les affectations de même référence.
+// Les candidates sont calculées à la lecture, jamais écrites.
 function joindreAffectations(lignes, affectations) {
   const parId = new Map(affectations.map((a) => [a.id, a]));
   const parRef = indexParReference(affectations);
@@ -124,8 +124,8 @@ function joindreAffectations(lignes, affectations) {
 }
 
 // ---------------------------------------------------------------------------
-// Releves : projection et enrichissement (contenu relu du fichier, produit
-// resolu, affectation et candidates).
+// Relevés : projection et enrichissement (contenu relu du fichier, produit
+// résolu, affectation et candidates).
 // ---------------------------------------------------------------------------
 const SELECT_RELEVE = `
   SELECT ir.id, ir.id_societe, s.raison_sociale AS societe_label,
@@ -175,7 +175,7 @@ function construireFiltres(query) {
 }
 
 // ---------------------------------------------------------------------------
-// C1 : import d'un fichier de releve
+// C1 : import d'un fichier de relevé
 // ---------------------------------------------------------------------------
 const SELECT_IMPORT = `
   SELECT li.id, li.type_import, li.nb_lignes_total, li.statut, li.created_at,
@@ -212,8 +212,8 @@ router.post("/inventaire/imports", (req, res) => {
     const client = await tenantPool.connect();
     let nomPhysique = null;
     try {
-      // Societe par defaut de l'import (champ de formulaire, optionnel). Une
-      // colonne societe du csv prime ligne a ligne.
+      // Société par défaut de l'import (champ de formulaire, optionnel). Une
+      // colonne societe du csv prime ligne à ligne.
       const idSocieteDefaut = (req.body?.id_societe || "").trim() || null;
       if (idSocieteDefaut && !UUID_RE.test(idSocieteDefaut))
         return erreur(res, 4229, { status: 400, message: "Societe introuvable." });
@@ -226,8 +226,8 @@ router.post("/inventaire/imports", (req, res) => {
       const affectations = await chargerAffectations(client);
       const parRef = indexParReference(affectations);
 
-      // Jugement ligne a ligne. Les references sont dedoublonnees dans le
-      // fichier : deux lignes identiques seraient deux ecarts pour un seul
+      // Jugement ligne à ligne. Les références sont dédoublonnées dans le
+      // fichier : deux lignes identiques seraient deux écarts pour un seul
       // constat.
       const acceptees = [];
       const erreurs = [];
@@ -254,8 +254,8 @@ router.post("/inventaire/imports", (req, res) => {
         const candidates = parRef.get(cleRef(r.reference)) ?? [];
         acceptees.push({
           ligne: r.ligne, idSociete,
-          // Constat, pas decision : une candidate laisse la ligne en attente
-          // de rapprochement manuel ; aucune candidate = ecart detecte.
+          // Constat, pas décision : une candidate laisse la ligne en attente
+          // de rapprochement manuel ; aucune candidate = écart détecté.
           statut: candidates.length ? "en_attente" : "ecart_detecte",
         });
       }
@@ -269,8 +269,8 @@ router.post("/inventaire/imports", (req, res) => {
         [req.user.id, PREFIXE_IMPORT, decoupe.releves.length]
       );
 
-      // Le fichier n'atteint le disque qu'une fois les controles passes ; la
-      // base porte son nom dans la meme transaction.
+      // Le fichier n'atteint le disque qu'une fois les contrôles passés ; la
+      // base porte son nom dans la même transaction.
       const ecrit = await ecrireFichier(req.file);
       nomPhysique = ecrit.nomPhysique;
       await client.query(`UPDATE log_import SET type_import = $2, statut = $3 WHERE id = $1`,
@@ -352,7 +352,7 @@ router.get("/inventaire/imports/:id", async (req, res) => {
     const enrichis = await enrichirReleves(releves);
     enrichis.sort((a, b) => (a.ligne ?? 0) - (b.ligne ?? 0));
     // Les erreurs sont rendues dans l'ordre du fichier, pas dans l'ordre
-    // d'insertion (meme horodatage) ni alphabetique ("Ligne 10" avant "Ligne 4").
+    // d'insertion (même horodatage) ni alphabétique ("Ligne 10" avant "Ligne 4").
     const numero = (e) => Number(/^Ligne (\d+)/.exec(e.description)?.[1] ?? 0);
     erreurs.sort((a, b) => numero(a) - numero(b));
     return succes(res, 4201, { ...imp, erreurs, releves: enrichis });
@@ -363,7 +363,7 @@ router.get("/inventaire/imports/:id", async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// Consultation des releves
+// Consultation des relevés
 // ---------------------------------------------------------------------------
 router.get("/inventaire/releves", async (req, res) => {
   const filtres = construireFiltres(req.query);
@@ -378,7 +378,7 @@ router.get("/inventaire/releves", async (req, res) => {
   }
 });
 
-// Affectations rapprochables : liste servie a l'ecran de rapprochement pour le
+// Affectations rapprochables : liste servie à l'écran de rapprochement pour le
 // choix manuel. Lecture seule, sous consulter_inventaire.
 router.get("/inventaire/affectations", async (req, res) => {
   try {
@@ -390,7 +390,7 @@ router.get("/inventaire/affectations", async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// C2 : ecarts dans les deux sens, listes et compteurs
+// C2 : écarts dans les deux sens, listés et compteurs
 // ---------------------------------------------------------------------------
 router.get("/inventaire/ecarts", async (req, res) => {
   try {
@@ -405,11 +405,11 @@ router.get("/inventaire/ecarts", async (req, res) => {
     const compteurs = { releves_total: enrichis.length };
     for (const s of STATUTS) compteurs[s] = enrichis.filter((r) => r.statut_rapprochement === s).length;
 
-    // Sens 1 : usage constate sans affectation declaree.
+    // Sens 1 : usage constaté sans affectation déclarée.
     const constates_sans_affectation = enrichis.filter(
       (r) => !r.id_affectation && r.statut_rapprochement !== "rejete");
-    // Sens 2 : affectation declaree jamais constatee (aucun releve rapproche).
-    // nb_candidats : releves en attente de meme reference, a rapprocher.
+    // Sens 2 : affectation déclarée jamais constatée (aucun relevé rapproché).
+    // nb_candidats : relevés en attente de même référence, à rapprocher.
     const parRef = new Map();
     for (const r of constates_sans_affectation) {
       const k = cleRef(r.reference);
@@ -423,9 +423,9 @@ router.get("/inventaire/ecarts", async (req, res) => {
     compteurs.affectations_total = affectations.length;
     compteurs.affectations_non_constatees = affectations_non_constatees.length;
 
-    // Synthese par produit : droits (licences), declare (affectations),
-    // constate (releves non rejetes). Cle = identifiant produit resolu en
-    // libelle, sinon libelle normalise.
+    // Synthèse par produit : droits (licences), déclaré (affectations),
+    // constaté (relevés non rejetés). Clé = identifiant produit résolu en
+    // libellé, sinon libellé normalisé.
     const synthese = new Map();
     const entree = (cle, label) => {
       if (!synthese.has(cle)) synthese.set(cle, { produit: label, droits: 0, declare: 0, constate: 0 });
@@ -473,8 +473,8 @@ router.get("/inventaire/releves/:id", async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// C2 : rapprochement manuel. Quatre transitions, chacune tracee en journal et
-// en audit (valeur avant / apres). Aucune n'ecrit dans affectation.
+// C2 : rapprochement manuel. Quatre transitions, chacune tracée en journal et
+// en audit (valeur avant / après). Aucune n'écrit dans affectation.
 //   rapprocher   : en_attente | ecart_detecte -> rapproche (id_affectation)
 //   ecart-assume : en_attente | rapproche     -> ecart_detecte
 //   rejeter      : en_attente | ecart_detecte -> rejete (motif obligatoire)

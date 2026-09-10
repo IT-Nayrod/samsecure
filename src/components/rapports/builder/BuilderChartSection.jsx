@@ -1,5 +1,5 @@
-// BuilderChartSection - Selecteur de type de graphique - SamSecure v0.5
-// Necessite un regroupement actif pour etre disponible.
+// Sélecteur de type de graphique du constructeur de rapport.
+// Nécessite un regroupement actif pour être disponible.
 import { BarChart2, PieChart, TrendingUp, XCircle } from 'lucide-react';
 
 const TYPES_GRAPHIQUE = [

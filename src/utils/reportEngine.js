@@ -1,5 +1,5 @@
-// reportEngine - Moteur de calcul pur pour le module Rapports - SamSecure v0.5
-// Fonctions pures sans state ni import React. Sert les 12 rapports preconfigures et le builder.
+// Moteur de calcul pur du module Rapports.
+// Fonctions pures sans state ni import React. Sert les 12 rapports préconfigurés et le builder.
 // TODO API: POST /api/rapports/executer - remplacer le moteur local par l'appel serveur
 
 import { mockLicences, mockAffectations, mockMaintenanceHistorique } from '../data/mockDeploiement';
@@ -17,7 +17,7 @@ const licenceById  = Object.fromEntries(mockLicences.map(l => [l.id, l]));
 
 // --- HELPERS -------------------------------------------------------------------
 
-/** Resout une cle a point (ex: 'produit.label') sur un objet enrichi */
+/** Résout une clé à point (ex: 'produit.label') sur un objet enrichi */
 export function resoudreChamp(row, key) {
   if (!key || row == null) return undefined;
   const parts = key.split('.');
@@ -29,7 +29,7 @@ export function resoudreChamp(row, key) {
   return val;
 }
 
-/** Verifie si une date ISO string est dans une periode { dateDebut, dateFin } (strings ISO) */
+/** Vérifie si une date ISO string est dans une période { dateDebut, dateFin } (strings ISO) */
 export function estDansPeriode(dateStr, periode) {
   if (!dateStr || !periode?.dateDebut || !periode?.dateFin) return false;
   const d = new Date(dateStr);
@@ -58,7 +58,7 @@ function nbMoisChevauchement(debut, fin, periodeDebut, periodeFin) {
   return Math.max(mois, 1);
 }
 
-// Duree en mois d'un intervalle (pour proratisation)
+// Durée en mois d'un intervalle (pour proratisation)
 function dureeMoisTotal(debut, fin) {
   const d1 = new Date(debut ?? '1970-01-01');
   const d2 = new Date(fin ?? d1);
@@ -68,7 +68,7 @@ function dureeMoisTotal(debut, fin) {
 
 // --- FONCTIONS GENERIQUES (pour le Builder) ------------------------------------
 
-/** Filtre les lignes dont le champ date est dans la periode */
+/** Filtre les lignes dont le champ daté est dans la période */
 export function appliquerPeriode(rows, champDate, periode) {
   if (!periode?.dateDebut || !periode?.dateFin) return rows;
   return rows.filter(row => estDansPeriode(resoudreChamp(row, champDate), periode));
@@ -109,7 +109,7 @@ function evaluerCondition(row, { champ, operateur, valeur }) {
   }
 }
 
-/** Regroupe par champ, avec granularite optionnelle pour les dates */
+/** Regroupe par champ, avec granularité optionnelle pour les dates */
 export function regrouper(rows, champ, granularite = null) {
   const groupes = new Map();
   rows.forEach(row => {
@@ -135,7 +135,7 @@ function formaterGranularite(dateStr, granularite) {
   }
 }
 
-/** Calcule les agregats par groupe */
+/** Calcule les agrégats par groupe */
 export function agreger(groupes, aggregations) {
   return groupes.map(groupe => {
     const totaux = {};
@@ -154,7 +154,7 @@ export function agreger(groupes, aggregations) {
   });
 }
 
-/** Tri multi-niveaux (max 3 criteres) */
+/** Tri multi-niveaux (max 3 critères) */
 export function trier(rows, criteres) {
   if (!criteres?.length) return [...rows];
   return [...rows].sort((a, b) => {
@@ -173,7 +173,7 @@ export function trier(rows, criteres) {
   });
 }
 
-/** Point d'entree du builder : execute une config complete */
+/** Point d'entrée du builder : exécute une config complète */
 export function executerRapport(config) {
   const { domaine, periode, filtres, logiqueFiltres, colonnes: _c, groupement, granularite, aggregations, tri, lignesMax } = config;
   let rows = obtenirSourceDomaine(domaine, periode);
@@ -280,7 +280,7 @@ function enrichirBudget(periode) {
 
 // --- FONCTIONS DE CALCUL DES 12 RAPPORTS -------------------------------------
 
-// Droits par produit (pour la periode donnee)
+// Droits par produit (pour la période donnée)
 function calculerDroitsParProduit(periode) {
   const droits = {};
   mockLicences.forEach(l => {
@@ -301,7 +301,7 @@ function calculerUsagesParProduit() {
   return usages;
 }
 
-// Statut de conformite
+// Statut de conformité
 function statutConformite(ecart, ecartPct) {
   if (ecart >= 0) return 'conforme';
   if (ecartPct > -10) return 'attention';
@@ -425,7 +425,7 @@ export function etatRevalidations(_sources, periode, _params) {
 }
 
 export function preuvesManquantes(_sources, periode, _params) {
-  // Contrats actifs dans la periode sans preuve liee
+  // Contrats actifs dans la période sans preuve liée
   const contratsActifs = mockContrats.filter(c => !periode?.dateDebut || chevauchePeriode(c.date_debut, c.date_fin, periode));
   const lignesContrats = contratsActifs.filter(c => {
     const docsDirects = mockDocuments.filter(d => d.id_contrat === c.id && d.type === 'preuve');
@@ -436,7 +436,7 @@ export function preuvesManquantes(_sources, periode, _params) {
     return { contrat: c.label, editeur: editeur.raison_sociale, date_debut: c.date_debut, date_fin: c.date_fin };
   });
 
-  // Commandes sans facture dans la periode
+  // Commandes sans facture dans la période
   const commandesPeriode = mockCommandes.filter(k => !periode?.dateDebut || estDansPeriode(k.date, periode));
   const lignesCommandes = commandesPeriode.filter(k => {
     return !mockDocuments.some(d => d.id_commande === k.id && d.type === 'facture');
@@ -458,7 +458,7 @@ export function dossierAuditEditeur(_sources, periode, params) {
   const idEditeur = params?.id_editeur;
   const editeur = editeurById[idEditeur] ?? {};
 
-  // Section 1 : conformite produits de l'editeur
+  // Section 1 : conformité produits de l'éditeur
   const produitsDeLEditeur = mockProduits.filter(p => p.id_editeur === idEditeur).map(p => p.id);
   const droitsMap = calculerDroitsParProduit(periode);
   const usagesMap = calculerUsagesParProduit();
@@ -509,7 +509,7 @@ export function licencesDormantes(_sources, periode, _params) {
   const usagesMap = calculerUsagesParProduit();
   const lignes = [];
 
-  // Calculer le cout par produit (somme des licences actives)
+  // Calculer le coût par produit (somme des licences actives)
   const coutMap = {};
   mockLicences.forEach(l => {
     const contrat = contratById[l.id_contrat] ?? {};
@@ -546,7 +546,7 @@ export function maintenanceInutile(_sources, periode, _params) {
     const produit = produitById[licence.id_produit] ?? {};
     const editeur = editeurById[produit.id_editeur] ?? {};
     const usages = usagesMap[licence.id_produit] ?? 0;
-    if (usages > 0) return; // On garde uniquement les licences a 0 usage
+    if (usages > 0) return; // On garde uniquement les licences à 0 usage
     lignes.push({ produit: produit.label, editeur: editeur.raison_sociale, prestataire: m.prestataire, date_debut: m.date_debut, date_fin: m.date_fin, cout: m.cout, usages });
   });
 
@@ -590,7 +590,7 @@ export function renouvellements(_sources, periode, _params) {
   const usagesMap = calculerUsagesParProduit();
   const lignes = [];
 
-  // Contrats avec date_fin dans la periode
+  // Contrats avec date_fin dans la période
   mockContrats.forEach(c => {
     if (!c.date_fin || !estDansPeriode(c.date_fin, periode)) return;
     const editeur = editeurById[c.id_editeur] ?? {};
@@ -617,8 +617,8 @@ export function renouvellements(_sources, periode, _params) {
 }
 
 export function doublonsChevauche(_sources, periode, _params) {
-  // Heuristique v0.5 : produits partageant le meme parent (id_produit_parent) avec licences actives
-  // Si aucun doublon par parent trouve, signale-le dans la note.
+  // Heuristique v0.5 : produits partageant le même parent (id_produit_parent) avec licences actives
+  // Si aucun doublon par parent trouvé, signale-le dans la note.
   const droitsMap = calculerDroitsParProduit(periode);
   const produitsAvecLicences = Object.keys(droitsMap);
   const parParent = {};
@@ -644,12 +644,12 @@ export function doublonsChevauche(_sources, periode, _params) {
   return {
     kpis: { nb_groupes: lignes.length, droits_redondants: lignes.reduce((s, l) => s + l.droits_cumules, 0) },
     lignes,
-    // Note si aucun doublon detecte par hierarchie produit (les licences sont sur les produits parents)
+    // Note si aucun doublon détecte par hiérarchie produit (les licences sont sur les produits parents)
     note: lignes.length === 0 ? 'Aucun doublon détecté par hiérarchie produit sur la période sélectionnée. Les licences sont associées aux produits parents, pas aux sous-produits.' : null,
   };
 }
 
-// Helper non-recursif : calcule les lignes mensuelles TCO pour une periode
+// Helper non-récursif : calcule les lignes mensuelles TCO pour une période
 function _lignesMensuellesTCO(periode) {
   if (!periode?.dateDebut) return [];
   const parMoisCommandes = {};
@@ -686,7 +686,7 @@ export function evolutionCoutsTCO(_sources, periode, _params) {
   const lignes = _lignesMensuellesTCO(periode);
   const coutTotal = lignes.reduce((s, l) => s + l.total, 0);
 
-  // Variation vs periode precedente (meme duree, juste avant) - sans recursion
+  // Variation vs période précédente (même durée, juste avant) - sans récursion
   const debut = new Date(periode.dateDebut);
   const fin = new Date(periode.dateFin);
   const dureeMs = fin - debut;
@@ -722,7 +722,7 @@ const COMPUTE_FNS = {
   economiesParEditeur, renouvellements, doublonsChevauche, evolutionCoutsTCO,
 };
 
-/** Execute un rapport preconfigue depuis son computeKey */
+/** Exécute un rapport préconfiguré depuis son computeKey */
 export function executerRapportPreconfiguree(computeKey, periode, params = {}) {
   const fn = COMPUTE_FNS[computeKey];
   if (!fn) return { kpis: {}, lignes: [], erreur: `Calcul inconnu : ${computeKey}` };

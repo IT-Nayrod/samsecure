@@ -1,3 +1,6 @@
+// Attributions de profils aux utilisateurs : consultation, ajout et retrait
+// dans le périmètre de l'administrateur, chaque écriture laissant une trace probante.
+
 import express from "express";
 import { tenantPool } from "../db.js";
 import { getAdminScope, scopeWhereClause } from "../utils/scope.js";
@@ -74,7 +77,7 @@ router.post("/utilisateurs/:id/profils", async (req, res) => {
     const { rows: s } = id_societe ? await client.query(`SELECT raison_sociale FROM societe WHERE id = $1`, [id_societe]) : { rows: [{ raison_sociale: null }] };
     await log(client, "CREATE", "utilisateur_profil_societe", rows[0].id, `Attribution du groupe "${p[0]?.label || id_profil}" à ${u[0]?.prenom || ''} ${u[0]?.nom || ''} sur ${s[0]?.raison_sociale || id_societe || 'tenant'}`, rows[0]);
     // entiteId vise le COMPTE et non la ligne d'attribution : l'audit d'un
-    // utilisateur doit se lire d'une seule requete sur entite_id, sans avoir a
+    // utilisateur doit se lire d'une seule requête sur entite_id, sans avoir à
     // remonter les identifiants techniques des tables de liaison.
     // code_retour: 2020
     await auditer(client, req, {
@@ -112,9 +115,9 @@ router.delete("/utilisateurs/:id/profils/:attribId", async (req, res) => {
     // code_retour: 2021
     await auditer(client, req, {
       action: "GROUPE_RETIRE",
-      // L'utilisateur porteur de l'attribution fait foi, le parametre d'URL
+      // L'utilisateur porteur de l'attribution fait foi, le paramètre d'URL
       // n'est qu'un repli : les deux doivent concorder, mais c'est la ligne en
-      // base qui dit de quel compte le groupe est reellement retire.
+      // base qui dit de quel compte le groupe est réellement retiré.
       entiteId: a[0]?.id_utilisateur || id,
       avant: { id_profil: a[0]?.id_profil, profil: p[0]?.label || null,
                id_societe: a[0]?.id_societe || null,

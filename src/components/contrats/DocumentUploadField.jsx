@@ -1,8 +1,8 @@
-// DocumentUploadField - zone de depot de fichier (clic ou glisser-deposer).
-// Depuis la #49 le fichier est reellement televerse : le composant remonte
-// l'objet File, plus seulement son nom. Les controles de taille et de format
-// restent cote serveur, seule autorite : le front les rappelle en libelle mais
-// ne les duplique pas en validation, sans quoi les deux regles divergeraient.
+// DocumentUploadField - zone de dépôt de fichier (clic ou glisser-déposer).
+// Le fichier est réellement téléversé (#49) : le composant remonte l'objet
+// File, pas seulement son nom. Les contrôles de taille et de format
+// restent côté serveur, seule autorité : le front les rappelle en libellé mais
+// ne les duplique pas en validation, sans quoi les deux règles divergeraient.
 import { useRef, useState } from 'react';
 import { Upload, Trash2 } from 'lucide-react';
 import DocumentIcon from './DocumentIcon';

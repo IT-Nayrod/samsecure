@@ -6,9 +6,9 @@ const REFRESH_KEY = 'ss_refresh_token';
 let accessToken = null;
 let refreshPromise = null;
 
-// code : code numerique du catalogue code_retour (#68), null si la reponse
-// n'est pas enveloppee (routes hors module 2, corps non JSON). details : le
-// complement structure eventuel (bloquants d'une suppression, permission
+// code : code numérique du catalogue code_retour (#68), null si la réponse
+// n'est pas enveloppée (routes hors module 2, corps non JSON). details : le
+// complément structuré éventuel (bloquants d'une suppression, permission
 // requise, statut courant d'une validation).
 export class ApiError extends Error {
   constructor(message, status, code = null, details = null) {
@@ -20,10 +20,10 @@ export class ApiError extends Error {
   }
 }
 
-// Enveloppe normalisee (#68) : { code, type, libelle, data } en succes,
-// { code, type, libelle, error, details? } en erreur. Les services recoivent
-// data tel quel, comme avant l'enveloppe ; une reponse nue (route non encore
-// enveloppee) est rendue telle quelle.
+// Enveloppe normalisée (#68) : { code, type, libelle, data } en succès,
+// { code, type, libelle, error, details? } en erreur. Les services reçoivent
+// data tel quel, comme avant l'enveloppe ; une réponse nue (route non encore
+// enveloppée) est rendue telle quelle.
 function deballer(data) {
   if (data && typeof data === 'object' && !Array.isArray(data)
       && data.type === 'succes' && 'code' in data && 'data' in data) {
@@ -118,11 +118,11 @@ async function request(path, { method = 'GET', body, retry = true } = {}) {
   return deballer(data);
 }
 
-// Un 403 sur une ressource accessoire ne doit pas condamner l'ecran entier :
-// un utilisateur autorise a consulter les contrats mais pas les referentiels
-// merite sa liste, pas une page d'erreur. La ressource principale d'un ecran,
-// elle, garde son echec : sans elle la page n'a plus d'objet.
-// A n'employer que sur les chargements groupes, jamais sur une action.
+// Un 403 sur une ressource accessoire ne doit pas condamner l'écran entier :
+// un utilisateur autorise à consulter les contrats mais pas les référentiels
+// mérite sa liste, pas une page d'erreur. La ressource principale d'un écran,
+// elle, garde son échec : sans elle la page n'a plus d'objet.
+// À n'employer que sur les chargements groupés, jamais sur une action.
 export function optionnel(promesse, defaut = []) {
   return promesse.catch((err) => {
     if (err instanceof ApiError && err.status === 403) {
@@ -141,11 +141,11 @@ export const http = {
   put: (path, body) => request(path, { method: 'PUT', body }),
 };
 
-// Envoi multipart. Le Content-Type n'est deliberement pas pose : le navigateur
-// doit le calculer lui-meme pour y joindre la frontiere du FormData. Le corps
-// n'est pas serialise en JSON, d'ou une fonction distincte de request().
-// Le refresh sur 401 est rejoue une fois, comme ailleurs, mais le FormData est
-// reutilisable tel quel puisqu'il n'a pas ete consomme par un premier envoi
+// Envoi multipart. Le Content-Type n'est délibérément pas posé : le navigateur
+// doit le calculer lui-même pour y joindre la frontière du FormData. Le corps
+// n'est pas sérialisé en JSON, d'où une fonction distincte de request().
+// Le refresh sur 401 est rejoué une fois, comme ailleurs, mais le FormData est
+// réutilisable tel quel puisqu'il n'a pas été consommé par un premier envoi
 // abouti.
 async function requestForm(path, formData, { retry = true } = {}) {
   const headers = {};
@@ -175,10 +175,10 @@ async function requestForm(path, formData, { retry = true } = {}) {
   return deballer(data);
 }
 
-// Recuperation d'un fichier protege. Un lien <a href> ne conviendrait pas : le
-// navigateur n'y joint pas l'en-tete Authorization et l'API repondrait 401.
-// On telecharge donc avec le jeton, puis on expose un objet URL local que le
-// lecteur natif du navigateur sait ouvrir. L'appelant doit liberer cette URL
+// Récupération d'un fichier protégé. Un lien <a href> ne conviendrait pas : le
+// navigateur n'y joint pas l'en-tête Authorization et l'API répondrait 401.
+// On télécharge donc avec le jeton, puis on expose un objet URL local que le
+// lecteur natif du navigateur sait ouvrir. L'appelant doit libérer cette URL
 // avec URL.revokeObjectURL quand il a fini.
 async function requestBlob(path, { retry = true } = {}) {
   const headers = {};

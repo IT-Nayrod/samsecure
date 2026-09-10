@@ -1,28 +1,28 @@
-// Indice de confiance des donnees (US #116, module 3).
+// Indice de confiance des données (US #116, module 3).
 //
-// Fonction pure, sans acces base : qualite.js lit les faits (licences actives
-// avec leurs liens et leur valeur, affectations avec leur fraicheur) et ce
-// module ne fait que le calcul. Isole pour etre testable au node:test sans
+// Fonction pure, sans accès base : qualite.js lit les faits (licences actives
+// avec leurs liens et leur valeur, affectations avec leur fraîcheur) et ce
+// module ne fait que le calcul. Isolé pour être testable au node:test sans
 // serveur ni base (indiceConfiance.test.js).
 //
-// Regles #116, note sur 100, ponderation par la valeur (cout des licences
+// Règles #116, note sur 100, pondération par la valeur (coût des licences
 // actives) :
-//   exhaustivite (poids 40) : par licence active, 4 liens attendus (commande,
-//     facture ou preuve, contrat, societe signataire) ;
-//     note = somme(valeur x liens presents / 4) / valeur totale x 100 ;
-//   coherence (poids 30) : valeur des objets sans anomalie ouverte / valeur
+//   exhaustivité (poids 40) : par licence active, 4 liens attendus (commande,
+//     facture ou preuve, contrat, société signataire) ;
+//     note = somme(valeur x liens présents / 4) / valeur totale x 100 ;
+//   cohérence (poids 30) : valeur des objets sans anomalie ouverte / valeur
 //     totale x 100 ; un objet multi-anomalies compte une fois ;
-//   fraicheur (poids 30) : valeur des affectations a revalidation non
-//     depassee / valeur totale des affectations x 100 ;
-//   indice = 0,4 x exhaustivite + 0,3 x coherence + 0,3 x fraicheur.
+//   fraîcheur (poids 30) : valeur des affectations à revalidation non
+//     dépassée / valeur totale des affectations x 100 ;
+//   indice = 0,4 x exhaustivité + 0,3 x cohérence + 0,3 x fraîcheur.
 //
-// Un perimetre sans valeur ponderable (aucun cout saisi) rend des notes a
-// 100 : il n'y a rien a peser, et un zero accuserait un parc simplement non
-// valorise. Les objets concernes restent listes dans les malus, a zero point.
+// Un périmètre sans valeur pondérable (aucun coût saisi) rend des notes à
+// 100 : il n'y a rien à peser, et un zéro accuserait un parc simplement non
+// valorisé. Les objets concernés restent listés dans les malus, à zéro point.
 
 const arrondi1 = (v) => Math.round(v * 10) / 10;
 
-// Les 4 liens d'exhaustivite d'une licence active. Libelles destines a
+// Les 4 liens d'exhaustivité d'une licence active. Libellés destinés à
 // l'affichage des malus.
 export const LIENS_EXHAUSTIVITE = [
   { cle: "a_commande", libelle: "Licences sans commande rattachée" },
@@ -33,7 +33,7 @@ export const LIENS_EXHAUSTIVITE = [
 
 // licences : [{ id, valeur, a_commande, a_justificatif, a_contrat,
 //               a_societe_signataire, a_anomalie }] (licences actives).
-// affectations : [{ id, valeur, fraiche }] (affectations validees, echeance
+// affectations : [{ id, valeur, fraiche }] (affectations validées, échéance
 //                opposable).
 // Renvoie { indice, exhaustivite, coherence, fraicheur, valeur_totale,
 //           malus: [{ composante, libelle, points, entite_type, entite_ids }] }.
@@ -42,7 +42,7 @@ export function calculerIndiceConfiance({ licences = [], affectations = [] }) {
   const valeurAffectations = affectations.reduce((s, a) => s + (a.valeur || 0), 0);
   const malus = [];
 
-  // Exhaustivite : chaque lien manquant coute (valeur / 4) sur la note.
+  // Exhaustivité : chaque lien manquant coûte (valeur / 4) sur la note.
   let exhaustivite = 100;
   if (valeurLicences > 0) {
     const acquis = licences.reduce((s, l) => {
@@ -65,7 +65,7 @@ export function calculerIndiceConfiance({ licences = [], affectations = [] }) {
     });
   }
 
-  // Coherence : un objet porteur d'anomalies ouvertes sort en entier de la
+  // Cohérence : un objet porteur d'anomalies ouvertes sort en entier de la
   // valeur saine, quel que soit leur nombre.
   let coherence = 100;
   const enAnomalie = licences.filter((l) => l.a_anomalie);
@@ -83,7 +83,7 @@ export function calculerIndiceConfiance({ licences = [], affectations = [] }) {
     });
   }
 
-  // Fraicheur : une affectation a revalidation depassee ne compte plus.
+  // Fraîcheur : une affectation à revalidation dépassée ne compte plus.
   let fraicheur = 100;
   const depassees = affectations.filter((a) => !a.fraiche);
   if (valeurAffectations > 0) {

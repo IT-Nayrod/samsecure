@@ -1,8 +1,8 @@
-// LicenceFormModal - creation / edition d'une licence (droit acquis), par l'API.
-// Referentiels : catalogue des produits (versions et editions imbriquees),
-// commandes (le contrat se deduit de la commande, jamais saisi ici),
-// revendeurs, unites de mesure, mainteneurs. Les regles de validation serveur
-// (4011 a 4024) sont rendues telles quelles en toast.
+// LicenceFormModal - création / édition d'une licence (droit acquis), par l'API.
+// Référentiels : catalogue des produits (versions et éditions imbriquées),
+// commandes (le contrat se déduit de la commande, jamais saisi ici),
+// revendeurs, unités de mesure, mainteneurs. Les règles de validation serveur
+// (4011 à 4024) sont rendues telles quelles en toast.
 import { useState, useEffect, useMemo } from 'react';
 import SlideOver from '../ui/SlideOver';
 import Button from '../ui/Button';
@@ -85,8 +85,8 @@ export default function LicenceFormModal({
     setLoading(true);
     try {
       const payload = { ...form, quantite: Number(form.quantite) };
-      // Sans le droit de voir les montants, le cout n'est jamais envoye : un
-      // PATCH sans la cle conserve la valeur en base.
+      // Sans le droit de voir les montants, le coût n'est jamais envoyé : un
+      // PATCH sans la clé conserve la valeur en base.
       if (!montantsVisibles) delete payload.cout_licence;
       const saved = isEdit
         ? await licencesService.update(licence.id, payload)

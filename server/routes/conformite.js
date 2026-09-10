@@ -1,19 +1,19 @@
-// Conformite par produit : droits contre usages, valorisation, statut
-// (US #116, module 3). Enveloppe normalisee, codes 4300-4399 (migration 047).
+// Conformité par produit : droits contre usages, valorisation, statut
+// (US #116, module 3). Enveloppe normalisée, codes 4300-4399 (migration 047).
 //
-// Source nominale : precalcul_conformite, alimentee par les triggers de la
-// migration 046 sur licence et affectation. Le precalcul est par produit,
-// sans axe societe : le filtre id_societe et la synthese par societe sont
-// calcules a la volee avec les memes regles (droits = licences des commandes
-// de la societe payeuse, usages = affectations declarees par la societe).
+// Source nominale : precalcul_conformite, alimentée par les triggers de la
+// migration 046 sur licence et affectation. Le précalcul est par produit,
+// sans axe société : le filtre id_societe et la synthèse par société sont
+// calculés à la volée avec les mêmes règles (droits = licences des commandes
+// de la société payeuse, usages = affectations déclarées par la société).
 //
-// produit et editeur du produit vivent en BDD Commune : aucune jointure SQL
-// possible, les libelles sont resolus ici apres lecture (une requete par
-// reponse, jamais par ligne), comme dans licences.js.
+// produit et éditeur du produit vivent en BDD Commune : aucune jointure SQL
+// possible, les libellés sont résolus ici après lecture (une requête par
+// réponse, jamais par ligne), comme dans licences.js.
 //
-// Montants (prix_unitaire, ecart_valorise et leurs agregats) servis a null
-// avec montants_masques: true sans consulter_kpi_financiers, meme regle que
-// les couts du module licences. Le statut reste servi : il est calcule cote
+// Montants (prix_unitaire, ecart_valorise et leurs agrégats) servis à null
+// avec montants_masques: true sans consulter_kpi_financiers, même règle que
+// les coûts du module licences. Le statut reste servi : il est calculé côté
 // serveur, seuil en montant compris.
 import express from "express";
 import { tenantPool, commonPool } from "../db.js";
@@ -28,15 +28,15 @@ const NIVEAUX = ["global", "editeur", "societe"];
 
 const arrondi2 = (n) => (n == null ? null : Math.round(n * 100) / 100);
 
-// ecart_pct est borne a 999.99 sur les deux chemins : la colonne du precalcul
-// est en DECIMAL(5,2) (DDL v4, elargissement hors perimetre #116) et le calcul
-// a la volee suit la meme borne pour que les deux chemins servent une valeur
-// de meme sens. 999.99 se lit "999,99 ou plus".
+// ecart_pct est borné à 999.99 sur les deux chemins : la colonne du précalcul
+// est en DECIMAL(5,2) (DDL v4, élargissement hors périmètre #116) et le calcul
+// à la volée suit la même borne pour que les deux chemins servent une valeur
+// de même sens. 999.99 se lit "999,99 ou plus".
 const tauxBorne = (usages, droits) =>
   droits > 0 ? Math.min(arrondi2((usages / droits) * 100), 999.99) : null;
 
-// Derniere entree du workflow d'une affectation, meme source de verite que
-// les routes affectations. Constante du code, interpolation sure.
+// Dernière entrée du workflow d'une affectation, même source de vérité que
+// les routes affectations. Constante du code, interpolation sûre.
 const LATERAL_STATUT_AFFECTATION = `
   LEFT JOIN LATERAL (
     SELECT vs.code
@@ -47,9 +47,9 @@ const LATERAL_STATUT_AFFECTATION = `
      LIMIT 1
   ) wv ON true`;
 
-// Unite de mesure du produit : la plus frequente parmi ses licences, l'unite
-// etant portee par la licence et non par le produit (DDL v4). Un produit aux
-// licences heterogenes sort sur l'unite majoritaire, hypothese v0.5.
+// Unité de mesure du produit : la plus fréquente parmi ses licences, l'unité
+// étant portée par la licence et non par le produit (DDL v4). Un produit aux
+// licences hétérogènes sort sur l'unité majoritaire, hypothèse v0.5.
 const LATERAL_UNITE = (refProduit) => `
   LEFT JOIN LATERAL (
     SELECT um.label
@@ -62,11 +62,11 @@ const LATERAL_UNITE = (refProduit) => `
   ) un ON true`;
 
 // ---------------------------------------------------------------------------
-// Resolution Commune : libelles produit et editeur du produit
+// Résolution Commune : libellés produit et éditeur du produit
 // ---------------------------------------------------------------------------
 
 // Pose produit_label, id_editeur et editeur_label sur chaque ligne. Une
-// requete Commune pour les produits, une Tenant pour les editeurs.
+// requête Commune pour les produits, une Tenant pour les éditeurs.
 async function resoudreProduits(rows) {
   if (!rows.length) return rows;
   const idsProduits = [...new Set(rows.map((r) => r.id_produit).filter(Boolean))];
@@ -96,8 +96,8 @@ async function resoudreProduits(rows) {
   });
 }
 
-// Identifiants des produits d'un editeur (BDD Commune), pour le filtre
-// id_editeur : le precalcul Tenant ne connait pas l'editeur du produit.
+// Identifiants des produits d'un éditeur (BDD Commune), pour le filtre
+// id_editeur : le précalcul Tenant ne connaît pas l'éditeur du produit.
 async function produitsDeLEditeur(idEditeur) {
   const { rows } = await commonPool.query(
     `SELECT id FROM produit_referentiel WHERE id_editeur = $1`, [idEditeur]);
@@ -105,11 +105,11 @@ async function produitsDeLEditeur(idEditeur) {
 }
 
 // ---------------------------------------------------------------------------
-// Lignes de conformite : precalcul (nominal) ou calcul a la volee (societe)
+// Lignes de conformité : précalcul (nominal) ou calcul à la volée (société)
 // ---------------------------------------------------------------------------
 
-// Lecture du precalcul. Un produit sans droit ni usage n'est pas compte
-// (regle #116) : sa ligne a zero est filtree, jamais purgee.
+// Lecture du précalcul. Un produit sans droit ni usage n'est pas compté
+// (règle #116) : sa ligne à zéro est filtrée, jamais purgée.
 async function lignesDepuisPrecalcul({ idProduit, idsProduits }) {
   const { rows } = await tenantPool.query(
     `SELECT pc.id_produit,
@@ -131,10 +131,10 @@ async function lignesDepuisPrecalcul({ idProduit, idsProduits }) {
   return rows;
 }
 
-// Calcul a la volee restreint a une societe. Droits : licences payees par la
-// societe (chaine licence -> commande -> societe, doctrine budget). Usages :
-// affectations declarees par la societe (affectation.id_societe), comme le
-// decompte 4106. Les deux axes different par construction, hypothese v0.5.
+// Calcul à la volée restreint à une société. Droits : licences payées par la
+// société (chaîne licence -> commande -> société, doctrine budget). Usages :
+// affectations déclarées par la société (affectation.id_societe), comme le
+// décompte 4106. Les deux axes diffèrent par construction, hypothèse v0.5.
 async function lignesPourSociete(idSociete, { idProduit, idsProduits }, seuils) {
   const { rows } = await tenantPool.query(
     `WITH droits AS (
@@ -173,8 +173,8 @@ async function lignesPourSociete(idSociete, { idProduit, idsProduits }, seuils) 
     .map((r) => valoriser(r, seuils, maintenant));
 }
 
-// Valorisation et statut d'une balance brute (droits, usages, cout actif) :
-// memes formules que recalculer_precalcul_conformite (046).
+// Valorisation et statut d'une balance brute (droits, usages, coût actif) :
+// mêmes formules que recalculer_precalcul_conformite (046).
 function valoriser(r, seuils, derniereMaj) {
   const prix = r.droits_total > 0 ? arrondi2(r.cout_actif / r.droits_total) : null;
   const ecart = r.droits_total - r.usages_total;
@@ -194,11 +194,11 @@ function valoriser(r, seuils, derniereMaj) {
 }
 
 // ---------------------------------------------------------------------------
-// Agregats et masquage
+// Agrégats et masquage
 // ---------------------------------------------------------------------------
 
-// ecart_valorise_negatif et _positif sont des sommes signees : la negative
-// mesure l'exposition des depassements, la positive la sous-utilisation.
+// ecart_valorise_negatif et _positif sont des sommes signées : la négative
+// mesure l'exposition des dépassements, la positive la sous-utilisation.
 function agregatsDe(lignes) {
   let negatif = 0, positif = 0, derniere = null;
   const nb = { depassement: 0, attention: 0, conforme: 0 };
@@ -221,8 +221,8 @@ function agregatsDe(lignes) {
   };
 }
 
-// Meme calcul que licences.js : les montants ne se lisent qu'avec
-// consulter_kpi_financiers, servis a null et jamais caviardes en chaine.
+// Même calcul que licences.js : les montants ne se lisent qu'avec
+// consulter_kpi_financiers, servis à null et jamais caviardés en chaîne.
 async function montantsVisibles(req) {
   const { permissions } = await permissionsEffectives(req.user.id);
   return permissions.has("consulter_kpi_financiers");
@@ -257,14 +257,14 @@ function lireFiltres(query) {
 }
 
 // ---------------------------------------------------------------------------
-// GET /conformite : lignes par produit + agregats
+// GET /conformite : lignes par produit + agrégats
 // ---------------------------------------------------------------------------
 router.get("/conformite", async (req, res) => {
   try {
     const { erreur: invalide, filtres } = lireFiltres(req.query);
     if (invalide) return erreur(res, invalide.code, { status: 400, message: invalide.message });
 
-    // Filtre editeur : resolu en liste de produits cote Commune. Un editeur
+    // Filtre éditeur : résolu en liste de produits côté Commune. Un éditeur
     // sans produit donne une liste vide, donc aucune ligne, jamais un 404.
     const idsProduits = filtres.id_editeur
       ? await produitsDeLEditeur(filtres.id_editeur) : null;
@@ -293,8 +293,8 @@ router.get("/conformite", async (req, res) => {
 // GET /conformite/synthese?niveau=global|editeur|societe
 // ---------------------------------------------------------------------------
 
-// Synthese par societe : balance par (societe, produit) en une requete, puis
-// agregation par societe. Memes axes que lignesPourSociete.
+// Synthèse par société : balance par (societe, produit) en une requête, puis
+// agrégation par société. Mêmes axes que lignesPourSociete.
 async function synthesesParSociete(seuils) {
   const { rows } = await tenantPool.query(
     `WITH droits AS (
@@ -339,8 +339,8 @@ async function synthesesParSociete(seuils) {
     .sort((a, b) => String(a.societe_label).localeCompare(String(b.societe_label), "fr"));
 }
 
-// Synthese par editeur : precalcul groupe par l'editeur du produit, resolu en
-// Commune. Les produits sans editeur forment la ligne id_editeur null.
+// Synthèse par éditeur : précalcul groupé par l'éditeur du produit, résolu en
+// Commune. Les produits sans éditeur forment la ligne id_editeur null.
 async function synthesesParEditeur() {
   const lignes = await resoudreProduits(await lignesDepuisPrecalcul({}));
   const parEditeur = new Map();

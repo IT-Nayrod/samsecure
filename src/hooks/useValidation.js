@@ -1,6 +1,6 @@
 // useValidation - geste de validation commun aux trois blocs du module 2.
-// Le comportement doit etre identique sur contrats, commandes et documents :
-// il vit donc ici et non recopie dans six pages.
+// Le comportement doit être identique sur contrats, commandes et documents :
+// il vit donc ici et non recopié dans six pages.
 import { useCallback } from 'react';
 import { validationService } from '../services/validationService';
 import { useToast } from './useToast';
@@ -17,8 +17,8 @@ export default function useValidation(onTraite) {
       onTraite(reponse);
       return reponse;
     } catch (err) {
-      // Message du serveur affiche tel quel, y compris le 409 "Seule une saisie
-      // en attente peut etre traitee" quand un autre onglet a deja tranche.
+      // Message du serveur affiché tel quel, y compris le 409 "Seule une saisie
+      // en attente peut être traitée" quand un autre onglet a déjà tranché.
       addToast({ type: 'error', message: err.message, persistent: true });
       throw err;   // laisse ValidationActions garder sa modale ouverte
     }

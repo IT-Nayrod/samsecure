@@ -1,7 +1,7 @@
-// Widgets KPI des dashboards, branches sur les donnees reelles (#192).
-// Chaque widget lit sa source via useSourceDashboard (une requete par source,
-// partagee entre widgets), porte sa bulle d'information, ses etats de
-// chargement, de vide et d'erreur, et mene par clic a l'ecran concerne.
+// Widgets KPI des dashboards, branchés sur les données réelles (#192).
+// Chaque widget lit sa source via useSourceDashboard (une requête par source,
+// partagée entre widgets), porte sa bulle d'information, ses états de
+// chargement, de vide et d'erreur, et mène par clic à l'écran concerné.
 import { useNavigate } from 'react-router-dom';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import CadreWidget from './CadreWidget';
@@ -23,7 +23,7 @@ function Dot({ color }) {
   return <span style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: color, display: 'inline-block', flexShrink: 0 }} />;
 }
 
-// Rangee de tuiles colorees, gabarit commun des KPI a repartition.
+// Rangée de tuiles colorées, gabarit commun des KPI à répartition.
 function Tuiles({ tuiles }) {
   return (
     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -46,14 +46,14 @@ function Tuiles({ tuiles }) {
 
 const fmtEuros = (v) => `${Number(v ?? 0).toLocaleString('fr-FR')} €`;
 
-// Cle de source budget : la periode fait partie de l'identite de la donnee.
+// Clé de source budget : la période fait partie de l'identité de la donnée.
 function cleBudget(periode) {
   const debut = periode?.debut ? toIsoDate(periode.debut) : '';
   const fin = periode?.fin ? toIsoDate(periode.fin) : '';
   return { cle: `budget-synthese:${debut}:${fin}`, debut, fin };
 }
 
-// ─── Revalidations (Manager DSI, IT Ops) ────────────────────────────────────
+// --- Revalidations (Manager DSI, IT Ops) ------------------------------------
 export function RevalidationsWidget() {
   const navigate = useNavigate();
   const { data, chargement, erreur, relancer } = useSourceDashboard('synthese', dashboardService.synthese);
@@ -82,7 +82,7 @@ export function RevalidationsWidget() {
   );
 }
 
-// ─── Qualité des saisies (Manager DSI, IT Ops) ──────────────────────────────
+// --- Qualité des saisies (Manager DSI, IT Ops) ------------------------------
 export function QualiteSaisiesWidget() {
   const navigate = useNavigate();
   const seuils = useSeuils('qualite-saisies');
@@ -94,7 +94,7 @@ export function QualiteSaisiesWidget() {
     ? data.par_type.map((t) => [t.libelle ?? t.type_anomalie ?? t.type, t.nb ?? t.count ?? 0])
     : Object.entries(data?.par_type ?? {});
 
-  // L'ecran concerne est celui de l'entite la plus touchee par les anomalies.
+  // L'écran concerné est celui de l'entité la plus touchée par les anomalies.
   const typesEntites = (data?.elements ?? []).map((e) => e.entite_type).filter(Boolean);
   const dominant = typesEntites.sort((a, b) =>
     typesEntites.filter((t) => t === b).length - typesEntites.filter((t) => t === a).length)[0];
@@ -125,7 +125,7 @@ export function QualiteSaisiesWidget() {
   );
 }
 
-// ─── Indice de confiance des données (Manager DSI) ──────────────────────────
+// --- Indice de confiance des données (Manager DSI) --------------------------
 export function IndiceConfianceWidget() {
   const navigate = useNavigate();
   const seuils = useSeuils('indice-confiance');
@@ -172,7 +172,7 @@ export function IndiceConfianceWidget() {
   );
 }
 
-// ─── Validations en attente > 24 h (Manager DSI) ────────────────────────────
+// --- Validations en attente > 24 h (Manager DSI) ----------------------------
 export function ValidationsEnAttenteWidget() {
   const navigate = useNavigate();
   const seuils = useSeuils('validations-attente');
@@ -218,7 +218,7 @@ export function ValidationsEnAttenteWidget() {
   );
 }
 
-// ─── Période budgétaire (Financier) ─────────────────────────────────────────
+// --- Période budgétaire (Financier) -----------------------------------------
 export function MontantsBudgetaireWidget({ periode }) {
   const navigate = useNavigate();
   const { cle, debut, fin } = cleBudget(periode);
@@ -256,7 +256,7 @@ export function MontantsBudgetaireWidget({ periode }) {
   );
 }
 
-// ─── Conformité réel vs prévisionnel (Financier) ────────────────────────────
+// --- Conformité réel vs prévisionnel (Financier) ----------------------------
 export function ConformiteReelPrevisionnelWidget({ periode }) {
   const navigate = useNavigate();
   const seuils = useSeuils('conformite-reel-previ');
@@ -307,10 +307,10 @@ export function ConformiteReelPrevisionnelWidget({ periode }) {
   );
 }
 
-// Alias pour retrocompatibilite
+// Alias pour rétrocompatibilité
 export const ReelVsPrevisionnelWidget = ConformiteReelPrevisionnelWidget;
 
-// ─── Échéances des contrats en KPI (Financier) ──────────────────────────────
+// --- Échéances des contrats en KPI (Financier) ------------------------------
 const JOURS_PAR_MOIS = 30.4375;
 
 export function EcheancesContratsKpiWidget() {
@@ -323,7 +323,7 @@ export function EcheancesContratsKpiWidget() {
   const b3 = borneSeuil(seuils, 3, 1);
   const compte = { 1: 0, 2: 0, 3: 0, 4: 0 };
   for (const c of data ?? []) {
-    if (c.jours_restants == null) { compte[1] += 1; continue; }  // perpetuel
+    if (c.jours_restants == null) { compte[1] += 1; continue; }  // perpétuel
     const mois = c.jours_restants / JOURS_PAR_MOIS;
     const niveau = mois >= b1 ? 1 : mois >= b2 ? 2 : mois >= b3 ? 3 : 4;
     compte[niveau] += 1;
@@ -350,10 +350,10 @@ export function EcheancesContratsKpiWidget() {
   );
 }
 
-// Alias retrocompatibilite
+// Alias rétrocompatibilité
 export const ContratsEnCoursWidget = EcheancesContratsKpiWidget;
 
-// ─── Balance usages vs droits (IT Ops) ──────────────────────────────────────
+// --- Balance usages vs droits (IT Ops) --------------------------------------
 export function BalanceUsagesDroitsWidget() {
   const navigate = useNavigate();
   const seuils = useSeuils('balance-usages-droits');

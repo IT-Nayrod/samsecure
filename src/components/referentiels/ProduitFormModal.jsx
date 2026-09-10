@@ -1,11 +1,11 @@
-// ProduitFormModal - creation et edition d'un logiciel client.
+// ProduitFormModal - création et édition d'un logiciel client.
 //
-// Le catalogue commun ne se cree ni ne se modifie depuis un espace client : il
-// est partage par tous les clients SamSecure. Il reste proposable comme parent,
-// un logiciel maison pouvant se rattacher a une suite du catalogue.
+// Le catalogue commun ne se crée ni ne se modifie depuis un espace client : il
+// est partagé par tous les clients SamSecure. Il reste proposable comme parent,
+// un logiciel maison pouvant se rattacher à une suite du catalogue.
 //
-// Le champ Maintenance a disparu : le modele ne le porte plus sur le produit
-// (modif 12), c'est un choix client porte par la licence.
+// Le champ Maintenance a disparu : le modèle ne le porte plus sur le produit
+// (modif 12), c'est un choix client porté par la licence.
 import { useState, useEffect } from 'react';
 import SlideOver from '../ui/SlideOver';
 import Button from '../ui/Button';
@@ -15,9 +15,9 @@ import { loadDraft, saveDraft, clearDraft } from '../../utils/formDraft';
 
 const INPUT_CLS = 'w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white';
 
-// Un produit ne peut pas etre son propre ancetre : on retire le produit edite
-// et tous ses descendants des options de parent. L'API refait le controle, ce
-// filtrage ne fait qu'eviter de proposer un choix qui finirait en 409.
+// Un produit ne peut pas être son propre ancêtre : on retire le produit édité
+// et tous ses descendants des options de parent. L'API refait le contrôle, ce
+// filtrage ne fait qu'éviter de proposer un choix qui finirait en 409.
 function getDescendantIds(produits, rootId) {
   const ids = new Set();
   let frontier = [rootId];
@@ -88,9 +88,9 @@ export default function ProduitFormModal({ isOpen, onClose, onSave, produit, all
       clearDraft(draftKey);
       onClose();
     } catch (err) {
-      // Rattachement refuse : boucle dans la hierarchie, ou parent disparu
-      // depuis le chargement de la liste. Le message du serveur est porte sur
-      // le champ concerne, la modale garde la saisie.
+      // Rattachement refusé : boucle dans la hiérarchie, ou parent disparu
+      // depuis le chargement de la liste. Le message du serveur est porté sur
+      // le champ concerné, la modale garde la saisie.
       if (err?.status === 409 || err?.status === 400) {
         setErrors({ id_produit_parent: err.message });
       }

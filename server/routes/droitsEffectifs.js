@@ -1,3 +1,6 @@
+// Droits effectifs d'un utilisateur sur une société : permissions des profils
+// attribués, puis exceptions individuelles, le retrait primant sur l'accord.
+
 import express from "express";
 import { tenantPool } from "../db.js";
 

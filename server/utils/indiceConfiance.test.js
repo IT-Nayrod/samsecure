@@ -1,7 +1,7 @@
 // Tests de la fonction pure de l'indice de confiance (US #116).
-// Execution : node --test server/utils/indiceConfiance.test.js
-// (hors du npm test racine, qui ne couvre que src/utils : le perimetre
-// serveur n'a pas de script de test dedie a ce jour).
+// Exécution : node --test server/utils/indiceConfiance.test.js
+// (hors du npm test racine, qui ne couvre que src/utils : le périmètre
+// serveur n'a pas de script de test dédié à ce jour).
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { calculerIndiceConfiance, LIENS_EXHAUSTIVITE } from "./indiceConfiance.js";
@@ -67,7 +67,7 @@ describe("calculerIndiceConfiance", () => {
   });
 
   test("coherence : un objet multi-anomalies compte une fois", () => {
-    // Le drapeau a_anomalie est deja "au moins une anomalie ouverte" : la
+    // Le drapeau a_anomalie est déjà "au moins une anomalie ouverte" : la
     // valeur de l2 ne sort qu'une fois, quel que soit le nombre d'anomalies.
     const r = calculerIndiceConfiance({
       licences: [

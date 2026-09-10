@@ -1,6 +1,6 @@
-// MaintenanceFormModal - ajout / modification d'une periode de maintenance
-// (maintenance_historique) d'une licence. Ecriture par l'API, les regles de
-// validation serveur (4031 a 4033, 4022, 4016, 4024) sont rendues telles quelles.
+// MaintenanceFormModal - ajout / modification d'une période de maintenance
+// (maintenance_historique) d'une licence. Écriture par l'API, les règles de
+// validation serveur (4031 à 4033, 4022, 4016, 4024) sont rendues telles quelles.
 import { useState, useEffect } from 'react';
 import SlideOver from '../ui/SlideOver';
 import Button from '../ui/Button';
@@ -42,8 +42,8 @@ export default function MaintenanceFormModal({ isOpen, onClose, onSaved, licence
     setLoading(true);
     try {
       const payload = { ...form };
-      // Sans le droit de voir les montants, le cout n'est pas touche : un PATCH
-      // sans la cle laisse la valeur en base, un POST la laisse vide.
+      // Sans le droit de voir les montants, le coût n'est pas touché : un PATCH
+      // sans la clé laisse la valeur en base, un POST la laisse vide.
       if (!montantsVisibles) delete payload.cout;
       const saved = isEdit
         ? await licencesService.maintenance.update(licenceId, periode.id, payload)

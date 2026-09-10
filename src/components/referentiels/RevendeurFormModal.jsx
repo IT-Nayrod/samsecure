@@ -1,16 +1,16 @@
-// RevendeurFormModal - creation et edition d'un revendeur.
+// RevendeurFormModal - création et édition d'un revendeur.
 //
-// L'unicite n'est pas verifiee sur une liste chargee en memoire : elle est
-// portee par la base et par la detection de doublon de l'API, qui rapproche les
-// SIRET identiques et les raisons sociales tres proches. Un controle local
-// serait contournable par appel direct, et faux des qu'un autre onglet cree le
-// meme revendeur.
+// L'unicité n'est pas vérifiée sur une liste chargée en mémoire : elle est
+// portée par la base et par la détection de doublon de l'API, qui rapproche les
+// SIRET identiques et les raisons sociales très proches. Un contrôle local
+// serait contournable par appel direct, et faux dès qu'un autre onglet crée le
+// même revendeur.
 //
-// Le champ raison sociale propose au fil de la frappe les revendeurs deja
-// references. Un clic ouvre l'existant ; si aucune proposition ne correspond,
-// une ligne explicite permet de poursuivre la creation. Les formats (SIRET,
-// IBAN, email) restent verifies localement, pour ne pas faire un aller-retour
-// serveur sur une faute de frappe : l'API les revalide de toute facon.
+// Le champ raison sociale propose au fil de la frappe les revendeurs déjà
+// référencés. Un clic ouvre l'existant ; si aucune proposition ne correspond,
+// une ligne explicite permet de poursuivre la création. Les formats (SIRET,
+// IBAN, email) restent vérifiés localement, pour ne pas faire un aller-retour
+// serveur sur une faute de frappe : l'API les revalide de toute façon.
 import { useState, useEffect, useCallback } from 'react';
 import { ArrowRight, Search, Plus } from 'lucide-react';
 import SlideOver from '../ui/SlideOver';
@@ -44,9 +44,9 @@ export default function RevendeurFormModal({ isOpen, onClose, onSave, revendeur,
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [draftRestaure, setDraftRestaure] = useState(false);
-  // Passe a true quand l'utilisateur declare qu'aucune proposition ne
-  // correspond. Les suggestions se taisent alors jusqu'a la prochaine
-  // modification du nom : sans cela, la liste resterait affichee sous le champ
+  // Passe à true quand l'utilisateur déclare qu'aucune proposition ne
+  // correspond. Les suggestions se taisent alors jusqu'à la prochaine
+  // modification du nom : sans cela, la liste resterait affichée sous le champ
   // pendant toute la saisie du SIRET et de l'IBAN.
   const [ignorerSuggestions, setIgnorerSuggestions] = useState(false);
 
@@ -76,8 +76,8 @@ export default function RevendeurFormModal({ isOpen, onClose, onSave, revendeur,
     saveDraft(draftKey, form);
   }, [form, isOpen, draftKey]);
 
-  // Formats seulement. L'unicite et le rapprochement des noms appartiennent au
-  // serveur, qui seul voit tout le referentiel.
+  // Formats seulement. L'unicité et le rapprochement des noms appartiennent au
+  // serveur, qui seul voit tout le référentiel.
   function validate() {
     const e = {};
     const reqErr = validateRequired(form.raison_sociale, 'La raison sociale');
@@ -102,9 +102,9 @@ export default function RevendeurFormModal({ isOpen, onClose, onSave, revendeur,
       clearDraft(draftKey);
       onClose();
     } catch (err) {
-      // Le doublon est traite par le parent, qui ouvre la boite de
+      // Le doublon est traité par le parent, qui ouvre la boîte de
       // confirmation : la modale reste ouverte et la saisie n'est pas perdue.
-      // Les autres erreurs partent en toast cote parent.
+      // Les autres erreurs partent en toast côté parent.
       if (err?.status === 400) setErrors({ raison_sociale: err.message });
     } finally {
       setLoading(false);
@@ -114,8 +114,8 @@ export default function RevendeurFormModal({ isOpen, onClose, onSave, revendeur,
   function changerNom(valeur) {
     setForm(v => ({ ...v, raison_sociale: valeur }));
     setErrors(v => ({ ...v, raison_sociale: null }));
-    // Toute modification du nom rouvre la proposition : le texte a change, les
-    // suggestions ecartees ne valent plus.
+    // Toute modification du nom rouvre la proposition : le texte a changé, les
+    // suggestions écartées ne valent plus.
     setIgnorerSuggestions(false);
   }
 
@@ -127,8 +127,8 @@ export default function RevendeurFormModal({ isOpen, onClose, onSave, revendeur,
     setIgnorerSuggestions(false);
   }
 
-  // Un doublon franc est bloque avant l'envoi : l'API le refuserait de toute
-  // facon, autant l'annoncer pendant la saisie.
+  // Un doublon franc est bloqué avant l'envoi : l'API le refuserait de toute
+  // façon, autant l'annoncer pendant la saisie.
   const bloque = !!exact;
   const restants = total - suggestions.length;
   const montrerSuggestions = !ignorerSuggestions && !exact && suggestions.length > 0;
@@ -207,7 +207,7 @@ export default function RevendeurFormModal({ isOpen, onClose, onSave, revendeur,
                 et {restants} autre{restants > 1 ? 's' : ''} correspondance{restants > 1 ? 's' : ''}, affinez votre saisie
               </p>
             )}
-            {/* Sortie explicite : sans elle, l'utilisateur qui cree reellement un
+            {/* Sortie explicite : sans elle, l'utilisateur qui crée réellement un
                 nouveau revendeur resterait devant une liste qui semble lui
                 interdire de continuer. */}
             <button

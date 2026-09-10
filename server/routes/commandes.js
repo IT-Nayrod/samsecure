@@ -1,3 +1,6 @@
+// Commandes du module 2 : saisie sous workflow de validation, agrégats financiers
+// mensuels lus dans precalcul_financier et détection des manques documentaires.
+
 import express from "express";
 import { tenantPool } from "../db.js";
 import { succes, erreur, erreurPivot } from "../utils/reponse.js";
@@ -7,10 +10,10 @@ import {
 
 const router = express.Router();
 
-// Convention du projet : helper de journalisation local a chaque routeur.
+// Convention du projet : helper de journalisation local à chaque routeur.
 // id_auteur est lu dans req.user (session JWT), comme le fait audit() : les
-// quatre routeurs de saisie sont montes apres authMiddleware, req.user est
-// donc toujours renseigne. Jamais un id arbitraire : la FK vers utilisateur
+// quatre routeurs de saisie sont montés après authMiddleware, req.user est
+// donc toujours renseigné. Jamais un id arbitraire : la FK vers utilisateur
 // ferait avorter la transaction en cours.
 async function log(client, req, action, entite_type, entite_id, description, payload) {
   try {
@@ -26,12 +29,12 @@ async function log(client, req, action, entite_type, entite_id, description, pay
 }
 
 // Garde-fou : un :id non UUID part sinon en Postgres et ressort en 500 illisible
-// la ou la commande est simplement introuvable.
+// là où la commande est simplement introuvable.
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-// Statut d'echeance : source unique de verite, jamais recalcule cote front.
-// Meme vocabulaire et meme ordre de priorite que le statut des contrats, pour
-// que StatutEcheanceBadge serve les deux ecrans sans adaptation.
+// Statut d'échéance : source unique de vérité, jamais recalculé côté front.
+// Même vocabulaire et même ordre de priorité que le statut des contrats, pour
+// que StatutEcheanceBadge serve les deux écrans sans adaptation.
 const STATUT_ECHEANCE = `
   CASE
     WHEN c.date_fin IS NULL                              THEN 'perpetuel'
@@ -69,9 +72,9 @@ const CHAMPS = [
   "a_renouveler",
 ];
 
-// Verifie l'existence d'une reference. Evite qu'un UUID inconnu remonte en
-// 23503 brute transformee en 500 illisible. Un id absent est valide : c'est
-// la validation de presence qui tranche, pas celle d'existence.
+// Vérifie l'existence d'une référence. Évite qu'un UUID inconnu remonte en
+// 23503 brute transformée en 500 illisible. Un id absent est valide : c'est
+// la validation de présence qui tranche, pas celle d'existence.
 async function existe(client, table, id) {
   if (!id) return true;
   const { rowCount } = await client.query(`SELECT 1 FROM ${table} WHERE id = $1`, [id]);
@@ -80,7 +83,7 @@ async function existe(client, table, id) {
 
 // Un <select> vide et un <input type="date"> vide envoient "" et non null.
 // Sans cette normalisation, "" part sur une colonne UUID ou DATE et produit
-// une 22P02 brute remontee en 500.
+// une 22P02 brute remontée en 500.
 function normaliserCorps(body = {}) {
   const vide = (v) => (v === "" || v === undefined ? null : v);
   const montant = vide(body.montant);
@@ -92,8 +95,8 @@ function normaliserCorps(body = {}) {
     id_societe: vide(body.id_societe),
     id_revendeur: vide(body.id_revendeur),
     id_mode_commande: vide(body.id_mode_commande),
-    // Number("") vaut 0, d'ou le passage par vide() avant conversion : un
-    // montant efface doit ressortir absent, pas nul.
+    // Number("") vaut 0, d'où le passage par vide() avant conversion : un
+    // montant effacé doit ressortir absent, pas nul.
     montant: montant === null ? null : Number(montant),
     date_commande: vide(body.date_commande),
     date_fin: vide(body.date_fin),
@@ -121,7 +124,7 @@ async function validerCommande(client, body) {
     return { status: 400, code: 3117, error: "Mode de commande introuvable." };
   if (montant === null || montant === undefined)
     return { status: 400, code: 3118, error: "Le montant est obligatoire." };
-  // Couvre le zero, le negatif et la saisie non numerique d'un seul message :
+  // Couvre le zéro, le négatif et la saisie non numérique d'un seul message :
   // dans les trois cas le montant n'est pas un montant valide.
   if (!Number.isFinite(montant) || montant <= 0)
     return { status: 400, code: 3119, error: "Le montant doit etre strictement positif." };
@@ -134,9 +137,9 @@ async function validerCommande(client, body) {
   return null;
 }
 
-// Bornes mensuelles d'une plage. Le precalcul etant mensuel, une plage au jour
-// pres est servie au mois pres : les bornes reellement appliquees sont
-// renvoyees dans la reponse, et le front filtre sa liste sur ces memes bornes.
+// Bornes mensuelles d'une plage. Le précalcul étant mensuel, une plage au jour
+// près est servie au mois près : les bornes réellement appliquées sont
+// renvoyées dans la réponse, et le front filtre sa liste sur ces mêmes bornes.
 // C'est ce qui garantit que liste, timeline et KPI ne peuvent pas diverger.
 function moisEntre(debut, fin) {
   const out = [];
@@ -162,12 +165,12 @@ router.get("/commandes", async (req, res) => {
   }
 });
 
-// Agregats financiers, lus exclusivement dans precalcul_financier alimente par
-// les triggers. Declaree avant /commandes/:id : sinon Express fait
-// correspondre "agregats" au parametre et repond 404.
-// Deux modes : annee civile, ou plage date_debut/date_fin pour les exercices
-// fiscaux decales et les periodes glissantes du selecteur.
-// Axes de filtrage : societe et editeur, les seuls portes par le precalcul.
+// Agrégats financiers, lus exclusivement dans precalcul_financier alimenté par
+// les triggers. Déclarée avant /commandes/:id : sinon Express fait
+// correspondre "agregats" au paramètre et répond 404.
+// Deux modes : année civile, ou plage date_debut/date_fin pour les exercices
+// fiscaux décalés et les périodes glissantes du sélecteur.
+// Axes de filtrage : société et éditeur, les seuls portés par le précalcul.
 // Ni contrat ni revendeur, qui n'existent qu'au niveau de la liste.
 router.get("/commandes/agregats", async (req, res) => {
   try {
@@ -197,8 +200,8 @@ router.get("/commandes/agregats", async (req, res) => {
     if (editeur && !UUID_RE.test(editeur))
       return erreur(res, 3143, { status: 400, message: "Identifiant d'editeur invalide." });
 
-    // Sommes en numeric cote SQL, cast en float8 a la sortie seulement :
-    // additionner des flottants des le depart ferait deriver le centime.
+    // Sommes en numeric côté SQL, cast en float8 à la sortie seulement :
+    // additionner des flottants dès le départ ferait dériver le centime.
     const { rows } = await tenantPool.query(
       `SELECT periode,
               sum(montant_commande)::float8     AS montant_commande,
@@ -217,8 +220,8 @@ router.get("/commandes/agregats", async (req, res) => {
     const CLES = ["montant_commande", "montant_a_renouveler", "montant_paye",
                   "nb_commandes", "nb_a_renouveler"];
 
-    // Tous les mois de la plage sont renvoyes, les mois sans commande a 0 :
-    // le consommateur n'a pas a combler les trous d'une serie temporelle.
+    // Tous les mois de la plage sont renvoyés, les mois sans commande à 0 :
+    // le consommateur n'a pas à combler les trous d'une série temporelle.
     const mois = moisEntre(moisDebut, moisFin).map((periode) => {
       const l = parPeriode.get(periode);
       const sortie = { periode, mois: Number(periode.slice(5)) };
@@ -226,9 +229,9 @@ router.get("/commandes/agregats", async (req, res) => {
       return sortie;
     });
 
-    // Totaux derives des mois, jamais requetes separement : ils sont ainsi
-    // egaux a leur somme par construction. L'arrondi au centime absorbe le
-    // residu binaire de l'addition flottante.
+    // Totaux dérivés des mois, jamais requêtés séparément : ils sont ainsi
+    // égaux à leur somme par construction. L'arrondi au centime absorbe le
+    // résidu binaire de l'addition flottante.
     const totaux = {};
     for (const c of CLES) totaux[c] = Math.round(mois.reduce((t, m) => t + m[c], 0) * 100) / 100;
 
@@ -245,25 +248,25 @@ router.get("/commandes/agregats", async (req, res) => {
   }
 });
 
-// Detection des manques documentaires (#50). Vue temps reel, aucune ecriture :
-// rien n'est stocke dans anomalie_qualite, l'etat se recalcule a chaque appel.
+// Détection des manques documentaires (#50). Vue temps réel, aucune écriture :
+// rien n'est stocké dans anomalie_qualite, l'état se recalcule à chaque appel.
 //
-// Regle actee en session spec module 2, v0.5 : la completude se controle au
-// niveau de la commande. Une commande est complete si elle porte au moins une
-// facture (facture.id_commande) ET au moins une preuve rattachee directement a
+// Règle actée en session spec module 2, v0.5 : la complétude se contrôle au
+// niveau de la commande. Une commande est complète si elle porte au moins une
+// facture (facture.id_commande) ET au moins une preuve rattachée directement à
 // elle (preuve.id_commande).
 //
-// Les deux conditions se testent independamment, sans raccourci par la facture.
-// Depuis la resolution E3, facture.id_preuve peut pointer une preuve qui n'est
-// rattachee qu'au contrat : cette preuve la ne complete pas la commande, et
-// passer par facture.id_preuve donnerait un faux complet. De meme, une preuve
-// rattachee au seul contrat ne complete jamais la commande : choix v0.5 assume,
-// a ne pas etendre sans nouvelle decision.
+// Les deux conditions se testent indépendamment, sans raccourci par la facture.
+// Depuis la résolution E3, facture.id_preuve peut pointer une preuve qui n'est
+// rattachée qu'au contrat : cette preuve là ne complète pas la commande, et
+// passer par facture.id_preuve donnerait un faux complet. De même, une preuve
+// rattachée au seul contrat ne complète jamais la commande : choix v0.5 assumé,
+// à ne pas étendre sans nouvelle décision.
 //
 // Codes retour dans la plage documents 3280-3289 et non dans celle des
-// commandes : la ressource est la commande mais la fonctionnalite appartient au
-// module documents. Declaree avant /commandes/:id, sinon Express fait
-// correspondre "manques" au parametre et repond 404.
+// commandes : la ressource est la commande mais la fonctionnalité appartient au
+// module documents. Déclarée avant /commandes/:id, sinon Express fait
+// correspondre "manques" au paramètre et répond 404.
 router.get("/commandes/manques", async (req, res) => {
   try {
     const societe = req.query.id_societe || null;
@@ -282,13 +285,13 @@ router.get("/commandes/manques", async (req, res) => {
     }
 
     // Deux anti-jointures, pas de boucle applicative.
-    // MATERIALIZED n'est pas cosmetique : sans lui PostgreSQL inline le CTE et
-    // evalue les deux NOT EXISTS quatre fois, une fois pour la colonne et une
-    // fois pour le predicat, soit quatre parcours de facture et preuve au lieu
-    // de deux. Mesure sur 5 000 commandes dont 4 000 completes : 318 ms sans le
-    // mot-cle, 13 ms avec.
-    // Les filtres sont appliques dans le CTE, avant le test de completude, pour
-    // que le predicat ne s'evalue que sur le perimetre demande.
+    // MATERIALIZED n'est pas cosmétique : sans lui PostgreSQL inline le CTE et
+    // évalue les deux NOT EXISTS quatre fois, une fois pour la colonne et une
+    // fois pour le prédicat, soit quatre parcours de facture et preuve au lieu
+    // de deux. Mesure sur 5 000 commandes dont 4 000 complètes : 318 ms sans le
+    // mot-clé, 13 ms avec.
+    // Les filtres sont appliqués dans le CTE, avant le test de complétude, pour
+    // que le prédicat ne s'évalue que sur le périmètre demandé.
     const { rows } = await tenantPool.query(
       `WITH etat AS MATERIALIZED (
          SELECT c.id, c.label,
@@ -310,7 +313,7 @@ router.get("/commandes/manques", async (req, res) => {
         ORDER BY date_commande DESC NULLS LAST, label`,
       [societe, contrat, annee]);
 
-    // Compteurs derives des lignes renvoyees, jamais requetes separement : ils
+    // Compteurs dérivés des lignes renvoyées, jamais requêtés séparément : ils
     // ne peuvent ainsi pas diverger de la liste affichee.
     const total_sans_facture = rows.filter((r) => r.facture_manquante).length;
     const total_sans_preuve = rows.filter((r) => r.preuve_manquante).length;
@@ -337,8 +340,8 @@ router.get("/commandes/:id", async (req, res) => {
     const { rows } = await tenantPool.query(`${SELECT_COMMANDE} WHERE c.id = $1`, [id]);
     if (!rows.length) return erreur(res, 3110, { status: 404, message: "Commande introuvable." });
 
-    // Memes compteurs que le garde-fou de suppression : la fiche detail affiche
-    // le nombre reel de rattachements sans dependre des modules non branches.
+    // Mêmes compteurs que le garde-fou de suppression : la fiche détail affiche
+    // le nombre réel de rattachements sans dépendre des modules non branchés.
     const { rows: [liens] } = await tenantPool.query(
       `SELECT (SELECT count(*) FROM facture WHERE id_commande = $1)::int AS nb_factures,
               (SELECT count(*) FROM preuve  WHERE id_commande = $1)::int AS nb_preuves,
@@ -374,8 +377,8 @@ router.post("/commandes", async (req, res) => {
        corps.date_commande, corps.date_fin, corps.a_renouveler]
     );
 
-    // Toute saisie part en attente de validation, dans la meme transaction que
-    // l'ecriture metier.
+    // Toute saisie part en attente de validation, dans la même transaction que
+    // l'écriture métier.
     await soumettre(client, "commande", creee.id, req.user?.id);
 
     await log(client, req, "CREATE", "commande", creee.id, `Creation de la commande "${label}"`, corps);
@@ -403,9 +406,9 @@ router.patch("/commandes/:id", async (req, res) => {
       return erreur(res, 3110, { status: 404, message: "Commande introuvable." });
     }
 
-    // Dates lues en texte : validerCommande compare des chaines ISO, un objet
+    // Dates lues en texte : validerCommande compare des chaînes ISO, un objet
     // Date de pg fausserait la comparaison date_fin < date_commande.
-    // Montant lu en float8 pour la meme raison, Number.isFinite refuserait une chaine.
+    // Montant lu en float8 pour la même raison, Number.isFinite refuserait une chaîne.
     const { rows: existant } = await client.query(
       `SELECT label, numero_devis, id_contrat, id_societe, id_revendeur, id_mode_commande,
               montant::float8 AS montant, reference_interne,
@@ -417,8 +420,8 @@ router.patch("/commandes/:id", async (req, res) => {
       return erreur(res, 3110, { status: 404, message: "Commande introuvable." });
     }
 
-    // Fusion avant validation : un PATCH partiel ne doit pas echouer sur un
-    // champ obligatoire qui n'a simplement pas ete transmis.
+    // Fusion avant validation : un PATCH partiel ne doit pas échouer sur un
+    // champ obligatoire qui n'a simplement pas été transmis.
     const patch = normaliserCorps(req.body);
     const corps = { ...existant[0] };
     for (const champ of CHAMPS) {
@@ -443,7 +446,7 @@ router.patch("/commandes/:id", async (req, res) => {
        corps.date_commande, corps.date_fin, corps.a_renouveler, id]
     );
 
-    // Une modification est une saisie : retour en attente, motif de refus efface.
+    // Une modification est une saisie : retour en attente, motif de refus effacé.
     await soumettre(client, "commande", id, req.user?.id);
 
     await log(client, req, "UPDATE", "commande", id, `Modification de la commande "${label}"`, patch);
@@ -479,7 +482,7 @@ router.delete("/commandes/:id", async (req, res) => {
 
     // Les 3 FK entrantes du DDL v4. Depuis le drop de licence.id_contrat par la
     // migration 014, la commande est le seul chemin de la licence vers le
-    // contrat : ce blocage protege toute la chaine de rattachement.
+    // contrat : ce blocage protège toute la chaîne de rattachement.
     const { rows: [liens] } = await client.query(
       `SELECT (SELECT count(*) FROM facture WHERE id_commande = $1) AS factures,
               (SELECT count(*) FROM preuve  WHERE id_commande = $1) AS preuves,
@@ -501,7 +504,7 @@ router.delete("/commandes/:id", async (req, res) => {
     }
 
     // workflow_validation.entite_id est polymorphe et sans FK : nettoyage
-    // applicatif, dans la meme transaction que la suppression.
+    // applicatif, dans la même transaction que la suppression.
     await purgerValidations(client, "commande", id);
     await client.query(`DELETE FROM commande WHERE id = $1`, [id]);
     await log(client, req, "DELETE", "commande", id, `Suppression de la commande "${existant[0].label}"`, null);

@@ -1,3 +1,6 @@
+// Factures du module 2 : saisie sous workflow de validation, rattachement à une
+// commande et à une preuve, dépôt combiné d'une facture et de son justificatif.
+
 import express from "express";
 import { tenantPool } from "../db.js";
 import { succes, erreur, erreurPivot } from "../utils/reponse.js";
@@ -10,10 +13,10 @@ import {
 
 const router = express.Router();
 
-// Convention du projet : helper de journalisation local a chaque routeur.
+// Convention du projet : helper de journalisation local à chaque routeur.
 // id_auteur est lu dans req.user (session JWT), comme le fait audit() : les
-// quatre routeurs de saisie sont montes apres authMiddleware, req.user est
-// donc toujours renseigne. Jamais un id arbitraire : la FK vers utilisateur
+// quatre routeurs de saisie sont montés après authMiddleware, req.user est
+// donc toujours renseigné. Jamais un id arbitraire : la FK vers utilisateur
 // ferait avorter la transaction en cours.
 async function log(client, req, action, entite_type, entite_id, description, payload) {
   try {
@@ -29,13 +32,13 @@ async function log(client, req, action, entite_type, entite_id, description, pay
 }
 
 // Garde-fou : un :id non UUID part sinon en Postgres et ressort en 500 illisible
-// la ou la facture est simplement introuvable.
+// là où la facture est simplement introuvable.
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-// Projection identique en liste et en detail.
-// Le contrat remonte par la chaine facture vers commande vers contrat : la
+// Projection identique en liste et en détail.
+// Le contrat remonte par la chaîne facture vers commande vers contrat : la
 // table facture ne porte pas de id_contrat et ne doit pas en porter
-// (resolution E3). C'est aussi ce qui permet le filtre par contrat plus bas.
+// (résolution E3). C'est aussi ce qui permet le filtre par contrat plus bas.
 const SELECT_FACTURE = `
   SELECT f.id, f.label,
          f.id_commande, cm.label AS commande_label,
@@ -54,7 +57,7 @@ const SELECT_FACTURE = `
 // Ordre identique aux $n de l'INSERT et de l'UPDATE.
 const CHAMPS = ["label", "id_commande", "id_preuve"];
 
-// Memes axes de filtrage que /preuves, pour que l'ecran unifie Documents de la
+// Mêmes axes de filtrage que /preuves, pour que l'écran unifie Documents de la
 // #51 applique un seul jeu de filtres aux deux ressources. Contrat et type de
 // preuve passent par les jointures, la facture ne les portant pas en propre.
 const FILTRES = {
@@ -76,13 +79,13 @@ function construireFiltres(query) {
   return { clause: clauses.length ? `WHERE ${clauses.join(" AND ")}` : "", params };
 }
 
-// Verifie l'existence d'une reference. Un id absent est valide : c'est la
-// validation de presence qui tranche, pas celle d'existence.
+// Vérifie l'existence d'une référence. Un id absent est valide : c'est la
+// validation de présence qui tranche, pas celle d'existence.
 async function existe(client, table, id) {
   if (!id) return true;
-  // Une reference malformee ne doit pas partir en Postgres : elle ressortirait
-  // en 22P02 brute remontee en 500, la ou la reference est simplement
-  // introuvable. Meme doctrine que le garde-fou UUID sur les :id de route.
+  // Une référence malformée ne doit pas partir en Postgres : elle ressortirait
+  // en 22P02 brute remontée en 500, là où la référence est simplement
+  // introuvable. Même doctrine que le garde-fou UUID sur les :id de route.
   if (!UUID_RE.test(id)) return false;
   const { rowCount } = await client.query(`SELECT 1 FROM ${table} WHERE id = $1`, [id]);
   return rowCount > 0;
@@ -109,11 +112,11 @@ async function validerFacture(client, body) {
   if (!(await existe(client, "commande", id_commande)))
     return { status: 400, code: 3253, error: "Commande introuvable." };
 
-  // [ARBITRAGE flux] en attente, daily du 11/08. La regle viendra ici : soit
-  // id_preuve devient obligatoire des la creation, avec depot en transaction
-  // cote #49 et refus code 3255, soit la facture reste saisissable seule et la
-  // preuve est rattachee ensuite. Dans l'attente, le DDL fait foi : la colonne
-  // est nullable, on ne verifie que l'existence de la reference fournie.
+  // [ARBITRAGE flux] en attente, daily du 11/08. La règle viendra ici : soit
+  // id_preuve devient obligatoire dès la création, avec dépôt en transaction
+  // côté #49 et refus code 3255, soit la facture reste saisissable seule et la
+  // preuve est rattachée ensuite. Dans l'attente, le DDL fait foi : la colonne
+  // est nullable, on ne vérifie que l'existence de la référence fournie.
   if (!(await existe(client, "preuve", id_preuve)))
     return { status: 400, code: 3254, error: "Preuve introuvable." };
   return null;
@@ -135,20 +138,20 @@ router.get("/factures", async (req, res) => {
   }
 });
 // ---------------------------------------------------------------------------
-// Depot combine facture plus preuve, en une transaction (#49, arbitrage rendu)
+// Dépôt combiné facture plus preuve, en une transaction (#49, arbitrage rendu)
 // ---------------------------------------------------------------------------
 // Arbitrage du flux tranche le 11/08 : une facture ne se saisit pas sans son
 // justificatif. Le fichier, la preuve et la facture naissent donc ensemble ou
-// pas du tout. C'est la raison d'etre de cet endpoint : trois appels enchainés
-// depuis le navigateur laisseraient une preuve orpheline si le dernier echoue.
+// pas du tout. C'est la raison d'être de cet endpoint : trois appels enchainés
+// depuis le navigateur laisseraient une preuve orpheline si le dernier échoue.
 //
-// La preuve creee est rattachee a la commande, jamais au seul contrat : c'est
-// ce rattachement direct que la detection des manques de la #50 exige pour
-// considerer la commande complete.
+// La preuve créée est rattachée à la commande, jamais au seul contrat : c'est
+// ce rattachement direct que la détection des manques de la #50 exige pour
+// considérer la commande complète.
 const recevoirFichier = recevoirUnFichier("fichier");
 
 // Trace probante, distincte du journal fonctionnel. Comme dans preuves.js elle
-// n'avale pas ses erreurs : une trace manquante doit faire echouer le depot.
+// n'avale pas ses erreurs : une trace manquante doit faire échouer le dépôt.
 async function audit(client, req, action, entiteType, entiteId, apres) {
   await client.query(
     `INSERT INTO audit_log (id_utilisateur, action, entite_type, entite_id,
@@ -170,8 +173,8 @@ async function deposerFacture(req, res) {
   const label = (req.body?.label ?? "").trim();
   const idCommande = vide(req.body?.id_commande);
   const idTypePreuve = vide(req.body?.id_type_preuve);
-  // Le libelle de la preuve retombe sur celui de la facture quand le formulaire
-  // ne le distingue pas : un seul champ a saisir pour un seul geste metier.
+  // Le libellé de la preuve retombe sur celui de la facture quand le formulaire
+  // ne le distingue pas : un seul champ à saisir pour un seul geste métier.
   const labelPreuve = (vide(req.body?.label_preuve) ?? label).trim();
 
   const client = await tenantPool.connect();
@@ -212,7 +215,7 @@ async function deposerFacture(req, res) {
       [label, idCommande, preuve.id]);
 
     // Deux saisies distinctes du point de vue du workflow, bien qu'elles
-    // naissent dans la meme transaction : chacune se valide pour son compte.
+    // naissent dans la même transaction : chacune se valide pour son compte.
     await soumettre(client, "preuve", preuve.id, req.user?.id);
     await soumettre(client, "facture", facture.id, req.user?.id);
 
@@ -234,8 +237,8 @@ async function deposerFacture(req, res) {
     succes(res, 3245, rows[0], { status: 201 });
   } catch (err) {
     await client.query("ROLLBACK").catch(() => {});
-    // Tout ou rien jusqu'au disque : le fichier ecrit avant l'echec ne doit pas
-    // survivre a une transaction annulee.
+    // Tout ou rien jusqu'au disque : le fichier écrit avant l'échec ne doit pas
+    // survivre à une transaction annulée.
     if (ecrit) await supprimerFichier(ecrit.nomPhysique);
     console.error("POST /factures/depot error", err);
     erreur(res, 3299, { status: 500, message: "Erreur serveur" });
@@ -244,8 +247,8 @@ async function deposerFacture(req, res) {
   }
 }
 
-// Declaree avant /factures/:id, sinon Express fait correspondre "depot" au
-// parametre et repond 404.
+// Déclarée avant /factures/:id, sinon Express fait correspondre "depot" au
+// paramètre et répond 404.
 router.post("/factures/depot", (req, res) => {
   recevoirFichier(req, res, (err) => {
     if (err) {
@@ -294,8 +297,8 @@ router.post("/factures", async (req, res) => {
       [label, corps.id_commande, corps.id_preuve]
     );
 
-    // Toute saisie part en attente de validation, dans la meme transaction que
-    // l'ecriture metier.
+    // Toute saisie part en attente de validation, dans la même transaction que
+    // l'écriture métier.
     await soumettre(client, "facture", creee.id, req.user?.id);
 
     await log(client, req, "CREATE", "facture", creee.id, `Creation de la facture "${label}"`, corps);
@@ -330,8 +333,8 @@ router.patch("/factures/:id", async (req, res) => {
       return erreur(res, 3250, { status: 404, message: "Facture introuvable." });
     }
 
-    // Fusion avant validation : un PATCH partiel ne doit pas echouer sur un
-    // champ obligatoire qui n'a simplement pas ete transmis.
+    // Fusion avant validation : un PATCH partiel ne doit pas échouer sur un
+    // champ obligatoire qui n'a simplement pas été transmis.
     const patch = normaliserCorps(req.body);
     const corps = { ...existant[0] };
     for (const champ of CHAMPS) {
@@ -351,7 +354,7 @@ router.patch("/factures/:id", async (req, res) => {
       [label, corps.id_commande, corps.id_preuve, id]
     );
 
-    // Une modification est une saisie : retour en attente, motif de refus efface.
+    // Une modification est une saisie : retour en attente, motif de refus effacé.
     await soumettre(client, "facture", id, req.user?.id);
 
     await log(client, req, "UPDATE", "facture", id, `Modification de la facture "${label}"`, patch);
@@ -386,10 +389,10 @@ router.delete("/factures/:id", async (req, res) => {
     }
 
     // Aucun garde-fou de suppression : dans le DDL v4, aucune table ne
-    // reference facture. La preuve liee n'est pas supprimee, elle survit a sa
+    // référence facture. La preuve liée n'est pas supprimée, elle survit à sa
     // facture et redevient une preuve libre.
     // workflow_validation.entite_id est polymorphe et sans FK : nettoyage
-    // applicatif, dans la meme transaction que la suppression.
+    // applicatif, dans la même transaction que la suppression.
     await purgerValidations(client, "facture", id);
     await client.query(`DELETE FROM facture WHERE id = $1`, [id]);
     await log(client, req, "DELETE", "facture", id, `Suppression de la facture "${existant[0].label}"`, null);

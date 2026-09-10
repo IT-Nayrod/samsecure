@@ -1,4 +1,4 @@
-// BuilderOptionsSection - Options diverses du rapport personnalise - SamSecure v0.5
+// Options diverses du rapport personnalisé.
 
 const MAX_LIGNES_OPTIONS = [
   { value: 'toutes', label: 'Toutes les lignes' },

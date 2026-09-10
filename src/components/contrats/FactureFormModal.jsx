@@ -1,9 +1,9 @@
-// FactureFormModal - depot d'une facture avec son justificatif.
+// FactureFormModal - dépôt d'une facture avec son justificatif.
 // Arbitrage du flux rendu le 11/08 : une facture ne se saisit pas sans son
-// document. Un seul appel, POST /api/factures/depot, qui cree le fichier, la
-// preuve et la facture dans une transaction serveur. En cas d'echec, rien n'est
-// cree : il n'y a donc pas d'etat intermediaire a rattraper ici, contrairement
-// au depot d'une preuve seule.
+// document. Un seul appel, POST /api/factures/depot, qui crée le fichier, la
+// preuve et la facture dans une transaction serveur. En cas d'échec, rien n'est
+// créé : il n'y a donc pas d'état intermédiaire à rattraper ici, contrairement
+// au dépôt d'une preuve seule.
 import { useState, useEffect } from 'react';
 import SlideOver from '../ui/SlideOver';
 import Button from '../ui/Button';

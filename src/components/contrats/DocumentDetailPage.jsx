@@ -1,11 +1,11 @@
-// DocumentDetailPage - fiche detail d'une preuve ou d'une facture.
-// La ressource est portee par le parametre de requete, la liste unifiee la
-// transmet en naviguant. Un lien copie sans ce parametre reste exploitable :
-// on tente la preuve puis la facture, les identifiants etant des UUID sans
+// DocumentDetailPage - fiche détail d'une preuve ou d'une facture.
+// La ressource est portée par le paramètre de requête, la liste unifiée la
+// transmet en naviguant. Un lien copié sans ce paramètre reste exploitable :
+// on tente la preuve puis la facture, les identifiants étant des UUID sans
 // collision possible entre les deux tables.
-// Badge et actions de validation sont branches sur l'API depuis la #54.
-// L'entite_type transmis au workflow est la ressource resolue par load() :
-// une preuve et une facture se valident separement, meme nees du meme depot.
+// Badge et actions de validation sont branchés sur l'API depuis la #54.
+// L'entite_type transmis au workflow est la ressource résolue par load() :
+// une preuve et une facture se valident séparément, même nées du même dépôt.
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { Trash2, ExternalLink, Copy, Check, FileWarning, XCircle } from 'lucide-react';
@@ -71,7 +71,7 @@ export default function DocumentDetailPage() {
           setRessource(r);
           return;
         } catch (err) {
-          // Un 404 sur la premiere ressource n'est pas une erreur : on essaie
+          // Un 404 sur la première ressource n'est pas une erreur : on essaie
           // l'autre. Toute autre panne remonte telle quelle.
           if (err.status !== 404) throw err;
         }
@@ -92,16 +92,16 @@ export default function DocumentDetailPage() {
 
   const estPreuve = ressource === 'preuve';
 
-  // Le fichier est protege par le jeton : un lien direct repondrait 401 puisque
-  // le navigateur n'envoie pas d'en-tete Authorization sur une navigation. On
-  // telecharge donc avec le jeton, puis on ouvre l'objet URL local, que le
+  // Le fichier est protégé par le jeton : un lien direct répondrait 401 puisque
+  // le navigateur n'envoie pas d'en-tête Authorization sur une navigation. On
+  // télécharge donc avec le jeton, puis on ouvre l'objet URL local, que le
   // lecteur natif du navigateur affiche comme n'importe quel PDF.
   async function ouvrirFichier() {
     setOuverture(true);
     try {
       const url = await preuvesService.fichierUrl(doc.id);
       window.open(url, '_blank', 'noopener');
-      // Liberation differee : revoquer immediatement fermerait l'onglet avant
+      // Libération différée : révoquer immédiatement fermerait l'onglet avant
       // que le lecteur ait fini de lire le flux.
       setTimeout(() => URL.revokeObjectURL(url), 60_000);
     } catch (err) {
@@ -111,9 +111,9 @@ export default function DocumentDetailPage() {
     }
   }
 
-  // Reprise du depot pour une preuve creee sans fichier : le cas se produit
-  // quand le second appel du formulaire a echoue apres la creation reussie.
-  // Sans ce point de reprise, la preuve resterait indefiniment sans piece.
+  // Reprise du dépôt pour une preuve créée sans fichier : le cas se produit
+  // quand le second appel du formulaire a échoué après la création réussie.
+  // Sans ce point de reprise, la preuve resterait indéfiniment sans pièce.
   async function deposer() {
     setDepot(true);
     try {

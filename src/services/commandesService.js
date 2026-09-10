@@ -1,8 +1,8 @@
-// commandesService - acces API du module commandes.
-// Meme convention que contratsService : aucun fetch direct, aucune gestion de
+// commandesService - accès API du module commandes.
+// Même convention que contratsService : aucun fetch direct, aucune gestion de
 // token, http.js porte le Bearer, le refresh sur 401 et la normalisation des
 // erreurs en ApiError (message = champ "error", code = code_retour, #68) et
-// le deballage de l'enveloppe { code, type, libelle, data }.
+// le déballage de l'enveloppe { code, type, libelle, data }.
 import { http } from './http';
 
 export const commandesService = {
@@ -12,8 +12,8 @@ export const commandesService = {
   update: (id, payload) => http.patch(`/commandes/${id}`, payload),
   remove: (id)          => http.delete(`/commandes/${id}`),
 
-  // Les agregats acceptent soit une annee, soit une plage. La societe et
-  // l'editeur sont les deux axes du precalcul et se transmettent ; contrat et
+  // Les agrégats acceptent soit une année, soit une plage. La société et
+  // l'éditeur sont les deux axes du précalcul et se transmettent ; contrat et
   // revendeur n'en sont pas et restent des filtres de liste.
   agregats: ({ dateDebut, dateFin, annee, idSociete, idEditeur } = {}) => {
     const p = new URLSearchParams();

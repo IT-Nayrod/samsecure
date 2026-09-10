@@ -1,4 +1,4 @@
-// Toast - Section 8 Specs UX v0.5
+// Message éphémère : disparaît après quatre secondes sauf s'il est persistant.
 import { useEffect } from 'react';
 import { CheckCircle, AlertCircle, AlertTriangle, Info, X } from 'lucide-react';
 

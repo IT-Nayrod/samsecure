@@ -1,3 +1,6 @@
+// En-tête de page du gabarit Layout : titre, sélecteur de période, langue et
+// icônes. Ce gabarit n'est pas monté par le routeur, qui utilise AppLayout.
+
 import { useState } from 'react';
 import { Mail, Bell, Calendar } from 'lucide-react';
 
@@ -17,7 +20,7 @@ export default function Header({ title = 'Dashboard' }) {
       gap: '16px',
       flexShrink: 0,
     }}>
-      {/* Left: Rapports button */}
+      {/* Gauche : bouton Rapports */}
       <button style={{
         border: '1px solid #EAECF0',
         borderRadius: '6px',
@@ -32,13 +35,13 @@ export default function Header({ title = 'Dashboard' }) {
         Rapports
       </button>
 
-      {/* Center: Title + period selector + date */}
+      {/* Centre : titre, sélecteur de période et date */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
         <h1 style={{ fontSize: '16px', fontWeight: '700', color: '#1A1D23', flexShrink: 0 }}>
           {title}
         </h1>
 
-        {/* Period selector */}
+        {/* Sélecteur de période */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
           {periods.map((p) => (
             <button
@@ -76,9 +79,9 @@ export default function Header({ title = 'Dashboard' }) {
         </div>
       </div>
 
-      {/* Right: Language, user, icons */}
+      {/* Droite : langue, utilisateur et icônes */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
-        {/* Language */}
+        {/* Langue */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#1A1D23' }}>
           <span>🇫🇷</span>
           <span>Français</span>
@@ -86,7 +89,7 @@ export default function Header({ title = 'Dashboard' }) {
 
         <div style={{ width: '1px', height: '16px', backgroundColor: '#EAECF0' }} />
 
-        {/* Greeting */}
+        {/* Salutation */}
         <span style={{ fontSize: '12px', color: '#1A1D23' }}>
           Bonjour <strong>Sandy</strong>
         </span>
@@ -108,12 +111,12 @@ export default function Header({ title = 'Dashboard' }) {
           SS
         </div>
 
-        {/* Mail icon */}
+        {/* Icône courrier */}
         <button style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
           <Mail size={17} color="#8B9099" />
         </button>
 
-        {/* Bell with badge */}
+        {/* Cloche avec badge */}
         <button style={{ background: 'none', border: 'none', cursor: 'pointer', position: 'relative', display: 'flex', alignItems: 'center' }}>
           <Bell size={17} color="#8B9099" />
           <span style={{

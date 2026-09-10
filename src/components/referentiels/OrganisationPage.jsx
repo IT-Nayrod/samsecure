@@ -1,4 +1,4 @@
-// OrganisationPage - liste des organisations (donnees reelles), vue arborescente ou liste plate
+// OrganisationPage - liste des organisations (données réelles), vue arborescente ou liste plate
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, List, GitBranch, ChevronRight, ChevronDown } from 'lucide-react';

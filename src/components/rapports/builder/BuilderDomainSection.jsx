@@ -1,4 +1,4 @@
-// BuilderDomainSection - Selection du domaine de donnees - SamSecure v0.5
+// Sélection du domaine de données du constructeur de rapport.
 import {
   KeyRound, Tag, FileText, ShoppingCart, Receipt, Wrench, PiggyBank, ShieldCheck,
 } from 'lucide-react';

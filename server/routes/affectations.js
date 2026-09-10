@@ -1,11 +1,11 @@
-// Affectations, usage declare et revalidation (#106, M3-B).
+// Affectations, usage déclaré et revalidation (#106, M3-B).
 //
-// Une affectation est l'usage declare d'une licence par une societe, pour une
-// quantite et une reference client (asset ou utilisateur nomme). Chaque
+// Une affectation est l'usage déclaré d'une licence par une société, pour une
+// quantité et une référence client (asset ou utilisateur nommé). Chaque
 // saisie passe par le circuit de validation UNIQUE du module 2 : soumettre()
-// insere l'entree en_attente, validation.js la traite, et le hook
+// insère l'entrée en_attente, validation.js la traite, et le hook
 // apresTraitement du catalogue ouvre le cycle de revalidation. Rien n'est
-// duplique ici : ce routeur ne valide ni ne refuse.
+// dupliqué ici : ce routeur ne valide ni ne refuse.
 import express from "express";
 import { tenantPool, commonPool } from "../db.js";
 import { succes, erreur, erreurPivot } from "../utils/reponse.js";
@@ -20,7 +20,7 @@ import {
 
 const router = express.Router();
 
-// Convention du projet : helper de journalisation local a chaque routeur,
+// Convention du projet : helper de journalisation local à chaque routeur,
 // id_auteur lu dans req.user (#68).
 async function log(client, req, action, entite_type, entite_id, description, payload) {
   try {
@@ -38,7 +38,7 @@ async function log(client, req, action, entite_type, entite_id, description, pay
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // Les produits vivent en BDD Commune : aucune jointure possible, l'API fait
-// le pont. Une requete par reponse, jamais une par ligne.
+// le pont. Une requête par réponse, jamais une par ligne.
 async function libellesProduits(ids) {
   const uniques = [...new Set(ids.filter(Boolean))];
   if (!uniques.length) return new Map();
@@ -56,8 +56,8 @@ function joindreProduits(rows, produits) {
 }
 
 // jointureStatut() expose statut_validation brut sous l'alias wv ; les
-// colonnes de sortie viennent de COLONNES_REVALIDATION, qui reecrivent le
-// statut a la lecture (valide + echeance depassee = a_revalider).
+// colonnes de sortie viennent de COLONNES_REVALIDATION, qui réécrivent le
+// statut à la lecture (valide + échéance dépassée = a_revalider).
 const SELECT_AFFECTATION = `
   SELECT a.id, a.label, a.reference_client, a.quantite,
          a.id_licence,  l.label AS licence_label, l.id_produit, l.quantite AS licence_quantite,
@@ -116,7 +116,7 @@ async function validerAffectation(client, corps) {
     return { status: 400, code: 4113, error: "La societe est obligatoire." };
   if (!UUID_RE.test(id_societe) || !(await existe(client, "societe", id_societe)))
     return { status: 400, code: 4114, error: "Societe introuvable." };
-  // Doublon volontaire du CHECK quantite > 0 : un 400 lisible plutot qu'une
+  // Doublon volontaire du CHECK quantité > 0 : un 400 lisible plutôt qu'une
   // 23514 en 500.
   if (!Number.isInteger(quantite) || quantite <= 0)
     return { status: 400, code: 4115, error: "La quantite doit etre un entier strictement positif." };
@@ -134,14 +134,14 @@ async function chargerUne(id) {
 
 // ---- Licences ----------------------------------------------------------------
 // GET /licences est servi par le routeur licences (#102, server/routes/licences.js),
-// dont la projection (id, label, quantite, produit_label, societe_label...)
-// couvre le selecteur du formulaire d'affectation. La projection de depannage
-// de la branche affectations a ete retiree a la consolidation du 24/08.
+// dont la projection (id, label, quantité, produit_label, societe_label...)
+// couvre le sélecteur du formulaire d'affectation. La projection de dépannage
+// de la branche affectations a été retirée à la consolidation du 24/08.
 
 // ---- Liste --------------------------------------------------------------------
-// Filtres : societe, produit, licence, statut (en_attente, valide, refuse,
+// Filtres : société, produit, licence, statut (en_attente, valide, refuse,
 // a_revalider) et cycle (a_jour, a_revalider, depasse). Les deux derniers sont
-// des statuts evalues a la lecture : ils se filtrent apres projection.
+// des statuts évalués à la lecture : ils se filtrent après projection.
 router.get("/affectations", async (req, res) => {
   try {
     const societe = req.query.id_societe || null;
@@ -176,12 +176,12 @@ router.get("/affectations", async (req, res) => {
   }
 });
 
-// ---- Decompte pour la conformite ---------------------------------------------
-// Somme BRUTE des quantites des affectations dont la derniere entree du
+// ---- Décompte pour la conformité ---------------------------------------------
+// Somme BRUTE des quantités des affectations dont la dernière entrée du
 // workflow est valide (ce qui inclut a_revalider, statut de lecture), par
-// produit et societe, SANS deduplication par reference (hypothese v0.5).
-// droits_total : somme des quantites de licence du produit, tous perimetres.
-// Declaree avant /affectations/:id, sinon "decompte" serait pris pour un id.
+// produit et société, SANS déduplication par référence (hypothèse v0.5).
+// droits_total : somme des quantités de licence du produit, tous périmètres.
+// Déclarée avant /affectations/:id, sinon "decompte" serait pris pour un id.
 router.get("/affectations/decompte", async (req, res) => {
   try {
     const societe = req.query.id_societe || null;
@@ -213,7 +213,7 @@ router.get("/affectations/decompte", async (req, res) => {
     const produits = await libellesProduits(rows.map((r) => r.id_produit));
     const lignes = joindreProduits(rows, produits);
 
-    // Total par produit toutes societes confondues : c'est la balance que le
+    // Total par produit toutes sociétés confondues : c'est la balance que le
     // front oppose aux droits acquis.
     const parProduit = new Map();
     for (const r of lignes) {
@@ -239,7 +239,7 @@ router.get("/affectations/decompte", async (req, res) => {
   }
 });
 
-// ---- Historique des declarations par societe ---------------------------------
+// ---- Historique des déclarations par société ---------------------------------
 router.get("/affectations/historique", async (req, res) => {
   try {
     const societe = req.query.id_societe || null;
@@ -312,7 +312,7 @@ router.post("/affectations", async (req, res) => {
       return erreurPivot(res, invalide);
     }
 
-    // label = reference client : c'est ce que validation.js lit pour ses
+    // label = référence client : c'est ce que validation.js lit pour ses
     // traces, et ce que la file du Manager DSI affiche.
     const { rows: [creee] } = await client.query(
       `INSERT INTO affectation (label, id_licence, id_societe, quantite, reference_client)
@@ -382,8 +382,8 @@ router.patch("/affectations/:id", async (req, res) => {
         WHERE id = $5`,
       [corps.reference_client, corps.id_licence, corps.id_societe, corps.quantite, id]);
 
-    // Toute modification resoumet, comme le module 2 : l'echeance en cours
-    // cesse d'etre opposable jusqu'a la nouvelle validation.
+    // Toute modification resoumet, comme le module 2 : l'échéance en cours
+    // cesse d'être opposable jusqu'à la nouvelle validation.
     await soumettre(client, "affectation", id, req.user?.id);
     await refleterStatut(client, id, "en_attente");
 
@@ -395,7 +395,7 @@ router.patch("/affectations/:id", async (req, res) => {
       detail: { id_affectation: id, reference_client: corps.reference_client, quantite: corps.quantite,
                 id_licence: corps.id_licence, modifications: delta.apres },
     });
-    // Changement de societe : la societe quittee garde aussi la trace.
+    // Changement de société : la société quittée garde aussi la trace.
     if (avant.id_societe && avant.id_societe !== corps.id_societe) {
       await historiser(client, {
         idSociete: avant.id_societe, idUtilisateur: req.user?.id, action: "UPDATE",
@@ -438,7 +438,7 @@ router.delete("/affectations/:id", async (req, res) => {
     }
 
     // inventaire_raw.id_affectation est une FK sans cascade : un rapprochement
-    // existant bloque, en 409 lisible plutot qu'en 23503.
+    // existant bloque, en 409 lisible plutôt qu'en 23503.
     const { rows: [{ inventaires }] } = await client.query(
       `SELECT count(*)::int AS inventaires FROM inventaire_raw WHERE id_affectation = $1`, [id]);
     if (inventaires) {
@@ -479,9 +479,9 @@ router.delete("/affectations/:id", async (req, res) => {
 });
 
 // ---- Revalidation en un clic (Manager DSI) -----------------------------------
-// Reconfirme un usage valide : nouveau cycle, nouvelle echeance. N'ecrit rien
-// dans workflow_validation, dont la derniere entree reste valide : le circuit
-// unique n'est pas alimente d'une entree fabriquee.
+// Reconfirme un usage validé : nouveau cycle, nouvelle échéance. N'écrit rien
+// dans workflow_validation, dont la dernière entrée reste valide : le circuit
+// unique n'est pas alimenté d'une entrée fabriquée.
 router.post("/affectations/:id/revalider", async (req, res) => {
   const { id } = req.params;
   const client = await tenantPool.connect();

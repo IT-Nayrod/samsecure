@@ -1,3 +1,6 @@
+// Profils de droits : cycle de vie, diffusion par société et impact d'une
+// suppression sur les attributions existantes.
+
 import express from "express";
 import { tenantPool } from "../db.js";
 

@@ -1,8 +1,8 @@
 // Montants engagés vs payés par éditeur (Financier), branches sur le
-// precalcul financier via GET /dashboards/engages-payes (#192).
-// Le montant paye vient de la meme table : il reste a zero tant qu'aucune
-// facture ne porte de montant (note migration 016), la donnee est servie
-// telle quelle. Le clic sur un editeur ouvre la liste des contrats filtree.
+// précalcul financier via GET /dashboards/engages-payes (#192).
+// Le montant payé vient de la même table : il reste à zéro tant qu'aucune
+// facture ne porte de montant (note migration 016), la donnée est servie
+// telle quelle. Le clic sur un éditeur ouvre la liste des contrats filtrée.
 import { useNavigate } from 'react-router-dom';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,

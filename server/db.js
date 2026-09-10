@@ -6,7 +6,7 @@ import path from "node:path";
 
 const SERVER_DIR = path.dirname(fileURLToPath(import.meta.url));
 
-// Une seule variable non sensible pilote la cible. Defaut sur dev : une
+// Une seule variable non sensible pilote la cible. Défaut sur dev : une
 // erreur de configuration doit toucher la base de test, jamais le staging.
 export const APP_ENV = process.env.APP_ENV || "dev";
 
@@ -20,8 +20,8 @@ if (!fs.existsSync(envFile)) {
 // Premier fichier gagnant : .env.<APP_ENV> prime, .env sert de socle commun.
 dotenv.config({ path: [envFile, path.join(SERVER_DIR, ".env")], quiet: true });
 
-// Refus de demarrer sur une configuration incomplete : un placeholder oublie
-// ne doit jamais produire une erreur differee (28P01, JWT signe a vide).
+// Refus de démarrer sur une configuration incomplète : un placeholder oublié
+// ne doit jamais produire une erreur différée (28P01, JWT signé à vide).
 const CLES_REQUISES = [
   "PGHOST", "PGPORT", "PGUSER", "PGPASSWORD",
   "PGDATABASE_COMMON", "PGDATABASE_TENANT",

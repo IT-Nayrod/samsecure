@@ -1,4 +1,4 @@
-// BuilderLayout - Mise en page 2 colonnes du builder de rapport - SamSecure v0.5
+// Mise en page en deux colonnes du constructeur de rapport.
 // Colonne gauche : config (400px). Colonne droite : preview.
 export default function BuilderLayout({ config, preview }) {
   return (

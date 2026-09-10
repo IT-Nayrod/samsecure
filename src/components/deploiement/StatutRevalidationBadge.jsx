@@ -1,6 +1,6 @@
 // StatutRevalidationBadge - statut du cycle de revalidation d'une affectation.
-// Le statut est evalue par l'API a la lecture (statut_revalidation : a_jour,
-// a_revalider, depasse), jamais recalcule ici. Accepte soit l'objet
+// Le statut est évalué par l'API à la lecture (statut_revalidation : a_jour,
+// a_revalider, depasse), jamais recalculé ici. Accepte soit l'objet
 // { statut } soit directement le code.
 import Badge from '../ui/Badge';
 

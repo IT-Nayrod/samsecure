@@ -1,8 +1,8 @@
-// BudgetKPIBar - Section Visualisation Budget - SamSecure v0.5
-// Six cartes alimentees par les totaux de GET /budget/synthese : previsionnel
-// et alloue restitues CAPEX et OPEX separement, engage issu des commandes,
-// ecarts et taux d'engagement tels que calcules par l'API. L'engage n'etant
-// pas ventile CAPEX / OPEX, les ecarts et le taux portent sur les totaux
+// Bandeau des indicateurs du module budget.
+// Six cartes alimentées par les totaux de GET /budget/synthese : prévisionnel
+// et alloué restitués CAPEX et OPEX séparément, engagé issu des commandes,
+// écarts et taux d'engagement tels que calculés par l'API. L'engagé n'étant
+// pas ventilé CAPEX / OPEX, les écarts et le taux portent sur les totaux
 // CAPEX + OPEX, ce que la barre annonce explicitement.
 import { TrendingUp, TrendingDown } from 'lucide-react';
 import Skeleton from '../ui/Skeleton';

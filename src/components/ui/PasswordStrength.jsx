@@ -1,4 +1,4 @@
-// PasswordStrength - Section 8 Specs UX v0.5
+// Jauge de robustesse d'un mot de passe saisi.
 function getStrength(pwd) {
   if (!pwd) return null;
   const hasUpper = /[A-Z]/.test(pwd);
