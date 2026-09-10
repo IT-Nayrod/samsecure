@@ -1,5 +1,9 @@
 // Factures du module 2 : saisie sous workflow de validation, rattachement à une
 // commande et à une preuve, dépôt combiné d'une facture et de son justificatif.
+// Depuis la #204, la facture et sa preuve forment un seul objet aux yeux de
+// l'utilisateur : le lien facture.id_preuve reste en base, mais la preuve née
+// d'un dépôt de facture ne porte plus de demande de validation propre, n'est
+// plus servie par la liste des preuves, et disparaît avec sa facture.
 
 import express from "express";
 import { tenantPool } from "../db.js";
@@ -44,7 +48,8 @@ const SELECT_FACTURE = `
          f.id_commande, cm.label AS commande_label,
          cm.id_contrat, ct.label AS contrat_label,
          f.id_preuve,   pr.label AS preuve_label, pr.url_fichier AS preuve_url_fichier,
-         pr.id_type_preuve AS preuve_id_type_preuve, tp.label AS preuve_type_label,
+         pr.nom_origine AS preuve_nom_origine, pr.hash_sha256 AS preuve_hash_sha256,
+         pr.id_type_preuve AS preuve_id_type_preuve, tp.code AS preuve_type_code, tp.label AS preuve_type_label,
          f.created_at,
          ${COLONNES_STATUT}
   FROM facture f
@@ -148,7 +153,21 @@ router.get("/factures", async (req, res) => {
 // La preuve créée est rattachée à la commande, jamais au seul contrat : c'est
 // ce rattachement direct que la détection des manques de la #50 exige pour
 // considérer la commande complète.
+//
+// Objet unique (#204) : la preuve créée est de type "facture" (référentiel de
+// la 053) sauf type explicitement transmis, et seule la facture est soumise au
+// workflow. La validation porte donc une fois, sur la ligne de type facture
+// affichée dans Factures & Preuves.
 const recevoirFichier = recevoirUnFichier("fichier");
+
+// Type de preuve implicite du dépôt de facture. Une absence du référentiel
+// est une base non migrée : on échoue bruyamment plutôt que de créer une
+// preuve sans type.
+async function typePreuveFacture(client) {
+  const { rows } = await client.query(`SELECT id FROM type_preuve WHERE code = 'facture'`);
+  if (!rows.length) throw new Error("type_preuve : le code 'facture' est absent du referentiel (migration 053).");
+  return rows[0].id;
+}
 
 // Trace probante, distincte du journal fonctionnel. Comme dans preuves.js elle
 // n'avale pas ses erreurs : une trace manquante doit faire échouer le dépôt.
@@ -172,7 +191,9 @@ async function deposerFacture(req, res) {
   const vide = (v) => (v === "" || v === undefined ? null : v);
   const label = (req.body?.label ?? "").trim();
   const idCommande = vide(req.body?.id_commande);
-  const idTypePreuve = vide(req.body?.id_type_preuve);
+  // Facultatif depuis la #204 : le formulaire ne le transmet plus, le type
+  // "facture" est résolu ci-dessous. Un type explicite reste accepté.
+  const idTypePreuveDemande = vide(req.body?.id_type_preuve);
   // Le libellé de la preuve retombe sur celui de la facture quand le formulaire
   // ne le distingue pas : un seul champ à saisir pour un seul geste métier.
   const labelPreuve = (vide(req.body?.label_preuve) ?? label).trim();
@@ -194,14 +215,11 @@ async function deposerFacture(req, res) {
       await client.query("ROLLBACK");
       return erreur(res, 3253, { status: 400, message: "Commande introuvable." });
     }
-    if (!idTypePreuve) {
-      await client.query("ROLLBACK");
-      return erreur(res, 3212, { status: 400, message: "Le type de preuve est obligatoire." });
-    }
-    if (!(await existe(client, "type_preuve", idTypePreuve))) {
+    if (idTypePreuveDemande && !(await existe(client, "type_preuve", idTypePreuveDemande))) {
       await client.query("ROLLBACK");
       return erreur(res, 3213, { status: 400, message: "Type de preuve introuvable." });
     }
+    const idTypePreuve = idTypePreuveDemande ?? await typePreuveFacture(client);
 
     ecrit = await ecrireFichier(req.file);
 
@@ -214,9 +232,10 @@ async function deposerFacture(req, res) {
       `INSERT INTO facture (label, id_commande, id_preuve) VALUES ($1, $2, $3) RETURNING id`,
       [label, idCommande, preuve.id]);
 
-    // Deux saisies distinctes du point de vue du workflow, bien qu'elles
-    // naissent dans la même transaction : chacune se valide pour son compte.
-    await soumettre(client, "preuve", preuve.id, req.user?.id);
+    // Une seule saisie du point de vue du workflow (#204) : la facture. La
+    // preuve n'est que le support du fichier, elle ne porte aucune demande de
+    // validation propre. Un remplacement ultérieur du fichier resoumet la
+    // facture (preuves.js, resoumettre).
     await soumettre(client, "facture", facture.id, req.user?.id);
 
     await audit(client, req, "DEPOT_FICHIER", "preuve", preuve.id,
@@ -382,21 +401,43 @@ router.delete("/factures/:id", async (req, res) => {
       return erreur(res, 3250, { status: 404, message: "Facture introuvable." });
     }
 
-    const { rows: existant } = await client.query(`SELECT label FROM facture WHERE id = $1`, [id]);
+    const { rows: existant } = await client.query(`SELECT label, id_preuve FROM facture WHERE id = $1`, [id]);
     if (!existant.length) {
       await client.query("ROLLBACK");
       return erreur(res, 3250, { status: 404, message: "Facture introuvable." });
     }
 
     // Aucun garde-fou de suppression : dans le DDL v4, aucune table ne
-    // référence facture. La preuve liée n'est pas supprimée, elle survit à sa
-    // facture et redevient une preuve libre.
+    // référence facture.
+    // Objet unique (#204) : la preuve liée part avec sa facture, sinon elle
+    // réapparaîtrait seule dans Factures & Preuves, ce que la fusion interdit.
+    // Elle n'est conservée que si une autre facture la référence encore, cas
+    // que l'interface ne produit pas mais que le DDL autorise.
     // workflow_validation.entite_id est polymorphe et sans FK : nettoyage
     // applicatif, dans la même transaction que la suppression.
+    const idPreuve = existant[0].id_preuve;
+    let preuveSupprimee = null;
     await purgerValidations(client, "facture", id);
     await client.query(`DELETE FROM facture WHERE id = $1`, [id]);
+    if (idPreuve) {
+      const { rows: [autres] } = await client.query(
+        `SELECT count(*)::int AS n FROM facture WHERE id_preuve = $1`, [idPreuve]);
+      if (!autres.n) {
+        const { rows: [preuve] } = await client.query(
+          `SELECT label, url_fichier FROM preuve WHERE id = $1`, [idPreuve]);
+        await purgerValidations(client, "preuve", idPreuve);
+        await client.query(`DELETE FROM preuve WHERE id = $1`, [idPreuve]);
+        preuveSupprimee = preuve ?? null;
+        await log(client, req, "DELETE", "preuve", idPreuve,
+          `Suppression de la preuve "${preuve?.label ?? ""}" avec sa facture "${existant[0].label}"`, null);
+      }
+    }
     await log(client, req, "DELETE", "facture", id, `Suppression de la facture "${existant[0].label}"`, null);
     await client.query("COMMIT");
+
+    // Le fichier physique ne survit pas à sa preuve. Supprimé après le COMMIT,
+    // pour ne pas le perdre si la transaction échouait.
+    if (preuveSupprimee) await supprimerFichier(preuveSupprimee.url_fichier);
     succes(res, 3244, null);
   } catch (err) {
     await client.query("ROLLBACK");

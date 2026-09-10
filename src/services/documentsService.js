@@ -8,14 +8,17 @@
 // téléchargement de fichier (3206) reste un blob, code en en-tête X-Code-Retour.
 import { http } from './http';
 
-// Les trois filtres sont communs aux deux ressources, pour que l'écran unifié
+// Les filtres sont communs aux deux ressources, pour que l'écran unifié
 // applique un seul jeu de filtres à ses deux sources. Côté factures, contrat et
-// type de preuve passent par les jointures : l'API s'en charge.
-function query({ idTypePreuve, idContrat, idCommande } = {}) {
+// type de preuve passent par les jointures : l'API s'en charge. Le filtre par
+// licence (#208) n'a de sens que côté preuves, une facture ne se rattache
+// jamais à une licence : l'API factures l'ignore.
+function query({ idTypePreuve, idContrat, idCommande, idLicence } = {}) {
   const p = new URLSearchParams();
   if (idTypePreuve) p.set('id_type_preuve', idTypePreuve);
   if (idContrat) p.set('id_contrat', idContrat);
   if (idCommande) p.set('id_commande', idCommande);
+  if (idLicence) p.set('id_licence', idLicence);
   const s = p.toString();
   return s ? `?${s}` : '';
 }
@@ -48,13 +51,14 @@ export const facturesService = {
 
   // Dépôt combiné : fichier, preuve et facture en une transaction serveur.
   // Il n'existe pas de création de facture sans justificatif dans l'interface,
-  // c'est l'arbitrage de flux rendu le 11/08.
+  // c'est l'arbitrage de flux rendu le 11/08. Le type de la preuve est
+  // facultatif depuis la #204 : le serveur applique le type Facture.
   deposer: ({ file, label, idCommande, idTypePreuve, labelPreuve }) => {
     const fd = new FormData();
     fd.append('fichier', file);
     fd.append('label', label);
     fd.append('id_commande', idCommande);
-    fd.append('id_type_preuve', idTypePreuve);
+    if (idTypePreuve) fd.append('id_type_preuve', idTypePreuve);
     if (labelPreuve) fd.append('label_preuve', labelPreuve);
     return http.postForm('/factures/depot', fd);
   },

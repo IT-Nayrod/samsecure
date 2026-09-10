@@ -15,6 +15,7 @@ import ErrorState from '../ui/ErrorState';
 import Skeleton from '../ui/Skeleton';
 import StatutEcheanceBadge from './StatutEcheanceBadge';
 import ContratFormModal from './ContratFormModal';
+import { libelleContrat } from './libelleContrat';
 import useRbac from '../../hooks/useRbac';
 import { useToast } from '../../hooks/useToast';
 import { formatDate } from '../../utils/dateUtils';
@@ -294,9 +295,10 @@ export default function ContratDetailPage() {
               <p className="text-xs text-gray-500 mb-1">Contrat cadre parent</p>
               {contrat.id_contrat_parent
                 ? (
-                  <p className="flex items-center gap-2 flex-wrap">
-                    <Link to={`/contrats/liste/${contrat.id_contrat_parent}`} className="text-sm text-blue-800 hover:underline">{contrat.parent_label}</Link>
-                    <span className="text-xs text-gray-400">{contrat.parent_societe_label ?? '-'}</span>
+                  <p>
+                    <Link to={`/contrats/liste/${contrat.id_contrat_parent}`} className="text-sm text-blue-800 hover:underline">
+                      {libelleContrat(contrat.parent_label, contrat.parent_societe_label)}
+                    </Link>
                   </p>
                 )
                 : <p className="text-sm text-gray-500">Aucun</p>
@@ -309,9 +311,10 @@ export default function ContratDetailPage() {
                 : (
                   <ul className="flex flex-col gap-1">
                     {sousContrats.map(s => (
-                      <li key={s.id} className="flex items-center gap-2 flex-wrap">
-                        <Link to={`/contrats/liste/${s.id}`} className="text-sm text-blue-800 hover:underline">{s.label}</Link>
-                        <span className="text-xs text-gray-400">{s.societe_label ?? '-'}</span>
+                      <li key={s.id}>
+                        <Link to={`/contrats/liste/${s.id}`} className="text-sm text-blue-800 hover:underline">
+                          {libelleContrat(s.label, s.societe_label)}
+                        </Link>
                       </li>
                     ))}
                   </ul>
