@@ -22,6 +22,20 @@ export function cleEvenement(type, ...parties) {
 }
 
 // ---------------------------------------------------------------------------
+// Continuite des renouvellements (D35, story #209)
+// ---------------------------------------------------------------------------
+
+// Une echeance (contrat, souscription) n'est notifiable que si l'entite n'a
+// pas de successeur : un contrat ou une licence renouvele par un successeur
+// (contrat.id_contrat_predecesseur, licence.id_licence_predecesseur,
+// migration 056) est deja pris en charge, l'alerte n'a plus d'objet. Le
+// planificateur lit le nombre de successeurs en base et applique cette regle.
+export function echeanceNotifiable(nbSuccesseurs) {
+  const n = Number(nbSuccesseurs);
+  return !(Number.isFinite(n) && n > 0);
+}
+
+// ---------------------------------------------------------------------------
 // Destinataires
 // ---------------------------------------------------------------------------
 
