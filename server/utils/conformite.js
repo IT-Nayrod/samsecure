@@ -11,15 +11,52 @@
 // licences.js, editeurs.js et le chemin filtré par société de conformite.js
 // (le précalcul est par produit, sans axe société).
 //
+// Décisions du 10/09/2026, appliquées ici et par la migration 058 :
+//   D52, prix unitaire : le prix d'un produit est celui de sa dernière
+//       commande (ligne de licence la plus récente par date de commande, à
+//       défaut par date de création), jamais une moyenne ;
+//   D53, droits à zéro : avec des usages et aucun droit, le taux n'est pas
+//       calculé (aucun pourcentage sans sens), le statut est dépassement et
+//       une anomalie qualité usage_sans_droit est ouverte par produit.
+//
 // Les fragments SQL attendent l'alias l sur licence. Ce sont des constantes du
 // code, jamais des valeurs de requête : leur interpolation est sûre.
-import { tenantPool, commonPool } from "../db.js";
+//
+// Aucun import de db.js au chargement : les pools ne sont résolus qu'à
+// l'appel de seuilsConformite(), pour que les fonctions pures de ce module se
+// testent au node:test sans configuration de base (conformite.test.js).
 
-// Souscription échue : le jour même de sa date de fin, sans tolérance
-// (hypothèse v0.5 assumée). Une perpétuelle n'expire jamais. Une souscription
-// sans date de fin (donnée antérieure à la validation) reste active.
-export const LICENCE_EXPIREE = `(l.type = 'souscription' AND l.date_fin_souscription IS NOT NULL
+const arrondi2 = (n) => (n == null ? null : Math.round(n * 100) / 100);
+
+// Types de licence bornés par une date de fin : ils sortent des droits à
+// leur date de fin, sans tolérance (hypothèse v0.5 assumée). D44 étendu
+// (10/09/2026) : la version d'essai suit la même règle que la souscription.
+// Son code est celui du référentiel type_licence à sept valeurs, apporté par
+// la migration 055 d'une branche parallèle : c'est ici, et seulement ici,
+// qu'il est à aligner si la 055 retient un autre code. Repli propre tant que
+// ce référentiel n'existe pas : la règle ne lit aucune table ni colonne
+// nouvelle, elle compare le code porté par licence.type ; aucune licence ne
+// portant encore ce code, seules les souscriptions échoient, comme avant.
+export const TYPE_VERSION_ESSAI = "version_essai";
+export const TYPES_A_ECHEANCE = ["souscription", TYPE_VERSION_ESSAI];
+const SQL_TYPES_A_ECHEANCE = TYPES_A_ECHEANCE.map((t) => `'${t}'`).join(", ");
+
+// Licence échue : type à échéance et date de fin passée. Une perpétuelle
+// n'expire jamais. Une licence à échéance sans date de fin (donnée antérieure
+// à la validation) reste active. Le jour de la date de fin, la licence est
+// encore active ; elle sort des droits le lendemain (borne stricte).
+export const LICENCE_EXPIREE = `(l.type IN (${SQL_TYPES_A_ECHEANCE}) AND l.date_fin_souscription IS NOT NULL
                   AND l.date_fin_souscription < CURRENT_DATE)`;
+
+// Pendant JS de LICENCE_EXPIREE, pour les tests et les traitements hors SQL.
+// aujourdhui : Date ou chaîne ISO (AAAA-MM-JJ) ; la comparaison se fait sur
+// le jour calendaire, jamais sur l'heure.
+export function licenceExpiree({ type, date_fin_souscription }, aujourdhui = new Date()) {
+  if (!TYPES_A_ECHEANCE.includes(type)) return false;
+  if (!date_fin_souscription) return false;
+  const jour = (v) => (v instanceof Date ? v.toISOString() : String(v)).slice(0, 10);
+  return jour(date_fin_souscription) < jour(aujourdhui);
+}
 
 // Droits = quantités des licences non expirées. Usage déclaré = affectations de
 // toutes les licences du produit, y compris celles portées par une licence
@@ -87,6 +124,7 @@ export const SEUIL_MONTANT_DEFAUT = 10000;
 // par les triggers, qui ne peut lire que le tenant : la chaîne est fermée par
 // le seed 046 qui diffuse les défauts Commune dans seuil_dashboard.
 export async function seuilsConformite() {
+  const { tenantPool, commonPool } = await import("../db.js");
   const lire = async (pool, table) => {
     const { rows } = await pool.query(
       `SELECT widget_code, valeur::float8 AS valeur FROM ${table}
@@ -116,4 +154,75 @@ export function statutConformite(droits, usages, ecartValorise, { seuilTaux, seu
     return "attention";
   }
   return "conforme";
+}
+
+// ---------------------------------------------------------------------------
+// Prix unitaire de la dernière commande (D52)
+// ---------------------------------------------------------------------------
+
+// Ordre de la dernière commande, pendant SQL de prixUnitaireDerniereCommande.
+// Attend l'alias l sur licence et c sur commande (jointure LEFT : une licence
+// sans commande n'a pas de date de commande et se classe par sa création).
+export const ORDRE_DERNIERE_COMMANDE =
+  "c.date_commande DESC NULLS LAST, l.created_at DESC, l.id DESC";
+
+// Lignes de licence d'un produit sur le périmètre observé :
+// [{ id, cout_licence, quantite, date_commande, created_at }]. Renvoie le
+// prix unitaire (coût / quantité, arrondi au centime) de la ligne la plus
+// récente porteuse d'un prix calculable (coût renseigné, quantité > 0), null
+// sans ligne exploitable. Jamais une moyenne : c'est le dernier prix payé.
+export function prixUnitaireDerniereCommande(lignes = []) {
+  const cle = (v) => (v == null ? null : v instanceof Date ? v.toISOString() : String(v));
+  const exploitables = lignes.filter(
+    (l) => l && l.cout_licence != null && Number(l.quantite) > 0 && Number.isFinite(Number(l.cout_licence)),
+  );
+  if (!exploitables.length) return null;
+  exploitables.sort((a, b) => {
+    const da = cle(a.date_commande), db = cle(b.date_commande);
+    if (da !== db) {
+      if (da == null) return 1;   // NULLS LAST
+      if (db == null) return -1;
+      return da < db ? 1 : -1;    // DESC
+    }
+    const ca = cle(a.created_at) ?? "", cb = cle(b.created_at) ?? "";
+    if (ca !== cb) return ca < cb ? 1 : -1;
+    return String(b.id ?? "").localeCompare(String(a.id ?? ""));
+  });
+  const derniere = exploitables[0];
+  return arrondi2(Number(derniere.cout_licence) / Number(derniere.quantite));
+}
+
+// ---------------------------------------------------------------------------
+// Taux et valorisation d'une balance (D53)
+// ---------------------------------------------------------------------------
+
+// Taux d'usage en pourcent des droits, borné à 999.99 (colonne DECIMAL(5,2)
+// du précalcul, 999.99 se lit "999,99 ou plus"). Sans droit, aucun taux :
+// un pourcentage de zéro n'a pas de sens (D53), la valeur est null.
+export function tauxConformite(droits, usages) {
+  if (!(droits > 0)) return null;
+  return Math.min(arrondi2((usages / droits) * 100), 999.99);
+}
+
+// Balance complète d'un produit à partir des droits, des usages et du prix
+// unitaire de la dernière commande : mêmes formules que
+// recalculer_precalcul_conformite (046, révisée par 058). Le prix vient
+// toujours de l'appelant (prixUnitaireDerniereCommande ou précalcul), jamais
+// d'un rapport coût / droits.
+export function valoriserBalance({ droits_total, usages_total, prix_unitaire }, seuils) {
+  const droits = Number(droits_total) || 0;
+  const usages = Number(usages_total) || 0;
+  const prix = prix_unitaire == null ? null : Number(prix_unitaire);
+  const ecart = droits - usages;
+  const val = prix == null ? null : arrondi2(ecart * prix);
+  return {
+    droits_total: droits,
+    usages_total: usages,
+    ecart,
+    ecart_pct: tauxConformite(droits, usages),
+    prix_unitaire: prix,
+    ecart_valorise: val,
+    usage_sans_droit: droits === 0 && usages > 0,
+    statut_conformite: statutConformite(droits, usages, val, seuils),
+  };
 }

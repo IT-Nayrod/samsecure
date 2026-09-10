@@ -81,39 +81,39 @@ resoudre comme les autres.
 
 | Code | Type | Evenement | Route |
 |------|------|-----------|-------|
-| 2000 | trace | Compte cree | POST /api/utilisateurs |
-| 2001 | trace | Compte modifie | PATCH /api/utilisateurs/:id |
-| 2002 | trace | Compte active | PATCH /api/utilisateurs/:id |
-| 2003 | trace | Compte desactive | PATCH /api/utilisateurs/:id |
-| 2004 | trace | Desactivation planifiee | PATCH /api/utilisateurs/:id |
-| 2005 | trace | Planification levee | PATCH /api/utilisateurs/:id |
-| 2006 | trace | Mise en fonction planifiee | PATCH /api/utilisateurs/:id |
-| 2007 | erreur | Cet email est deja utilise | POST, PATCH /api/utilisateurs |
-| 2010 | trace | Mot de passe defini par un administrateur | POST /api/utilisateurs |
-| 2011 | trace | Mail de reinitialisation envoye via le socle #87 (etat 1000 a 1003 joint) | POST /api/utilisateurs/:id/mot-de-passe/reinitialisation |
-| 2012 | reserve | [PREREQUIS] Mot de passe reinitialise par lien. Route inexistante | - |
-| 2013 | succes | Mot de passe defini | PUT /api/utilisateurs/:id/mot-de-passe |
-| 2014 | succes | Mot de passe genere | POST /api/utilisateurs/:id/mot-de-passe/generer |
+| 2000 | trace | Compte créé | POST /api/utilisateurs |
+| 2001 | trace | Compte modifié | PATCH /api/utilisateurs/:id |
+| 2002 | trace | Compte activé | PATCH /api/utilisateurs/:id |
+| 2003 | trace | Compte désactivé | PATCH /api/utilisateurs/:id |
+| 2004 | trace | Désactivation planifiée | PATCH /api/utilisateurs/:id |
+| 2005 | trace | Planification levée | PATCH /api/utilisateurs/:id |
+| 2006 | trace | Mise en fonction planifiée | PATCH /api/utilisateurs/:id |
+| 2007 | erreur | Cet email est déjà utilisé | POST, PATCH /api/utilisateurs |
+| 2010 | trace | Mot de passe défini par un administrateur | POST /api/utilisateurs |
+| 2011 | trace | Mail de réinitialisation envoyé via le socle #87 (état 1000 à 1003 joint) | POST /api/utilisateurs/:id/mot-de-passe/reinitialisation |
+| 2012 | reserve | [PREREQUIS] Mot de passe réinitialisé par lien. Route inexistante | - |
+| 2013 | succes | Mot de passe défini | PUT /api/utilisateurs/:id/mot-de-passe |
+| 2014 | succes | Mot de passe généré | POST /api/utilisateurs/:id/mot-de-passe/generer |
 | 2015 | erreur | Le mot de passe ne respecte pas la politique | PUT /api/utilisateurs/:id/mot-de-passe |
 | 2016 | erreur | Le mot de passe est obligatoire | PUT /api/utilisateurs/:id/mot-de-passe |
-| 2017 | erreur | Cette action doit etre effectuee depuis l'interface | les deux |
-| 2018 | trace | Mot de passe genere par un administrateur | POST /api/utilisateurs/:id/mot-de-passe/generer |
-| 2019 | succes | Mail de reinitialisation envoye, ou lien genere mais mail non envoye (mail_envoye, erreur_mail, code_mail) | POST /api/utilisateurs/:id/mot-de-passe/reinitialisation |
-| 2020 | trace | Groupe attribue | POST /api/utilisateurs/:id/profils |
-| 2021 | trace | Groupe retire | DELETE /api/utilisateurs/:id/profils/:attribId |
-| 2022 | trace | Exception de droit ajoutee | POST /api/utilisateurs/:id/exceptions |
-| 2023 | trace | Exception de droit modifiee | PATCH /api/utilisateurs/:id/exceptions/:excId |
-| 2024 | trace | Exception de droit supprimee | DELETE /api/utilisateurs/:id/exceptions/:excId |
-| 2025 | succes | Lien de reinitialisation valide | GET /api/mot-de-passe/reinitialisation/:jeton |
-| 2026 | succes | Mot de passe reinitialise | POST /api/mot-de-passe/reinitialisation/:jeton |
+| 2017 | erreur | Cette action doit être effectuée depuis l'interface | les deux |
+| 2018 | trace | Mot de passe généré par un administrateur | POST /api/utilisateurs/:id/mot-de-passe/generer |
+| 2019 | succes | Mail de réinitialisation envoyé, ou lien généré mais mail non envoyé (mail_envoye, erreur_mail, code_mail) | POST /api/utilisateurs/:id/mot-de-passe/reinitialisation |
+| 2020 | trace | Groupe attribué | POST /api/utilisateurs/:id/profils |
+| 2021 | trace | Groupe retiré | DELETE /api/utilisateurs/:id/profils/:attribId |
+| 2022 | trace | Exception de droit ajoutée | POST /api/utilisateurs/:id/exceptions |
+| 2023 | trace | Exception de droit modifiée | PATCH /api/utilisateurs/:id/exceptions/:excId |
+| 2024 | trace | Exception de droit supprimée | DELETE /api/utilisateurs/:id/exceptions/:excId |
+| 2025 | succes | Lien de réinitialisation valide | GET /api/mot-de-passe/reinitialisation/:jeton |
+| 2026 | succes | Mot de passe réinitialisé | POST /api/mot-de-passe/reinitialisation/:jeton |
 | 2027 | erreur | Ce lien n'est plus valide | GET, POST /api/mot-de-passe/reinitialisation/:jeton |
-| 2028 | trace | Lien de reinitialisation emis par un administrateur | POST /api/utilisateurs/:id/mot-de-passe/reinitialisation |
-| 2029 | erreur | Compte desactive, reactivation requise | POST /api/utilisateurs/:id/mot-de-passe/reinitialisation |
-| 2030 | trace | Connexion reussie | POST /api/auth/login |
-| 2040 | reserve | [PREREQUIS] Execution d'une planification a l'echeance. Aucun ordonnanceur n'existe | - |
+| 2028 | trace | Lien de réinitialisation émis par un administrateur | POST /api/utilisateurs/:id/mot-de-passe/reinitialisation |
+| 2029 | erreur | Compte désactivé, réactivation requise | POST /api/utilisateurs/:id/mot-de-passe/reinitialisation |
+| 2030 | trace | Connexion réussie | POST /api/auth/login |
+| 2040 | reserve | [PREREQUIS] Exécution d'une planification à l'échéance. Aucun ordonnanceur n'existe | - |
 | 2041 | reserve | [PREREQUIS] Activation de la double authentification. Aucune route serveur | - |
 | 2050 | erreur | Utilisateur introuvable | GET /api/utilisateurs/:id/historique |
-| 2051 | erreur | Cet utilisateur n'est pas dans votre perimetre | GET /api/utilisateurs/:id/historique |
+| 2051 | erreur | Cet utilisateur n'est pas dans votre périmètre | GET /api/utilisateurs/:id/historique |
 | 2052 | succes | Historique du compte | GET /api/utilisateurs/:id/historique |
 | 2099 | erreur | Erreur serveur inattendue (module administration) | toutes |
 
@@ -161,33 +161,33 @@ motif technique d'un echec est dans log_serveur, jamais dans audit_log.
 | Code | Type | Libelle propose | Route |
 |------|------|-----------------|-------|
 | 3000 | succes | Liste des contrats | GET /api/contrats |
-| 3001 | succes | Detail du contrat | GET /api/contrats/:id |
-| 3002 | succes | Contrat cree | POST /api/contrats |
-| 3003 | succes | Contrat modifie | PATCH /api/contrats/:id |
-| 3004 | succes | Contrat supprime | DELETE /api/contrats/:id |
-| 3005 | succes | Contrat archive | POST /api/contrats/:id/archiver (#96) |
-| 3006 | succes | Contrat restaure | POST /api/contrats/:id/restaurer (#96) |
-| 3007 | succes | Liste des contrats, archives inclus | GET /api/contrats?inclure_archives=1 (#96) |
+| 3001 | succes | Détail du contrat | GET /api/contrats/:id |
+| 3002 | succes | Contrat créé | POST /api/contrats |
+| 3003 | succes | Contrat modifié | PATCH /api/contrats/:id |
+| 3004 | succes | Contrat supprimé | DELETE /api/contrats/:id |
+| 3005 | succes | Contrat archivé | POST /api/contrats/:id/archiver (#96) |
+| 3006 | succes | Contrat restauré | POST /api/contrats/:id/restaurer (#96) |
+| 3007 | succes | Liste des contrats, archivés inclus | GET /api/contrats?inclure_archives=1 (#96) |
 | 3010 | erreur | Contrat introuvable | GET/PATCH/DELETE /api/contrats/:id |
-| 3011 | erreur | Le libelle est obligatoire | POST, PATCH /api/contrats |
+| 3011 | erreur | Le libellé est obligatoire | POST, PATCH /api/contrats |
 | 3012 | erreur | Le type de contrat est obligatoire | POST, PATCH /api/contrats |
-| 3013 | erreur | La date de debut doit preceder la date de fin | POST, PATCH /api/contrats |
+| 3013 | erreur | La date de début doit précéder la date de fin | POST, PATCH /api/contrats |
 | 3014 | erreur | Type de contrat introuvable | POST, PATCH /api/contrats |
-| 3015 | erreur | Editeur introuvable | POST, PATCH /api/contrats |
-| 3016 | erreur | Societe signataire introuvable | POST, PATCH /api/contrats |
+| 3015 | erreur | Éditeur introuvable | POST, PATCH /api/contrats |
+| 3016 | erreur | Société signataire introuvable | POST, PATCH /api/contrats |
 | 3017 | erreur | Revendeur signataire introuvable | POST, PATCH /api/contrats |
 | 3018 | erreur | Contrat parent introuvable | POST, PATCH /api/contrats |
-| 3019 | erreur | Ce rattachement creerait un cycle | POST, PATCH /api/contrats |
-| 3020 | erreur | Suppression impossible : elements lies | DELETE /api/contrats/:id |
-| 3021 | avertissement | Parent non cadre, anomalie qualite enregistree | POST, PATCH /api/contrats |
-| 3022 | erreur | L'editeur est obligatoire | POST, PATCH /api/contrats (#95) |
-| 3023 | erreur | La societe signataire est obligatoire | POST, PATCH /api/contrats (#95) |
+| 3019 | erreur | Ce rattachement créerait un cycle | POST, PATCH /api/contrats |
+| 3020 | erreur | Suppression impossible : éléments liés | DELETE /api/contrats/:id |
+| 3021 | avertissement | Parent non cadré, anomalie qualité enregistrée | POST, PATCH /api/contrats |
+| 3022 | erreur | L'éditeur est obligatoire | POST, PATCH /api/contrats (#95) |
+| 3023 | erreur | La société signataire est obligatoire | POST, PATCH /api/contrats (#95) |
 | 3024 | erreur | Le revendeur signataire est obligatoire | POST, PATCH /api/contrats (#95) |
-| 3025 | erreur | La date de debut est obligatoire | POST, PATCH /api/contrats (#95) |
-| 3026 | erreur | Contrat archive : modification impossible, restaurez-le d'abord | PATCH /api/contrats/:id (#96) |
-| 3027 | erreur | Suppression impossible : contrat deja valide, archivez-le | DELETE /api/contrats/:id (#96) |
-| 3028 | erreur | Contrat deja archive | POST /api/contrats/:id/archiver (#96) |
-| 3029 | erreur | Contrat non archive | POST /api/contrats/:id/restaurer (#96) |
+| 3025 | erreur | La date de début est obligatoire | POST, PATCH /api/contrats (#95) |
+| 3026 | erreur | Contrat archivé : modification impossible, restaurez-le d'abord | PATCH /api/contrats/:id (#96) |
+| 3027 | erreur | Suppression impossible : contrat déjà validé, archivez-le | DELETE /api/contrats/:id (#96) |
+| 3028 | erreur | Contrat déjà archivé | POST /api/contrats/:id/archiver (#96) |
+| 3029 | erreur | Contrat non archivé | POST /api/contrats/:id/restaurer (#96) |
 | 3099 | erreur | Erreur serveur inattendue (module contrats) | toutes |
 
 Archivage (#96, migrations 037 et 038) : GET /api/contrats exclut les
@@ -207,28 +207,28 @@ Le 3021 n'est pas un refus : le rattachement est accepté. Il est réservé pour
 | Code | Type | Libelle propose | Route |
 |------|------|-----------------|-------|
 | 3100 | succes | Liste des commandes | GET /api/commandes |
-| 3101 | succes | Detail de la commande | GET /api/commandes/:id |
-| 3102 | succes | Commande creee | POST /api/commandes |
-| 3103 | succes | Commande modifiee | PATCH /api/commandes/:id |
-| 3104 | succes | Commande supprimee | DELETE /api/commandes/:id |
+| 3101 | succes | Détail de la commande | GET /api/commandes/:id |
+| 3102 | succes | Commande créée | POST /api/commandes |
+| 3103 | succes | Commande modifiée | PATCH /api/commandes/:id |
+| 3104 | succes | Commande supprimée | DELETE /api/commandes/:id |
 | 3110 | erreur | Commande introuvable | GET/PATCH/DELETE /api/commandes/:id |
-| 3111 | erreur | Le libelle est obligatoire | POST, PATCH /api/commandes |
+| 3111 | erreur | Le libellé est obligatoire | POST, PATCH /api/commandes |
 | 3112 | erreur | Le contrat est obligatoire | POST, PATCH /api/commandes |
 | 3113 | erreur | Contrat introuvable | POST, PATCH /api/commandes |
-| 3114 | erreur | La societe acheteuse est obligatoire | POST, PATCH /api/commandes |
-| 3115 | erreur | Societe acheteuse introuvable | POST, PATCH /api/commandes |
+| 3114 | erreur | La société acheteuse est obligatoire | POST, PATCH /api/commandes |
+| 3115 | erreur | Société acheteuse introuvable | POST, PATCH /api/commandes |
 | 3116 | erreur | Revendeur introuvable | POST, PATCH /api/commandes |
 | 3117 | erreur | Mode de commande introuvable | POST, PATCH /api/commandes |
 | 3118 | erreur | Le montant est obligatoire | POST, PATCH /api/commandes |
-| 3119 | erreur | Le montant doit etre strictement positif | POST, PATCH /api/commandes |
+| 3119 | erreur | Le montant doit être strictement positif | POST, PATCH /api/commandes |
 | 3120 | erreur | La date de commande est obligatoire | POST, PATCH /api/commandes |
-| 3121 | erreur | La date de fin doit etre posterieure a la date de commande | POST, PATCH /api/commandes |
-| 3130 | erreur | Suppression impossible : elements lies | DELETE /api/commandes/:id |
-| 3140 | succes | Agregats financiers | GET /api/commandes/agregats |
-| 3141 | erreur | L'endpoint accepte soit annee, soit le couple date_debut / date_fin. Le precalcul etant mensuel, une plage au jour pres est servie au mois pres et les bornes appliquees sont renvoyees dans periode_debut et periode_fin. | GET /api/commandes/agregats |
-| 3142 | erreur | Identifiant de societe invalide | GET /api/commandes/agregats |
-| 3143 | erreur | Identifiant d'editeur invalide | GET /api/commandes/agregats |
-| 3144 | erreur | La periode demandee est invalide | GET /api/commandes/agregats |
+| 3121 | erreur | La date de fin doit être postérieure à la date de commande | POST, PATCH /api/commandes |
+| 3130 | erreur | Suppression impossible : éléments liés | DELETE /api/commandes/:id |
+| 3140 | succes | Agrégats financiers | GET /api/commandes/agregats |
+| 3141 | erreur | L'endpoint accepte soit annee, soit le couple date_debut / date_fin. Le précalcul étant mensuel, une plage au jour près est servie au mois près et les bornes appliquées sont renvoyées dans periode_debut et periode_fin. | GET /api/commandes/agregats |
+| 3142 | erreur | Identifiant de société invalide | GET /api/commandes/agregats |
+| 3143 | erreur | Identifiant d'éditeur invalide | GET /api/commandes/agregats |
+| 3144 | erreur | La période demandée est invalide | GET /api/commandes/agregats |
 | 3199 | erreur | Erreur serveur inattendue (module commandes) | toutes |
 
 Le montant refuse le zero, le negatif et la saisie non numerique sous le meme
@@ -245,38 +245,47 @@ commun 3280-3299.
 | Code | Type | Libelle propose | Route |
 |------|------|-----------------|-------|
 | 3200 | succes | Liste des preuves | GET /api/preuves |
-| 3201 | succes | Detail de la preuve | GET /api/preuves/:id |
-| 3202 | succes | Preuve creee | POST /api/preuves |
-| 3203 | succes | Preuve modifiee | PATCH /api/preuves/:id |
-| 3204 | succes | Preuve supprimee | DELETE /api/preuves/:id |
+| 3201 | succes | Détail de la preuve | GET /api/preuves/:id |
+| 3202 | succes | Preuve créée | POST /api/preuves |
+| 3203 | succes | Preuve modifiée | PATCH /api/preuves/:id |
+| 3204 | succes | Preuve supprimée | DELETE /api/preuves/:id |
 | 3210 | erreur | Preuve introuvable | GET/PATCH/DELETE /api/preuves/:id |
-| 3211 | erreur | Le libelle est obligatoire | POST, PATCH /api/preuves |
+| 3211 | erreur | Le libellé est obligatoire | POST, PATCH /api/preuves |
 | 3212 | erreur | Le type de preuve est obligatoire | POST, PATCH /api/preuves |
 | 3213 | erreur | Type de preuve introuvable | POST, PATCH /api/preuves |
-| 3214 | erreur | Une preuve doit etre rattachee a un contrat, a une commande, ou aux deux | POST, PATCH /api/preuves |
+| 3214 | erreur | Une preuve doit etre rattachee a un contrat, a une commande ou a une licence (libelle aligne par la 054, #208) | POST, PATCH /api/preuves |
 | 3215 | erreur | Contrat introuvable | POST, PATCH /api/preuves |
 | 3216 | erreur | Commande introuvable | POST, PATCH /api/preuves |
 | 3217 | erreur | Le chemin du fichier est obligatoire | POST, PATCH /api/preuves |
 | 3218 | erreur | L'empreinte SHA-256 doit comporter 64 caracteres hexadecimaux | POST, PATCH /api/preuves |
-| 3219 | erreur | Valeur de filtre invalide | GET /api/preuves |
+| 3219 | erreur | Valeur de filtre invalide (id_type_preuve, id_contrat, id_commande, id_licence depuis la #208) | GET /api/preuves |
+| 3228 | erreur | Licence introuvable (#208, migration 054) | POST, PATCH /api/preuves |
 | 3230 | erreur | Suppression impossible : preuve rattachee a une facture | DELETE /api/preuves/:id |
 | 3231 | reserve | [ARBITRAGE D27] lien externe GED refuse. Non emis a ce jour | POST, PATCH /api/preuves |
+| 3214 | erreur | Une preuve doit être rattachée à un contrat, à une commande, ou aux deux | POST, PATCH /api/preuves |
+| 3215 | erreur | Contrat introuvable | POST, PATCH /api/preuves |
+| 3216 | erreur | Commande introuvable | POST, PATCH /api/preuves |
+| 3217 | erreur | Le chemin du fichier est obligatoire | POST, PATCH /api/preuves |
+| 3218 | erreur | L'empreinte SHA-256 doit comporter 64 caractères hexadécimaux | POST, PATCH /api/preuves |
+| 3219 | erreur | Valeur de filtre invalide | GET /api/preuves |
+| 3230 | erreur | Suppression impossible : preuve rattachée à une facture | DELETE /api/preuves/:id |
+| 3231 | reserve | [ARBITRAGE D27] lien externe GED refusé. Non émis à ce jour | POST, PATCH /api/preuves |
 
 ### Factures
 
 | Code | Type | Libelle propose | Route |
 |------|------|-----------------|-------|
 | 3240 | succes | Liste des factures | GET /api/factures |
-| 3241 | succes | Detail de la facture | GET /api/factures/:id |
-| 3242 | succes | Facture creee | POST /api/factures |
-| 3243 | succes | Facture modifiee | PATCH /api/factures/:id |
-| 3244 | succes | Facture supprimee | DELETE /api/factures/:id |
+| 3241 | succes | Détail de la facture | GET /api/factures/:id |
+| 3242 | succes | Facture créée | POST /api/factures |
+| 3243 | succes | Facture modifiée | PATCH /api/factures/:id |
+| 3244 | succes | Facture supprimée | DELETE /api/factures/:id |
 | 3250 | erreur | Facture introuvable | GET/PATCH/DELETE /api/factures/:id |
-| 3251 | erreur | Le libelle est obligatoire | POST, PATCH /api/factures |
+| 3251 | erreur | Le libellé est obligatoire | POST, PATCH /api/factures |
 | 3252 | erreur | La commande est obligatoire | POST, PATCH /api/factures |
 | 3253 | erreur | Commande introuvable | POST, PATCH /api/factures |
 | 3254 | erreur | Preuve introuvable | POST, PATCH /api/factures |
-| 3255 | reserve | [ARBITRAGE flux] la preuve est obligatoire des la creation. Non emis a ce jour | POST /api/factures |
+| 3255 | reserve | [ARBITRAGE flux] la preuve est obligatoire dès la création. Non émis à ce jour | POST /api/factures |
 | 3259 | erreur | Valeur de filtre invalide | GET /api/factures |
 
 ### Commun
@@ -301,19 +310,19 @@ module de depot au lieu du client, sans changement du contrat d'API.
 
 | Code | Type | Libelle propose | Route |
 |------|------|-----------------|-------|
-| 3205 | succes | Fichier depose | POST /api/preuves/:id/fichier |
+| 3205 | succes | Fichier déposé | POST /api/preuves/:id/fichier |
 | 3206 | succes | Fichier servi | GET /api/preuves/:id/fichier |
-| 3220 | erreur | Aucun fichier n'a ete transmis | POST /api/preuves/:id/fichier |
-| 3221 | erreur | Extension non admise, formats acceptes pdf png jpg jpeg | POST /api/preuves/:id/fichier |
-| 3222 | erreur | Le fichier depasse la taille maximale de 20 Mo (413) | POST /api/preuves/:id/fichier |
-| 3223 | erreur | Le contenu du fichier ne correspond pas a son extension | POST /api/preuves/:id/fichier |
-| 3224 | erreur | Aucun fichier n'a ete depose pour cette preuve | GET /api/preuves/:id/fichier |
+| 3220 | erreur | Aucun fichier n'a été transmis | POST /api/preuves/:id/fichier |
+| 3221 | erreur | Extension non admise, formats acceptés pdf png jpg jpeg | POST /api/preuves/:id/fichier |
+| 3222 | erreur | Le fichier dépasse la taille maximale de 20 Mo (413) | POST /api/preuves/:id/fichier |
+| 3223 | erreur | Le contenu du fichier ne correspond pas à son extension | POST /api/preuves/:id/fichier |
+| 3224 | erreur | Aucun fichier n'a été déposé pour cette preuve | GET /api/preuves/:id/fichier |
 | 3225 | erreur | Le fichier est introuvable dans le stockage | GET /api/preuves/:id/fichier |
-| 3226 | erreur | Chemin de stockage invalide, traversee refusee | GET /api/preuves/:id/fichier |
-| 3227 | erreur | Un seul fichier peut etre depose, dans le champ fichier | POST /api/preuves/:id/fichier |
-| 3232 | reserve | [ARBITRAGE D27] redirection vers un lien GED externe. Non emis a ce jour | GET /api/preuves/:id/fichier |
-| 3245 | succes | Facture et preuve creees en une transaction | POST /api/factures/depot |
-| 3256 | erreur | Le fichier justificatif est obligatoire, depot combine | POST /api/factures/depot |
+| 3226 | erreur | Chemin de stockage invalide, traversée refusée | GET /api/preuves/:id/fichier |
+| 3227 | erreur | Un seul fichier peut être déposé, dans le champ fichier | POST /api/preuves/:id/fichier |
+| 3232 | reserve | [ARBITRAGE D27] redirection vers un lien GED externe. Non émis à ce jour | GET /api/preuves/:id/fichier |
+| 3245 | succes | Facture et preuve créées en une transaction | POST /api/factures/depot |
+| 3256 | erreur | Le fichier justificatif est obligatoire, dépôt combiné | POST /api/factures/depot |
 
 Le 3222 est le seul 413 du projet. Les autres refus de validation restent en
 400 : ici le refus ne porte pas sur la forme de la donnee mais sur la taille de
@@ -338,9 +347,9 @@ et non dans celle des commandes.
 | Code | Type | Libelle propose | Route |
 |------|------|-----------------|-------|
 | 3280 | succes | Liste des commandes en manque documentaire | GET /api/commandes/manques |
-| 3281 | erreur | Identifiant de societe invalide | GET /api/commandes/manques |
+| 3281 | erreur | Identifiant de société invalide | GET /api/commandes/manques |
 | 3282 | erreur | Identifiant de contrat invalide | GET /api/commandes/manques |
-| 3283 | erreur | L'annee demandee est invalide | GET /api/commandes/manques |
+| 3283 | erreur | L'année demandée est invalide | GET /api/commandes/manques |
 
 Endpoint de lecture seule : aucune ligne n'est ecrite dans anomalie_qualite, la
 detection est une vue temps reel et non un stock d'anomalies. Une commande est
@@ -363,6 +372,49 @@ sans preuve. Durcir cette route interdirait toute saisie de facture hors depot
 de fichier, y compris une reprise de donnees, ce qui n'a pas ete demande. A
 trancher separement.
 
+### Rattachement a une licence et liste ferme des types (#208, migrations 053 et 054)
+
+Une preuve se rattache desormais a un contrat, a une commande ou a une
+licence : colonne preuve.id_licence (FK nullable, 053), filtre id_licence sur
+GET /api/preuves, projection id_licence et licence_label. La regle 3214 exige
+au moins un des trois rattachements ; l'API tolere le cumul contrat + commande
+des preuves anterieures, le formulaire n'envoie qu'un seul rattachement. Le
+3228 est le pendant du 3215 et du 3216 pour la licence.
+
+Le referentiel type_preuve passe a sept valeurs (liste ferme du client :
+bon_commande, bon_livraison, certificat, clefs_licence, contrat_annexes,
+facture, autre), seedees en ON CONFLICT sans retrait des types existants. Le
+filtrage des types par objet de rattachement est porte par le formulaire
+(PreuveFormModal, TYPES_PAR_RATTACHEMENT) et non par l'API : aucun code
+retour n'est emis pour un type hors liste, les preuves anterieures restant
+valides telles quelles.
+
+### Objet unique facture = preuve (#204, migration 053)
+
+Le depot combine POST /api/factures/depot cree toujours une preuve et une
+facture liees par facture.id_preuve, mais l'utilisateur ne voit plus qu'un
+objet : la ligne de type facture. Consequences, sans nouveau code :
+- id_type_preuve devient facultatif sur POST /api/factures/depot : a defaut,
+  le type de code `facture` (053) est applique ; un type explicite reste
+  accepte et verifie (3213). Une base sans le type `facture` fait echouer le
+  depot en 3299, comme un referentiel de validation absent ;
+- seule la facture est soumise au workflow (3245 inchange) : la preuve
+  support ne porte aucune demande, elle n'est jamais 3312 depuis l'ecran
+  puisqu'elle n'y apparait plus. La 053 retire les demandes en_attente
+  residuelles des preuves support deja creees ;
+- GET /api/preuves (3200) ne sert que les preuves libres, hors preuves
+  referencees par une facture ; GET /api/preuves/:id reste accessible ;
+- PATCH /api/preuves/:id et POST /api/preuves/:id/fichier sur une preuve
+  support resoumettent la ou les factures qui la referencent (3203, 3205
+  inchanges), jamais la preuve ;
+- DELETE /api/factures/:id (3244) supprime aussi la preuve support et son
+  fichier quand aucune autre facture ne la reference, sinon elle
+  reapparaitrait seule dans la liste. Le 3230 continue d'interdire la
+  suppression directe d'une preuve referencee par une facture ;
+- projection GET /api/factures enrichie de preuve_nom_origine,
+  preuve_hash_sha256 et preuve_type_code, pour que la fiche facture porte le
+  justificatif sans second appel.
+
 ## Validation des saisies (#53)
 
 Plage validation 3300-3399. Le statut n'est pas une colonne des tables metier :
@@ -371,12 +423,12 @@ ressources du module 2 se comportent a l'identique.
 
 | Code | Type | Libelle propose | Route |
 |------|------|-----------------|-------|
-| 3300 | succes | Saisie validee | POST /api/validation/:entite_type/:entite_id/valider |
-| 3301 | succes | Saisie refusee | POST /api/validation/:entite_type/:entite_id/refuser |
-| 3310 | erreur | Type d'entite inconnu du workflow de validation | les deux |
-| 3311 | erreur | Entite introuvable | les deux |
+| 3300 | succes | Saisie validée | POST /api/validation/:entite_type/:entite_id/valider |
+| 3301 | succes | Saisie refusée | POST /api/validation/:entite_type/:entite_id/refuser |
+| 3310 | erreur | Type d'entité inconnu du workflow de validation | les deux |
+| 3311 | erreur | Entité introuvable | les deux |
 | 3312 | erreur | Cette saisie ne porte aucune demande de validation | les deux |
-| 3313 | erreur | Seule une saisie en attente peut etre traitee | les deux |
+| 3313 | erreur | Seule une saisie en attente peut être traitée | les deux |
 | 3314 | erreur | Le motif de refus est obligatoire | POST .../refuser |
 | 3399 | erreur | Erreur serveur inattendue (module validation) | toutes |
 
@@ -412,25 +464,25 @@ dans la transaction du traitement.
 | Code | Type | Libelle propose | Route |
 |------|------|-----------------|-------|
 | 4100 | succes | Liste des affectations | GET /api/affectations |
-| 4101 | succes | Detail de l'affectation | GET /api/affectations/:id |
-| 4102 | succes | Affectation declaree et soumise a validation | POST /api/affectations (201) |
-| 4103 | succes | Affectation modifiee et resoumise a validation | PATCH /api/affectations/:id |
-| 4104 | succes | Affectation supprimee | DELETE /api/affectations/:id (200, data null) |
-| 4105 | succes | Affectation revalidee, nouveau cycle ouvert | POST /api/affectations/:id/revalider |
-| 4106 | succes | Decompte des usages declares pour la conformite | GET /api/affectations/decompte |
-| 4107 | succes | Historique des declarations | GET /api/affectations/historique |
+| 4101 | succes | Détail de l'affectation | GET /api/affectations/:id |
+| 4102 | succes | Affectation déclarée et soumise à validation | POST /api/affectations (201) |
+| 4103 | succes | Affectation modifiée et resoumise à validation | PATCH /api/affectations/:id |
+| 4104 | succes | Affectation supprimée | DELETE /api/affectations/:id (200, data null) |
+| 4105 | succes | Affectation revalidée, nouveau cycle ouvert | POST /api/affectations/:id/revalider |
+| 4106 | succes | Décompte des usages déclarés pour la conformité | GET /api/affectations/decompte |
+| 4107 | succes | Historique des déclarations | GET /api/affectations/historique |
 | 4110 | erreur | Affectation introuvable | routes /affectations/:id (404) |
 | 4111 | erreur | La licence est obligatoire | POST, PATCH |
 | 4112 | erreur | Licence introuvable | POST, PATCH |
-| 4113 | erreur | La societe est obligatoire | POST, PATCH |
-| 4114 | erreur | Societe introuvable | POST, PATCH |
-| 4115 | erreur | La quantite doit etre un entier strictement positif | POST, PATCH |
-| 4116 | erreur | La reference client est obligatoire | POST, PATCH |
-| 4117 | erreur | Identifiant de societe invalide | filtres GET |
+| 4113 | erreur | La société est obligatoire | POST, PATCH |
+| 4114 | erreur | Société introuvable | POST, PATCH |
+| 4115 | erreur | La quantité doit être un entier strictement positif | POST, PATCH |
+| 4116 | erreur | La référence client est obligatoire | POST, PATCH |
+| 4117 | erreur | Identifiant de société invalide | filtres GET |
 | 4118 | erreur | Identifiant de produit invalide | filtres GET |
 | 4119 | erreur | Identifiant de licence invalide | filtre GET /affectations |
-| 4130 | erreur | Seule une affectation validee peut etre revalidee | POST .../revalider (409, `details.statut_validation`) |
-| 4132 | erreur | Suppression impossible : affectation rapprochee d'un inventaire | DELETE (409, `details.inventaires`) |
+| 4130 | erreur | Seule une affectation validée peut être revalidée | POST .../revalider (409, `details.statut_validation`) |
+| 4132 | erreur | Suppression impossible : affectation rapprochée d'un inventaire | DELETE (409, `details.inventaires`) |
 | 4199 | erreur | Erreur serveur inattendue (module affectations) | toutes |
 
 Statuts servis par les GET : `statut_validation` est la derniere entree
@@ -471,17 +523,49 @@ du module licences.
 | 4313 | erreur | Le niveau demandé doit être global, editeur ou societe | GET /api/conformite/synthese |
 | 4399 | erreur | Erreur serveur inattendue (module conformité) | toutes |
 
-Regles #116 (validees) : droits = quantites des licences perpetuelles +
-souscriptions dont date de fin >= date du jour (sortie le jour meme, regle
-#102 conservee) ; usages = quantites des affectations dont la derniere entree
-du workflow est `valide` (le `a_revalider` de lecture en fait partie),
-`en_attente` et `refuse` exclus, sans deduplication par reference ; ecart =
-droits - usages ; `ecart_pct` = usages / droits x 100, borne a 999.99
-(colonne DECIMAL(5,2) du DDL v4) ; prix unitaire = somme des couts des
-licences actives / somme de leurs quantites ; ecart valorise = ecart x prix
-unitaire ; statut = `depassement` si usages > droits, `attention` si taux >=
-seuil, `conforme` sinon ; droits et usages nuls = produit non compte (ligne a
-zero, filtree). Seuils lus dans `seuil_dashboard` (tenant, echelle 1) puis
+Regles #116 (validees), revisees par les decisions du 10/09/2026 (#190,
+migration Tenant 058, `server/utils/conformite.js`) :
+- droits = quantites des licences perpetuelles + licences a echeance
+  (souscriptions et, D44 etendu, versions d'essai : constante
+  `TYPES_A_ECHEANCE`) dont date de fin >= date du jour (sortie le lendemain
+  de la date de fin, regle #102 conservee ; le code `version_essai` est celui
+  attendu du referentiel type_licence de la migration 055, la regle se
+  replie d'elle-meme sur les seules souscriptions tant qu'aucune licence ne
+  le porte) ;
+- usages = quantites des affectations dont la derniere entree du workflow
+  est `valide` (le `a_revalider` de lecture en fait partie), `en_attente` et
+  `refuse` exclus, sans deduplication par reference ;
+- ecart = droits - usages ;
+- D53 : `ecart_pct` = usages / droits x 100, borne a 999.99 (colonne
+  DECIMAL(5,2) du DDL v4), et null quand les droits sont nuls : aucun
+  pourcentage sans droit. La ligne porte `usage_sans_droit` (vrai avec des
+  usages et zero droit) ; le statut est alors `depassement` et une anomalie
+  qualite `usage_sans_droit` est ouverte par le trigger (une seule ouverte
+  par produit, entite `produit`, close automatiquement des que la situation
+  cesse) ;
+- D52 : prix unitaire = cout / quantite de la ligne de licence la plus
+  recente du produit sur le perimetre observe, par date de commande puis
+  par date de creation, parmi les lignes a cout renseigne et quantite > 0
+  (toutes lignes confondues, echues comprises : dernier prix paye), jamais
+  une moyenne ; null sans ligne exploitable ; ecart valorise = ecart x prix
+  unitaire ; un changement de `commande.date_commande` recalcule les
+  produits de ses licences (trigger 058) ;
+- statut = `depassement` si usages > droits, `attention` si taux >= seuil
+  ou ecart valorise negatif au-dela du seuil en montant, `conforme` sinon ;
+  droits et usages nuls = produit non compte (ligne a zero, filtree) ;
+- D54 : chaque bloc d'agregats (`agregats` de GET /conformite, lignes de la
+  synthese) porte `valorisation_parc` (somme des couts des licences actives
+  des produits du perimetre filtre), `ecart_valorise` (somme signee des
+  ecarts valorises), `ecart_valorise_negatif`, `ecart_valorise_positif` et
+  leurs pourcentages `ecart_valorise_pct`, `ecart_valorise_negatif_pct`,
+  `ecart_valorise_positif_pct` rapportes a `valorisation_parc` (null sans
+  parc valorise). L'ecart valorise se lit toujours en relatif au parc
+  observe, jamais en absolu seul. Chaque ligne porte `cout_actif` (cout des
+  licences actives du produit). Les montants (`valorisation_parc`,
+  `ecart_valorise*` hors pourcentages, `cout_actif`, `prix_unitaire`) sont
+  masques sans `consulter_kpi_financiers` ; les pourcentages et le statut
+  restent servis.
+Seuils lus dans `seuil_dashboard` (tenant, echelle 1) puis
 `default_seuil_dashboard` (Commune) : `conformite_taux` (90, pourcent) et
 `conformite_ecart_valorise` (10000, euros, seuil en montant sur l'ecart
 valorise negatif ; branche aujourd'hui couverte par le depassement, conservee
@@ -496,25 +580,45 @@ Plage 5400-5449, seedee par la migration Commune 047. Routeur
 GET /api/qualite (permission `consulter_inventaire`) : detection a la volee,
 sans precalcul, croisee avec `anomalie_qualite`. Types produits :
 `licence_sans_contrat`, `contrat_sans_justificatif`, `commande_sans_preuve`,
-`doublon_affectation`, `doublon_produit`, `champ_obligatoire_vide`. Une
-anomalie `resolu = true` (resolution ou faux positif, la table ne distingue
-pas) exclut l'element meme s'il est encore detecte ; une anomalie ouverte est
-servie sans doublon ; une detection nouvelle est inseree avec type, gravite et
+`doublon_affectation`, `doublon_produit`, `champ_obligatoire_vide` et, depuis
+le 10/09/2026 (D53, #190), `usage_sans_droit` (gravite `critique`, entite
+`produit`, produits du precalcul a usages validees et zero droit ; l'anomalie
+est ouverte par le trigger de la migration 058 et redetectee ici pour etre
+servie avec le libelle du produit, resolu en BDD Commune). Une anomalie
+`resolu = true` (resolution ou faux positif, la table ne distingue pas) exclut
+l'element meme s'il est encore detecte ; une anomalie ouverte est servie sans
+doublon ; une detection nouvelle est inseree avec type, gravite et
 description dans la transaction de la lecture. Les types des autres
 producteurs (`incoherence`, `hors_plage_parent`, `ligne_import`) ne sont pas
 reservis ici.
 
 GET /api/confiance (permission `consulter_licences`) : note sur 100 par
-perimetre (tenant, ou societe par `id_societe`), ponderee par la valeur (cout
-des licences actives ; societe payeuse via la commande pour les licences,
-societe declarante pour les affectations). Exhaustivite (poids 40) : 4 liens
-par licence active (commande, facture ou preuve, contrat, societe
-signataire). Coherence (poids 30) : valeur des licences sans anomalie ouverte
-sur la licence ou sa chaine (commande, contrat), un objet multi-anomalies
-compte une fois. Fraicheur (poids 30) : valeur des affectations validees a
-echeance de revalidation non depassee. Un perimetre sans valeur ponderable
-rend des notes a 100, objets concernes listes dans les malus a zero point.
-`valeur_totale` est masquee sans `consulter_kpi_financiers`.
+perimetre (tenant, ou societe par `id_societe`), formule revisee le
+10/09/2026 (#190, `server/utils/indiceConfiance.js`, testee au node:test) :
+- poids d'un objet = max(sa valeur, plancher), plancher = max(1, 1 pour cent
+  de la valeur totale des licences actives du perimetre). Un objet non
+  valorise pese donc toujours une part plancher : aucun perimetre ne peut
+  afficher 100 avec un defaut ouvert (une composante porteuse d'un defaut et
+  l'indice lui-meme sont bornes a 99,9 apres arrondi) ;
+- exhaustivite (poids 40) : 4 liens par licence active (commande, facture ou
+  preuve, contrat, societe signataire), note = somme(poids x liens presents
+  / 4) / somme(poids) x 100 ;
+- coherence (poids 30) : objets = licences actives + tout autre objet
+  porteur d'une anomalie ouverte, toutes anomalies confondues : stock
+  `anomalie_qualite` (tous producteurs) et detections a la volee de /qualite
+  (lues sans ecriture), y compris sur des objets sans licence reliee. Une
+  anomalie sur une licence, sa commande ou son contrat marque la licence ;
+  toute autre anomalie designe un objet propre pese une fois quel que soit
+  le nombre d'anomalies qui le visent ; note = somme(poids des objets sains)
+  / somme(poids) x 100. Sur une societe, seules comptent les anomalies
+  portees par ses contrats, commandes, licences payees, affectations
+  declarees et produits sur lesquels elle declare des usages ;
+- fraicheur (poids 30) : somme(poids des affectations validees a echeance
+  de revalidation non depassee) / somme(poids des affectations) x 100 ;
+- indice = 0,4 x exhaustivite + 0,3 x coherence + 0,3 x fraicheur.
+La reponse porte `plancher`, `nb_objets_anomalie` et les malus par
+composante (`entite_type` par type d'objet). `valeur_totale` est masquee sans
+`consulter_kpi_financiers`.
 
 | Code | Type | Libelle propose | Route |
 |------|------|-----------------|-------|
@@ -523,9 +627,14 @@ rend des notes a 100, objets concernes listes dans les malus a zero point.
 | 5410 | erreur | Identifiant de société invalide | GET /api/confiance |
 | 5449 | erreur | Erreur serveur inattendue (module qualité et confiance) | les deux |
 
-Les libelles de la 047 sont accentues (consigne #116 : textes destines a
-l'ecran en francais accentue), la ou les migrations 025 a 042 sont en ASCII :
-homogeneisation du catalogue a arbitrer.
+Les libelles de la 047 et de la 052 sont accentues (consigne #116 : textes
+destines a l'ecran en francais accentue). Les douze migrations 025, 028, 029,
+030, 034, 037, 041, 042, 043, 045, 048 et 050 les avaient seedes en ASCII :
+la migration Commune 057 (#171) les reecrit en francais accentue, alignes sur
+les tableaux de ce fichier, sans toucher ni au code, ni au type, ni a la
+formulation. Les valeurs d'enumeration techniques citees dans un libelle
+(perpetuelle, souscription, previsionnel, alloue, immediat, quotidien,
+desactive, noms de colonnes CSV, parametres de requete) restent en ASCII.
 
 ## Controle des permissions (transverse)
 
@@ -571,33 +680,33 @@ cout de maintenance) servis a null avec `montants_masques: true` sans
 | Code | Type | Libelle propose | Route |
 |------|------|-----------------|-------|
 | 4000 | succes | Liste des licences | GET /api/licences |
-| 4001 | succes | Detail de la licence | GET /api/licences/:id |
-| 4002 | succes | Licence creee | POST /api/licences |
-| 4003 | succes | Licence modifiee | PATCH /api/licences/:id |
-| 4004 | succes | Licence supprimee | DELETE /api/licences/:id |
+| 4001 | succes | Détail de la licence | GET /api/licences/:id |
+| 4002 | succes | Licence créée | POST /api/licences |
+| 4003 | succes | Licence modifiée | PATCH /api/licences/:id |
+| 4004 | succes | Licence supprimée | DELETE /api/licences/:id |
 | 4005 | succes | Historique de maintenance de la licence | GET /api/licences/:id/maintenance |
 | 4006 | succes | Periode de maintenance ajoutee | POST /api/licences/:id/maintenance |
 | 4007 | succes | Periode de maintenance modifiee | PATCH /api/licences/:id/maintenance/:mid |
 | 4008 | succes | Periode de maintenance supprimee | DELETE /api/licences/:id/maintenance/:mid |
 | 4009 | succes | Maintenance arretee, version figee | POST /api/licences/:id/arret-maintenance |
-| 4010 | erreur | Licence introuvable | GET/PATCH/DELETE /api/licences/:id et sous-routes (400 sur un filtre invalide de la liste) |
+| 4010 | erreur | Licence introuvable | GET/PATCH/DELETE /api/licences/:id et sous-routes (400 sur un filtre invalide de la liste ; 400 "Licence renouvelee introuvable" et 409 boucle de succession sur id_licence_predecesseur, #209) |
 | 4011 | erreur | Le produit est obligatoire | POST, PATCH /api/licences |
 | 4012 | erreur | Produit introuvable au catalogue | POST, PATCH /api/licences |
 | 4013 | erreur | Edition introuvable ou etrangere au produit | POST, PATCH /api/licences |
-| 4014 | erreur | Version introuvable ou etrangere au produit | POST, PATCH /api/licences |
+| 4014 | erreur | Version introuvable ou etrangere au produit | POST, PATCH /api/licences ; POST, PATCH .../maintenance (id_version de la periode, #209) |
 | 4015 | erreur | Commande introuvable | POST, PATCH /api/licences |
 | 4016 | erreur | Revendeur introuvable | POST, PATCH /api/licences et maintenance |
 | 4017 | erreur | Unite de mesure introuvable | POST, PATCH /api/licences |
-| 4018 | erreur | Le type de licence doit etre perpetuelle ou souscription | POST, PATCH /api/licences, GET /api/licences?type= |
+| 4018 | erreur | Le type de licence doit etre perpetuelle ou souscription | POST, PATCH /api/licences, GET /api/licences?type= (message rendu depuis #209 : "Type de licence inconnu.", le type est valide contre type_licence) |
 | 4019 | erreur | La quantite doit etre un entier positif ou nul | POST, PATCH /api/licences |
 | 4020 | erreur | Le cout doit etre un montant positif ou nul | POST, PATCH /api/licences |
-| 4021 | erreur | La date de fin de souscription est obligatoire pour une souscription | POST, PATCH /api/licences |
+| 4021 | erreur | La date de fin de souscription est obligatoire pour une souscription | POST, PATCH /api/licences (message rendu depuis #209 : "La date de fin est obligatoire pour une licence de type <label>.", selon type_licence.regle_date_fin) |
 | 4022 | erreur | Mainteneur introuvable | POST, PATCH /api/licences et maintenance |
-| 4023 | erreur | Suppression impossible : elements lies | DELETE /api/licences/:id (409, details = compteurs affectations et budgets) |
+| 4023 | erreur | Suppression impossible : elements lies | DELETE /api/licences/:id (409, details = compteurs affectations, budgets et successeurs) |
 | 4024 | erreur | Date invalide | POST, PATCH /api/licences et maintenance |
 | 4030 | erreur | Periode de maintenance introuvable | PATCH/DELETE /api/licences/:id/maintenance/:mid |
-| 4031 | erreur | La date de debut est obligatoire | POST, PATCH .../maintenance |
-| 4032 | erreur | La date de fin doit etre posterieure a la date de debut | POST, PATCH .../maintenance |
+| 4031 | erreur | La date de debut est obligatoire | POST, PATCH .../maintenance ; POST, PATCH /api/licences (message rendu : "La date de debut est obligatoire pour une licence de type <label>.", selon type_licence.regle_date_debut, #209) |
+| 4032 | erreur | La date de fin doit etre posterieure a la date de debut | POST, PATCH .../maintenance ; POST, PATCH /api/licences (date_debut et date_fin_souscription, #209) |
 | 4033 | erreur | Le cout de maintenance doit etre un montant positif ou nul | POST, PATCH .../maintenance |
 | 4040 | erreur | La maintenance de cette licence est deja arretee | POST .../arret-maintenance (409) |
 | 4041 | erreur | La date d'arret est invalide | POST .../arret-maintenance |
@@ -607,15 +716,60 @@ cout de maintenance) servis a null avec `montants_masques: true` sans
 | 4045 | erreur | La maintenance de cette licence n'est pas arretee | POST .../reprise-maintenance (409) |
 | 4050 | succes | Catalogue des produits (versions et editions incluses) | GET /api/produits |
 | 4051 | succes | Liste des unites de mesure | GET /api/unites-mesure |
+| 4006 | succes | Période de maintenance ajoutée | POST /api/licences/:id/maintenance |
+| 4007 | succes | Période de maintenance modifiée | PATCH /api/licences/:id/maintenance/:mid |
+| 4008 | succes | Période de maintenance supprimée | DELETE /api/licences/:id/maintenance/:mid |
+| 4009 | succes | Maintenance arrêtée, version figée | POST /api/licences/:id/arret-maintenance |
+| 4010 | erreur | Licence introuvable | GET/PATCH/DELETE /api/licences/:id et sous-routes (400 sur un filtre invalide de la liste) |
+| 4011 | erreur | Le produit est obligatoire | POST, PATCH /api/licences |
+| 4012 | erreur | Produit introuvable au catalogue | POST, PATCH /api/licences |
+| 4013 | erreur | Édition introuvable ou étrangère au produit | POST, PATCH /api/licences |
+| 4014 | erreur | Version introuvable ou étrangère au produit | POST, PATCH /api/licences |
+| 4015 | erreur | Commande introuvable | POST, PATCH /api/licences |
+| 4016 | erreur | Revendeur introuvable | POST, PATCH /api/licences et maintenance |
+| 4017 | erreur | Unité de mesure introuvable | POST, PATCH /api/licences |
+| 4018 | erreur | Le type de licence doit etre perpetuelle ou souscription | POST, PATCH /api/licences, GET /api/licences?type= |
+| 4019 | erreur | La quantité doit être un entier positif ou nul | POST, PATCH /api/licences |
+| 4020 | erreur | Le coût doit être un montant positif ou nul | POST, PATCH /api/licences |
+| 4021 | erreur | La date de fin de souscription est obligatoire pour une souscription | POST, PATCH /api/licences |
+| 4022 | erreur | Mainteneur introuvable | POST, PATCH /api/licences et maintenance |
+| 4023 | erreur | Suppression impossible : éléments liés | DELETE /api/licences/:id (409, details = compteurs affectations et budgets) |
+| 4024 | erreur | Date invalide | POST, PATCH /api/licences et maintenance |
+| 4030 | erreur | Période de maintenance introuvable | PATCH/DELETE /api/licences/:id/maintenance/:mid |
+| 4031 | erreur | La date de début est obligatoire | POST, PATCH .../maintenance |
+| 4032 | erreur | La date de fin doit être postérieure à la date de début | POST, PATCH .../maintenance |
+| 4033 | erreur | Le coût de maintenance doit être un montant positif ou nul | POST, PATCH .../maintenance |
+| 4040 | erreur | La maintenance de cette licence est déjà arrêtée | POST .../arret-maintenance (409) |
+| 4041 | erreur | La date d'arrêt est invalide | POST .../arret-maintenance |
+| 4042 | erreur | Version à figer introuvable ou étrangère au produit | POST .../arret-maintenance |
+| 4043 | erreur | Cette licence ne porte aucune maintenance à arrêter | POST .../arret-maintenance (409) |
+| 4044 | succes | Maintenance reprise, version libérée | POST .../reprise-maintenance |
+| 4045 | erreur | La maintenance de cette licence n'est pas arrêtée | POST .../reprise-maintenance (409) |
+| 4050 | succes | Catalogue des produits (versions et éditions incluses) | GET /api/produits |
+| 4051 | succes | Liste des unités de mesure | GET /api/unites-mesure |
 | 4052 | succes | Liste des mainteneurs | GET /api/mainteneurs |
-| 4059 | erreur | Erreur serveur inattendue (referentiels du module licences) | les trois |
+| 4059 | erreur | Erreur serveur inattendue (référentiels du module licences) | les trois |
 | 4099 | erreur | Erreur serveur inattendue (module licences) | toutes |
 
-Regles v0.5 assumees : une souscription est `expire` le jour meme de sa date
-de fin, sans tolerance, et sort de la balance droits/usage ; l'arret de
-maintenance fige `version_figee_id` (par defaut la version courante) et
-`date_arret_maintenance` sans retirer de droit quantitatif ; les licences ne
-passent pas par le workflow de validation (#53).
+Regles v0.5 assumees : une licence portant une date de fin (souscription,
+essai) est `expire` le jour meme de cette date, sans tolerance, et sort de la
+balance droits/usage ; l'arret de maintenance fige `version_figee_id` (par
+defaut la version courante) et `date_arret_maintenance` sans retirer de droit
+quantitatif ; les licences ne passent pas par le workflow de validation (#53).
+
+Stories #209 et #210 (migrations 055 et 056, 10/09/2026) : aucun nouveau
+code. Les regles de dates par type (type_licence), la version portee par la
+maintenance (D59), l'historique des versions (D60, servi dans
+`historique_versions` de GET /api/licences/:id, code 4001) et le lien de
+succession (D35, `id_licence_predecesseur`) reutilisent les codes existants
+avec un message rendu (`error`) interpole par la route, comme 3020 ou 3130 :
+4018 (type inconnu), 4021 et 4031 (date de fin ou de debut obligatoire pour
+le type), 4032 (fin anterieure au debut), 4014 (version d'une periode de
+maintenance), 4010 (licence renouvelee introuvable ou boucle), 4023
+(successeurs bloquants). Les libelles seedes par la 028 restent ceux du
+catalogue ; leur realignement (par exemple 4018 "Type de licence inconnu")
+demande une migration Commune ulterieure, hors des numeros 055 et 056
+reserves au chantier.
 
 ## Inventaire, import et ecarts (#111, module 3)
 
@@ -633,39 +787,39 @@ une affectation. Le rapprochement est manuel.
 | Code | Type | Libelle propose | Route |
 |------|------|-----------------|-------|
 | 4200 | succes | Liste des imports d'inventaire | GET /api/inventaire/imports |
-| 4201 | succes | Detail de l'import | GET /api/inventaire/imports/:id |
-| 4202 | succes | Import d'inventaire effectue | POST /api/inventaire/imports (201, statut succes) |
-| 4203 | succes | Liste des releves d'inventaire | GET /api/inventaire/releves |
-| 4204 | succes | Detail du releve | GET /api/inventaire/releves/:id |
-| 4205 | succes | Ecarts d'inventaire | GET /api/inventaire/ecarts |
-| 4206 | succes | Releve rapproche de l'affectation | POST /api/inventaire/releves/:id/rapprocher |
-| 4207 | succes | Releve marque en ecart assume | POST /api/inventaire/releves/:id/ecart-assume |
-| 4208 | succes | Releve rejete | POST /api/inventaire/releves/:id/rejeter |
-| 4209 | succes | Releve remis en attente | POST /api/inventaire/releves/:id/reouvrir |
+| 4201 | succes | Détail de l'import | GET /api/inventaire/imports/:id |
+| 4202 | succes | Import d'inventaire effectué | POST /api/inventaire/imports (201, statut succes) |
+| 4203 | succes | Liste des relevés d'inventaire | GET /api/inventaire/releves |
+| 4204 | succes | Détail du relevé | GET /api/inventaire/releves/:id |
+| 4205 | succes | Écarts d'inventaire | GET /api/inventaire/ecarts |
+| 4206 | succes | Relevé rapproché de l'affectation | POST /api/inventaire/releves/:id/rapprocher |
+| 4207 | succes | Relevé marqué en écart assumé | POST /api/inventaire/releves/:id/ecart-assume |
+| 4208 | succes | Relevé rejeté | POST /api/inventaire/releves/:id/rejeter |
+| 4209 | succes | Relevé remis en attente | POST /api/inventaire/releves/:id/reouvrir |
 | 4210 | succes | Liste des affectations rapprochables | GET /api/inventaire/affectations |
-| 4211 | avertissement | Import effectue avec des lignes en erreur | POST /api/inventaire/imports (201, statut succes_partiel, erreurs jointes) |
+| 4211 | avertissement | Import effectué avec des lignes en erreur | POST /api/inventaire/imports (201, statut succes_partiel, erreurs jointes) |
 | 4220 | erreur | Import introuvable | GET /api/inventaire/imports/:id |
-| 4221 | erreur | Releve introuvable | GET, POST /api/inventaire/releves/:id/... |
-| 4222 | erreur | Aucun fichier n'a ete transmis | POST /api/inventaire/imports |
-| 4223 | erreur | Extension non admise, format accepte csv | POST /api/inventaire/imports |
-| 4224 | erreur | Le fichier depasse la taille maximale de 20 Mo (413) | POST /api/inventaire/imports |
-| 4225 | erreur | Un seul fichier peut etre depose | POST /api/inventaire/imports |
+| 4221 | erreur | Relevé introuvable | GET, POST /api/inventaire/releves/:id/... |
+| 4222 | erreur | Aucun fichier n'a été transmis | POST /api/inventaire/imports |
+| 4223 | erreur | Extension non admise, format accepté csv | POST /api/inventaire/imports |
+| 4224 | erreur | Le fichier dépasse la taille maximale de 20 Mo (413) | POST /api/inventaire/imports |
+| 4225 | erreur | Un seul fichier peut être déposé | POST /api/inventaire/imports |
 | 4226 | erreur | Fichier vide ou illisible, encodage UTF-8 attendu | POST /api/inventaire/imports |
 | 4227 | erreur | Colonnes obligatoires absentes : produit, reference, quantite (details.colonnes_manquantes) | POST /api/inventaire/imports |
-| 4228 | erreur | Aucune ligne exploitable, import en echec (422, import trace en echec, erreurs dans details) | POST /api/inventaire/imports |
-| 4229 | erreur | Societe introuvable | POST /api/inventaire/imports |
+| 4228 | erreur | Aucune ligne exploitable, import en échec (422, import trace en echec, erreurs dans details) | POST /api/inventaire/imports |
+| 4229 | erreur | Société introuvable | POST /api/inventaire/imports |
 | 4230 | erreur | Valeur de filtre invalide | GET /api/inventaire/releves |
 | 4231 | erreur | L'affectation est obligatoire | POST .../rapprocher |
 | 4232 | erreur | Affectation introuvable | POST .../rapprocher |
-| 4233 | erreur | Transition de statut non permise pour ce releve (409, details.statut_rapprochement) | POST .../rapprocher, ecart-assume, rejeter, reouvrir |
+| 4233 | erreur | Transition de statut non permise pour ce relevé (409, details.statut_rapprochement) | POST .../rapprocher, ecart-assume, rejeter, reouvrir |
 | 4234 | erreur | Le motif de rejet est obligatoire | POST .../rejeter |
-| 4235 | reserve | Fichier archive introuvable, contenu du releve indisponible. Non emis : la liste sert la ligne avec fichier_absent true | GET /api/inventaire/releves |
-| 4236 | erreur | Le fichier depasse le nombre maximal de lignes (10000) | POST /api/inventaire/imports |
-| 4250 | trace | Inventaire importe (audit_log INVENTAIRE_IMPORTE) | POST /api/inventaire/imports |
-| 4251 | trace | Releve rapproche (audit_log RELEVE_RAPPROCHE) | POST .../rapprocher |
-| 4252 | trace | Releve marque en ecart assume (audit_log RELEVE_ECART_ASSUME) | POST .../ecart-assume |
-| 4253 | trace | Releve rejete (audit_log RELEVE_REJETE) | POST .../rejeter |
-| 4254 | trace | Releve remis en attente (audit_log RELEVE_REOUVERT) | POST .../reouvrir |
+| 4235 | reserve | Fichier archivé introuvable, contenu du relevé indisponible. Non emis : la liste sert la ligne avec fichier_absent true | GET /api/inventaire/releves |
+| 4236 | erreur | Le fichier dépasse le nombre maximal de lignes (10000) | POST /api/inventaire/imports |
+| 4250 | trace | Inventaire importé (audit_log INVENTAIRE_IMPORTE) | POST /api/inventaire/imports |
+| 4251 | trace | Relevé rapproché (audit_log RELEVE_RAPPROCHE) | POST .../rapprocher |
+| 4252 | trace | Relevé marqué en écart assumé (audit_log RELEVE_ECART_ASSUME) | POST .../ecart-assume |
+| 4253 | trace | Relevé rejeté (audit_log RELEVE_REJETE) | POST .../rejeter |
+| 4254 | trace | Relevé remis en attente (audit_log RELEVE_REOUVERT) | POST .../reouvrir |
 | 4299 | erreur | Erreur serveur inattendue (module inventaire) | toutes |
 
 Transitions de statut (inventaire_raw.statut_rapprochement) :
@@ -703,36 +857,36 @@ touche jamais : pas de double previsionnel.
 
 | Code | Type | Libelle propose | Route |
 |------|------|-----------------|-------|
-| 5100 | succes | Liste des lignes budgetaires | GET /api/budget |
-| 5101 | succes | Detail de la ligne budgetaire | GET /api/budget/:id |
-| 5102 | succes | Ligne budgetaire creee | POST /api/budget (201) |
-| 5103 | succes | Ligne budgetaire modifiee | PATCH /api/budget/:id |
-| 5104 | succes | Ligne budgetaire supprimee | DELETE /api/budget/:id (200, data null) |
-| 5105 | succes | Projection previsionnelle preremplie depuis la maintenance en cours | GET /api/budget/preremplissage |
-| 5106 | succes | Engage calcule depuis les commandes | GET /api/budget/engage |
-| 5107 | succes | Synthese budgetaire : previsionnel, alloue, engage | GET /api/budget/synthese |
-| 5110 | erreur | Ligne budgetaire introuvable | GET/PATCH/DELETE /api/budget/:id (404) |
+| 5100 | succes | Liste des lignes budgétaires | GET /api/budget |
+| 5101 | succes | Détail de la ligne budgétaire | GET /api/budget/:id |
+| 5102 | succes | Ligne budgétaire créée | POST /api/budget (201) |
+| 5103 | succes | Ligne budgétaire modifiée | PATCH /api/budget/:id |
+| 5104 | succes | Ligne budgétaire supprimée | DELETE /api/budget/:id (200, data null) |
+| 5105 | succes | Projection prévisionnelle préremplie depuis la maintenance en cours | GET /api/budget/preremplissage |
+| 5106 | succes | Engagé calculé depuis les commandes | GET /api/budget/engage |
+| 5107 | succes | Synthèse budgétaire : prévisionnel, alloué, engagé | GET /api/budget/synthese |
+| 5110 | erreur | Ligne budgétaire introuvable | GET/PATCH/DELETE /api/budget/:id (404) |
 | 5111 | erreur | La licence est obligatoire | POST, PATCH /api/budget, GET /api/budget/preremplissage |
 | 5112 | erreur | Licence introuvable | POST, PATCH /api/budget (400), GET /api/budget/preremplissage (404) |
-| 5113 | erreur | Le type doit etre previsionnel ou alloue | POST, PATCH /api/budget, GET /api/budget?type= |
-| 5114 | erreur | La date de debut est obligatoire | POST, PATCH /api/budget |
+| 5113 | erreur | Le type doit être previsionnel ou alloue | POST, PATCH /api/budget, GET /api/budget?type= |
+| 5114 | erreur | La date de début est obligatoire | POST, PATCH /api/budget |
 | 5115 | erreur | La date de fin est obligatoire | POST, PATCH /api/budget |
-| 5116 | erreur | La date de fin doit etre posterieure ou egale a la date de debut | POST, PATCH /api/budget |
+| 5116 | erreur | La date de fin doit être postérieure ou égale à la date de début | POST, PATCH /api/budget |
 | 5117 | erreur | Date invalide | POST, PATCH /api/budget |
-| 5118 | erreur | Le montant CAPEX doit etre un montant positif ou nul | POST, PATCH /api/budget |
-| 5119 | erreur | La quantite CAPEX doit etre un nombre positif ou nul | POST, PATCH /api/budget |
-| 5120 | erreur | Le montant OPEX doit etre un montant positif ou nul | POST, PATCH /api/budget |
-| 5121 | erreur | La quantite OPEX doit etre un nombre positif ou nul | POST, PATCH /api/budget |
-| 5122 | erreur | Une ligne budgetaire porte au moins un montant, CAPEX ou OPEX | POST, PATCH /api/budget |
+| 5118 | erreur | Le montant CAPEX doit être un montant positif ou nul | POST, PATCH /api/budget |
+| 5119 | erreur | La quantité CAPEX doit être un nombre positif ou nul | POST, PATCH /api/budget |
+| 5120 | erreur | Le montant OPEX doit être un montant positif ou nul | POST, PATCH /api/budget |
+| 5121 | erreur | La quantité OPEX doit être un nombre positif ou nul | POST, PATCH /api/budget |
+| 5122 | erreur | Une ligne budgétaire porte au moins un montant, CAPEX ou OPEX | POST, PATCH /api/budget |
 | 5123 | erreur | Identifiant de filtre invalide | GET /api/budget, /engage, /synthese |
-| 5124 | erreur | L'exercice demande est invalide | GET /api/budget, /engage, /synthese, /preremplissage |
-| 5125 | erreur | La periode demandee est invalide | GET /api/budget, /engage, /synthese |
-| 5126 | erreur | Societe introuvable | GET /api/budget, /engage, /synthese (bornes d'exercice) |
+| 5124 | erreur | L'exercice demandé est invalide | GET /api/budget, /engage, /synthese, /preremplissage |
+| 5125 | erreur | La période demandée est invalide | GET /api/budget, /engage, /synthese |
+| 5126 | erreur | Société introuvable | GET /api/budget, /engage, /synthese (bornes d'exercice) |
 | 5130 | avertissement | Aucune maintenance en cours sur cette licence, projection vide | GET /api/budget/preremplissage (200, montant_opex 0, base vide) |
-| 5131 | avertissement | Licence sans commande, organisation payeuse indeterminee, exercice du tenant applique | GET /api/budget/preremplissage (200) |
-| 5150 | trace | Ligne budgetaire creee (audit_log BUDGET_CREE) | POST /api/budget |
-| 5151 | trace | Ligne budgetaire modifiee (audit_log BUDGET_MODIFIE) | PATCH /api/budget/:id |
-| 5152 | trace | Ligne budgetaire supprimee (audit_log BUDGET_SUPPRIME) | DELETE /api/budget/:id |
+| 5131 | avertissement | Licence sans commande, organisation payeuse indéterminée, exercice du tenant appliqué | GET /api/budget/preremplissage (200) |
+| 5150 | trace | Ligne budgétaire créée (audit_log BUDGET_CREE) | POST /api/budget |
+| 5151 | trace | Ligne budgétaire modifiée (audit_log BUDGET_MODIFIE) | PATCH /api/budget/:id |
+| 5152 | trace | Ligne budgétaire supprimée (audit_log BUDGET_SUPPRIME) | DELETE /api/budget/:id |
 | 5199 | erreur | Erreur serveur inattendue (module budget) | toutes |
 
 Regles v0.5 assumees :
@@ -780,47 +934,47 @@ par le circuit unique de la #53, avec ses propres codes 3300-3314.
 
 | Code | Type | Libelle | Emis par |
 |---|---|---|---|
-| 5200 | succes | Liste des editeurs | GET /api/editeurs |
-| 5201 | succes | Detail de l'editeur | GET /api/editeurs/:id |
-| 5202 | succes | Editeur cree | POST /api/editeurs |
-| 5203 | succes | Editeur modifie | PATCH /api/editeurs/:id |
-| 5204 | succes | Editeur supprime | DELETE /api/editeurs/:id |
-| 5205 | succes | Suggestions d'editeurs | GET /api/editeurs/recherche |
-| 5210 | erreur | Editeur introuvable | GET/PATCH/DELETE /api/editeurs/:id |
+| 5200 | succes | Liste des éditeurs | GET /api/editeurs |
+| 5201 | succes | Détail de l'éditeur | GET /api/editeurs/:id |
+| 5202 | succes | Éditeur créé | POST /api/editeurs |
+| 5203 | succes | Éditeur modifié | PATCH /api/editeurs/:id |
+| 5204 | succes | Éditeur supprimé | DELETE /api/editeurs/:id |
+| 5205 | succes | Suggestions d'éditeurs | GET /api/editeurs/recherche |
+| 5210 | erreur | Éditeur introuvable | GET/PATCH/DELETE /api/editeurs/:id |
 | 5211 | erreur | La raison sociale est obligatoire | POST, PATCH /api/editeurs |
-| 5212 | erreur | Un editeur porte deja cette raison sociale | POST, PATCH /api/editeurs |
-| 5213 | erreur | Suppression impossible : rattachements | DELETE /api/editeurs/:id |
-| 5290 | trace | Editeur cree | POST /api/editeurs |
-| 5291 | trace | Editeur modifie | PATCH /api/editeurs/:id |
-| 5292 | trace | Editeur supprime | DELETE /api/editeurs/:id |
-| 5299 | erreur | Erreur serveur inattendue (referentiel editeurs) | toutes |
+| 5212 | erreur | Un éditeur porte déjà cette raison sociale | POST, PATCH /api/editeurs |
+| 5213 | erreur | Suppression impossible : cet éditeur porte des rattachements | DELETE /api/editeurs/:id |
+| 5290 | trace | Éditeur créé | POST /api/editeurs |
+| 5291 | trace | Éditeur modifié | PATCH /api/editeurs/:id |
+| 5292 | trace | Éditeur supprimé | DELETE /api/editeurs/:id |
+| 5299 | erreur | Erreur serveur inattendue (référentiel éditeurs) | toutes |
 | 5300 | succes | Liste des logiciels | GET /api/logiciels |
-| 5301 | succes | Detail du logiciel | GET /api/logiciels/:id |
-| 5302 | succes | Logiciel cree | POST /api/logiciels |
-| 5303 | succes | Logiciel modifie | PATCH /api/logiciels/:id |
-| 5304 | succes | Logiciel supprime | DELETE /api/logiciels/:id |
-| 5305 | succes | Version ajoutee | POST /api/logiciels/:id/versions |
-| 5306 | succes | Version supprimee | DELETE /api/logiciels/:id/versions/:idDecl |
-| 5307 | succes | Edition ajoutee | POST /api/logiciels/:id/editions |
-| 5308 | succes | Edition supprimee | DELETE /api/logiciels/:id/editions/:idDecl |
+| 5301 | succes | Détail du logiciel | GET /api/logiciels/:id |
+| 5302 | succes | Logiciel créé | POST /api/logiciels |
+| 5303 | succes | Logiciel modifié | PATCH /api/logiciels/:id |
+| 5304 | succes | Logiciel supprimé | DELETE /api/logiciels/:id |
+| 5305 | succes | Version ajoutée | POST /api/logiciels/:id/versions |
+| 5306 | succes | Version supprimée | DELETE /api/logiciels/:id/versions/:idDecl |
+| 5307 | succes | Édition ajoutée | POST /api/logiciels/:id/editions |
+| 5308 | succes | Édition supprimée | DELETE /api/logiciels/:id/editions/:idDecl |
 | 5310 | erreur | Logiciel introuvable | GET/PATCH/DELETE /api/logiciels/:id |
-| 5311 | erreur | Le libelle est obligatoire | POST, PATCH /api/logiciels |
-| 5312 | erreur | Editeur introuvable | POST, PATCH /api/logiciels |
+| 5311 | erreur | Le libellé est obligatoire | POST, PATCH /api/logiciels |
+| 5312 | erreur | Éditeur introuvable | POST, PATCH /api/logiciels |
 | 5313 | erreur | Produit parent introuvable | POST, PATCH /api/logiciels |
-| 5314 | erreur | Un produit ne peut pas etre son propre parent | PATCH /api/logiciels/:id |
-| 5315 | erreur | Ce rattachement fermerait une boucle | PATCH /api/logiciels/:id |
+| 5314 | erreur | Un produit ne peut pas être son propre parent | PATCH /api/logiciels/:id |
+| 5315 | erreur | Ce rattachement fermerait une boucle dans la hiérarchie | PATCH /api/logiciels/:id |
 | 5316 | erreur | Le catalogue commun n'est pas modifiable | PATCH/DELETE et declinaisons |
 | 5317 | erreur | Suppression impossible : rattachements | DELETE /api/logiciels/:id |
-| 5318 | erreur | Le libelle de la version est obligatoire | POST /api/logiciels/:id/versions |
-| 5319 | erreur | Cette version existe deja pour ce logiciel | POST /api/logiciels/:id/versions |
-| 5320 | erreur | Le libelle de l'edition est obligatoire | POST /api/logiciels/:id/editions |
-| 5321 | erreur | Cette edition existe deja pour ce logiciel | POST /api/logiciels/:id/editions |
+| 5318 | erreur | Le libellé de la version est obligatoire | POST /api/logiciels/:id/versions |
+| 5319 | erreur | Cette version existe déjà pour ce logiciel | POST /api/logiciels/:id/versions |
+| 5320 | erreur | Le libellé de l'édition est obligatoire | POST /api/logiciels/:id/editions |
+| 5321 | erreur | Cette édition existe déjà pour ce logiciel | POST /api/logiciels/:id/editions |
 | 5322 | erreur | Version introuvable | DELETE /api/logiciels/:id/versions/:idDecl |
-| 5323 | erreur | Edition introuvable | DELETE /api/logiciels/:id/editions/:idDecl |
-| 5330 | trace | Logiciel cree | POST /api/logiciels |
-| 5331 | trace | Logiciel modifie | PATCH /api/logiciels/:id |
-| 5332 | trace | Logiciel supprime | DELETE /api/logiciels/:id |
-| 5399 | erreur | Erreur serveur inattendue (referentiel logiciels) | toutes |
+| 5323 | erreur | Édition introuvable | DELETE /api/logiciels/:id/editions/:idDecl |
+| 5330 | trace | Logiciel créé | POST /api/logiciels |
+| 5331 | trace | Logiciel modifié | PATCH /api/logiciels/:id |
+| 5332 | trace | Logiciel supprimé | DELETE /api/logiciels/:id |
+| 5399 | erreur | Erreur serveur inattendue (référentiel logiciels) | toutes |
 
 Points de lecture :
 
@@ -890,25 +1044,25 @@ nouvelle.
 | Code | Type | Libelle | Emis par |
 |---|---|---|---|
 | 5220 | succes | Liste des revendeurs | GET /api/revendeurs |
-| 5221 | succes | Detail du revendeur | GET /api/revendeurs/:id |
-| 5222 | succes | Revendeur cree | POST /api/revendeurs |
-| 5223 | succes | Revendeur modifie | PATCH /api/revendeurs/:id |
-| 5224 | succes | Revendeur desactive | POST /api/revendeurs/:id/desactiver |
-| 5225 | succes | Revendeur reactive | POST /api/revendeurs/:id/reactiver |
+| 5221 | succes | Détail du revendeur | GET /api/revendeurs/:id |
+| 5222 | succes | Revendeur créé | POST /api/revendeurs |
+| 5223 | succes | Revendeur modifié | PATCH /api/revendeurs/:id |
+| 5224 | succes | Revendeur désactivé | POST /api/revendeurs/:id/desactiver |
+| 5225 | succes | Revendeur réactivé | POST /api/revendeurs/:id/reactiver |
 | 5226 | succes | Suggestions de revendeurs | GET /api/revendeurs/recherche |
 | 5227 | erreur | Revendeur introuvable | GET/PATCH /api/revendeurs/:id, changements d'etat |
 | 5228 | erreur | La raison sociale est obligatoire | POST, PATCH /api/revendeurs |
 | 5229 | erreur | Le SIRET doit contenir 14 chiffres | POST, PATCH /api/revendeurs |
-| 5230 | erreur | Un revendeur porte deja ce SIRET | POST, PATCH /api/revendeurs |
-| 5231 | erreur | Un revendeur au nom tres proche existe deja | POST, PATCH /api/revendeurs |
+| 5230 | erreur | Un revendeur porte déjà ce SIRET | POST, PATCH /api/revendeurs |
+| 5231 | erreur | Un revendeur au nom très proche existe déjà | POST, PATCH /api/revendeurs |
 | 5232 | erreur | IBAN invalide | POST, PATCH /api/revendeurs |
 | 5233 | erreur | Adresse email invalide | POST, PATCH /api/revendeurs |
-| 5234 | erreur | Ce revendeur est deja desactive | POST /api/revendeurs/:id/desactiver |
-| 5235 | erreur | Ce revendeur est deja actif | POST /api/revendeurs/:id/reactiver |
-| 5236 | erreur | Erreur serveur inattendue (referentiel revendeurs) | toutes |
-| 5237 | trace | Revendeur cree | POST /api/revendeurs |
-| 5238 | trace | Revendeur modifie | PATCH /api/revendeurs/:id |
-| 5239 | trace | Statut du revendeur modifie | POST /api/revendeurs/:id/desactiver et /reactiver |
+| 5234 | erreur | Ce revendeur est déjà désactivé | POST /api/revendeurs/:id/desactiver |
+| 5235 | erreur | Ce revendeur est déjà actif | POST /api/revendeurs/:id/reactiver |
+| 5236 | erreur | Erreur serveur inattendue (référentiel revendeurs) | toutes |
+| 5237 | trace | Revendeur créé | POST /api/revendeurs |
+| 5238 | trace | Revendeur modifié | PATCH /api/revendeurs/:id |
+| 5239 | trace | Statut du revendeur modifié | POST /api/revendeurs/:id/desactiver et /reactiver |
 
 Points de lecture :
 
@@ -958,25 +1112,25 @@ manager_dsi dans la matrice 011/021). Aucune permission nouvelle.
 | Code | Type | Libelle | Emis par |
 |---|---|---|---|
 | 5240 | succes | Liste des contacts | GET /api/contacts |
-| 5241 | succes | Detail du contact | GET /api/contacts/:id |
-| 5242 | succes | Contact cree | POST /api/contacts (201) |
-| 5243 | succes | Contact modifie | PATCH /api/contacts/:id |
-| 5244 | succes | Contact supprime | DELETE /api/contacts/:id (200, data null) |
+| 5241 | succes | Détail du contact | GET /api/contacts/:id |
+| 5242 | succes | Contact créé | POST /api/contacts (201) |
+| 5243 | succes | Contact modifié | PATCH /api/contacts/:id |
+| 5244 | succes | Contact supprimé | DELETE /api/contacts/:id (200, data null) |
 | 5245 | succes | Suggestions de contacts | GET /api/contacts/recherche |
 | 5246 | succes | Liste des fonctions | GET /api/fonctions |
 | 5247 | erreur | Contact introuvable | GET/PATCH/DELETE /api/contacts/:id (404) |
 | 5248 | erreur | Le nom est obligatoire | POST, PATCH /api/contacts |
-| 5249 | erreur | Saisie invalide (message surcharge : adresse email ou telephone) | POST, PATCH /api/contacts |
+| 5249 | erreur | Saisie invalide (message surchargé : adresse email ou téléphone) | POST, PATCH /api/contacts |
 | 5250 | erreur | Fonction introuvable | POST, PATCH /api/contacts |
-| 5251 | erreur | Rattachement introuvable (message surcharge : societe, editeur ou revendeur) | POST, PATCH /api/contacts |
+| 5251 | erreur | Rattachement introuvable (message surchargé : société, éditeur ou revendeur) | POST, PATCH /api/contacts |
 | 5252 | erreur | Un contact porte au plus un rattachement | POST, PATCH /api/contacts |
-| 5253 | erreur | Dates invalides (message surcharge : format, ou fin anterieure au debut) | POST, PATCH /api/contacts |
-| 5254 | erreur | Un contact porte deja cette adresse email | POST, PATCH /api/contacts (409, details.existant) |
-| 5255 | erreur | Un contact au nom tres proche existe deja | POST, PATCH /api/contacts (409, details.existant) |
-| 5256 | erreur | Erreur serveur inattendue (referentiel contacts) | toutes |
-| 5257 | trace | Contact cree (audit_log CONTACT_CREE) | POST /api/contacts |
-| 5258 | trace | Contact modifie (audit_log CONTACT_MODIFIE) | PATCH /api/contacts/:id |
-| 5259 | trace | Contact supprime (audit_log CONTACT_SUPPRIME) | DELETE /api/contacts/:id |
+| 5253 | erreur | Dates invalides (message surchargé : format, ou fin antérieure au début) | POST, PATCH /api/contacts |
+| 5254 | erreur | Un contact porte déjà cette adresse email | POST, PATCH /api/contacts (409, details.existant) |
+| 5255 | erreur | Un contact au nom très proche existe déjà | POST, PATCH /api/contacts (409, details.existant) |
+| 5256 | erreur | Erreur serveur inattendue (référentiel contacts) | toutes |
+| 5257 | trace | Contact créé (audit_log CONTACT_CREE) | POST /api/contacts |
+| 5258 | trace | Contact modifié (audit_log CONTACT_MODIFIE) | PATCH /api/contacts/:id |
+| 5259 | trace | Contact supprimé (audit_log CONTACT_SUPPRIME) | DELETE /api/contacts/:id |
 
 Points de lecture :
 
@@ -1025,19 +1179,19 @@ nouvelle.
 |---|---|---|---|
 | 5500 | succes | Liste des notifications | GET /api/notifications (filtre `lu`, `page`, `limite`) |
 | 5501 | succes | Compteur des notifications non lues | GET /api/notifications/compteur |
-| 5502 | succes | Notification marquee comme lue | PATCH /api/notifications/:id/lu |
-| 5503 | succes | Toutes les notifications ont ete marquees comme lues | POST /api/notifications/tout-lu |
-| 5504 | succes | Preferences de notification | GET /api/notifications/preferences |
-| 5505 | succes | Preferences de notification enregistrees | PUT /api/notifications/preferences |
-| 5506 | succes | Traitement planifie des notifications execute | POST /api/notifications/executer-planification |
+| 5502 | succes | Notification marquée comme lue | PATCH /api/notifications/:id/lu |
+| 5503 | succes | Toutes les notifications ont été marquées comme lues | POST /api/notifications/tout-lu |
+| 5504 | succes | Préférences de notification | GET /api/notifications/preferences |
+| 5505 | succes | Préférences de notification enregistrées | PUT /api/notifications/preferences |
+| 5506 | succes | Traitement planifié des notifications exécuté | POST /api/notifications/executer-planification |
 | 5510 | erreur | Notification introuvable | PATCH /api/notifications/:id/lu (404, y compris celle d'un autre utilisateur) |
 | 5511 | erreur | Identifiant de notification invalide | PATCH /api/notifications/:id/lu (400) |
 | 5512 | erreur | Le filtre lu doit valoir true ou false | GET /api/notifications |
 | 5513 | erreur | Pagination invalide | GET /api/notifications (`page` >= 1, `limite` de 1 a 200) |
 | 5514 | erreur | Type de notification inconnu | PUT /api/notifications/preferences (`details.type`) |
-| 5515 | erreur | Le reglage du courrier doit valoir immediat, quotidien ou desactive | PUT /api/notifications/preferences |
-| 5516 | erreur | Un traitement planifie est deja en cours | POST /api/notifications/executer-planification (409) |
-| 5517 | erreur | Les preferences doivent etre transmises sous forme de liste | PUT /api/notifications/preferences |
+| 5515 | erreur | Le réglage du courrier doit valoir immediat, quotidien ou desactive | PUT /api/notifications/preferences |
+| 5516 | erreur | Un traitement planifié est déjà en cours | POST /api/notifications/executer-planification (409) |
+| 5517 | erreur | Les préférences doivent être transmises sous forme de liste | PUT /api/notifications/preferences |
 | 5549 | erreur | Erreur serveur inattendue (module notifications) | toutes |
 
 Points de lecture :

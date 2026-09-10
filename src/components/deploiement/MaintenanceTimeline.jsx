@@ -50,6 +50,7 @@ export default function MaintenanceTimeline({ periodes, licence, canWrite, onEdi
               <p className="text-xs text-gray-500">
                 Du {p.date_debut} au {p.date_fin ?? 'en cours'} - {formatMontant(p.cout, p.montants_masques)}
                 {p.revendeur_label ? ` - via ${p.revendeur_label}` : ''}
+                {p.id_version ? ` - version ${p.version_label ?? 'inconnue'}` : ''}
               </p>
             </div>
             {canWrite && (

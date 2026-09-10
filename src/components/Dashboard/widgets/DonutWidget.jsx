@@ -103,14 +103,12 @@ export function ValorisationLicencesWidget() {
     'conformite:', () => conformiteService.list({}));
 
   // Écart valorisé positif = droits payés au-delà de l'usage déclaré,
-  // agrège par éditeur pour les segments du donut.
+  // agrège par éditeur pour les segments du donut. D54 : l'écart se lit en
+  // relatif à la valorisation du parc observé (agregats.valorisation_parc,
+  // pourcentage servi par l'API), jamais en absolu seul ni rapporté aux
+  // quantités.
   const parEditeur = new Map();
-  let totalDroits = 0;
-  let ecartQuantite = 0;
   for (const l of data?.lignes ?? []) {
-    totalDroits += l.droits_total ?? 0;
-    const ecart = (l.droits_total ?? 0) - (l.usages_total ?? 0);
-    if (ecart > 0) ecartQuantite += ecart;
     const valorise = l.ecart_valorise ?? 0;
     if (valorise > 0) {
       const cle = l.editeur_label ?? 'Sans éditeur';
@@ -120,16 +118,18 @@ export function ValorisationLicencesWidget() {
   const segments = [...parEditeur.entries()]
     .map(([name, value], i) => ({ name, value: Math.round(value * 100) / 100, color: couleurSerie(i) }))
     .sort((a, b) => b.value - a.value);
-  const total = data?.agregats?.ecart_valorise_positif
-    ?? segments.reduce((t, s) => t + s.value, 0);
-  const pct = totalDroits > 0 ? (ecartQuantite / totalDroits) * 100 : null;
+  const ag = data?.agregats;
+  const total = ag?.ecart_valorise_positif ?? segments.reduce((t, s) => t + s.value, 0);
+  const parc = ag?.valorisation_parc ?? null;
+  const pct = ag?.ecart_valorise_positif_pct
+    ?? (parc > 0 ? (total / parc) * 100 : null);
   const color = couleurSeuil(pct, seuils);
 
   return (
     <CadreWidget
       widgetId="valorisation-licences"
       titre="Valorisation licences non utilisées"
-      info={"Valeur des droits acquis au-delà de l'usage déclaré (écart valorisé positif), répartie par éditeur. Le pourcentage rapporte les quantités non utilisées au parc détenu, coloré selon les seuils configurés."}
+      info={"Valeur des droits acquis au-delà de l'usage déclaré (écart valorisé positif, au prix unitaire de la dernière commande de chaque produit), répartie par éditeur. Le pourcentage rapporte cet écart à la valorisation totale du parc observé (coût des licences actives du périmètre), coloré selon les seuils configurés."}
       derniereMaj={data?.agregats?.derniere_maj}
       chargement={chargement} erreur={erreur} onRelancer={relancer}
       vide={!chargement && !erreur && segments.length === 0}
@@ -156,9 +156,14 @@ export function ValorisationLicencesWidget() {
             {Number(total).toLocaleString('fr-FR')} €
           </div>
           <div style={{ fontSize: 9, color, fontWeight: 700, marginTop: 2 }}>
-            {pct == null ? '' : `${pct.toFixed(1)}% non utilisées`}
+            {pct == null ? '' : `${pct.toFixed(1)} % du parc observé`}
           </div>
         </div>
+      </div>
+      <div style={{ fontSize: 11, color: '#8B9099', lineHeight: 1.4 }}>
+        {pct == null
+          ? `Écart de ${Number(total).toLocaleString('fr-FR')} €, parc observé non valorisé.`
+          : `Écart de ${Number(total).toLocaleString('fr-FR')} €, soit ${pct.toFixed(1)} % du parc observé (${Number(parc).toLocaleString('fr-FR')} €).`}
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 8px' }}>
         {segments.slice(0, 6).map((seg, i) => (

@@ -22,6 +22,7 @@ import { jointureRevalidation } from "../revalidation.js";
 import { PALIER_SOUSCRIPTION, SEUIL_BUDGET_DEFAUT } from "./catalogue.js";
 import {
   cleEvenement, paliersDepuisSeuils, palierAtteint, prochaineOccurrence, heurePassee, dateParis,
+  echeanceNotifiable,
 } from "./regles.js";
 import { creerNotification, nouveauContexte, libellesProduits, tracer } from "./moteur.js";
 import { envoyerImmediats, envoyerRecapitulatifs } from "./courriers.js";
@@ -61,13 +62,16 @@ async function seuilBudget() {
 
 // 1. Echeances de contrats : contrats actifs (non archives, commences), un
 //    palier a la fois (le plus serre atteint), cle par contrat et palier.
+//    Continuite (D35) : un contrat renouvele par un successeur
+//    (id_contrat_predecesseur, migration 056) n'est plus notifie.
 export async function detecterEcheancesContrats(contexte) {
   const paliers = paliersDepuisSeuils(await seuilsWidget("echeances-contrats"));
   const horizon = Math.max(...paliers);
   const { rows } = await tenantPool.query(
     `SELECT c.id, c.label, c.date_fin::text AS date_fin,
             (c.date_fin - CURRENT_DATE)::int AS jours_restants,
-            c.id_societe, s.raison_sociale AS societe_label
+            c.id_societe, s.raison_sociale AS societe_label,
+            (SELECT count(*) FROM contrat sx WHERE sx.id_contrat_predecesseur = c.id)::int AS nb_successeurs
        FROM contrat c
        LEFT JOIN societe s ON s.id = c.id_societe
       WHERE c.archive = false
@@ -78,6 +82,7 @@ export async function detecterEcheancesContrats(contexte) {
     [horizon]);
   let crees = 0;
   for (const c of rows) {
+    if (!echeanceNotifiable(c.nb_successeurs)) continue;
     const palier = palierAtteint(c.jours_restants, paliers);
     if (palier === null) continue;
     const r = await creerNotification(null, {
@@ -96,12 +101,15 @@ export async function detecterEcheancesContrats(contexte) {
 }
 
 // 2. Echeances de souscriptions : 30 jours avant la fin, un seul palier.
+//    Continuite (D35) : une licence renouvelee par un successeur
+//    (id_licence_predecesseur, migration 056) n'est plus notifiee.
 export async function detecterEcheancesSouscriptions(contexte) {
   const { rows } = await tenantPool.query(
     `SELECT l.id, l.label, l.id_produit, l.quantite,
             l.date_fin_souscription::text AS date_fin,
             (l.date_fin_souscription - CURRENT_DATE)::int AS jours_restants,
-            c.id_societe, s.raison_sociale AS societe_label
+            c.id_societe, s.raison_sociale AS societe_label,
+            (SELECT count(*) FROM licence sx WHERE sx.id_licence_predecesseur = l.id)::int AS nb_successeurs
        FROM licence l
        LEFT JOIN commande c ON c.id = l.id_commande
        LEFT JOIN societe  s ON s.id = c.id_societe
@@ -113,6 +121,7 @@ export async function detecterEcheancesSouscriptions(contexte) {
   const produits = await libellesProduits(rows.map((r) => r.id_produit));
   let crees = 0;
   for (const l of rows) {
+    if (!echeanceNotifiable(l.nb_successeurs)) continue;
     const p = produits.get(l.id_produit);
     const r = await creerNotification(null, {
       type: "echeance_souscription",
