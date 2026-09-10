@@ -93,6 +93,13 @@ export default function PreuveFormModal({
   const rattachement = RATTACHEMENTS.find(r => r.code === form.rattachement) ?? RATTACHEMENTS[0];
   const idRattache = form[rattachement.champ];
 
+  // Complément #99 : la société de la commande, portée par la liste des
+  // commandes (societe_label de GET /commandes), est rappelée en lecture seule.
+  // Aucun champ nouveau : c'est une information, pas une saisie.
+  const commandeChoisie = form.rattachement === 'commande'
+    ? commandes.find(k => k.id === form.id_commande) ?? null
+    : null;
+
   // Le formulaire ne rejoue pas les règles du serveur, il empêche seulement
   // d'envoyer une requête vouée au refus. Les messages affichés en cas d'échec
   // restent ceux de l'API, mot pour mot.
@@ -192,6 +199,11 @@ export default function PreuveFormModal({
             </FormField>
           )}
         </div>
+        {commandeChoisie?.societe_label && (
+          <FormField label="Société de la commande" hint="Portée par la commande, non modifiable ici">
+            <input className={`${INPUT_CLS} bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-300`} value={commandeChoisie.societe_label} readOnly />
+          </FormField>
+        )}
         <FormField label="Type de preuve" required hint="Les types proposés dépendent de l'objet de rattachement">
           <select className={INPUT_CLS} value={form.id_type_preuve}
             onChange={e => setForm(v => ({ ...v, id_type_preuve: e.target.value }))}>
