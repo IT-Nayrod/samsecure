@@ -471,17 +471,49 @@ du module licences.
 | 4313 | erreur | Le niveau demandé doit être global, editeur ou societe | GET /api/conformite/synthese |
 | 4399 | erreur | Erreur serveur inattendue (module conformité) | toutes |
 
-Regles #116 (validees) : droits = quantites des licences perpetuelles +
-souscriptions dont date de fin >= date du jour (sortie le jour meme, regle
-#102 conservee) ; usages = quantites des affectations dont la derniere entree
-du workflow est `valide` (le `a_revalider` de lecture en fait partie),
-`en_attente` et `refuse` exclus, sans deduplication par reference ; ecart =
-droits - usages ; `ecart_pct` = usages / droits x 100, borne a 999.99
-(colonne DECIMAL(5,2) du DDL v4) ; prix unitaire = somme des couts des
-licences actives / somme de leurs quantites ; ecart valorise = ecart x prix
-unitaire ; statut = `depassement` si usages > droits, `attention` si taux >=
-seuil, `conforme` sinon ; droits et usages nuls = produit non compte (ligne a
-zero, filtree). Seuils lus dans `seuil_dashboard` (tenant, echelle 1) puis
+Regles #116 (validees), revisees par les decisions du 10/09/2026 (#190,
+migration Tenant 058, `server/utils/conformite.js`) :
+- droits = quantites des licences perpetuelles + licences a echeance
+  (souscriptions et, D44 etendu, versions d'essai : constante
+  `TYPES_A_ECHEANCE`) dont date de fin >= date du jour (sortie le lendemain
+  de la date de fin, regle #102 conservee ; le code `version_essai` est celui
+  attendu du referentiel type_licence de la migration 055, la regle se
+  replie d'elle-meme sur les seules souscriptions tant qu'aucune licence ne
+  le porte) ;
+- usages = quantites des affectations dont la derniere entree du workflow
+  est `valide` (le `a_revalider` de lecture en fait partie), `en_attente` et
+  `refuse` exclus, sans deduplication par reference ;
+- ecart = droits - usages ;
+- D53 : `ecart_pct` = usages / droits x 100, borne a 999.99 (colonne
+  DECIMAL(5,2) du DDL v4), et null quand les droits sont nuls : aucun
+  pourcentage sans droit. La ligne porte `usage_sans_droit` (vrai avec des
+  usages et zero droit) ; le statut est alors `depassement` et une anomalie
+  qualite `usage_sans_droit` est ouverte par le trigger (une seule ouverte
+  par produit, entite `produit`, close automatiquement des que la situation
+  cesse) ;
+- D52 : prix unitaire = cout / quantite de la ligne de licence la plus
+  recente du produit sur le perimetre observe, par date de commande puis
+  par date de creation, parmi les lignes a cout renseigne et quantite > 0
+  (toutes lignes confondues, echues comprises : dernier prix paye), jamais
+  une moyenne ; null sans ligne exploitable ; ecart valorise = ecart x prix
+  unitaire ; un changement de `commande.date_commande` recalcule les
+  produits de ses licences (trigger 058) ;
+- statut = `depassement` si usages > droits, `attention` si taux >= seuil
+  ou ecart valorise negatif au-dela du seuil en montant, `conforme` sinon ;
+  droits et usages nuls = produit non compte (ligne a zero, filtree) ;
+- D54 : chaque bloc d'agregats (`agregats` de GET /conformite, lignes de la
+  synthese) porte `valorisation_parc` (somme des couts des licences actives
+  des produits du perimetre filtre), `ecart_valorise` (somme signee des
+  ecarts valorises), `ecart_valorise_negatif`, `ecart_valorise_positif` et
+  leurs pourcentages `ecart_valorise_pct`, `ecart_valorise_negatif_pct`,
+  `ecart_valorise_positif_pct` rapportes a `valorisation_parc` (null sans
+  parc valorise). L'ecart valorise se lit toujours en relatif au parc
+  observe, jamais en absolu seul. Chaque ligne porte `cout_actif` (cout des
+  licences actives du produit). Les montants (`valorisation_parc`,
+  `ecart_valorise*` hors pourcentages, `cout_actif`, `prix_unitaire`) sont
+  masques sans `consulter_kpi_financiers` ; les pourcentages et le statut
+  restent servis.
+Seuils lus dans `seuil_dashboard` (tenant, echelle 1) puis
 `default_seuil_dashboard` (Commune) : `conformite_taux` (90, pourcent) et
 `conformite_ecart_valorise` (10000, euros, seuil en montant sur l'ecart
 valorise negatif ; branche aujourd'hui couverte par le depassement, conservee
@@ -496,25 +528,45 @@ Plage 5400-5449, seedee par la migration Commune 047. Routeur
 GET /api/qualite (permission `consulter_inventaire`) : detection a la volee,
 sans precalcul, croisee avec `anomalie_qualite`. Types produits :
 `licence_sans_contrat`, `contrat_sans_justificatif`, `commande_sans_preuve`,
-`doublon_affectation`, `doublon_produit`, `champ_obligatoire_vide`. Une
-anomalie `resolu = true` (resolution ou faux positif, la table ne distingue
-pas) exclut l'element meme s'il est encore detecte ; une anomalie ouverte est
-servie sans doublon ; une detection nouvelle est inseree avec type, gravite et
+`doublon_affectation`, `doublon_produit`, `champ_obligatoire_vide` et, depuis
+le 10/09/2026 (D53, #190), `usage_sans_droit` (gravite `critique`, entite
+`produit`, produits du precalcul a usages validees et zero droit ; l'anomalie
+est ouverte par le trigger de la migration 058 et redetectee ici pour etre
+servie avec le libelle du produit, resolu en BDD Commune). Une anomalie
+`resolu = true` (resolution ou faux positif, la table ne distingue pas) exclut
+l'element meme s'il est encore detecte ; une anomalie ouverte est servie sans
+doublon ; une detection nouvelle est inseree avec type, gravite et
 description dans la transaction de la lecture. Les types des autres
 producteurs (`incoherence`, `hors_plage_parent`, `ligne_import`) ne sont pas
 reservis ici.
 
 GET /api/confiance (permission `consulter_licences`) : note sur 100 par
-perimetre (tenant, ou societe par `id_societe`), ponderee par la valeur (cout
-des licences actives ; societe payeuse via la commande pour les licences,
-societe declarante pour les affectations). Exhaustivite (poids 40) : 4 liens
-par licence active (commande, facture ou preuve, contrat, societe
-signataire). Coherence (poids 30) : valeur des licences sans anomalie ouverte
-sur la licence ou sa chaine (commande, contrat), un objet multi-anomalies
-compte une fois. Fraicheur (poids 30) : valeur des affectations validees a
-echeance de revalidation non depassee. Un perimetre sans valeur ponderable
-rend des notes a 100, objets concernes listes dans les malus a zero point.
-`valeur_totale` est masquee sans `consulter_kpi_financiers`.
+perimetre (tenant, ou societe par `id_societe`), formule revisee le
+10/09/2026 (#190, `server/utils/indiceConfiance.js`, testee au node:test) :
+- poids d'un objet = max(sa valeur, plancher), plancher = max(1, 1 pour cent
+  de la valeur totale des licences actives du perimetre). Un objet non
+  valorise pese donc toujours une part plancher : aucun perimetre ne peut
+  afficher 100 avec un defaut ouvert (une composante porteuse d'un defaut et
+  l'indice lui-meme sont bornes a 99,9 apres arrondi) ;
+- exhaustivite (poids 40) : 4 liens par licence active (commande, facture ou
+  preuve, contrat, societe signataire), note = somme(poids x liens presents
+  / 4) / somme(poids) x 100 ;
+- coherence (poids 30) : objets = licences actives + tout autre objet
+  porteur d'une anomalie ouverte, toutes anomalies confondues : stock
+  `anomalie_qualite` (tous producteurs) et detections a la volee de /qualite
+  (lues sans ecriture), y compris sur des objets sans licence reliee. Une
+  anomalie sur une licence, sa commande ou son contrat marque la licence ;
+  toute autre anomalie designe un objet propre pese une fois quel que soit
+  le nombre d'anomalies qui le visent ; note = somme(poids des objets sains)
+  / somme(poids) x 100. Sur une societe, seules comptent les anomalies
+  portees par ses contrats, commandes, licences payees, affectations
+  declarees et produits sur lesquels elle declare des usages ;
+- fraicheur (poids 30) : somme(poids des affectations validees a echeance
+  de revalidation non depassee) / somme(poids des affectations) x 100 ;
+- indice = 0,4 x exhaustivite + 0,3 x coherence + 0,3 x fraicheur.
+La reponse porte `plancher`, `nb_objets_anomalie` et les malus par
+composante (`entite_type` par type d'objet). `valeur_totale` est masquee sans
+`consulter_kpi_financiers`.
 
 | Code | Type | Libelle propose | Route |
 |------|------|-----------------|-------|
