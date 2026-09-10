@@ -13,6 +13,16 @@
 //
 // produit, édition et version vivent en BDD Commune : aucune jointure SQL
 // possible, les libellés sont résolus ici après lecture (resoudreCatalogue).
+//
+// Stories #209 et #210 (migrations 055 et 056) : le type de licence est un
+// référentiel (type_licence, sept valeurs) qui porte la règle de chaque date
+// (obligatoire, facultative, masquée) et dit si la version est gérée (D58 :
+// pas de version sur les souscriptions). Sur les types à version, la version
+// courante suit la période de maintenance la plus récente tant que la
+// maintenance n'est pas arrêtée (D59) ; chaque changement de version est
+// écrit dans licence_version_historique (D60), jamais reconstitué. Le lien de
+// succession (id_licence_predecesseur, D35) est saisi sur la licence qui
+// renouvelle : une licence qui a un successeur ne déclenche plus d'alerte.
 import express from "express";
 import { tenantPool, commonPool } from "../db.js";
 import { succes, erreur, erreurPivot } from "../utils/reponse.js";
@@ -39,20 +49,30 @@ async function log(client, req, action, entite_type, entite_id, description, pay
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-const TYPES = ["perpetuelle", "souscription"];
 
-// Souscription échue : le jour même de sa date de fin, sans tolérance
-// (hypothèse v0.5 assumée). Une perpétuelle n'expire jamais. Une souscription
-// sans date de fin (donnée antérieure à la validation) reste active.
-const EXPIREE = `(l.type = 'souscription' AND l.date_fin_souscription IS NOT NULL
-                  AND l.date_fin_souscription < CURRENT_DATE)`;
+// Référentiel des types (migration 055) : code, libellé, règle de chaque date
+// et gestion de la version. Lu à chaque validation, jamais codé en dur : le
+// client peut durcir une règle par une mise à jour de la table.
+async function lireTypeLicence(client, code) {
+  if (!code || typeof code !== "string") return null;
+  const { rows } = await client.query(
+    `SELECT code, label, regle_date_debut, regle_date_fin, version_geree, actif
+       FROM type_licence WHERE code = $1`, [code]);
+  return rows[0] ?? null;
+}
+
+// Licence échue : le jour même de sa date de fin, sans tolérance (hypothèse
+// v0.5 assumée). Seuls les types dont la règle de dates prévoit une fin
+// (souscription, essai) en portent une, coherer() efface les autres : une
+// licence sans date de fin n'expire jamais.
+const EXPIREE = `(l.date_fin_souscription IS NOT NULL AND l.date_fin_souscription < CURRENT_DATE)`;
 
 // Statut d'échéance : même vocabulaire que contrats et commandes, pour que
 // StatutEcheanceBadge serve les trois écrans. Source unique, jamais recalculé
 // côté front.
 const STATUT_ECHEANCE = `
   CASE
-    WHEN l.type = 'perpetuelle' OR l.date_fin_souscription IS NULL          THEN 'perpetuel'
+    WHEN l.date_fin_souscription IS NULL                                      THEN 'perpetuel'
     WHEN l.date_fin_souscription < CURRENT_DATE                               THEN 'expire'
     WHEN l.date_fin_souscription <= CURRENT_DATE + INTERVAL '90 days'         THEN 'a_renouveler'
     ELSE 'actif'
@@ -94,14 +114,18 @@ const SELECT_LICENCE = `
          l.id_unite_mesure, um.code AS unite_code, um.label AS unite_label,
          l.id_mainteneur,   m.raison_sociale AS mainteneur_label,
          l.quantite, l.type,
+         tl.label AS type_label, tl.regle_date_debut, tl.regle_date_fin, tl.version_geree,
          l.cout_licence::float8 AS cout_licence,
+         l.date_debut::text             AS date_debut,
          l.date_fin_souscription::text  AS date_fin_souscription,
          l.a_maintenance,
          l.date_arret_maintenance::text AS date_arret_maintenance,
          l.date_fin_maintenance::text   AS date_fin_maintenance,
+         l.id_licence_predecesseur, pred.label AS predecesseur_label, pred.id_produit AS predecesseur_id_produit,
+         (SELECT count(*) FROM licence sx WHERE sx.id_licence_predecesseur = l.id)::int AS nb_successeurs,
          l.created_at,
          ${STATUT_ECHEANCE},
-         CASE WHEN l.type = 'perpetuelle' OR l.date_fin_souscription IS NULL THEN NULL
+         CASE WHEN l.date_fin_souscription IS NULL THEN NULL
               ELSE (l.date_fin_souscription - CURRENT_DATE) END AS jours_restants,
          NOT ${EXPIREE} AS droits_actifs,
          ${STATUT_MAINTENANCE},
@@ -120,6 +144,8 @@ const SELECT_LICENCE = `
   LEFT JOIN revendeur    r  ON r.id  = l.id_revendeur
   LEFT JOIN unite_mesure um ON um.id = l.id_unite_mesure
   LEFT JOIN mainteneur   m  ON m.id  = l.id_mainteneur
+  LEFT JOIN type_licence tl ON tl.code = l.type
+  LEFT JOIN licence      pred ON pred.id = l.id_licence_predecesseur
   LEFT JOIN usage_licence ul ON ul.id_licence = l.id
   LEFT JOIN balance      b  ON b.id_produit = l.id_produit`;
 
@@ -127,6 +153,7 @@ const SELECT_MAINTENANCE = `
   SELECT h.id, h.id_licence,
          h.id_mainteneur, m.raison_sociale AS mainteneur_label,
          h.id_revendeur,  r.raison_sociale AS revendeur_label,
+         h.id_version,
          h.date_debut::text AS date_debut,
          h.date_fin::text   AS date_fin,
          h.cout::float8     AS cout,
@@ -142,9 +169,45 @@ const SELECT_MAINTENANCE = `
 
 const CHAMPS = [
   "label", "id_produit", "id_edition", "id_version", "id_commande", "id_revendeur",
-  "id_unite_mesure", "quantite", "type", "cout_licence", "date_fin_souscription",
-  "a_maintenance", "id_mainteneur", "date_fin_maintenance",
+  "id_unite_mesure", "quantite", "type", "cout_licence", "date_debut", "date_fin_souscription",
+  "a_maintenance", "id_mainteneur", "date_fin_maintenance", "id_licence_predecesseur",
 ];
+
+// Historique des versions (D60) : libellés des versions résolus depuis la
+// BDD Commune, une requête pour toutes les lignes.
+const SELECT_VERSIONS = `
+  SELECT v.id, v.id_licence, v.id_version_avant, v.id_version_apres, v.evenement,
+         v.id_maintenance, v.date_effet::text AS date_effet, v.id_auteur,
+         u.prenom AS auteur_prenom, u.nom AS auteur_nom,
+         v.created_at
+    FROM licence_version_historique v
+    LEFT JOIN utilisateur u ON u.id = v.id_auteur`;
+
+async function resoudreVersions(rows, cles) {
+  if (!rows.length) return rows;
+  const ids = [...new Set(rows.flatMap((r) => cles.map((k) => r[k])).filter(Boolean))];
+  const labels = new Map();
+  if (ids.length) {
+    const { rows: v } = await commonPool.query(`SELECT id, label FROM version WHERE id = ANY($1)`, [ids]);
+    for (const x of v) labels.set(x.id, x.label);
+  }
+  return rows.map((r) => {
+    const out = { ...r };
+    for (const k of cles) out[`${k.replace(/^id_/, "")}_label`] = r[k] ? labels.get(r[k]) ?? null : null;
+    return out;
+  });
+}
+
+// Une ligne d'historique par changement effectif de version, dans la
+// transaction du changement. Aucune ligne si la version ne bouge pas.
+async function journaliserVersion(client, req, { idLicence, avant, apres, evenement, idMaintenance = null, dateEffet = null, force = false }) {
+  if (!force && (avant ?? null) === (apres ?? null)) return;
+  await client.query(
+    `INSERT INTO licence_version_historique
+       (id_licence, id_version_avant, id_version_apres, evenement, id_maintenance, date_effet, id_auteur)
+     VALUES ($1, $2, $3, $4, $5, COALESCE($6::date, CURRENT_DATE), $7)`,
+    [idLicence, avant ?? null, apres ?? null, evenement, idMaintenance, dateEffet, req?.user?.id || null]);
+}
 
 // ---------------------------------------------------------------------------
 // Résolution du catalogue (BDD Commune) et masquage des montants
@@ -262,10 +325,12 @@ function normaliserCorps(body = {}) {
     quantite: nombre(body.quantite),
     type: vide(body.type),
     cout_licence: nombre(body.cout_licence),
+    date_debut: vide(body.date_debut),
     date_fin_souscription: vide(body.date_fin_souscription),
     a_maintenance: body.a_maintenance === true,
     id_mainteneur: vide(body.id_mainteneur),
     date_fin_maintenance: vide(body.date_fin_maintenance),
+    id_licence_predecesseur: vide(body.id_licence_predecesseur),
   };
 }
 
@@ -274,8 +339,15 @@ function normaliserCorps(body = {}) {
 // introuvable.
 const uuidValide = (v) => !v || UUID_RE.test(v);
 
-async function validerLicence(client, corps) {
+// Le type est validé en premier : sa règle (dates, version) pilote le reste.
+// typeInitial : type déjà porté par la licence (PATCH), accepté même si la
+// valeur n'est plus proposée à la saisie (type_licence.actif = false).
+async function validerLicence(client, corps, { typeInitial = null, idLicence = null } = {}) {
   const c = corps;
+  const regle = await lireTypeLicence(client, c.type);
+  if (!regle || (!regle.actif && c.type !== typeInitial))
+    return { status: 400, code: 4018, error: "Type de licence inconnu." };
+  coherer(c, regle);
   if (!c.id_produit)
     return { status: 400, code: 4011, error: "Le produit est obligatoire." };
   if (!uuidValide(c.id_produit) || !(await produitExiste(c.id_produit)))
@@ -290,30 +362,61 @@ async function validerLicence(client, corps) {
     return { status: 400, code: 4016, error: "Revendeur introuvable." };
   if (!uuidValide(c.id_unite_mesure) || !(await existe(client, "unite_mesure", c.id_unite_mesure)))
     return { status: 400, code: 4017, error: "Unite de mesure introuvable." };
-  if (!TYPES.includes(c.type))
-    return { status: 400, code: 4018, error: "Le type de licence doit etre perpetuelle ou souscription." };
   // Zéro accepté : c'est la borne du CHECK licence_quantite_check, et une
   // licence à zéro droit reste un fait (lot épuisé, retiré). Le front impose 1.
   if (!Number.isInteger(c.quantite) || c.quantite < 0)
     return { status: 400, code: 4019, error: "La quantite doit etre un entier positif ou nul." };
   if (c.cout_licence !== null && (!Number.isFinite(c.cout_licence) || c.cout_licence < 0))
     return { status: 400, code: 4020, error: "Le cout doit etre un montant positif ou nul." };
-  if (c.type === "souscription" && !c.date_fin_souscription)
-    return { status: 400, code: 4021, error: "La date de fin de souscription est obligatoire pour une souscription." };
+  // Règles de dates du type (#209). Les dates masquées ont été effacées par
+  // coherer() ; restent les obligations et les formats.
+  if (regle.regle_date_debut === "obligatoire" && !c.date_debut)
+    return { status: 400, code: 4031, error: `La date de debut est obligatoire pour une licence de type ${regle.label}.` };
+  if (regle.regle_date_fin === "obligatoire" && !c.date_fin_souscription)
+    return { status: 400, code: 4021, error: `La date de fin est obligatoire pour une licence de type ${regle.label}.` };
+  if (c.date_debut && !DATE_RE.test(c.date_debut))
+    return { status: 400, code: 4024, error: "La date de debut est invalide." };
   if (c.date_fin_souscription && !DATE_RE.test(c.date_fin_souscription))
-    return { status: 400, code: 4024, error: "La date de fin de souscription est invalide." };
+    return { status: 400, code: 4024, error: "La date de fin est invalide." };
+  // Doublon volontaire de ck_licence_dates (055) : la contrainte produirait
+  // une 23514 en 500, on veut un 400 lisible.
+  if (c.date_debut && c.date_fin_souscription && c.date_fin_souscription < c.date_debut)
+    return { status: 400, code: 4032, error: "La date de fin doit etre posterieure a la date de debut." };
   if (c.date_fin_maintenance && !DATE_RE.test(c.date_fin_maintenance))
     return { status: 400, code: 4024, error: "La date de fin de maintenance est invalide." };
   if (!uuidValide(c.id_mainteneur) || !(await existe(client, "mainteneur", c.id_mainteneur)))
     return { status: 400, code: 4022, error: "Mainteneur introuvable." };
+  // Succession (D35) : la licence renouvelée doit exister et n'être ni la
+  // licence elle-même ni l'un de ses propres successeurs (pas de boucle).
+  if (c.id_licence_predecesseur) {
+    if (!uuidValide(c.id_licence_predecesseur) || !(await existe(client, "licence", c.id_licence_predecesseur)))
+      return { status: 400, code: 4010, error: "Licence renouvelee introuvable." };
+    if (idLicence && (c.id_licence_predecesseur === idLicence || await estSuccesseurDe(client, c.id_licence_predecesseur, idLicence)))
+      return { status: 409, code: 4010, error: "Une licence ne peut pas renouveler l'une de ses propres successions." };
+  }
   return null;
 }
 
-// Une perpétuelle ne porte pas de date de fin de souscription : elle est
-// effacée plutôt que refusée, un changement de type ne doit pas obliger à
-// vider le champ à la main.
-function coherer(corps) {
-  if (corps.type === "perpetuelle") corps.date_fin_souscription = null;
+// Vrai si candidat descend (par id_licence_predecesseur) de origine.
+async function estSuccesseurDe(client, candidat, origine) {
+  const { rowCount } = await client.query(
+    `WITH RECURSIVE chaine AS (
+       SELECT id, id_licence_predecesseur FROM licence WHERE id = $1
+       UNION
+       SELECT l.id, l.id_licence_predecesseur FROM licence l JOIN chaine c ON l.id = c.id_licence_predecesseur
+     )
+     SELECT 1 FROM chaine WHERE id_licence_predecesseur = $2 LIMIT 1`, [candidat, origine]);
+  return rowCount > 0;
+}
+
+// Applique la règle du type : une date masquée est effacée plutôt que
+// refusée (un changement de type ne doit pas obliger à vider le champ à la
+// main) ; un type sans version (D58, souscription) ne porte pas de version.
+function coherer(corps, regle) {
+  if (!regle) return corps;
+  if (regle.regle_date_debut === "masquee") corps.date_debut = null;
+  if (regle.regle_date_fin === "masquee") corps.date_fin_souscription = null;
+  if (!regle.version_geree) corps.id_version = null;
   return corps;
 }
 
@@ -326,10 +429,13 @@ function normaliserMaintenance(body = {}) {
     date_debut: vide(body.date_debut),
     date_fin: vide(body.date_fin),
     cout: cout === null ? null : Number(cout),
+    id_version: vide(body.id_version),
   };
 }
 
-async function validerMaintenance(client, m) {
+// licence : ligne brute de la licence porteuse (la version d'une période doit
+// appartenir à son produit, même contrôle que sur la licence).
+async function validerMaintenance(client, m, licence) {
   if (!m.date_debut)
     return { status: 400, code: 4031, error: "La date de debut est obligatoire." };
   if (!DATE_RE.test(m.date_debut) || (m.date_fin && !DATE_RE.test(m.date_fin)))
@@ -344,18 +450,23 @@ async function validerMaintenance(client, m) {
     return { status: 400, code: 4022, error: "Mainteneur introuvable." };
   if (!uuidValide(m.id_revendeur) || !(await existe(client, "revendeur", m.id_revendeur)))
     return { status: 400, code: 4016, error: "Revendeur introuvable." };
+  if (m.id_version && (!uuidValide(m.id_version) || !licence?.id_produit
+      || !(await declinaisonDuProduit("version", m.id_version, licence.id_produit))))
+    return { status: 400, code: 4014, error: "Version introuvable ou etrangere au produit." };
   return null;
 }
 
-const CHAMPS_MAINTENANCE = ["id_mainteneur", "id_revendeur", "date_debut", "date_fin", "cout"];
+const CHAMPS_MAINTENANCE = ["id_mainteneur", "id_revendeur", "date_debut", "date_fin", "cout", "id_version"];
 
 // État de la licence tel qu'il est audité : les colonnes brutes, pas la
 // projection (les libellés résolus ne sont pas des données de la licence).
 const COLONNES_BRUTES = `label, id_produit, id_edition, id_version, id_commande, id_revendeur,
     id_unite_mesure, quantite, type, cout_licence::float8 AS cout_licence,
+    date_debut::text AS date_debut,
     date_fin_souscription::text AS date_fin_souscription, a_maintenance,
     version_figee_id, date_arret_maintenance::text AS date_arret_maintenance,
-    id_mainteneur, date_fin_maintenance::text AS date_fin_maintenance`;
+    id_mainteneur, date_fin_maintenance::text AS date_fin_maintenance,
+    id_licence_predecesseur`;
 
 async function lireBrute(client, id, verrou = false) {
   const { rows } = await client.query(
@@ -378,8 +489,8 @@ router.get("/licences", async (req, res) => {
       if (v && !UUID_RE.test(v))
         return erreur(res, 4010, { status: 400, message: "Identifiant de filtre invalide." });
     }
-    if (type && !TYPES.includes(type))
-      return erreur(res, 4018, { status: 400, message: "Le type de licence doit etre perpetuelle ou souscription." });
+    if (type && !(await lireTypeLicence(tenantPool, type)))
+      return erreur(res, 4018, { status: 400, message: "Type de licence inconnu." });
 
     const { rows } = await tenantPool.query(
       `${SELECT_LICENCE}
@@ -413,7 +524,11 @@ router.get("/licences/:id", async (req, res) => {
               (SELECT count(*) FROM budget                  WHERE id_licence = $1)::int AS nb_budgets,
               (SELECT count(*) FROM maintenance_historique  WHERE id_licence = $1)::int AS nb_maintenances`,
       [id]);
-    succes(res, 4001, { ...licence, ...liens });
+    // Historique des versions (D60), du plus récent au plus ancien.
+    const { rows: versions } = await tenantPool.query(
+      `${SELECT_VERSIONS} WHERE v.id_licence = $1 ORDER BY v.created_at DESC`, [id]);
+    const historique_versions = await resoudreVersions(versions, ["id_version_avant", "id_version_apres"]);
+    succes(res, 4001, { ...licence, ...liens, historique_versions });
   } catch (err) {
     console.error("GET /licences/:id error", err);
     erreur(res, 4099, { status: 500, message: "Erreur serveur" });
@@ -421,7 +536,7 @@ router.get("/licences/:id", async (req, res) => {
 });
 
 router.post("/licences", async (req, res) => {
-  const corps = coherer(normaliserCorps(req.body));
+  const corps = normaliserCorps(req.body);
   const client = await tenantPool.connect();
   try {
     await client.query("BEGIN");
@@ -434,9 +549,11 @@ router.post("/licences", async (req, res) => {
 
     const { rows: [creee] } = await client.query(
       `INSERT INTO licence (${CHAMPS.join(", ")})
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+       VALUES (${CHAMPS.map((_, i) => `$${i + 1}`).join(", ")})
        RETURNING id`,
       CHAMPS.map((ch) => corps[ch]));
+    // Une version saisie à la création ouvre l'historique (avant = aucune).
+    await journaliserVersion(client, req, { idLicence: creee.id, avant: null, apres: corps.id_version, evenement: "modification" });
 
     const apres = await lireBrute(client, creee.id);
     await auditer(client, req, { action: "LICENCE_CREEE", entiteType: "licence", entiteId: creee.id, apres });
@@ -471,9 +588,8 @@ router.patch("/licences/:id", async (req, res) => {
     for (const champ of CHAMPS) {
       corps[champ] = Object.prototype.hasOwnProperty.call(req.body, champ) ? patch[champ] : avant[champ];
     }
-    coherer(corps);
 
-    const invalide = await validerLicence(client, corps);
+    const invalide = await validerLicence(client, corps, { typeInitial: avant.type, idLicence: id });
     if (invalide) { await client.query("ROLLBACK"); return erreurPivot(res, invalide); }
 
     // Changer de produit invalide une version figée qui lui était propre.
@@ -485,6 +601,8 @@ router.patch("/licences/:id", async (req, res) => {
               version_figee_id = $${CHAMPS.length + 1}
         WHERE id = $${CHAMPS.length + 2}`,
       [...CHAMPS.map((ch) => corps[ch]), versionFigee, id]);
+    // Saisie directe d'une version (ou effacement par un type sans version).
+    await journaliserVersion(client, req, { idLicence: id, avant: avant.id_version, apres: corps.id_version, evenement: "modification" });
 
     const apres = await lireBrute(client, id);
     const d = diff(avant, apres);
@@ -516,13 +634,18 @@ router.delete("/licences/:id", async (req, res) => {
     // FK entrantes sans cascade du DDL v4 : affectation et budget. L'historique
     // de maintenance tombé avec la licence (ON DELETE CASCADE), il n'est pas
     // bloquant.
+    // Une licence renouvelée par un successeur (id_licence_predecesseur, 056,
+    // sans cascade) est également protégée : le lien de succession se retire
+    // d'abord sur le successeur.
     const { rows: [liens] } = await client.query(
       `SELECT (SELECT count(*) FROM affectation WHERE id_licence = $1) AS affectations,
-              (SELECT count(*) FROM budget      WHERE id_licence = $1) AS budgets`,
+              (SELECT count(*) FROM budget      WHERE id_licence = $1) AS budgets,
+              (SELECT count(*) FROM licence     WHERE id_licence_predecesseur = $1) AS successeurs`,
       [id]);
     const bloquants = [];
     if (+liens.affectations) bloquants.push(`${liens.affectations} affectation(s)`);
     if (+liens.budgets)      bloquants.push(`${liens.budgets} ligne(s) budgetaire(s)`);
+    if (+liens.successeurs)  bloquants.push(`${liens.successeurs} licence(s) qui la renouvelle(nt)`);
     if (bloquants.length) {
       await client.query("ROLLBACK");
       return erreur(res, 4023, {
@@ -561,7 +684,8 @@ router.get("/licences/:id/maintenance", async (req, res) => {
     const { rows } = await tenantPool.query(
       `${SELECT_MAINTENANCE} WHERE h.id_licence = $1 ORDER BY h.date_debut DESC, h.created_at DESC`, [id]);
     const visibles = await montantsVisibles(req);
-    succes(res, 4005, rows.map((r) => masquerMaintenance(r, visibles)));
+    const resolues = await resoudreVersions(rows, ["id_version"]);
+    succes(res, 4005, resolues.map((r) => masquerMaintenance(r, visibles)));
   } catch (err) {
     console.error("GET /licences/:id/maintenance error", err);
     erreur(res, 4099, { status: 500, message: "Erreur serveur" });
@@ -572,7 +696,11 @@ router.get("/licences/:id/maintenance", async (req, res) => {
 // drapeau passe à true (sauf maintenance arrêtée, que seule la reprise lève)
 // et la date de fin de maintenance de la licence s'aligne sur la fin la plus
 // lointaine connue.
-async function repercuterSurLicence(client, idLicence) {
+// Version portée par la maintenance (D59) : sur un type à version et tant que
+// la maintenance n'est pas arrêtée, la version courante de la licence suit la
+// période la plus récente qui en porte une. Une licence arrêtée garde sa
+// version figée ; une période sans version ne change rien.
+async function repercuterSurLicence(client, req, idLicence) {
   await client.query(
     `UPDATE licence l
         SET a_maintenance = CASE WHEN l.date_arret_maintenance IS NULL THEN true ELSE l.a_maintenance END,
@@ -580,6 +708,22 @@ async function repercuterSurLicence(client, idLicence) {
               THEN (SELECT max(h.date_fin) FROM maintenance_historique h WHERE h.id_licence = l.id)
               ELSE l.date_fin_maintenance END
       WHERE l.id = $1`, [idLicence]);
+
+  const { rows: [l] } = await client.query(
+    `SELECT l.id_version, l.date_arret_maintenance, COALESCE(tl.version_geree, true) AS version_geree
+       FROM licence l LEFT JOIN type_licence tl ON tl.code = l.type WHERE l.id = $1`, [idLicence]);
+  if (!l || l.date_arret_maintenance || !l.version_geree) return;
+  const { rows: [periode] } = await client.query(
+    `SELECT id, id_version, date_debut::text AS date_debut
+       FROM maintenance_historique
+      WHERE id_licence = $1 AND id_version IS NOT NULL
+      ORDER BY date_debut DESC, created_at DESC LIMIT 1`, [idLicence]);
+  if (!periode || periode.id_version === l.id_version) return;
+  await client.query(`UPDATE licence SET id_version = $1 WHERE id = $2`, [periode.id_version, idLicence]);
+  await journaliserVersion(client, req, {
+    idLicence, avant: l.id_version, apres: periode.id_version, evenement: "maintenance",
+    idMaintenance: periode.id, dateEffet: periode.date_debut,
+  });
 }
 
 router.post("/licences/:id/maintenance", async (req, res) => {
@@ -592,14 +736,14 @@ router.post("/licences/:id/maintenance", async (req, res) => {
     const licence = await lireBrute(client, id, true);
     if (!licence) { await client.query("ROLLBACK"); return introuvable(res); }
 
-    const invalide = await validerMaintenance(client, m);
+    const invalide = await validerMaintenance(client, m, licence);
     if (invalide) { await client.query("ROLLBACK"); return erreurPivot(res, invalide); }
 
     const { rows: [creee] } = await client.query(
       `INSERT INTO maintenance_historique (id_licence, ${CHAMPS_MAINTENANCE.join(", ")})
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+       VALUES ($1, ${CHAMPS_MAINTENANCE.map((_, i) => `$${i + 2}`).join(", ")}) RETURNING id`,
       [id, ...CHAMPS_MAINTENANCE.map((ch) => m[ch])]);
-    await repercuterSurLicence(client, id);
+    await repercuterSurLicence(client, req, id);
 
     await auditer(client, req, { action: "MAINTENANCE_AJOUTEE", entiteType: "maintenance_historique", entiteId: creee.id, apres: { id_licence: id, ...m } });
     await log(client, req, "CREATE", "maintenance_historique", creee.id,
@@ -607,7 +751,8 @@ router.post("/licences/:id/maintenance", async (req, res) => {
     await client.query("COMMIT");
 
     const { rows } = await tenantPool.query(`${SELECT_MAINTENANCE} WHERE h.id = $1`, [creee.id]);
-    succes(res, 4006, masquerMaintenance(rows[0], await montantsVisibles(req)), { status: 201 });
+    const [periode] = await resoudreVersions(rows, ["id_version"]);
+    succes(res, 4006, masquerMaintenance(periode, await montantsVisibles(req)), { status: 201 });
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("POST /licences/:id/maintenance error", err);
@@ -626,10 +771,12 @@ router.patch("/licences/:id/maintenance/:mid", async (req, res) => {
     await client.query("BEGIN");
     if (!UUID_RE.test(id)) { await client.query("ROLLBACK"); return introuvable(res); }
     if (!UUID_RE.test(mid)) { await client.query("ROLLBACK"); return periodeIntrouvable(res); }
+    const licence = await lireBrute(client, id, true);
+    if (!licence) { await client.query("ROLLBACK"); return introuvable(res); }
 
     const { rows: existant } = await client.query(
       `SELECT id_mainteneur, id_revendeur, date_debut::text AS date_debut, date_fin::text AS date_fin,
-              cout::float8 AS cout
+              cout::float8 AS cout, id_version
          FROM maintenance_historique WHERE id = $1 AND id_licence = $2 FOR UPDATE`, [mid, id]);
     if (!existant.length) { await client.query("ROLLBACK"); return periodeIntrouvable(res); }
 
@@ -638,7 +785,7 @@ router.patch("/licences/:id/maintenance/:mid", async (req, res) => {
     for (const ch of CHAMPS_MAINTENANCE) {
       if (Object.prototype.hasOwnProperty.call(req.body, ch)) m[ch] = patch[ch];
     }
-    const invalide = await validerMaintenance(client, m);
+    const invalide = await validerMaintenance(client, m, licence);
     if (invalide) { await client.query("ROLLBACK"); return erreurPivot(res, invalide); }
 
     await client.query(
@@ -646,7 +793,7 @@ router.patch("/licences/:id/maintenance/:mid", async (req, res) => {
           SET ${CHAMPS_MAINTENANCE.map((ch, i) => `${ch} = $${i + 1}`).join(", ")}
         WHERE id = $${CHAMPS_MAINTENANCE.length + 1}`,
       [...CHAMPS_MAINTENANCE.map((ch) => m[ch]), mid]);
-    await repercuterSurLicence(client, id);
+    await repercuterSurLicence(client, req, id);
 
     const d = diff(existant[0], m);
     await auditer(client, req, { action: "MAINTENANCE_MODIFIEE", entiteType: "maintenance_historique", entiteId: mid, avant: d.avant, apres: d.apres });
@@ -655,7 +802,8 @@ router.patch("/licences/:id/maintenance/:mid", async (req, res) => {
     await client.query("COMMIT");
 
     const { rows } = await tenantPool.query(`${SELECT_MAINTENANCE} WHERE h.id = $1`, [mid]);
-    succes(res, 4007, masquerMaintenance(rows[0], await montantsVisibles(req)));
+    const [periode] = await resoudreVersions(rows, ["id_version"]);
+    succes(res, 4007, masquerMaintenance(periode, await montantsVisibles(req)));
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("PATCH /licences/:id/maintenance/:mid error", err);
@@ -675,12 +823,12 @@ router.delete("/licences/:id/maintenance/:mid", async (req, res) => {
 
     const { rows: existant } = await client.query(
       `SELECT id_mainteneur, id_revendeur, date_debut::text AS date_debut, date_fin::text AS date_fin,
-              cout::float8 AS cout
+              cout::float8 AS cout, id_version
          FROM maintenance_historique WHERE id = $1 AND id_licence = $2 FOR UPDATE`, [mid, id]);
     if (!existant.length) { await client.query("ROLLBACK"); return periodeIntrouvable(res); }
 
     await client.query(`DELETE FROM maintenance_historique WHERE id = $1`, [mid]);
-    await repercuterSurLicence(client, id);
+    await repercuterSurLicence(client, req, id);
 
     await auditer(client, req, { action: "MAINTENANCE_SUPPRIMEE", entiteType: "maintenance_historique", entiteId: mid, avant: { id_licence: id, ...existant[0] } });
     await log(client, req, "DELETE", "maintenance_historique", mid,
@@ -739,11 +887,17 @@ router.post("/licences/:id/arret-maintenance", async (req, res) => {
       return erreur(res, 4042, { status: 400, message: "Version a figer introuvable ou etrangere au produit." });
     }
 
+    // La version figée devient la version courante (D59 : la version se fige
+    // à l'arrêt) ; "sans version" laisse la version courante telle quelle.
     await client.query(
       `UPDATE licence
           SET a_maintenance = false, version_figee_id = $1, date_arret_maintenance = $2,
-              date_fin_maintenance = $2
+              date_fin_maintenance = $2, id_version = COALESCE($1, id_version)
         WHERE id = $3`, [versionFigee, dateArret, id]);
+    await journaliserVersion(client, req, {
+      idLicence: id, avant: avant.id_version, apres: versionFigee ?? avant.id_version,
+      evenement: "arret_maintenance", dateEffet: dateArret, force: true,
+    });
     // Clôture des périodes encore ouvertes ou courant au-delà de l'arrêt, à
     // la date d'arrêt, sans jamais violer ck_maintenance_dates : une
     // maintenance arrêtée ne peut plus être "en cours" dans l'historique.
@@ -790,6 +944,10 @@ router.post("/licences/:id/reprise-maintenance", async (req, res) => {
           SET a_maintenance = true, version_figee_id = NULL, date_arret_maintenance = NULL,
               date_fin_maintenance = (SELECT max(h.date_fin) FROM maintenance_historique h WHERE h.id_licence = $1)
         WHERE id = $1`, [id]);
+    await journaliserVersion(client, req, {
+      idLicence: id, avant: avant.version_figee_id, apres: avant.id_version,
+      evenement: "reprise_maintenance", force: true,
+    });
 
     const apres = await lireBrute(client, id);
     const d = diff(avant, apres);
