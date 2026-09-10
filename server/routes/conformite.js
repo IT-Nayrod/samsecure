@@ -20,8 +20,12 @@
 // dernière commande du produit sur le périmètre observé (jamais une
 // moyenne) ; D53, un produit à usages sans droit n'a pas de taux (ecart_pct
 // null, usage_sans_droit true), il est en dépassement et porte une anomalie
-// usage_sans_droit ouverte par la migration 058. Les deux chemins (précalcul
-// et calcul à la volée) appliquent les mêmes règles.
+// usage_sans_droit ouverte par la migration 058 ; D54, l'écart valorisé se
+// lit en relatif à la valorisation du parc observé : chaque agrégat porte
+// valorisation_parc (somme des coûts des licences actives du périmètre
+// filtré) et ecart_valorise_pct (écart valorisé rapporté à ce parc), jamais
+// un montant absolu seul. Les deux chemins (précalcul et calcul à la volée)
+// appliquent les mêmes règles.
 import express from "express";
 import { tenantPool, commonPool } from "../db.js";
 import { succes, erreur } from "../utils/reponse.js";
@@ -119,6 +123,16 @@ async function produitsDeLEditeur(idEditeur) {
 // Lignes de conformité : précalcul (nominal) ou calcul à la volée (société)
 // ---------------------------------------------------------------------------
 
+// Valorisation du produit sur le parc : coût des licences actives (D54). Le
+// précalcul ne la porte pas (aucune évolution de schéma dans ce lot), elle
+// est relue par produit. Constante du code, interpolation sûre.
+const LATERAL_COUT_ACTIF = (refProduit) => `
+  LEFT JOIN LATERAL (
+    SELECT coalesce(sum(l.cout_licence) FILTER (WHERE NOT ${LICENCE_EXPIREE}), 0)::float8 AS cout_actif
+      FROM licence l
+     WHERE l.id_produit = ${refProduit}
+  ) ca ON true`;
+
 // Lecture du précalcul. Un produit sans droit ni usage n'est pas compté
 // (règle #116) : sa ligne à zéro est filtrée, jamais purgée.
 async function lignesDepuisPrecalcul({ idProduit, idsProduits }) {
@@ -130,9 +144,11 @@ async function lignesDepuisPrecalcul({ idProduit, idsProduits }) {
             pc.ecart_valorise::float8 AS ecart_valorise,
             pc.statut_conformite,
             pc.derniere_maj,
-            un.label AS unite
+            un.label AS unite,
+            ca.cout_actif
        FROM precalcul_conformite pc
        ${LATERAL_UNITE("pc.id_produit")}
+       ${LATERAL_COUT_ACTIF("pc.id_produit")}
       WHERE pc.id_produit IS NOT NULL
         AND NOT (pc.droits_total = 0 AND pc.usages_total = 0)
         AND ($1::uuid IS NULL OR pc.id_produit = $1::uuid)
@@ -200,6 +216,7 @@ function valoriser(r, seuils, derniereMaj) {
     unite: r.unite ?? null,
     ...valoriserBalance(
       { droits_total: r.droits_total, usages_total: r.usages_total, prix_unitaire: prix }, seuils),
+    cout_actif: arrondi2(Number(r.cout_actif) || 0),
     derniere_maj: derniereMaj,
   };
 }
@@ -209,9 +226,14 @@ function valoriser(r, seuils, derniereMaj) {
 // ---------------------------------------------------------------------------
 
 // ecart_valorise_negatif et _positif sont des sommes signées : la négative
-// mesure l'exposition des dépassements, la positive la sous-utilisation.
+// mesure l'exposition des dépassements, la positive la sous-utilisation ;
+// ecart_valorise est leur somme (écart net du périmètre). D54 :
+// valorisation_parc est la somme des coûts des licences actives des
+// produits du périmètre, et chaque écart est aussi servi en pourcentage de
+// ce parc (null sans parc valorisé). Un pourcentage n'est pas un montant :
+// il reste servi quand les montants sont masqués.
 function agregatsDe(lignes) {
-  let negatif = 0, positif = 0, derniere = null;
+  let negatif = 0, positif = 0, parc = 0, derniere = null;
   const nb = { depassement: 0, attention: 0, conforme: 0 };
   for (const l of lignes) {
     if (l.statut_conformite in nb) nb[l.statut_conformite] += 1;
@@ -219,15 +241,22 @@ function agregatsDe(lignes) {
       if (l.ecart_valorise < 0) negatif += l.ecart_valorise;
       else positif += l.ecart_valorise;
     }
+    parc += Number(l.cout_actif) || 0;
     if (l.derniere_maj && (!derniere || l.derniere_maj > derniere)) derniere = l.derniere_maj;
   }
+  const pct = (montant) => (parc > 0 ? arrondi2((montant / parc) * 100) : null);
   return {
     nb_produits: lignes.length,
     nb_depassement: nb.depassement,
     nb_attention: nb.attention,
     nb_conforme: nb.conforme,
+    valorisation_parc: arrondi2(parc),
+    ecart_valorise: arrondi2(negatif + positif),
+    ecart_valorise_pct: pct(negatif + positif),
     ecart_valorise_negatif: arrondi2(negatif),
+    ecart_valorise_negatif_pct: pct(negatif),
     ecart_valorise_positif: arrondi2(positif),
+    ecart_valorise_positif_pct: pct(positif),
     derniere_maj: derniere,
   };
 }
@@ -240,11 +269,15 @@ async function montantsVisibles(req) {
 }
 
 function masquerLigne(l, visibles) {
-  return visibles ? l : { ...l, prix_unitaire: null, ecart_valorise: null };
+  return visibles ? l : { ...l, prix_unitaire: null, ecart_valorise: null, cout_actif: null };
 }
 
 function masquerAgregats(a, visibles) {
-  return visibles ? a : { ...a, ecart_valorise_negatif: null, ecart_valorise_positif: null };
+  return visibles ? a : {
+    ...a,
+    valorisation_parc: null, ecart_valorise: null,
+    ecart_valorise_negatif: null, ecart_valorise_positif: null,
+  };
 }
 
 // Filtres communs aux deux GET : id_societe, id_editeur, id_produit.
