@@ -15,11 +15,20 @@
 // avec montants_masques: true sans consulter_kpi_financiers, même règle que
 // les coûts du module licences. Le statut reste servi : il est calculé côté
 // serveur, seuil en montant compris.
+//
+// Décisions du 10/09/2026 (#190) : D52, le prix unitaire est celui de la
+// dernière commande du produit sur le périmètre observé (jamais une
+// moyenne) ; D53, un produit à usages sans droit n'a pas de taux (ecart_pct
+// null, usage_sans_droit true), il est en dépassement et porte une anomalie
+// usage_sans_droit ouverte par la migration 058. Les deux chemins (précalcul
+// et calcul à la volée) appliquent les mêmes règles.
 import express from "express";
 import { tenantPool, commonPool } from "../db.js";
 import { succes, erreur } from "../utils/reponse.js";
 import { permissionsEffectives } from "../utils/droitsUtilisateur.js";
-import { LICENCE_EXPIREE, seuilsConformite, statutConformite } from "../utils/conformite.js";
+import {
+  LICENCE_EXPIREE, seuilsConformite, prixUnitaireDerniereCommande, valoriserBalance,
+} from "../utils/conformite.js";
 
 const router = express.Router();
 
@@ -28,12 +37,14 @@ const NIVEAUX = ["global", "editeur", "societe"];
 
 const arrondi2 = (n) => (n == null ? null : Math.round(n * 100) / 100);
 
-// ecart_pct est borné à 999.99 sur les deux chemins : la colonne du précalcul
-// est en DECIMAL(5,2) (DDL v4, élargissement hors périmètre #116) et le calcul
-// à la volée suit la même borne pour que les deux chemins servent une valeur
-// de même sens. 999.99 se lit "999,99 ou plus".
-const tauxBorne = (usages, droits) =>
-  droits > 0 ? Math.min(arrondi2((usages / droits) * 100), 999.99) : null;
+// Lignes de licence d'un groupe, au format attendu par
+// prixUnitaireDerniereCommande : la sélection de la dernière commande est
+// faite en JS, par la fonction pure testée, et non par un ORDER BY dupliqué.
+// Constante du code, interpolation sûre.
+const AGG_LIGNES_PRIX = `
+  json_agg(json_build_object(
+    'id', l.id, 'cout_licence', l.cout_licence, 'quantite', l.quantite,
+    'date_commande', c.date_commande, 'created_at', l.created_at)) AS lignes_prix`;
 
 // Dernière entrée du workflow d'une affectation, même source de vérité que
 // les routes affectations. Constante du code, interpolation sûre.
@@ -128,7 +139,9 @@ async function lignesDepuisPrecalcul({ idProduit, idsProduits }) {
         AND ($2::uuid[] IS NULL OR pc.id_produit = ANY($2::uuid[]))
       ORDER BY pc.derniere_maj DESC`,
     [idProduit || null, idsProduits || null]);
-  return rows;
+  // D53 : le précalcul sert ecart_pct null sans droit (058) ; le drapeau
+  // explicite évite au front de déduire la règle du null.
+  return rows.map((r) => ({ ...r, usage_sans_droit: r.droits_total === 0 && r.usages_total > 0 }));
 }
 
 // Calcul à la volée restreint à une société. Droits : licences payées par la
@@ -140,7 +153,8 @@ async function lignesPourSociete(idSociete, { idProduit, idsProduits }, seuils) 
     `WITH droits AS (
        SELECT l.id_produit,
               coalesce(sum(l.quantite) FILTER (WHERE NOT ${LICENCE_EXPIREE}), 0)::int AS droits,
-              coalesce(sum(l.cout_licence) FILTER (WHERE NOT ${LICENCE_EXPIREE}), 0)::float8 AS cout_actif
+              coalesce(sum(l.cout_licence) FILTER (WHERE NOT ${LICENCE_EXPIREE}), 0)::float8 AS cout_actif,
+              ${AGG_LIGNES_PRIX}
          FROM licence l
          JOIN commande c ON c.id = l.id_commande
         WHERE l.id_produit IS NOT NULL AND c.id_societe = $1
@@ -159,6 +173,7 @@ async function lignesPourSociete(idSociete, { idProduit, idsProduits }, seuils) 
             coalesce(d.droits, 0)     AS droits_total,
             coalesce(u.usages, 0)     AS usages_total,
             coalesce(d.cout_actif, 0) AS cout_actif,
+            d.lignes_prix,
             un.label AS unite
        FROM droits d
        FULL JOIN usages u ON u.id_produit = d.id_produit
@@ -173,22 +188,18 @@ async function lignesPourSociete(idSociete, { idProduit, idsProduits }, seuils) 
     .map((r) => valoriser(r, seuils, maintenant));
 }
 
-// Valorisation et statut d'une balance brute (droits, usages, coût actif) :
-// mêmes formules que recalculer_precalcul_conformite (046).
+// Valorisation et statut d'une balance brute (droits, usages, lignes de
+// licence du périmètre) : mêmes formules que recalculer_precalcul_conformite
+// (046, révisée par 058). Le prix unitaire est celui de la dernière commande
+// parmi les lignes du périmètre observé (D52) ; un produit dont la société
+// n'a payé aucune licence n'a pas de prix, son écart valorisé est null.
 function valoriser(r, seuils, derniereMaj) {
-  const prix = r.droits_total > 0 ? arrondi2(r.cout_actif / r.droits_total) : null;
-  const ecart = r.droits_total - r.usages_total;
-  const val = prix != null ? arrondi2(ecart * prix) : null;
+  const prix = prixUnitaireDerniereCommande(r.lignes_prix ?? []);
   return {
     id_produit: r.id_produit,
     unite: r.unite ?? null,
-    droits_total: r.droits_total,
-    usages_total: r.usages_total,
-    ecart,
-    ecart_pct: tauxBorne(r.usages_total, r.droits_total),
-    prix_unitaire: prix,
-    ecart_valorise: val,
-    statut_conformite: statutConformite(r.droits_total, r.usages_total, val, seuils),
+    ...valoriserBalance(
+      { droits_total: r.droits_total, usages_total: r.usages_total, prix_unitaire: prix }, seuils),
     derniere_maj: derniereMaj,
   };
 }
@@ -300,7 +311,8 @@ async function synthesesParSociete(seuils) {
     `WITH droits AS (
        SELECT c.id_societe, l.id_produit,
               coalesce(sum(l.quantite) FILTER (WHERE NOT ${LICENCE_EXPIREE}), 0)::int AS droits,
-              coalesce(sum(l.cout_licence) FILTER (WHERE NOT ${LICENCE_EXPIREE}), 0)::float8 AS cout_actif
+              coalesce(sum(l.cout_licence) FILTER (WHERE NOT ${LICENCE_EXPIREE}), 0)::float8 AS cout_actif,
+              ${AGG_LIGNES_PRIX}
          FROM licence l
          JOIN commande c ON c.id = l.id_commande
         WHERE l.id_produit IS NOT NULL AND c.id_societe IS NOT NULL
@@ -320,7 +332,8 @@ async function synthesesParSociete(seuils) {
             coalesce(d.id_produit, u.id_produit) AS id_produit,
             coalesce(d.droits, 0)     AS droits_total,
             coalesce(u.usages, 0)     AS usages_total,
-            coalesce(d.cout_actif, 0) AS cout_actif
+            coalesce(d.cout_actif, 0) AS cout_actif,
+            d.lignes_prix
        FROM droits d
        FULL JOIN usages u ON u.id_societe = d.id_societe AND u.id_produit = d.id_produit
        LEFT JOIN societe s ON s.id = coalesce(d.id_societe, u.id_societe)`);
