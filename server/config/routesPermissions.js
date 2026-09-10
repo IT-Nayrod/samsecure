@@ -217,6 +217,18 @@ export const ROUTES_PERMISSIONS = [
   ["POST",   "/revendeurs",                  "gerer_referentiels"],
   ["PATCH",  "/revendeurs/:id",              "gerer_referentiels"],
 
+  // Contacts (#181). Lecture sur consulter_referentiels, ecriture sur
+  // gerer_contacts, le code dedie du module organisation (seede par 007,
+  // matrice 011/021). /contacts/recherche precede /contacts/:id, et
+  // /fonctions sert le selecteur du formulaire.
+  ["GET",    "/fonctions",                   "consulter_referentiels"],
+  ["GET",    "/contacts/recherche",          "consulter_referentiels"],
+  ["GET",    "/contacts",                    "consulter_referentiels"],
+  ["GET",    "/contacts/:id",                "consulter_referentiels"],
+  ["POST",   "/contacts",                    "gerer_contacts"],
+  ["PATCH",  "/contacts/:id",                "gerer_contacts"],
+  ["DELETE", "/contacts/:id",                "gerer_contacts"],
+
   // ---- Organisation : societes ---------------------------------------------
   ["GET",    "/societes/:id/profils-orphelins", "gerer_referentiels"],
   ["GET",    "/societes",                    "consulter_referentiels"],

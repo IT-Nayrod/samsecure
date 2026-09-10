@@ -20,18 +20,6 @@ export function getFilialesBySociete(idSociete) {
 // getAffectationsBySociete deplace vers data/mockDeploiement.js (source unique des affectations)
 // getContratsBySociete et getCommandesBySociete deplaces vers data/mockContrats.js (source unique)
 
-// --- FONCTIONS (referentiel commun, lecture seule) -------------------------
-export const mockFonctions = [
-  { id: 'f1', label: 'DSI' },
-  { id: 'f2', label: 'DAF' },
-  { id: 'f3', label: 'Acheteur' },
-  { id: 'f4', label: 'Responsable technique' },
-  { id: 'f5', label: 'Responsable applicatif' },
-  { id: 'f6', label: 'Commercial' },
-  { id: 'f7', label: 'Support' },
-  { id: 'f8', label: 'Autre' },
-];
-
 // --- EDITEURS ----------------------------------------------------------------
 // logo_slug : nom de fichier dans public/logos/{slug}.svg (Simple Icons). Null si aucun logo fiable trouve (repli initiales).
 export const mockEditeurs = [
@@ -136,45 +124,11 @@ export const mockEditions = [
   { id: 'e12', id_produit: 'pr14', label: 'Enterprise' },
 ];
 
-// --- CONTACTS ------------------------------------------------------------------
-// type_rattachement : client | editeur | revendeur
-// id_rattachement pointe vers mockSocietes.id, mockEditeurs.id ou mockRevendeurs.id selon le type
-export const mockContacts = [
-  { id: 'ct1',  nom: 'Lemoine',   prenom: 'Henri',    email: 'h.lemoine@acmegroup.fr',     telephone: '0145789632', id_fonction: 'f1', type_rattachement: 'client',   id_rattachement: '1',  date_debut: '2022-01-10', date_fin: null,         statut_validation: 'valide', soumis_par: 'Import initial' },
-  { id: 'ct2',  nom: 'Garcia',    prenom: 'Lucie',    email: 'l.garcia@acmegroup.fr',      telephone: '0145789633', id_fonction: 'f2', type_rattachement: 'client',   id_rattachement: '1',  date_debut: '2021-03-01', date_fin: null,         statut_validation: 'valide', soumis_par: 'Import initial' },
-  { id: 'ct3',  nom: 'Roussel',   prenom: 'Bastien',  email: 'b.roussel@acmegroup.fr',     telephone: '0478563214', id_fonction: 'f3', type_rattachement: 'client',   id_rattachement: '2',  date_debut: '2023-06-15', date_fin: null,         statut_validation: 'valide', soumis_par: 'Import initial' },
-  { id: 'ct4',  nom: 'Fournier',  prenom: 'Camille',  email: 'c.fournier@acmegroup.fr',    telephone: '0145789635', id_fonction: 'f4', type_rattachement: 'client',   id_rattachement: '1',  date_debut: '2020-09-01', date_fin: null,         statut_validation: 'valide', soumis_par: 'Import initial' },
-  { id: 'ct5',  nom: 'Blanchard', prenom: 'Mathieu',  email: 'm.blanchard@acmegroup.fr',   telephone: '0156784512', id_fonction: 'f5', type_rattachement: 'client',   id_rattachement: '3',  date_debut: '2019-02-01', date_fin: '2025-12-31', statut_validation: 'valide', soumis_par: 'Import initial' },
-  { id: 'ct6',  nom: 'Girard',    prenom: 'Anaelle',  email: 'a.girard@acmegroup.fr',      telephone: '0556784123', id_fonction: 'f3', type_rattachement: 'client',   id_rattachement: '4',  date_debut: '2022-11-01', date_fin: null,         statut_validation: 'en_attente', soumis_par: 'Thomas Bernard' },
-  { id: 'ct7',  nom: 'Dupuis',    prenom: 'Nathan',   email: 'nathan.dupuis@microsoft.com', telephone: '0142785632', id_fonction: 'f6', type_rattachement: 'editeur', id_rattachement: 'ed1', date_debut: '2021-01-01', date_fin: null,         statut_validation: 'valide', soumis_par: 'Import initial' },
-  { id: 'ct8',  nom: 'Marchand',  prenom: 'Elodie',   email: 'elodie.marchand@microsoft.com', telephone: '0142785633', id_fonction: 'f7', type_rattachement: 'editeur', id_rattachement: 'ed1', date_debut: '2021-05-01', date_fin: null,         statut_validation: 'valide', soumis_par: 'Import initial' },
-  { id: 'ct9',  nom: 'Perrin',    prenom: 'Romain',   email: 'romain.perrin@adobe.com',     telephone: '0156897412', id_fonction: 'f6', type_rattachement: 'editeur', id_rattachement: 'ed2', date_debut: '2020-08-15', date_fin: null,         statut_validation: 'valide', soumis_par: 'Import initial' },
-  { id: 'ct10', nom: 'Renard',    prenom: 'Sarah',    email: 'sarah.renard@oracle.com',     telephone: '0178945612', id_fonction: 'f6', type_rattachement: 'editeur', id_rattachement: 'ed3', date_debut: '2019-04-01', date_fin: null,         statut_validation: 'valide', soumis_par: 'Import initial' },
-  { id: 'ct11', nom: 'Faure',     prenom: 'Maxime',   email: 'maxime.faure@sap.com',        telephone: '0189562374', id_fonction: 'f7', type_rattachement: 'editeur', id_rattachement: 'ed4', date_debut: '2022-02-01', date_fin: null,         statut_validation: 'valide', soumis_par: 'Import initial' },
-  { id: 'ct12', nom: 'Lambert',   prenom: 'Pauline',  email: 'pauline.lambert@ibm.com',     telephone: '0145632178', id_fonction: 'f6', type_rattachement: 'editeur', id_rattachement: 'ed5', date_debut: '2021-09-01', date_fin: null,         statut_validation: 'valide', soumis_par: 'Import initial' },
-  { id: 'ct13', nom: 'Rolland',   prenom: 'Theo',     email: 'theo.rolland@scc.fr',         telephone: '0147852369', id_fonction: 'f6', type_rattachement: 'revendeur', id_rattachement: 'rv1', date_debut: '2020-01-01', date_fin: null,         statut_validation: 'valide', soumis_par: 'Import initial' },
-  { id: 'ct14', nom: 'Dubois',    prenom: 'Charlotte', email: 'charlotte.dubois@insight.com', telephone: '0148523697', id_fonction: 'f6', type_rattachement: 'revendeur', id_rattachement: 'rv2', date_debut: '2021-07-01', date_fin: null,         statut_validation: 'valide', soumis_par: 'Import initial' },
-  { id: 'ct15', nom: 'Picard',    prenom: 'Hugo',     email: 'hugo.picard@bechtle.fr',      telephone: '0149632587', id_fonction: 'f7', type_rattachement: 'revendeur', id_rattachement: 'rv3', date_debut: '2022-04-01', date_fin: null,         statut_validation: 'valide', soumis_par: 'Import initial' },
-  { id: 'ct16', nom: 'Gauthier',  prenom: 'Manon',    email: 'manon.gauthier@econocom.com',  telephone: '0145789214', id_fonction: 'f6', type_rattachement: 'revendeur', id_rattachement: 'rv4', date_debut: '2020-06-01', date_fin: '2024-12-31', statut_validation: 'valide', soumis_par: 'Import initial' },
-  { id: 'ct17', nom: 'Lacroix',   prenom: 'Antoine',  email: 'antoine.lacroix@computacenter.fr', telephone: '0147896523', id_fonction: 'f6', type_rattachement: 'revendeur', id_rattachement: 'rv5', date_debut: '2023-01-15', date_fin: null,    statut_validation: 'valide', soumis_par: 'Import initial' },
-  { id: 'ct18', nom: 'Vincent',   prenom: 'Julie',    email: 'julie.vincent@acmegroup.fr',  telephone: '0145789652', id_fonction: 'f8', type_rattachement: 'client',   id_rattachement: '2',  date_debut: '2023-03-01', date_fin: null,         statut_validation: 'valide', soumis_par: 'Import initial' },
-  { id: 'ct19', nom: 'Masson',    prenom: 'Quentin',  email: 'quentin.masson@acmegroup.fr', telephone: '0556784512', id_fonction: 'f4', type_rattachement: 'client',   id_rattachement: '4',  date_debut: '2021-10-01', date_fin: null,         statut_validation: 'en_attente', soumis_par: 'Julie Petit' },
-  { id: 'ct20', nom: 'Robin',     prenom: 'Ines',     email: 'ines.robin@autodesk.com',     telephone: '0142589632', id_fonction: 'f6', type_rattachement: 'editeur', id_rattachement: 'ed6', date_debut: '2022-05-01', date_fin: null,         statut_validation: 'valide', soumis_par: 'Import initial' },
-  { id: 'ct21', nom: 'Aubert',    prenom: 'Clara',    email: 'clara.aubert@cdw.com',        telephone: '0147896214', id_fonction: 'f7', type_rattachement: 'revendeur', id_rattachement: 'rv7', date_debut: '2023-09-01', date_fin: null,         statut_validation: 'valide', soumis_par: 'Import initial' },
-  { id: 'ct22', nom: 'Gillet',    prenom: 'Yanis',    email: 'yanis.gillet@acmegroup.fr',   telephone: '0145789874', id_fonction: 'f5', type_rattachement: 'client',   id_rattachement: '1',  date_debut: '2018-01-01', date_fin: '2023-06-30', statut_validation: 'valide', soumis_par: 'Import initial' },
-];
-
 // mockContratsLies, mockCommandesLiees et mockLicencesLiees deplaces vers data/mockContrats.js et data/mockDeploiement.js
 
 // --- HELPERS DE DERIVATION (comptes utilises par les listes / details / suppression) ---
 export function getProduitsByEditeur(idEditeur) {
   return mockProduits.filter(p => p.id_editeur === idEditeur);
-}
-
-// getContratsByEditeur deplace vers data/mockContrats.js (source unique)
-
-export function getContactsByRattachement(type, idRattachement) {
-  return mockContacts.filter(c => c.type_rattachement === type && c.id_rattachement === idRattachement);
 }
 
 // getCommandesByRevendeur deplace vers data/mockContrats.js (source unique)
@@ -189,32 +143,6 @@ export function getEditionsByProduit(idProduit) {
 
 export function getSousProduits(idProduitParent) {
   return mockProduits.filter(p => p.id_produit_parent === idProduitParent);
-}
-
-export function isContactActif(contact) {
-  if (!contact.date_fin) return true;
-  return new Date(contact.date_fin) >= new Date();
-}
-
-// Resolution du libelle de l'entite de rattachement d'un contact (client, editeur ou revendeur)
-export function getRattachementInfo(typeRattachement, idRattachement) {
-    if (typeRattachement === 'revendeur') {
-    // Les revendeurs viennent de l'API depuis la bascule du referentiel : ils
-    // ne sont plus resolvables depuis ce fichier, qui est synchrone. Les
-    // contacts etant eux-memes encore mockes, leur id_rattachement designe de
-    // toute facon un revendeur de demonstration qui n'existe plus. Le lien est
-    // donc retire plutot que de mener a une fiche introuvable.
-    return { label: 'Revendeur', detailPath: null };
-  }
-  if (typeRattachement === 'editeur') {
-    const editeur = mockEditeurs.find(e => e.id === idRattachement);
-    return { label: editeur?.raison_sociale ?? 'Éditeur inconnu', detailPath: `/referentiels/editeurs/${idRattachement}` };
-  }
-  if (typeRattachement === 'revendeur') {
-    const revendeur = mockRevendeurs.find(r => r.id === idRattachement);
-    return { label: revendeur?.raison_sociale ?? 'Revendeur inconnu', detailPath: `/referentiels/revendeurs/${idRattachement}` };
-  }
-  return { label: 'Inconnu', detailPath: null };
 }
 
 // Synthese de conformite agregee par editeur (deterministe a partir de l'id, pas de hasard a chaque rendu)

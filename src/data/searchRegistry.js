@@ -3,11 +3,11 @@
 // Chaque entree lit une source de donnees existante (aucune copie), declare ses champs cherchables,
 // le contexte affiche dans le resultat, et les routes de destination (detail si elle existe, sinon liste).
 import {
-  Building, Building2, Store, Users, Package, FileText, ShoppingCart, Receipt, Shield, Tag,
+  Building, Building2, Package, FileText, ShoppingCart, Receipt, Shield, Tag,
 } from 'lucide-react';
 import {
-  mockSocietes, mockEditeurs, mockContacts, mockProduits, mockFonctions,
-  getProduitsByEditeur, getRattachementInfo,
+  mockSocietes, mockEditeurs, mockProduits,
+  getProduitsByEditeur,
 } from './mockReferentiels';
 import { mockContrats, mockCommandes, mockDocuments, getEditeurLabel, getSocieteLabelContrat } from './mockContrats';
 import { mockLicences, mockAffectations } from './mockDeploiement';
@@ -45,21 +45,6 @@ export const SEARCH_REGISTRY = [
     getContext: item => `${getProduitsByEditeur(item.id).length} produit${getProduitsByEditeur(item.id).length > 1 ? 's' : ''}`,
     getDetailPath: item => `/referentiels/editeurs/${item.id}`,
     getListPath: () => '/referentiels/editeurs',
-  },
-  {
-    key: 'contacts',
-    label: 'Contacts',
-    icon: Users,
-    getData: () => mockContacts,
-    fields: item => [item.nom, item.prenom, item.email, item.telephone],
-    getResultLabel: item => `${item.prenom} ${item.nom}`,
-    getContext: item => {
-      const fonction = mockFonctions.find(f => f.id === item.id_fonction)?.label ?? '';
-      const rattachement = getRattachementInfo(item.type_rattachement, item.id_rattachement);
-      return [fonction, rattachement.label].filter(Boolean).join(' - ');
-    },
-    getDetailPath: item => `/referentiels/contacts/${item.id}`,
-    getListPath: () => '/referentiels/contacts',
   },
   {
     key: 'logiciels',
