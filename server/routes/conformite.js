@@ -15,11 +15,24 @@
 // avec montants_masques: true sans consulter_kpi_financiers, même règle que
 // les coûts du module licences. Le statut reste servi : il est calculé côté
 // serveur, seuil en montant compris.
+//
+// Décisions du 10/09/2026 (#190) : D52, le prix unitaire est celui de la
+// dernière commande du produit sur le périmètre observé (jamais une
+// moyenne) ; D53, un produit à usages sans droit n'a pas de taux (ecart_pct
+// null, usage_sans_droit true), il est en dépassement et porte une anomalie
+// usage_sans_droit ouverte par la migration 058 ; D54, l'écart valorisé se
+// lit en relatif à la valorisation du parc observé : chaque agrégat porte
+// valorisation_parc (somme des coûts des licences actives du périmètre
+// filtré) et ecart_valorise_pct (écart valorisé rapporté à ce parc), jamais
+// un montant absolu seul. Les deux chemins (précalcul et calcul à la volée)
+// appliquent les mêmes règles.
 import express from "express";
 import { tenantPool, commonPool } from "../db.js";
 import { succes, erreur } from "../utils/reponse.js";
 import { permissionsEffectives } from "../utils/droitsUtilisateur.js";
-import { LICENCE_EXPIREE, seuilsConformite, statutConformite } from "../utils/conformite.js";
+import {
+  LICENCE_EXPIREE, seuilsConformite, prixUnitaireDerniereCommande, valoriserBalance,
+} from "../utils/conformite.js";
 
 const router = express.Router();
 
@@ -28,12 +41,14 @@ const NIVEAUX = ["global", "editeur", "societe"];
 
 const arrondi2 = (n) => (n == null ? null : Math.round(n * 100) / 100);
 
-// ecart_pct est borné à 999.99 sur les deux chemins : la colonne du précalcul
-// est en DECIMAL(5,2) (DDL v4, élargissement hors périmètre #116) et le calcul
-// à la volée suit la même borne pour que les deux chemins servent une valeur
-// de même sens. 999.99 se lit "999,99 ou plus".
-const tauxBorne = (usages, droits) =>
-  droits > 0 ? Math.min(arrondi2((usages / droits) * 100), 999.99) : null;
+// Lignes de licence d'un groupe, au format attendu par
+// prixUnitaireDerniereCommande : la sélection de la dernière commande est
+// faite en JS, par la fonction pure testée, et non par un ORDER BY dupliqué.
+// Constante du code, interpolation sûre.
+const AGG_LIGNES_PRIX = `
+  json_agg(json_build_object(
+    'id', l.id, 'cout_licence', l.cout_licence, 'quantite', l.quantite,
+    'date_commande', c.date_commande, 'created_at', l.created_at)) AS lignes_prix`;
 
 // Dernière entrée du workflow d'une affectation, même source de vérité que
 // les routes affectations. Constante du code, interpolation sûre.
@@ -108,6 +123,16 @@ async function produitsDeLEditeur(idEditeur) {
 // Lignes de conformité : précalcul (nominal) ou calcul à la volée (société)
 // ---------------------------------------------------------------------------
 
+// Valorisation du produit sur le parc : coût des licences actives (D54). Le
+// précalcul ne la porte pas (aucune évolution de schéma dans ce lot), elle
+// est relue par produit. Constante du code, interpolation sûre.
+const LATERAL_COUT_ACTIF = (refProduit) => `
+  LEFT JOIN LATERAL (
+    SELECT coalesce(sum(l.cout_licence) FILTER (WHERE NOT ${LICENCE_EXPIREE}), 0)::float8 AS cout_actif
+      FROM licence l
+     WHERE l.id_produit = ${refProduit}
+  ) ca ON true`;
+
 // Lecture du précalcul. Un produit sans droit ni usage n'est pas compté
 // (règle #116) : sa ligne à zéro est filtrée, jamais purgée.
 async function lignesDepuisPrecalcul({ idProduit, idsProduits }) {
@@ -119,16 +144,20 @@ async function lignesDepuisPrecalcul({ idProduit, idsProduits }) {
             pc.ecart_valorise::float8 AS ecart_valorise,
             pc.statut_conformite,
             pc.derniere_maj,
-            un.label AS unite
+            un.label AS unite,
+            ca.cout_actif
        FROM precalcul_conformite pc
        ${LATERAL_UNITE("pc.id_produit")}
+       ${LATERAL_COUT_ACTIF("pc.id_produit")}
       WHERE pc.id_produit IS NOT NULL
         AND NOT (pc.droits_total = 0 AND pc.usages_total = 0)
         AND ($1::uuid IS NULL OR pc.id_produit = $1::uuid)
         AND ($2::uuid[] IS NULL OR pc.id_produit = ANY($2::uuid[]))
       ORDER BY pc.derniere_maj DESC`,
     [idProduit || null, idsProduits || null]);
-  return rows;
+  // D53 : le précalcul sert ecart_pct null sans droit (058) ; le drapeau
+  // explicite évite au front de déduire la règle du null.
+  return rows.map((r) => ({ ...r, usage_sans_droit: r.droits_total === 0 && r.usages_total > 0 }));
 }
 
 // Calcul à la volée restreint à une société. Droits : licences payées par la
@@ -140,7 +169,8 @@ async function lignesPourSociete(idSociete, { idProduit, idsProduits }, seuils) 
     `WITH droits AS (
        SELECT l.id_produit,
               coalesce(sum(l.quantite) FILTER (WHERE NOT ${LICENCE_EXPIREE}), 0)::int AS droits,
-              coalesce(sum(l.cout_licence) FILTER (WHERE NOT ${LICENCE_EXPIREE}), 0)::float8 AS cout_actif
+              coalesce(sum(l.cout_licence) FILTER (WHERE NOT ${LICENCE_EXPIREE}), 0)::float8 AS cout_actif,
+              ${AGG_LIGNES_PRIX}
          FROM licence l
          JOIN commande c ON c.id = l.id_commande
         WHERE l.id_produit IS NOT NULL AND c.id_societe = $1
@@ -159,6 +189,7 @@ async function lignesPourSociete(idSociete, { idProduit, idsProduits }, seuils) 
             coalesce(d.droits, 0)     AS droits_total,
             coalesce(u.usages, 0)     AS usages_total,
             coalesce(d.cout_actif, 0) AS cout_actif,
+            d.lignes_prix,
             un.label AS unite
        FROM droits d
        FULL JOIN usages u ON u.id_produit = d.id_produit
@@ -173,22 +204,19 @@ async function lignesPourSociete(idSociete, { idProduit, idsProduits }, seuils) 
     .map((r) => valoriser(r, seuils, maintenant));
 }
 
-// Valorisation et statut d'une balance brute (droits, usages, coût actif) :
-// mêmes formules que recalculer_precalcul_conformite (046).
+// Valorisation et statut d'une balance brute (droits, usages, lignes de
+// licence du périmètre) : mêmes formules que recalculer_precalcul_conformite
+// (046, révisée par 058). Le prix unitaire est celui de la dernière commande
+// parmi les lignes du périmètre observé (D52) ; un produit dont la société
+// n'a payé aucune licence n'a pas de prix, son écart valorisé est null.
 function valoriser(r, seuils, derniereMaj) {
-  const prix = r.droits_total > 0 ? arrondi2(r.cout_actif / r.droits_total) : null;
-  const ecart = r.droits_total - r.usages_total;
-  const val = prix != null ? arrondi2(ecart * prix) : null;
+  const prix = prixUnitaireDerniereCommande(r.lignes_prix ?? []);
   return {
     id_produit: r.id_produit,
     unite: r.unite ?? null,
-    droits_total: r.droits_total,
-    usages_total: r.usages_total,
-    ecart,
-    ecart_pct: tauxBorne(r.usages_total, r.droits_total),
-    prix_unitaire: prix,
-    ecart_valorise: val,
-    statut_conformite: statutConformite(r.droits_total, r.usages_total, val, seuils),
+    ...valoriserBalance(
+      { droits_total: r.droits_total, usages_total: r.usages_total, prix_unitaire: prix }, seuils),
+    cout_actif: arrondi2(Number(r.cout_actif) || 0),
     derniere_maj: derniereMaj,
   };
 }
@@ -198,9 +226,14 @@ function valoriser(r, seuils, derniereMaj) {
 // ---------------------------------------------------------------------------
 
 // ecart_valorise_negatif et _positif sont des sommes signées : la négative
-// mesure l'exposition des dépassements, la positive la sous-utilisation.
+// mesure l'exposition des dépassements, la positive la sous-utilisation ;
+// ecart_valorise est leur somme (écart net du périmètre). D54 :
+// valorisation_parc est la somme des coûts des licences actives des
+// produits du périmètre, et chaque écart est aussi servi en pourcentage de
+// ce parc (null sans parc valorisé). Un pourcentage n'est pas un montant :
+// il reste servi quand les montants sont masqués.
 function agregatsDe(lignes) {
-  let negatif = 0, positif = 0, derniere = null;
+  let negatif = 0, positif = 0, parc = 0, derniere = null;
   const nb = { depassement: 0, attention: 0, conforme: 0 };
   for (const l of lignes) {
     if (l.statut_conformite in nb) nb[l.statut_conformite] += 1;
@@ -208,15 +241,22 @@ function agregatsDe(lignes) {
       if (l.ecart_valorise < 0) negatif += l.ecart_valorise;
       else positif += l.ecart_valorise;
     }
+    parc += Number(l.cout_actif) || 0;
     if (l.derniere_maj && (!derniere || l.derniere_maj > derniere)) derniere = l.derniere_maj;
   }
+  const pct = (montant) => (parc > 0 ? arrondi2((montant / parc) * 100) : null);
   return {
     nb_produits: lignes.length,
     nb_depassement: nb.depassement,
     nb_attention: nb.attention,
     nb_conforme: nb.conforme,
+    valorisation_parc: arrondi2(parc),
+    ecart_valorise: arrondi2(negatif + positif),
+    ecart_valorise_pct: pct(negatif + positif),
     ecart_valorise_negatif: arrondi2(negatif),
+    ecart_valorise_negatif_pct: pct(negatif),
     ecart_valorise_positif: arrondi2(positif),
+    ecart_valorise_positif_pct: pct(positif),
     derniere_maj: derniere,
   };
 }
@@ -229,11 +269,15 @@ async function montantsVisibles(req) {
 }
 
 function masquerLigne(l, visibles) {
-  return visibles ? l : { ...l, prix_unitaire: null, ecart_valorise: null };
+  return visibles ? l : { ...l, prix_unitaire: null, ecart_valorise: null, cout_actif: null };
 }
 
 function masquerAgregats(a, visibles) {
-  return visibles ? a : { ...a, ecart_valorise_negatif: null, ecart_valorise_positif: null };
+  return visibles ? a : {
+    ...a,
+    valorisation_parc: null, ecart_valorise: null,
+    ecart_valorise_negatif: null, ecart_valorise_positif: null,
+  };
 }
 
 // Filtres communs aux deux GET : id_societe, id_editeur, id_produit.
@@ -300,7 +344,8 @@ async function synthesesParSociete(seuils) {
     `WITH droits AS (
        SELECT c.id_societe, l.id_produit,
               coalesce(sum(l.quantite) FILTER (WHERE NOT ${LICENCE_EXPIREE}), 0)::int AS droits,
-              coalesce(sum(l.cout_licence) FILTER (WHERE NOT ${LICENCE_EXPIREE}), 0)::float8 AS cout_actif
+              coalesce(sum(l.cout_licence) FILTER (WHERE NOT ${LICENCE_EXPIREE}), 0)::float8 AS cout_actif,
+              ${AGG_LIGNES_PRIX}
          FROM licence l
          JOIN commande c ON c.id = l.id_commande
         WHERE l.id_produit IS NOT NULL AND c.id_societe IS NOT NULL
@@ -320,7 +365,8 @@ async function synthesesParSociete(seuils) {
             coalesce(d.id_produit, u.id_produit) AS id_produit,
             coalesce(d.droits, 0)     AS droits_total,
             coalesce(u.usages, 0)     AS usages_total,
-            coalesce(d.cout_actif, 0) AS cout_actif
+            coalesce(d.cout_actif, 0) AS cout_actif,
+            d.lignes_prix
        FROM droits d
        FULL JOIN usages u ON u.id_societe = d.id_societe AND u.id_produit = d.id_produit
        LEFT JOIN societe s ON s.id = coalesce(d.id_societe, u.id_societe)`);
