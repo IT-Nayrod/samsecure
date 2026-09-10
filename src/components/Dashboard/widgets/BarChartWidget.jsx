@@ -115,14 +115,16 @@ export function EcartUsageDroitsWidget() {
             {entree.produits.slice(0, 8).map((p) => {
               const droits = p.droits_total ?? 0;
               const usages = p.usages_total ?? 0;
-              const pct = droits > 0 ? Math.round(((droits - usages) / droits) * 100) : 0;
+              // D53 : sans droit, aucun pourcentage n'a de sens, un tiret
+              // remplace le taux (le produit est en dépassement).
+              const pct = droits > 0 ? Math.round(((droits - usages) / droits) * 100) : null;
               return (
                 <tr key={p.id_produit} style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
                   <td style={{ paddingRight: 8, paddingTop: 4, paddingBottom: 4 }}>{p.produit_label}</td>
                   <td style={{ textAlign: 'right', paddingRight: 8, opacity: 0.7 }}>{droits}</td>
                   <td style={{ textAlign: 'right', paddingRight: 8, opacity: 0.7 }}>{usages}</td>
                   <td style={{ textAlign: 'right', color: couleurDe(droits, usages), fontWeight: 700 }}>
-                    {pct >= 0 ? '+' : ''}{pct}%
+                    {pct == null ? '-' : `${pct >= 0 ? '+' : ''}${pct}%`}
                   </td>
                 </tr>
               );
@@ -137,7 +139,7 @@ export function EcartUsageDroitsWidget() {
     <CadreWidget
       widgetId="ecart-usage-droits"
       titre="Écart usage vs droits"
-      info={"Pour chaque éditeur, droits acquis (licences non expirées) face à l'usage déclaré (affectations validées), en quantités. La couleur suit l'écart en pourcentage des droits, selon les seuils configurés. Le clic sur un éditeur ouvre sa fiche."}
+      info={"Pour chaque éditeur, droits acquis (licences non expirées) face à l'usage déclaré (affectations validées), en quantités. La couleur suit l'écart en pourcentage des droits, selon les seuils configurés. Un produit qui a des usages sans aucun droit est en dépassement et n'a pas de taux (tiret). Le clic sur un éditeur ouvre sa fiche."}
       derniereMaj={data?.agregats?.derniere_maj}
       chargement={chargement} erreur={erreur} onRelancer={relancer}
       vide={!chargement && !erreur && serie.length === 0}

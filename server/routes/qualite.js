@@ -34,9 +34,13 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 // Types de ce producteur. Le vocabulaire complète celui posé par contrats.js
 // (incoherence, hors_plage_parent) et inventaire.js (ligne_import) : ces
 // anomalies-là ont leurs propres producteurs et ne sont pas reservies ici.
+// usage_sans_droit (D53, migration 058) est ouvert par le trigger de
+// recalcul de la conformité, une seule anomalie ouverte par produit ; il est
+// redétecté ici depuis precalcul_conformite pour être servi et libellé.
 const TYPES_DETECTION = [
   "licence_sans_contrat", "contrat_sans_justificatif", "commande_sans_preuve",
   "doublon_affectation", "doublon_produit", "champ_obligatoire_vide",
+  "usage_sans_droit",
 ];
 
 const ORDRE_GRAVITE = { critique: 0, attention: 1, info: 2 };
@@ -246,45 +250,92 @@ async function detecterChampsVides(client) {
   return elements;
 }
 
+// Usages sans droit (D53) : produits du précalcul portant des usages validés
+// et aucun droit acquis. Le libellé du produit vit en BDD Commune, résolu en
+// une requête. L'anomalie elle-même est ouverte par le trigger de la 058 ;
+// la redétection ici la sert et la ferme au même moment que le trigger.
+async function detecterUsagesSansDroit(client) {
+  const { rows } = await client.query(
+    `SELECT pc.id_produit, pc.usages_total
+       FROM precalcul_conformite pc
+      WHERE pc.id_produit IS NOT NULL AND pc.droits_total = 0 AND pc.usages_total > 0`);
+  if (!rows.length) return [];
+  const { rows: produits } = await commonPool.query(
+    `SELECT id, label FROM produit_referentiel WHERE id = ANY($1)`,
+    [rows.map((r) => r.id_produit)]);
+  const libelles = new Map(produits.map((p) => [p.id, p.label]));
+  return rows.map((r) => {
+    const libelle = libelles.get(r.id_produit) ?? "produit inconnu du catalogue";
+    return {
+      type_anomalie: "usage_sans_droit",
+      gravite: "critique",
+      entite_type: "produit",
+      entite_id: r.id_produit,
+      libelle,
+      description: `${r.usages_total} usage(s) déclaré(s) sans aucun droit acquis sur le produit "${libelle}"`,
+    };
+  });
+}
+
+// Toutes les détections à la volée, dans l'ordre des familles.
+async function detecterTout(client) {
+  return [
+    ...(await detecterLicencesSansContrat(client)),
+    ...(await detecterContratsSansJustificatif(client)),
+    ...(await detecterCommandesSansPreuve(client)),
+    ...(await detecterDoublonsAffectation(client)),
+    ...(await detecterDoublonsProduit(client)),
+    ...(await detecterChampsVides(client)),
+    ...(await detecterUsagesSansDroit(client)),
+  ];
+}
+
+// État du stock anomalie_qualite par (entité, type), une seule requête :
+// ouverte = au moins une ligne non résolue, resolue = au moins une résolue.
+// Sans filtre de types, tout le stock est lu (producteurs tiers compris :
+// incoherence, hors_plage_parent, ligne_import).
+async function lireEtatStock(client, types = null) {
+  const { rows } = await client.query(
+    `SELECT entite_type, entite_id, type_anomalie,
+            bool_or(NOT resolu) AS ouverte, bool_or(resolu) AS resolue
+       FROM anomalie_qualite
+      WHERE ($1::varchar[] IS NULL OR type_anomalie = ANY($1))
+      GROUP BY entite_type, entite_id, type_anomalie`,
+    [types]);
+  return rows;
+}
+
+// Croisement des détections avec le stock. Une anomalie résolue sans
+// réouverture (traitée ou faux positif) exclut l'élément même s'il est
+// encore détecté ; une détection inconnue du stock est insérée quand
+// persister est vrai (GET /qualite, dans sa transaction), simplement servie
+// sinon (GET /confiance, lecture seule).
+async function croiserAvecStock(client, detectes, etatStock, { persister }) {
+  const etat = new Map(etatStock.map((r) =>
+    [`${r.entite_type}|${r.entite_id}|${r.type_anomalie}`, r]));
+  const elements = [];
+  for (const e of detectes) {
+    const connu = etat.get(`${e.entite_type}|${e.entite_id}|${e.type_anomalie}`);
+    if (connu && connu.resolue && !connu.ouverte) continue;
+    elements.push(e);
+    if (!connu && persister) {
+      await client.query(
+        `INSERT INTO anomalie_qualite (entite_type, entite_id, type_anomalie, gravite, description)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [e.entite_type, e.entite_id, e.type_anomalie, e.gravite,
+         e.description.slice(0, 2000)]);
+    }
+  }
+  return elements;
+}
+
 router.get("/qualite", async (req, res) => {
   const client = await tenantPool.connect();
   try {
     await client.query("BEGIN");
-
-    const detectes = [
-      ...(await detecterLicencesSansContrat(client)),
-      ...(await detecterContratsSansJustificatif(client)),
-      ...(await detecterCommandesSansPreuve(client)),
-      ...(await detecterDoublonsAffectation(client)),
-      ...(await detecterDoublonsProduit(client)),
-      ...(await detecterChampsVides(client)),
-    ];
-
-    // Croisement avec le stock : une seule requête pour tout l'état connu.
-    const { rows: connues } = await client.query(
-      `SELECT entite_type, entite_id, type_anomalie,
-              bool_or(NOT resolu) AS ouverte, bool_or(resolu) AS resolue
-         FROM anomalie_qualite
-        WHERE type_anomalie = ANY($1)
-        GROUP BY entite_type, entite_id, type_anomalie`,
-      [TYPES_DETECTION]);
-    const etat = new Map(connues.map((r) =>
-      [`${r.entite_type}|${r.entite_id}|${r.type_anomalie}`, r]));
-
-    const elements = [];
-    for (const e of detectes) {
-      const connu = etat.get(`${e.entite_type}|${e.entite_id}|${e.type_anomalie}`);
-      // Résolue sans réouverture = traitée ou faux positif : exclue.
-      if (connu && connu.resolue && !connu.ouverte) continue;
-      elements.push(e);
-      if (!connu) {
-        await client.query(
-          `INSERT INTO anomalie_qualite (entite_type, entite_id, type_anomalie, gravite, description)
-           VALUES ($1, $2, $3, $4, $5)`,
-          [e.entite_type, e.entite_id, e.type_anomalie, e.gravite,
-           e.description.slice(0, 2000)]);
-      }
-    }
+    const detectes = await detecterTout(client);
+    const elements = await croiserAvecStock(
+      client, detectes, await lireEtatStock(client, TYPES_DETECTION), { persister: true });
     await client.query("COMMIT");
 
     elements.sort((a, b) =>
