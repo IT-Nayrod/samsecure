@@ -1,4 +1,4 @@
-// ManqueBadge - indicateur de piece justificative manquante (risque audit)
+// ManqueBadge - indicateur de pièce justificative manquante (risque audit)
 import { AlertTriangle } from 'lucide-react';
 
 export default function ManqueBadge({ label }) {

@@ -1,5 +1,5 @@
 :root {
-  /* Colors */
+  /* Couleurs */
   --color-sidebar-bg: #0D1117;
   --color-sidebar-text-inactive: #8B9099;
   --color-sidebar-active-bg: #1E2028;
@@ -16,10 +16,10 @@
   --color-text-secondary: #8B9099;
   --color-badge-notif: #FF4757;
 
-  /* Shadows */
+  /* Ombres */
   --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.08);
 
-  /* Border radius */
+  /* Rayons de bordure */
   --radius-card: 12px;
   --radius-button: 6px;
   --radius-badge: 50%;
@@ -28,6 +28,6 @@
   --sidebar-width: 180px;
   --header-height: 56px;
 
-  /* Typography */
+  /* Typographie */
   --font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 }

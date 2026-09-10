@@ -1,4 +1,4 @@
-// periode - Calcul de période partagé (Budget, fiches, rapports) - SamSecure v0.5 - US #164
+// Calcul de période partagé entre le budget, les fiches et les rapports (US #164).
 // Fonctions pures, aucun import, aucune dépendance React ni mock : testable avec `node --test`.
 //
 // Deux axes :
@@ -130,7 +130,7 @@ export function trimestreCivil(reference, offset = 0) {
 
 /**
  * Exercice fiscal contenant `reference`, décalé de `offset` exercices.
- * L'exercice est identifié par l'année de son anniversaire de démarrage (cle) :
+ * L'exercice est identifié par l'année de son anniversaire de démarrage (clé) :
  * une société clôturant au 31 mars a son exercice 2026 du 01/04/2026 au 31/03/2027.
  */
 export function exerciceFiscal(reference, debutExercice, offset = 0) {
@@ -162,9 +162,9 @@ export function exerciceFiscalParCle(cle, debutExercice) {
 /**
  * Point d'entrée unique : résout une période { type, fenetre } en bornes concrètes.
  *   type           : 'calendaire' | 'trimestre' | 'fiscale' (défaut 'calendaire')
- *   fenetre        : 'courant' | 'precedent' | 'suivant' (défaut 'courant')
+ *   fenêtre        : 'courant' | 'precedent' | 'suivant' (défaut 'courant')
  *   debutExercice  : voir normaliserDebutExercice (objet société accepté)
- *   reference      : Date de référence (défaut aujourd'hui), injectable pour les tests
+ *   référence      : Date de référence (défaut aujourd'hui), injectable pour les tests
  */
 export function resoudrePeriode({ type = 'calendaire', fenetre = 'courant', debutExercice = null, reference = new Date() } = {}) {
   const ref = reference instanceof Date ? reference : (fromIsoDate(reference) ?? new Date());

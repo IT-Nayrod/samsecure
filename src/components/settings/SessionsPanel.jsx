@@ -1,4 +1,5 @@
-// SessionsPanel - Section 4 Specs UX v0.5
+// Sessions ouvertes du compte, avec révocation individuelle ou globale (données
+// de démonstration).
 import { useState } from 'react';
 import { Monitor, Smartphone, Trash2 } from 'lucide-react';
 import { mockSessions } from '../../data/mockUsers';

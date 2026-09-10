@@ -1,6 +1,6 @@
-// LicenceDetailPage - fiche detail d'une licence : identite, origine (commande,
-// contrat deduit, societe payeuse), jauge droits vs usage declare du produit,
-// historique et arret de maintenance. Donnees API ; la suppression s'appuie
+// LicenceDetailPage - fiche détail d'une licence : identité, origine (commande,
+// contrat déduit, société payeuse), jauge droits vs usage déclaré du produit,
+// historique et arrêt de maintenance. Données API ; la suppression s'appuie
 // sur le refus du serveur (4023), pas sur un garde-fou local.
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
@@ -73,7 +73,7 @@ export default function LicenceDetailPage() {
     setIntrouvable(false);
     try {
       // Seule la fiche est indispensable. L'historique de maintenance suit le
-      // meme droit (consulter_licences) ; les referentiels servent aux formulaires.
+      // même droit (consulter_licences) ; les référentiels servent aux formulaires.
       const [l, h, p, k, r, u, m] = await Promise.all([
         licencesService.get(id),
         optionnel(licencesService.maintenance.list(id)),
@@ -99,8 +99,8 @@ export default function LicenceDetailPage() {
   const versions = produit?.versions ?? [];
   const editeurLogo = licence ? editeurPourLogo(licence.editeur_label, produit?.editeur_url_logo_defaut) : null;
 
-  // La fiche detail porte des compteurs (nb_affectations...) que les reponses
-  // d'ecriture ne renvoient pas : fusion plutot que remplacement.
+  // La fiche détail porte des compteurs (nb_affectations...) que les réponses
+  // d'écriture ne renvoient pas : fusion plutôt que remplacement.
   const appliquer = (saved) => setLicence(prev => ({ ...prev, ...saved }));
 
   async function rechargerPeriodes() {

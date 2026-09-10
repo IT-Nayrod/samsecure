@@ -1,4 +1,5 @@
-// server/index.js
+// Point d'entrée de l'API Express : middlewares d'authentification et de
+// contrôle des permissions, montage des routeurs métier et démarrage du serveur.
 import express from "express";
 import cors from "cors";
 import { APP_ENV } from "./db.js";
@@ -36,20 +37,23 @@ import revendeursRouter from "./routes/revendeurs.js";
 import conformiteRouter from "./routes/conformite.js";
 import qualiteRouter from "./routes/qualite.js";
 import dashboardsRouter from "./routes/dashboards.js";
+import contactsRouter from "./routes/contacts.js";
+import notificationsRouter from "./routes/notifications.js";
+import { demarrerPlanificateur } from "./utils/notifications/planificateur.js";
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
 app.use("/api/auth", authRouter);
-// Monte AVANT authMiddleware : le visiteur d'un lien de reinitialisation n'a
-// par definition aucune session. Ce routeur ne traverse donc ni
-// l'authentification ni le controle des permissions, et c'est voulu.
+// Monté AVANT authMiddleware : le visiteur d'un lien de réinitialisation n'a
+// par définition aucune session. Ce routeur ne traverse donc ni
+// l'authentification ni le contrôle des permissions, et c'est voulu.
 app.use("/api", reinitialisationPubliqueRouter);
 
 app.use("/api", authMiddleware);
-// Jeton valide ne vaut pas droit d'agir : le controle des permissions est
-// central et couvre toutes les routes metier, y compris celles appelees a la
+// Jeton valide ne vaut pas droit d'agir : le contrôle des permissions est
+// central et couvre toutes les routes métier, y compris celles appelées à la
 // main hors de l'interface.
 app.use("/api", controlePermissions);
 app.use("/api", societesRouter);
@@ -73,17 +77,21 @@ app.use("/api", referentielsLicencesRouter);
 app.use("/api", affectationsRouter);
 app.use("/api", inventaireRouter);
 app.use("/api", budgetRouter);
-// Referentiels du module 1. editeursRouter porte GET /editeurs, que
-// referentielsRouter servait jusqu'ici : monte apres lui, il ne prendrait pas
-// la main si la route y etait restee, d'ou son retrait la-bas.
+// Référentiels du module 1. GET /editeurs est servi par editeursRouter :
+// referentielsRouter, monté avant lui, ne doit pas porter cette route, sinon il
+// prendrait la main.
 app.use("/api", editeursRouter);
 app.use("/api", logicielsRouter);
 app.use("/api", revendeursRouter);
-// Module 3, conformite : balance droits/usages precalculee (046), qualite des
+// Module 3, conformité : balance droits/usages précalculée (046), qualité des
 // saisies et indice de confiance (#116).
 app.use("/api", conformiteRouter);
 app.use("/api", qualiteRouter);
 app.use("/api", dashboardsRouter);
+app.use("/api", contactsRouter);
+// Notifications (#121) : routes personnelles de l'utilisateur connecte et
+// declenchement manuel du traitement planifie (administrateur).
+app.use("/api", notificationsRouter);
 
 app.use("/api", (req, res) => {
   res.status(404).json({ error: "Ressource introuvable." });
@@ -97,8 +105,8 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 3001;
-// Catalogue code_retour (BDD Commune) : un echec de chargement ne bloque pas
-// le demarrage, les reponses sortent alors avec libelle null et l'ecart est
+// Catalogue code_retour (BDD Commune) : un échec de chargement ne bloque pas
+// le démarrage, les réponses sortent alors avec libellé null et l'écart est
 // visible en console.
 chargerCatalogueCodes()
   .then((n) => console.log(`Catalogue code_retour charge : ${n} codes`))
@@ -108,4 +116,12 @@ app.listen(PORT, () => {
     `API SamSecure [${APP_ENV}] sur http://localhost:${PORT}` +
     `-> ${process.env.PGDATABASE_TENANT}`
   );
+  // Planificateur des notifications (#121) : passages quotidiens a 7 h et
+  // 7 h 30 heure de Paris, rattrapage au demarrage si l'heure est passee.
+  // Demarre apres l'ecoute : un echec de planification ne bloque jamais l'API.
+  try {
+    demarrerPlanificateur();
+  } catch (err) {
+    console.error("[notifications] planificateur non demarre :", err.message);
+  }
 });

@@ -1,4 +1,4 @@
-// FormField - Section 8 Specs UX v0.5
+// Champ de formulaire : libellé, marqueur obligatoire, erreur et aide.
 export default function FormField({ label, required, error, hint, children, className = '' }) {
   return (
     <div className={`flex flex-col gap-1.5 ${className}`}>

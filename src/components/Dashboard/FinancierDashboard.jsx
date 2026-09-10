@@ -1,5 +1,5 @@
-// Dashboard Financier (#192) : suivi budgetaire et financier, donnees reelles.
-// Le selecteur de periode fiscale alimente les widgets budget, tresorerie et
+// Dashboard Financier (#192) : suivi budgétaire et financier, données réelles.
+// Le sélecteur de période fiscale alimente les widgets budget, trésorerie et
 // engages/payes ; la composition vient de la configuration API.
 import { useState } from 'react';
 import GrilleDashboard from './GrilleDashboard';

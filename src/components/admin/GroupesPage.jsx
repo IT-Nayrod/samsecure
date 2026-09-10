@@ -173,7 +173,7 @@ export default function GroupesPage() {
   // diffusion perdait la portée `societeId` (null = portée tenant). Réévalue
   // CHAQUE attribution du groupe via la même fonction centralisée que les
   // cases à cocher (isGroupAssignable), pas seulement celles dont la portée
-  // correspond exactement à la société retirée — un retrait qui fait passer
+  // correspond exactement à la société retirée : un retrait qui fait passer
   // la diffusion de tenant à spécifique peut aussi invalider des attributions
   // prises à l'échelle tenant. L'API d'Antonin ne cascade cette suppression
   // que côté rattachement utilisateur (DELETE /utilisateurs/:id/societes/:id) ;

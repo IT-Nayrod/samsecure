@@ -1,12 +1,12 @@
-// ModalDoublonRevendeur - l'API a reconnu un revendeur deja enregistre.
+// ModalDoublonRevendeur - l'API a reconnu un revendeur déjà enregistré.
 //
-// Deux motifs possibles, renvoyes par l'API dans details.motif :
-//   siret          : identifiant legal identique, le doublon ne se discute pas ;
-//   raison_sociale : nom tres proche apres retrait des accents, de la casse, de
+// Deux motifs possibles, renvoyés par l'API dans details.motif :
+//   siret          : identifiant légal identique, le doublon ne se discute pas ;
+//   raison_sociale : nom très proche après retrait des accents, de la casse, de
 //                    la ponctuation et de la forme juridique.
 //
-// L'ecran propose l'existant plutot que de le signaler : ouvrir sa fiche, ou le
-// reactiver s'il etait desactive.
+// L'écran propose l'existant plutôt que de le signaler : ouvrir sa fiche, ou le
+// réactiver s'il était désactivé.
 import Modal from '../ui/Modal';
 import Button from '../ui/Button';
 import Badge from '../ui/Badge';

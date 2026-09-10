@@ -1,8 +1,8 @@
-/* print.css - Styles impression pour ReportViewPage - SamSecure v0.5 */
+/* Styles d'impression de la page de visualisation d'un rapport. */
 /* Importe uniquement dans ReportViewPage */
 
 @media print {
-  /* Cacher les elements de navigation */
+  /* Cacher les éléments de navigation */
   nav, aside, header[role="banner"],
   .sidebar, .topbar, .no-print {
     display: none !important;
@@ -22,7 +22,7 @@
     padding: 0 !important;
   }
 
-  /* Tableaux : eviter la coupure de ligne */
+  /* Tableaux : éviter la coupure de ligne */
   table {
     page-break-inside: avoid;
   }

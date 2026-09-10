@@ -1,14 +1,14 @@
-// LogoEditeur - logo de l'editeur, avec repli sur un avatar a initiales.
+// LogoEditeur - logo de l'éditeur, avec repli sur un avatar à initiales.
 //
-// La source du logo vient de la base : url_logo_custom, deposee par le client,
+// La source du logo vient de la base : url_logo_custom, déposée par le client,
 // prime sur url_logo_defaut, livree par SamSecure (002_tenant_schema.sql:254).
 // Les deux sont des chemins complets, du type /logos/microsoft.svg.
 //
-// logo_slug reste accepte en dernier recours : le module 3 passe encore par
+// logo_slug reste accepté en dernier recours : le module 3 passe encore par
 // editeurPourLogo() (src/services/licencesService.js), qui convertit l'URL en
-// slug pour l'ancienne entree de ce composant. Cette conversion n'a plus lieu
-// d'etre et pourra disparaitre avec ces trois lignes, une fois le helper
-// simplifie.
+// slug pour l'ancienne entrée de ce composant. Cette conversion n'a plus lieu
+// d'être et pourra disparaître avec ces trois lignes, une fois le helper
+// simplifié.
 import { colorForName, initialsForName } from '../../utils/avatar';
 
 export default function LogoEditeur({ editeur, size = 28 }) {

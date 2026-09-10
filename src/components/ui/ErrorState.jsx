@@ -1,12 +1,12 @@
-// ErrorState - echec de chargement avec relance, pour les ecrans branches sur l'API.
-// Pendant du EmptyState : meme gabarit, meme place dans la page.
+// ErrorState - échec de chargement avec relance, pour les écrans branchés sur l'API.
+// Pendant du EmptyState : même gabarit, même placé dans la page.
 import { AlertTriangle } from 'lucide-react';
 import Button from './Button';
 
 export default function ErrorState({ message, onRetry, status }) {
   // Un 403 n'est pas une panne : reproposer "Reessayer" enverrait l'utilisateur
-  // se heurter au meme refus. Le message du serveur nomme deja la permission
-  // manquante, il est affiche tel quel.
+  // se heurter au même refus. Le message du serveur nomme déjà la permission
+  // manquante, il est affiché tel quel.
   const refuse = status === 403;
   return (
     <div className="flex flex-col items-center justify-center text-center py-16 px-4">

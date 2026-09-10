@@ -1,6 +1,6 @@
-// useSuggestionsEditeurs - editeurs deja references qui correspondent a une
-// saisie en cours. Habillage de useSuggestions, qui porte toute la mecanique :
-// seul l'appel de recherche est propre aux editeurs.
+// useSuggestionsEditeurs - éditeurs déjà références qui correspondent à une
+// saisie en cours. Habillage de useSuggestions, qui porte toute la mécanique :
+// seul l'appel de recherche est propre aux éditeurs.
 import { useCallback } from 'react';
 import { editeursService } from '../services/referentielsService';
 import useSuggestions from './useSuggestions';

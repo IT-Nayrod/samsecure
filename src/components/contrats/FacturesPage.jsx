@@ -1,10 +1,10 @@
-// FacturesPage - ecran unifie Factures et Preuves, oriente audit.
+// FacturesPage - écran unifié Factures et Preuves, orienté audit.
 // Branche sur deux ressources API distinctes, /api/preuves et /api/factures,
-// fidelement au schema : la page les assemble pour l'affichage mais ne fusionne
-// pas les modeles. Chaque ligne conserve sa ressource d'origine, qui determine
-// l'API a interroger pour sa fiche.
-// La detection des manques vient de /api/commandes/manques : une vue temps
-// reel, jamais un stock d'anomalies, d'ou le rechargement apres chaque depot.
+// fidèlement au schéma : la page les assemble pour l'affichage mais ne fusionne
+// pas les modèles. Chaque ligne conserve sa ressource d'origine, qui détermine
+// l'API à interroger pour sa fiche.
+// La détection des manques vient de /api/commandes/manques : une vue temps
+// réel, jamais un stock d'anomalies, d'où le rechargement après chaque dépôt.
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Receipt, FileCheck, AlertTriangle, X } from 'lucide-react';
@@ -56,9 +56,9 @@ export default function FacturesPage() {
   const [factureModal, setFactureModal] = useState(false);
   const manquesRef = useRef(null);
 
-  // Les filtres partent a l'API plutot que d'etre appliques en memoire : c'est
-  // la meme regle de filtrage pour les deux ressources, et elle ne peut pas
-  // deriver de ce que le serveur considere comme rattache.
+  // Les filtres partent à l'API plutôt que d'être appliqués en mémoire : c'est
+  // la même règle de filtrage pour les deux ressources, et elle ne peut pas
+  // dériver de ce que le serveur considère comme rattache.
   const contratActif = filterContrat || contratParam || '';
   const commandeActive = filterCommande || commandeParam || '';
 
@@ -72,9 +72,9 @@ export default function FacturesPage() {
       idCommande: commandeActive || undefined,
     };
     try {
-      // Preuves et factures sont les deux ressources de l'ecran. La detection
+      // Preuves et factures sont les deux ressources de l'écran. La détection
       // des manques, les types et les listes de rattachement sont accessoires :
-      // leur refus retire une section ou un filtre, pas la page.
+      // leur refus retire une section où un filtre, pas la page.
       const [p, f, m, t, c, k] = await Promise.all([
         preuvesService.list(filtres),
         facturesService.list(filtres),
@@ -100,8 +100,8 @@ export default function FacturesPage() {
     load();
   }
 
-  // Les deux ressources restent separees, comme le veut l'en-tete de ce
-  // fichier : la reponse dit laquelle mettre a jour.
+  // Les deux ressources restent séparées, comme le veut l'en-tête de ce
+  // fichier : la réponse dit laquelle mettre à jour.
   const appliquer = useCallback(reponse => {
     const maj = liste => liste.map(x => x.id === reponse.entite_id ? appliquerStatut(x, reponse) : x);
     if (reponse.entite_type === 'preuve') setPreuves(maj);
@@ -116,7 +116,7 @@ export default function FacturesPage() {
   const hasActiveFiltres = !!(filterType || filterTypePreuve || filterContrat || filterCommande);
 
   // Assemblage et non fusion : chaque ligne porte sa ressource d'origine, qui
-  // dit quelle API sert sa fiche et quels champs elle possede reellement.
+  // dit quelle API sert sa fiche et quels champs elle possède réellement.
   const lignes = useMemo(() => {
     const dePreuves = preuves.map(p => ({
       ressource: 'preuve',

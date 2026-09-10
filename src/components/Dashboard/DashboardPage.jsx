@@ -1,15 +1,15 @@
 // DashboardPage (#192) - page principale des tableaux de bord.
 //
-// Selection du dashboard : inchangee (#190, "comportement en place a
-// conserver"). Le dashboard affiche depend des permissions dashboard reelles
-// de l'utilisateur (heritees de ses groupes, exceptions comprises) : un
+// Sélection du dashboard : inchangée (#190, "comportement en place à
+// conserver"). Le dashboard affiché dépend des permissions dashboard réelles
+// de l'utilisateur (héritées de ses groupes, exceptions comprises) : un
 // membre de 1, 2 ou 3 groupes voit 1, 2 ou 3 dashboards ; le premier
-// accessible, dans l'ordre Manager DSI > Financier > IT Ops, est affiche par
-// defaut, ce qui applique la regle du profil le plus eleve en multi-groupes.
+// accessible, dans l'ordre Manager DSI > Financier > IT Ops, est affiché par
+// défaut, ce qui applique la règle du profil le plus élevé en multi-groupes.
 //
-// Nouveaute #192 : la configuration (widgets par profil, seuils, preferences)
-// est chargee une fois aupres de l'API et distribuee par contexte ; le mode
-// personnalisation permet de masquer et reordonner les widgets, persiste par
+// Nouveauté #192 : la configuration (widgets par profil, seuils, préférences)
+// est chargée une fois auprès de l'API et distribuée par contexte ; le mode
+// personnalisation permet de masquer et réordonner les widgets, persisté par
 // PUT /dashboards/preferences.
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { SlidersHorizontal, Check } from 'lucide-react';
@@ -34,7 +34,7 @@ const COMPONENTS = {
   itops: ITOpsDashboard,
 };
 
-// Correspondance dashboard affiche -> profil porteur de sa composition.
+// Correspondance dashboard affiché -> profil porteur de sa composition.
 const PROFIL_PAR_DASHBOARD = {
   dsi: 'manager_dsi',
   financier: 'financier',
@@ -70,8 +70,8 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    // Les sources de widgets sont rechargees a chaque visite de la page :
-    // un dashboard fige d'une navigation a l'autre trahirait sa mission.
+    // Les sources de widgets sont rechargées à chaque visite de la page :
+    // un dashboard figé d'une navigation à l'autre trahirait sa mission.
     viderSourcesDashboard();
     chargerConfiguration();
   }, [chargerConfiguration]);
@@ -79,8 +79,8 @@ export default function DashboardPage() {
   const activeId = accessibles.some((d) => d.id === role) ? role : accessibles[0]?.id;
   const profilActif = PROFIL_PAR_DASHBOARD[activeId];
 
-  // Fusion locale puis enregistrement : l'ecran repond immediatement, l'echec
-  // d'enregistrement est signale sans perdre l'affichage.
+  // Fusion locale puis enregistrement : l'écran répond immédiatement, l'échec
+  // d'enregistrement est signalé sans perdre l'affichage.
   const enregistrer = useCallback((prochaines) => {
     setPreferences((courantes) => {
       const parCode = new Map(courantes.map((p) => [p.widget_code, p]));

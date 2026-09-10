@@ -1,6 +1,6 @@
-// MaintenanceTimeline - historique de maintenance d'une licence (periodes de
-// maintenance_historique) sous forme de frise verticale, avec le repere de
-// l'arret de maintenance quand il existe. Le statut de chaque periode (echue,
+// MaintenanceTimeline - historique de maintenance d'une licence (périodes de
+// maintenance_historique) sous forme de frise verticale, avec le repère de
+// l'arrêt de maintenance quand il existe. Le statut de chaque période (echue,
 // en_cours, a_venir) vient de l'API.
 import { Pencil, Trash2, ShieldOff } from 'lucide-react';
 import { formatMontant } from '../../services/licencesService';

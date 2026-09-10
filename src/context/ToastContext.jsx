@@ -1,4 +1,4 @@
-// ToastContext - Section 8 Specs UX v0.5
+// Contexte des toasts : ajout et retrait des messages éphémères.
 import { createContext, useState, useCallback } from 'react';
 
 export const ToastContext = createContext(null);

@@ -1,8 +1,8 @@
-// stockageInventaire - archivage et relecture des fichiers de releve
-// d'inventaire (#111). Meme pattern documentaire que les preuves
-// (stockagePreuves.js) : reception multer en memoire, nom physique neutre,
-// hash SHA-256, mode 0640, garde-fou de nom en lecture. Le fichier archive est
-// la donnee brute de reference : inventaire_raw ne porte qu'un pointeur
+// Archivage et relecture des fichiers de relevé
+// d'inventaire (#111). Même pattern documentaire que les preuves
+// (stockagePreuves.js) : réception multer en mémoire, nom physique neutre,
+// hash SHA-256, mode 0640, garde-fou de nom en lecture. Le fichier archivé est
+// la donnée brute de référence : inventaire_raw ne porte qu'un pointeur
 // (commentaire du DDL, revue Samuel), le contenu des lignes est relu ici.
 import multer from "multer";
 import crypto from "node:crypto";
@@ -10,23 +10,23 @@ import fsp from "node:fs/promises";
 import path from "node:path";
 import { PREUVES_DIR, TAILLE_MAX } from "./stockagePreuves.js";
 
-// Sous-repertoire du volume des preuves : meme sauvegarde, meme exclusion de
-// l'arborescence servie par NGINX et du rsync --delete. Les releves ne sont
-// pas melanges aux preuves pour que la route de telechargement des preuves
-// (NOM_PHYSIQUE_RE restreint a pdf/png/jpg) ne puisse jamais servir un csv.
+// Sous-répertoire du volume des preuves : même sauvegarde, même exclusion de
+// l'arborescence servie par NGINX et du rsync --delete. Les relevés ne sont
+// pas mélangés aux preuves pour que la route de téléchargement des preuves
+// (NOM_PHYSIQUE_RE restreint à pdf/png/jpg) ne puisse jamais servir un csv.
 export const INVENTAIRE_DIR =
   process.env.INVENTAIRE_DIR || path.join(PREUVES_DIR, "inventaire");
 
 export const NB_LIGNES_MAX = 10000;
 
 // Nom physique neutre : jamais le nom d'origine (collisions, accents,
-// traversee de chemin). Sert aussi de garde-fou en lecture.
+// traversée de chemin). Sert aussi de garde-fou en lecture.
 export const NOM_PHYSIQUE_RE = /^[0-9a-f-]{36}\.csv$/i;
 
-// Pointeur porte par inventaire_raw.url_fichier : "<nom physique>#L<n>", n
-// etant le numero de ligne physique du releve dans le fichier (l'en-tete est
+// Pointeur porté par inventaire_raw.url_fichier : "<nom physique>#L<n>", n
+// étant le numéro de ligne physique du relevé dans le fichier (l'en-tête est
 // en ligne 1). Le pointeur est le seul lien entre la ligne en base et son
-// contenu, d'ou une forme stricte et parsee en un seul endroit.
+// contenu, d'où une forme stricte et parsée en un seul endroit.
 const POINTEUR_RE = /^([0-9a-f-]{36}\.csv)#L(\d+)$/i;
 
 export function pointeur(nomPhysique, ligne) {
@@ -54,9 +54,9 @@ export function erreurReception(err) {
   return null;
 }
 
-// Controles de forme : extension csv et contenu decodable en UTF-8. Un csv n'a
-// pas de signature binaire ; le controle porte sur l'encodage, un fichier
-// binaire renomme en .csv echoue au decodage strict.
+// Contrôles de forme : extension csv et contenu décodable en UTF-8. Un csv n'a
+// pas de signature binaire ; le contrôle porte sur l'encodage, un fichier
+// binaire renommé en .csv échoue au décodage strict.
 export function validerFichier(file) {
   const extension = path.extname(file?.originalname || "").toLowerCase();
   if (extension !== ".csv")
@@ -92,9 +92,9 @@ export async function supprimerFichier(nomPhysique) {
 // Lecture du CSV
 // ---------------------------------------------------------------------------
 
-// Colonnes reconnues. Les en-tetes sont normalises (minuscules, accents et
-// ponctuation retires) avant comparaison, pour accepter "Quantité",
-// "quantite" ou "QTE" indifferemment.
+// Colonnes reconnues. Les en-têtes sont normalisés (minuscules, accents et
+// ponctuation retirés) avant comparaison, pour accepter "Quantité",
+// "quantite" ou "QTE" indifféremment.
 const ALIAS = {
   produit:   ["produit", "id_produit", "libelle", "libelle_produit", "logiciel", "product", "software"],
   reference: ["reference", "reference_constatee", "ref", "reference_client", "identifiant", "cle", "serial"],
@@ -111,8 +111,8 @@ function normaliserEntete(s) {
     .replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
 }
 
-// Delimiteur devine sur la ligne d'en-tete : celui qui la decoupe en le plus
-// de colonnes. Un csv francais est en ";", un export anglo-saxon en ",".
+// Délimiteur deviné sur la ligne d'en-tête : celui qui la découpe en le plus
+// de colonnes. Un csv français est en ";", un export anglo-saxon en ",".
 function devinerDelimiteur(entete) {
   let meilleur = ";", max = -1;
   for (const d of [";", ",", "\t", "|"]) {
@@ -122,9 +122,9 @@ function devinerDelimiteur(entete) {
   return meilleur;
 }
 
-// Analyseur csv minimal, sans dependance : guillemets doubles, guillemet
-// double echappe par redoublement, champs multi-lignes entre guillemets,
-// fins de ligne CRLF ou LF. Renvoie les enregistrements avec le numero de la
+// Analyseur csv minimal, sans dépendance : guillemets doubles, guillemet
+// double échappé par redoublement, champs multi-lignes entre guillemets,
+// fins de ligne CRLF ou LF. Renvoie les enregistrements avec le numéro de la
 // ligne physique ou chacun commence.
 function analyser(texte, delimiteur) {
   const enregistrements = [];
@@ -160,11 +160,11 @@ function analyser(texte, delimiteur) {
   return enregistrements;
 }
 
-// Decoupe un buffer csv en releves. Renvoie { erreur } (fichier inexploitable
-// dans son ensemble) ou { colonnes, releves } avec, par releve :
+// Découpe un buffer csv en relevés. Renvoie { erreur } (fichier inexploitable
+// dans son ensemble) ou { colonnes, releves } avec, par relevé :
 //   { ligne, produit, reference, quantite (chaine brute), societe }
-// Aucune validation de valeur ici : c'est le routeur qui juge ligne a ligne,
-// pour que le motif de rejet soit trace dans anomalie_qualite.
+// Aucune validation de valeur ici : c'est le routeur qui juge ligne à ligne,
+// pour que le motif de rejet soit tracé dans anomalie_qualite.
 export function decouperCsv(buffer) {
   let texte = buffer.toString("utf8");
   if (texte.charCodeAt(0) === 0xfeff) texte = texte.slice(1);
@@ -192,8 +192,8 @@ export function decouperCsv(buffer) {
 
   const releves = [];
   for (const { ligne, champs } of enregistrements) {
-    // Ligne entierement vide : ignoree sans erreur, c'est le cas de la ligne
-    // finale apres le dernier retour chariot.
+    // Ligne entièrement vide : ignorée sans erreur, c'est le cas de la ligne
+    // finale après le dernier retour chariot.
     if (champs.every((v) => !String(v).trim())) continue;
     const lire = (cle) => (colonnes[cle] === undefined ? "" : String(champs[colonnes[cle]] ?? "").trim());
     releves.push({
@@ -207,9 +207,9 @@ export function decouperCsv(buffer) {
   return { colonnes, delimiteur, releves };
 }
 
-// Relecture d'un fichier archive, indexee par numero de ligne physique. Les
-// fichiers archives sont immuables (jamais reecrits sous le meme nom) : un
-// cache borne evite de reparser le meme fichier a chaque affichage de liste.
+// Relecture d'un fichier archivé, indexée par numéro de ligne physique. Les
+// fichiers archivés sont immuables (jamais réécrits sous le même nom) : un
+// cache borné évite de reparser le même fichier à chaque affichage de liste.
 const cache = new Map();
 const CACHE_MAX = 32;
 
@@ -233,7 +233,7 @@ export async function lireFichierArchive(nomPhysique) {
 
 // Enrichit des lignes inventaire_raw avec le contenu relu du fichier. Une
 // ligne dont le fichier a disparu ressort avec contenu null et
-// fichier_absent true : la base reste la reference, l'ecran signale le trou.
+// fichier_absent true : la base reste la référence, l'écran signale le trou.
 export async function joindreContenu(lignes) {
   const fichiers = new Map();
   for (const l of lignes) {

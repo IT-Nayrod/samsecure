@@ -1,7 +1,7 @@
-// periodUtils - Gestion des periodes pour le module Rapports - SamSecure v0.5
-// Fonctions pures sans dependance React. Objets Date uniquement dans les calculs.
+// Gestion des périodes du module Rapports.
+// Fonctions pures sans dépendance React. Objets Date uniquement dans les calculs.
 // Retourne { dateDebut: 'YYYY-MM-DD', dateFin: 'YYYY-MM-DD', label: string }.
-// Le calcul d'exercice fiscal est delegue a src/utils/periode.js (US #164).
+// Le calcul d'exercice fiscal est délégué à src/utils/periode.js (US #164).
 import { exerciceFiscal } from './periode';
 
 const NOMS_MOIS = [
@@ -13,13 +13,13 @@ function padZ(n) { return String(n).padStart(2, '0'); }
 function dateToISO(d) { return `${d.getFullYear()}-${padZ(d.getMonth() + 1)}-${padZ(d.getDate())}`; }
 function formatJJ(d) { return `${padZ(d.getDate())}/${padZ(d.getMonth() + 1)}/${d.getFullYear()}`; }
 
-/** Retourne les 4 annees disponibles : 3 ans d'anteriorite + annee courante */
+/** Retourne les 4 années disponibles : 3 ans d'antériorité + année courante */
 export function getAnneesDisponibles() {
   const year = new Date().getFullYear();
   return [year - 3, year - 2, year - 1, year];
 }
 
-/** Periode annee calendaire complete */
+/** Période année calendaire complète */
 export function getPeriodeAnneeCalendaire(annee) {
   return {
     dateDebut: `${annee}-01-01`,
@@ -31,8 +31,8 @@ export function getPeriodeAnneeCalendaire(annee) {
 /**
  * Liste des exercices fiscaux disponibles : 3 passes + exercice courant.
  * debutExercice : tout format accepte par periode.normaliserDebutExercice
- * ('MM-DD', 'YYYY-MM-DD', { jour, mois }, objet societe ; defaut 1er janvier).
- * Si l'exercice demarre au 1er janvier, il est calque sur l'annee civile, label simplifie.
+ * ('MM-DD', 'YYYY-MM-DD', { jour, mois }, objet société ; défaut 1er janvier).
+ * Si l'exercice démarre au 1er janvier, il est calqué sur l'année civile, label simplifié.
  */
 export function getExercicesFiscaux(debutExercice = '01-01') {
   const now = new Date();
@@ -60,7 +60,7 @@ export function getPeriodeTroisDerniersMois() {
   };
 }
 
-/** Periode d'un mois precis (mois : 1-12) */
+/** Période d'un mois précis (mois : 1-12) */
 export function getPeriodeMois(annee, mois) {
   const debut = new Date(annee, mois - 1, 1);
   const fin = new Date(annee, mois, 0);
@@ -71,14 +71,14 @@ export function getPeriodeMois(annee, mois) {
   };
 }
 
-/** Verifie si une date ISO string est dans une periode { dateDebut, dateFin } */
+/** Vérifie si une date ISO string est dans une période { dateDebut, dateFin } */
 export function estDansPeriode(dateStr, periode) {
   if (!dateStr || !periode?.dateDebut || !periode?.dateFin) return false;
   const d = new Date(dateStr);
   return d >= new Date(periode.dateDebut) && d <= new Date(periode.dateFin);
 }
 
-/** Labellise une periode {dateDebut, dateFin} en 'JJ/MM/AAAA - JJ/MM/AAAA' */
+/** Labellise une période {dateDebut, dateFin} en 'JJ/MM/AAAA - JJ/MM/AAAA' */
 export function labelPeriode(periode) {
   if (!periode?.dateDebut) return '';
   const d1 = new Date(periode.dateDebut);

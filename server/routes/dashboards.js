@@ -1,16 +1,16 @@
 // Routeur dashboards (M4-L, story #190, plage de codes 5450-5499).
 //
-// Doctrine : les widgets consomment d'abord les endpoints metier existants
+// Doctrine : les widgets consomment d'abord les endpoints métier existants
 // (contrats, commandes, budget, licences, affectations, inventaire). Ce
 // routeur ne porte que ce qui manque ailleurs :
-//   - la configuration des dashboards (widgets par profil et seuils, defauts
-//     Commune surcharges par le tenant, preferences individuelles) ;
-//   - une synthese transverse du workflow de validation (compteurs et fil des
-//     dernieres saisies, qu'aucun routeur d'entite ne peut servir seul) ;
-//   - deux agregats financiers par editeur, societe ou produit que
-//     /commandes/agregats ne sait pas grouper autrement que par periode.
-// Aucune ecriture metier ici : la seule ecriture est preference_dashboard,
-// table de confort strictement personnelle a l'utilisateur connecte.
+//   - la configuration des dashboards (widgets par profil et seuils, défauts
+//     Commune surchargés par le tenant, préférences individuelles) ;
+//   - une synthèse transverse du workflow de validation (compteurs et fil des
+//     dernières saisies, qu'aucun routeur d'entité ne peut servir seul) ;
+//   - deux agrégats financiers par éditeur, société ou produit que
+//     /commandes/agregats ne sait pas grouper autrement que par période.
+// Aucune écriture métier ici : la seule écriture est preference_dashboard,
+// table de confort strictement personnelle à l'utilisateur connecté.
 import express from "express";
 import { tenantPool, commonPool } from "../db.js";
 import { succes, erreur } from "../utils/reponse.js";
@@ -21,15 +21,15 @@ const router = express.Router();
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-// Les trois profils porteurs d'un dashboard, du plus eleve au moins eleve.
-// L'ordre est la regle de selection du profil actif en multi-groupes,
-// en attendant la regle definitive (decision M4-L).
+// Les trois profils porteurs d'un dashboard, du plus élevé au moins élevé.
+// L'ordre est la règle de sélection du profil actif en multi-groupes,
+// en attendant la règle définitive (décision M4-L).
 const PROFILS_DASHBOARD = ["manager_dsi", "financier", "it_ops"];
 
 // ---------------------------------------------------------------------------
 // Seuils effectifs d'un widget : surcharge tenant (seuil_dashboard) sinon
-// defaut Commune (default_seuil_dashboard). La surcharge se fait ligne a
-// ligne sur la cle naturelle widget_code + echelle.
+// défaut Commune (default_seuil_dashboard). La surcharge se fait ligne à
+// ligne sur la clé naturelle widget_code + échelle.
 // ---------------------------------------------------------------------------
 async function seuilsEffectifs() {
   const [defauts, tenant] = await Promise.all([
@@ -54,9 +54,9 @@ async function seuilsEffectifs() {
 
 // ---------------------------------------------------------------------------
 // GET /dashboards/configuration
-// Configuration complete pour l'utilisateur connecte : widgets par profil
-// (defaut Commune surcharge par le tenant), seuils effectifs, preferences
-// individuelles et profil actif (le plus eleve des profils attribues).
+// Configuration complété pour l'utilisateur connecté : widgets par profil
+// (défaut Commune surchargé par le tenant), seuils effectifs, préférences
+// individuelles et profil actif (le plus élevé des profils attribués).
 // ---------------------------------------------------------------------------
 router.get("/dashboards/configuration", async (req, res) => {
   try {
@@ -86,7 +86,7 @@ router.get("/dashboards/configuration", async (req, res) => {
         [req.user.id]),
     ]);
 
-    // Surcharge tenant ligne a ligne sur la cle profil + widget.
+    // Surcharge tenant ligne à ligne sur la clé profil + widget.
     const parCle = new Map();
     for (const r of defautsWidgets.rows)
       parCle.set(`${r.profil_code}:${r.widget_code}`, { ...r, source: "defaut" });
@@ -123,10 +123,10 @@ router.get("/dashboards/configuration", async (req, res) => {
 
 // ---------------------------------------------------------------------------
 // PUT /dashboards/preferences
-// Masquage et ordre des widgets pour l'utilisateur connecte, et lui seul.
+// Masquage et ordre des widgets pour l'utilisateur connecté, et lui seul.
 // Corps : { preferences: [{ widget_code, visible, position }] }. Upsert sur
-// la cle naturelle utilisateur + widget, en transaction : un enregistrement
-// partiel laisserait un dashboard incoherent.
+// la clé naturelle utilisateur + widget, en transaction : un enregistrement
+// partiel laisserait un dashboard incohérent.
 // ---------------------------------------------------------------------------
 router.put("/dashboards/preferences", async (req, res) => {
   const prefs = req.body?.preferences;
@@ -168,13 +168,13 @@ router.put("/dashboards/preferences", async (req, res) => {
 
 // ---------------------------------------------------------------------------
 // GET /dashboards/synthese
-// Synthese transverse du workflow de validation et des revalidations :
-//   - saisies en attente par type d'entite, dont celles de plus de 24 heures ;
-//   - fil des dix dernieres saisies, tous types confondus, avec libelle ;
-//   - repartition des affectations validees par proximite de revalidation,
-//     bornee par les seuils effectifs du widget revalidations.
-// Le statut d'une entite est la derniere entree de workflow_validation qui la
-// designe : les compteurs se calculent sur cette derniere entree seulement.
+// Synthèse transverse du workflow de validation et des revalidations :
+//   - saisies en attente par type d'entité, dont celles de plus de 24 heures ;
+//   - fil des dix dernières saisies, tous types confondus, avec libellé ;
+//   - répartition des affectations validées par proximité de revalidation,
+//     bornée par les seuils effectifs du widget revalidations.
+// Le statut d'une entité est la dernière entrée de workflow_validation qui la
+// désigne : les compteurs se calculent sur cette dernière entrée seulement.
 // ---------------------------------------------------------------------------
 router.get("/dashboards/synthese", async (req, res) => {
   try {
@@ -213,9 +213,9 @@ router.get("/dashboards/synthese", async (req, res) => {
       seuilsEffectifs(),
     ]);
 
-    // Libelles des entites du fil : une requete par type present (sept types
+    // Libellés des entités du fil : une requête par type présent (sept types
     // au plus), jamais une par ligne. Les noms de table sortent du catalogue
-    // ENTITES_VALIDABLES, jamais d'une entree utilisateur.
+    // ENTITES_VALIDABLES, jamais d'une entrée utilisateur.
     const parType = new Map();
     for (const s of dernieres.rows) {
       if (!ENTITES_VALIDABLES[s.entite_type]) continue;
@@ -235,10 +235,10 @@ router.get("/dashboards/synthese", async (req, res) => {
       label: libelles.get(`${s.entite_type}:${s.entite_id}`) ?? null,
     }));
 
-    // Affectations validees sans echeance de revalidation : niveau 1, il n'y a
-    // rien a revalider. Les autres se repartissent par les seuils effectifs
-    // (direction 'bas' : le niveau est la premiere echelle dont la valeur est
-    // inferieure ou egale aux jours restants, la quatrieme sinon).
+    // Affectations validées sans échéance de revalidation : niveau 1, il n'y a
+    // rien à revalider. Les autres se répartissent par les seuils effectifs
+    // (direction 'bas' : le niveau est la première échelle dont la valeur est
+    // inférieure ou égale aux jours restants, la quatrième sinon).
     const { rows: sansEcheance } = await tenantPool.query(
       `SELECT count(*)::int AS nb
          FROM affectation a
@@ -272,7 +272,7 @@ router.get("/dashboards/synthese", async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// Periode optionnelle date_debut / date_fin, les deux ou aucune.
+// Période optionnelle date_debut / date_fin, les deux ou aucune.
 // ---------------------------------------------------------------------------
 function lirePeriode(query) {
   const { date_debut, date_fin } = query;
@@ -284,11 +284,11 @@ function lirePeriode(query) {
 
 // ---------------------------------------------------------------------------
 // GET /dashboards/montants-totaux?axe=editeur|societe|produit
-// Montants totaux du parc par axe, pour le widget du meme nom.
-//   - editeur, societe : somme des montants de commandes (source reelle des
-//     engagements), periode optionnelle sur date_commande ;
-//   - produit : somme des couts des licences non expirees (le montant d'une
-//     commande ne se ventile pas par produit sans invention). La difference
+// Montants totaux du parc par axe, pour le widget du même nom.
+//   - éditeur, société : somme des montants de commandes (source réelle des
+//     engagements), période optionnelle sur date_commande ;
+//   - produit : somme des coûts des licences non expirées (le montant d'une
+//     commande ne se ventile pas par produit sans invention). La différence
 //     de source est dite dans la bulle d'information du widget.
 // ---------------------------------------------------------------------------
 router.get("/dashboards/montants-totaux", async (req, res) => {
@@ -347,11 +347,11 @@ router.get("/dashboards/montants-totaux", async (req, res) => {
 
 // ---------------------------------------------------------------------------
 // GET /dashboards/engages-payes
-// Montants commandes et payes par editeur, lus dans precalcul_financier
-// (meme source que /commandes/agregats, qui ne sait grouper que par periode).
-// montant_paye reste a zero tant qu'aucune table ne porte de montant de
-// facture (note migration 016) : la donnee est servie telle quelle, jamais
-// inventee. derniere_maj : la plus recente des lignes retenues.
+// Montants commandes et payés par éditeur, lus dans precalcul_financier
+// (même source que /commandes/agregats, qui ne sait grouper que par période).
+// montant_paye reste à zéro tant qu'aucune table ne porte de montant de
+// facture (note migration 016) : la donnée est servie telle quelle, jamais
+// inventée. derniere_maj : la plus récente des lignes retenues.
 // ---------------------------------------------------------------------------
 router.get("/dashboards/engages-payes", async (req, res) => {
   try {

@@ -1,12 +1,12 @@
-// PeriodeSelector - Selecteur de periode partage (Budget, fiches, rapports) - SamSecure v0.5 - US #164
-// Deux axes : TYPE (annee calendaire, trimestre, annee fiscale) x FENETRE (precedent, en cours, suivant).
-// L'annee fiscale est ancree sur debut_exercice_fiscal de l'organisation fournie (defaut 1er janvier).
-// Expose via onChange la periode resolue par src/utils/periode.js :
+// Sélecteur de période partagé entre le budget, les fiches et les rapports (US #164).
+// Deux axes : TYPE (année calendaire, trimestre, année fiscale) x FENETRE (précédent, en cours, suivant).
+// L'année fiscale est ancrée sur debut_exercice_fiscal de l'organisation fournie (défaut 1er janvier).
+// Expose via onChange la période résolue par src/utils/periode.js :
 //   { type, fenetre, debut: Date, fin: Date, dateDebut: 'YYYY-MM-DD', dateFin: 'YYYY-MM-DD', label, cle }
 //
-// Mode non controle (defaut) : le composant porte type et fenetre.
+// Mode non contrôlé (défaut) : le composant porte type et fenêtre.
 //   <PeriodeSelector societe={societe} onChange={setPeriode} />
-// Mode controle : le parent porte type et fenetre (ex. depuis usePeriode ou des query params).
+// Mode contrôlé : le parent porte type et fenêtre (ex. depuis usePeriode ou des query params).
 //   <PeriodeSelector type={type} fenetre={fenetre} onTypeChange={setType} onFenetreChange={setFenetre} societe={societe} onChange={setPeriode} />
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { Calendar } from 'lucide-react';
@@ -17,12 +17,12 @@ import {
 const SELECT_CLS = 'text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500';
 
 export default function PeriodeSelector({
-  // Mode controle (optionnel)
+  // Mode contrôlé (optionnel)
   type: typeControle,
   fenetre: fenetreControlee,
   onTypeChange,
   onFenetreChange,
-  // Mode non controle
+  // Mode non contrôlé
   defaultType = 'calendaire',
   defaultFenetre = 'courant',
   // Source de l'exercice fiscal : debutExercice explicite prime, sinon societe.debut_exercice_fiscal, sinon 01/01
@@ -30,7 +30,7 @@ export default function PeriodeSelector({
   debutExercice = null,
   // Sous-ensemble de types proposes (ex. ['calendaire', 'fiscale'] pour un rapport annuel)
   types = null,
-  // Callback recevant la periode resolue a chaque changement (type, fenetre, exercice)
+  // Callback recevant la période résolue à chaque changement (type, fenetre, exercice)
   onChange,
   afficherBornes = true,
   className = '',
@@ -45,14 +45,14 @@ export default function PeriodeSelector({
     [types]
   );
 
-  // Memo sur jour/mois : les objets societe changent d'identite a chaque rechargement API.
+  // Memo sur jour/mois : les objets société changent d'identité à chaque rechargement API.
   const { jour, mois } = normaliserDebutExercice(debutExercice ?? societe);
   const periode = useMemo(
     () => resoudrePeriode({ type, fenetre, debutExercice: { jour, mois } }),
     [type, fenetre, jour, mois]
   );
 
-  // Ref sur onChange : un parent qui passe une fonction inline ne doit pas rejouer l'effet a chaque rendu.
+  // Ref sur onChange : un parent qui passe une fonction inline ne doit pas rejouer l'effet à chaque rendu.
   const onChangeRef = useRef(onChange);
   useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
   useEffect(() => {

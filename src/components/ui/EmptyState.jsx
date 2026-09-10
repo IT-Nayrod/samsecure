@@ -1,4 +1,4 @@
-// EmptyState - Section 8 Specs UX v0.5
+// État vide d'une liste, avec action optionnelle.
 import { Inbox } from 'lucide-react';
 import Button from './Button';
 

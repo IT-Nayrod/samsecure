@@ -1,10 +1,10 @@
 // validationService - traitement du workflow de validation des saisies (#53).
 // Une seule paire d'endpoints sert les quatre ressources, l'entite_type est
-// polymorphe cote API : le front n'a donc qu'un service, pas un par bloc.
-// Meme convention que les autres services : aucun fetch direct, http.js porte
+// polymorphe côté API : le front n'a donc qu'un service, pas un par bloc.
+// Même convention que les autres services : aucun fetch direct, http.js porte
 // le Bearer, le refresh sur 401 et la normalisation des erreurs en ApiError
-// (message = champ "error" affiche tel quel, code = code_retour, #68) et le
-// deballage de l'enveloppe { code, type, libelle, data }.
+// (message = champ "error" affiché tel quel, code = code_retour, #68) et le
+// déballage de l'enveloppe { code, type, libelle, data }.
 import { http } from './http';
 
 export const validationService = {
@@ -13,9 +13,9 @@ export const validationService = {
     http.post(`/validation/${entiteType}/${id}/refuser`, { message_refus: motif }),
 };
 
-// Report de la reponse de traitement sur l'entite affichee. Les trois champs
-// sont exactement ceux que les GET liste et detail renvoient : appliquer la
-// reponse suffit, aucun rechargement n'est necessaire.
+// Report de la réponse de traitement sur l'entité affichée. Les trois champs
+// sont exactement ceux que les GET liste et détail renvoient : appliquer la
+// réponse suffit, aucun rechargement n'est nécessaire.
 export function appliquerStatut(entite, reponse) {
   return {
     ...entite,

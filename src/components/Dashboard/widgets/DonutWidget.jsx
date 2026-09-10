@@ -1,6 +1,6 @@
-// Donuts des dashboards, branches sur le contrat conformite (#192) :
-// indice de conformite global (Manager DSI) et valorisation des licences
-// non utilisees (Financier).
+// Donuts des dashboards, branchés sur le contrat conformité (#192) :
+// indice de conformité global (Manager DSI) et valorisation des licences
+// non utilisées (Financier).
 import { useNavigate } from 'react-router-dom';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import CadreWidget from './CadreWidget';
@@ -29,15 +29,15 @@ const TooltipDonut = ({ active, payload, euros = false }) => {
   );
 };
 
-// ─── Indice de conformité global (Manager DSI) ──────────────────────────────
+// --- Indice de conformité global (Manager DSI) ------------------------------
 export function IndiceConformiteWidget() {
   const navigate = useNavigate();
   const seuils = useSeuils('indice-conformite');
   const { data, chargement, erreur, relancer } = useSourceDashboard(
     'conformite-global', () => conformiteService.synthese('global'));
 
-  // Le niveau global renvoie les agregats, en tete de reponse ou en ligne
-  // unique selon le contrat : les deux formes sont acceptees.
+  // Le niveau global renvoie les agrégats, en tête de réponse ou en ligne
+  // unique selon le contrat : les deux formes sont acceptées.
   const ag = data?.agregats ?? data?.lignes?.[0] ?? null;
   const nbProduits = ag?.nb_produits ?? 0;
   const segments = ag ? [
@@ -95,15 +95,15 @@ export function IndiceConformiteWidget() {
   );
 }
 
-// ─── Valorisation des licences non utilisées (Financier) ────────────────────
+// --- Valorisation des licences non utilisées (Financier) --------------------
 export function ValorisationLicencesWidget() {
   const navigate = useNavigate();
   const seuils = useSeuils('valorisation-licences');
   const { data, chargement, erreur, relancer } = useSourceDashboard(
     'conformite:', () => conformiteService.list({}));
 
-  // Ecart valorise positif = droits payes au-dela de l'usage declare,
-  // agrege par editeur pour les segments du donut.
+  // Écart valorisé positif = droits payés au-delà de l'usage déclaré,
+  // agrège par éditeur pour les segments du donut.
   const parEditeur = new Map();
   let totalDroits = 0;
   let ecartQuantite = 0;
@@ -175,5 +175,5 @@ export function ValorisationLicencesWidget() {
   );
 }
 
-// Alias retrocompatibilite
+// Alias rétrocompatibilité
 export const EconomiesOptimisablesWidget = ValorisationLicencesWidget;

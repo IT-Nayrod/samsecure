@@ -1,4 +1,5 @@
-// LoginPage - Section 2 Specs UX v0.5
+// Page de connexion : email et mot de passe, compteur de tentatives et
+// redirection vers la page demandée après authentification.
 import { useState, useEffect } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';

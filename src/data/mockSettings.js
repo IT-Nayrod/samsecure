@@ -13,28 +13,5 @@ export const mockTenant = {
 // mockContrats, mockCommandes et mockFactures deplaces vers data/mockContrats.js (source unique)
 // mockLicences et mockAffectations deplaces vers data/mockDeploiement.js (source unique)
 
-export const NOTIF_PREFS_DEFAULT = {
-  contrats_echeance: true,
-  commandes_echeance: true,
-  licences_depassement: true,
-  validations_attente: true,
-  saisies_validees: true,
-  budget_alerte: true,
-  renouvellements: true,
-  connecteurs_erreur: false,
-  rapports_disponibles: false,
-  systeme: false,
-};
-
-export const NOTIF_PREFS_LABELS = {
-  contrats_echeance: 'Échéances de contrats',
-  commandes_echeance: 'Échéances de commandes',
-  licences_depassement: 'Dépassements de licences',
-  validations_attente: 'Validations en attente',
-  saisies_validees: 'Saisies validées ou refusées',
-  budget_alerte: 'Alertes budgétaires',
-  renouvellements: 'Renouvellements à venir',
-  connecteurs_erreur: 'Erreurs de connecteurs',
-  rapports_disponibles: 'Rapports disponibles',
-  systeme: 'Notifications système',
-};
+// Preferences de notification : servies par l'API (GET /notifications/preferences,
+// story #121), plus aucune constante ici.

@@ -1,16 +1,16 @@
 // ResetPasswordPage - page publique de consommation d'un lien de
-// reinitialisation (tache #85, story #14).
+// réinitialisation (tâche #85, story #14).
 //
-// Deux appels a l'API publique, sans session :
+// Deux appels à l'API publique, sans session :
 //   GET  /api/mot-de-passe/reinitialisation/:jeton  avant d'afficher le formulaire
-//   POST /api/mot-de-passe/reinitialisation/:jeton  a la soumission
-// Un lien inexistant, expire ou deja consomme recoit le meme message (410) :
+//   POST /api/mot-de-passe/reinitialisation/:jeton  à la soumission
+// Un lien inexistant, expiré ou déjà consommé reçoit le même message (410) :
 // la page ne sait pas, et ne doit pas dire, si un compte existe.
 //
-// L'indication en direct des regles est un CONFORT D'AFFICHAGE, jamais une
-// validation : la politique fait foi cote serveur (server/utils/motDePasse.js,
-// la meme que pour la definition par un administrateur), et le message de
-// refus affiche est celui de l'API. Meme approche que MotDePasseModal.
+// L'indication en direct des règles est un CONFORT D'AFFICHAGE, jamais une
+// validation : la politique fait foi côté serveur (server/utils/motDePasse.js,
+// la même que pour la définition par un administrateur), et le message de
+// refus affiché est celui de l'API. Même approche que MotDePasseModal.
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Eye, EyeOff, Check } from 'lucide-react';
@@ -19,8 +19,8 @@ import FormField from '../ui/FormField';
 import { http } from '../../services/http';
 import { useToast } from '../../hooks/useToast';
 
-// Miroir de server/utils/motDePasse.js, pour l'affichage seul, identique a
-// celui de MotDePasseModal. Toute evolution de la politique se reporte ici.
+// Miroir de server/utils/motDePasse.js, pour l'affichage seul, identique à
+// celui de MotDePasseModal. Toute évolution de la politique se reporte ici.
 const REGLES = [
   { cle: 'longueur', libelle: '12 caractères minimum', test: (v) => v.length >= 12 },
   { cle: 'majuscule', libelle: 'une majuscule', test: (v) => /[A-Z]/.test(v) },
@@ -66,8 +66,8 @@ export default function ResetPasswordPage() {
       })
       .catch((err) => {
         if (annule) return;
-        // 410 et toute autre erreur : un seul ecran, le message du serveur
-        // quand il existe. Aucune distinction entre expire, consomme, inconnu.
+        // 410 et toute autre erreur : un seul écran, le message du serveur
+        // quand il existe. Aucune distinction entre expiré, consommé, inconnu.
         setMessageInvalide(err?.message || "Ce lien n'est plus valide.");
         setEtat('invalide');
       });
@@ -87,8 +87,8 @@ export default function ResetPasswordPage() {
       addToast({ type: 'success', message: rep?.message || 'Mot de passe réinitialisé.' });
       navigate('/login', { replace: true });
     } catch (err) {
-      // Un 410 a la soumission : le lien a ete consomme ou a expire entre la
-      // verification et l'envoi. Meme ecran que pour un lien invalide.
+      // Un 410 à la soumission : le lien a été consommé ou a expiré entre la
+      // vérification et l'envoi. Même écran que pour un lien invalide.
       if (err?.status === 410) {
         setMessageInvalide(err.message);
         setEtat('invalide');
@@ -156,7 +156,7 @@ export default function ResetPasswordPage() {
                   className={CHAMP}
                 />
               </FormField>
-              {/* Volontairement actif des que les deux champs sont remplis :
+              {/* Volontairement actif dès que les deux champs sont remplis :
                   le refus et son message viennent de l'API. */}
               <Button type="submit" variant="primary" isLoading={loading} disabled={!password || !confirm || loading} className="w-full">
                 Réinitialiser le mot de passe

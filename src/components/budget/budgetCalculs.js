@@ -1,10 +1,10 @@
-// budgetCalculs - Fonctions pures du module budget (page et fiches) - SamSecure v0.5
-// Aucun import React, aucune donnee. Formats d'affichage, parametres de periode
-// pour l'API, perimetre d'organisation (hierarchie servie par /societes) et
-// cumul des syntheses servies par l'API quand la vue consolidee impose un appel
-// par societe (le routeur n'accepte qu'un seul id_societe).
-// Les montants, engages, ecarts et taux viennent de l'API : rien n'est
-// recalcule a partir des lignes ici.
+// Fonctions pures du module budget (page et fiches).
+// Aucun import React, aucune donnée. Formats d'affichage, paramétrés de période
+// pour l'API, périmètre d'organisation (hiérarchie servie par /societes) et
+// cumul des synthèses servies par l'API quand la vue consolidée impose un appel
+// par société (le routeur n'accepte qu'un seul id_societe).
+// Les montants, engagés, écarts et taux viennent de l'API : rien n'est
+// recalculé à partir des lignes ici.
 
 export const TOTAUX_VIDES = Object.freeze({
   previsionnel_capex: 0, previsionnel_opex: 0, previsionnel: 0,
@@ -30,7 +30,7 @@ export function formatPourcentage(taux) {
   return `${Number(taux).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %`;
 }
 
-/** 'YYYY-MM-DD' -> 'JJ/MM/AAAA' sans passer par Date (pas de derive de fuseau). */
+/** 'YYYY-MM-DD' -> 'JJ/MM/AAAA' sans passer par Date (pas de dérive de fuseau). */
 export function formatDateIso(iso) {
   if (!iso || typeof iso !== 'string') return '-';
   const [a, m, j] = iso.slice(0, 10).split('-');
@@ -42,7 +42,7 @@ export function libelleType(type) {
   return type === 'alloue' ? 'Alloué' : 'Prévisionnel';
 }
 
-/** Libelle d'une licence (projection /licences ou ligne /budget) : produit, lot, editeur, contrat. */
+/** Libelle d'une licence (projection /licences ou ligne /budget) : produit, lot, éditeur, contrat. */
 export function libelleLicence(l) {
   if (!l) return '';
   const lot = l.label ?? l.licence_label ?? null;
@@ -51,15 +51,15 @@ export function libelleLicence(l) {
   return [nom, l.editeur_label, l.contrat_label].filter(Boolean).join(' - ');
 }
 
-/** Parametres de plage attendus par l'API a partir d'une periode resolue par PeriodeSelector. */
+/** Paramètres de plage attendus par l'API à partir d'une période résolue par PeriodeSelector. */
 export function parametresPeriode(periode) {
   if (!periode?.dateDebut || !periode?.dateFin) return {};
   return { date_debut: periode.dateDebut, date_fin: periode.dateFin };
 }
 
 /**
- * Exercice cible du preremplissage : l'annee de demarrage de la periode
- * selectionnee (cle des periodes annuelles), sinon l'annee du premier jour
+ * Exercice cible du préremplissage : l'année de démarrage de la période
+ * sélectionnée (clé des périodes annuelles), sinon l'année du premier jour
  * (trimestre).
  */
 export function exerciceDePeriode(periode) {
@@ -70,8 +70,8 @@ export function exerciceDePeriode(periode) {
 }
 
 /**
- * Ids des filiales directes et indirectes (cle id_societe_parent de /societes).
- * `vues` garde la recursion contre un cycle de la hierarchie servie.
+ * Ids des filiales directes et indirectes (clé id_societe_parent de /societes).
+ * `vues` garde la récursion contre un cycle de la hiérarchie servie.
  */
 export function descendantes(idSociete, societes = [], vues = new Set([idSociete])) {
   const directes = societes.filter(s => s.id_societe_parent === idSociete && !vues.has(s.id)).map(s => s.id);
@@ -80,10 +80,10 @@ export function descendantes(idSociete, societes = [], vues = new Set([idSociete
 }
 
 /**
- * Perimetre du selecteur d'organisation :
+ * Périmètre du sélecteur d'organisation :
  *   null              -> toutes les organisations (aucun filtre)
- *   [id]              -> la societe seule
- *   [id, ...filiales] -> la societe et ses filiales (consolidation)
+ *   [id]              -> la société seule
+ *   [id, ...filiales] -> la société et ses filiales (consolidation)
  */
 export function perimetreSocietes(idSociete, consolider, societes = []) {
   if (!idSociete) return null;
@@ -91,9 +91,9 @@ export function perimetreSocietes(idSociete, consolider, societes = []) {
 }
 
 /**
- * Cumul de plusieurs totaux de synthese (un par societe du perimetre), avec
- * les memes formules que l'API pour les ecarts et le taux : ecarts sur les
- * totaux CAPEX + OPEX, taux null sans alloue.
+ * Cumul de plusieurs totaux de synthèse (un par société du périmètre), avec
+ * les mêmes formules que l'API pour les écarts et le taux : écarts sur les
+ * totaux CAPEX + OPEX, taux null sans alloué.
  */
 export function cumulerTotaux(liste = []) {
   const t = { ...TOTAUX_VIDES };
@@ -118,7 +118,7 @@ export function cumulerNbLignes(liste = []) {
   return n;
 }
 
-/** Code couleur du pourcentage realise (barres de progression et taux d'engagement). */
+/** Code couleur du pourcentage réalisé (barres de progression et taux d'engagement). */
 export function classesRealisation(pct) {
   if (pct > 100) return { barColor: 'bg-red-700', textColor: 'text-red-700 dark:text-red-400' };
   if (pct >= 91) return { barColor: 'bg-red-500', textColor: 'text-red-600 dark:text-red-400' };
@@ -126,13 +126,13 @@ export function classesRealisation(pct) {
   return { barColor: 'bg-green-500', textColor: 'text-green-600 dark:text-green-400' };
 }
 
-/** Une synthese sans aucun montant ni engage n'a rien a montrer. */
+/** Une synthèse sans aucun montant ni engagé n'a rien à montrer. */
 export function totauxVides(t) {
   if (!t) return true;
   return !(t.previsionnel || t.alloue || t.engage);
 }
 
-/** Motifs d'une base de preremplissage vide, tels que codes par l'API. */
+/** Motifs d'une base de préremplissage vide, tels que codes par l'API. */
 export const MOTIFS_BASE_VIDE = {
   maintenance_arretee: 'la maintenance de cette licence est arrêtée',
   maintenance_absente: 'cette licence est sans maintenance',

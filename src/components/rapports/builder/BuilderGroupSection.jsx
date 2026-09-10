@@ -1,4 +1,4 @@
-// BuilderGroupSection - Regroupement, granularite, agregats - SamSecure v0.5
+// Regroupement, granularité et agrégats du constructeur de rapport.
 
 const GRANULARITES = [
   { value: 'jour',      label: 'Jour' },
@@ -52,7 +52,7 @@ export default function BuilderGroupSection({ champs, champsNumeriques, groupeme
         </select>
       </div>
 
-      {/* Granularite (si champ date) */}
+      {/* Granularité (si champ date) */}
       {groupement && estDate && (
         <div>
           <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Granularité</label>
@@ -71,7 +71,7 @@ export default function BuilderGroupSection({ champs, champsNumeriques, groupeme
         </div>
       )}
 
-      {/* Agregats sur champs numeriques */}
+      {/* Agrégats sur champs numériques */}
       {groupement && champsNumeriques.length > 0 && (
         <div>
           <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Agrégats</p>

@@ -1,6 +1,6 @@
-// AffectationDetailPage - fiche d'une affectation (#106) : identite, balance
-// du produit (decompte API), cycles de revalidation, soumissions au circuit
-// de validation et historique des declarations. Tout vient de l'API.
+// AffectationDetailPage - fiche d'une affectation (#106) : identité, balance
+// du produit (décompte API), cycles de revalidation, soumissions au circuit
+// de validation et historique des déclarations. Tout vient de l'API.
 import { useState, useCallback, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Pencil, Trash2 } from 'lucide-react';

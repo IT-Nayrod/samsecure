@@ -1,4 +1,4 @@
-// ReportHeader - En-tete d'un rapport genere - SamSecure v0.5
+// En-tête d'un rapport généré.
 import { Download, RefreshCw, SlidersHorizontal } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatDateFR } from '../../utils/periodUtils';

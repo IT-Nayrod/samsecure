@@ -1,4 +1,5 @@
-// TenantSettingsPage - Section 5 Specs UX v0.5
+// Paramètres du tenant par onglets : informations, organisations (API),
+// configuration et connecteurs.
 import { useState, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';

@@ -1,5 +1,5 @@
-// ReportPeriodModal - Selecteur de periode + parametres supplementaires - SamSecure v0.5
-// Navigue vers /rapports/vue/:reportId?du=...&au=... apres validation.
+// Modale de choix de la période et des paramètres supplémentaires d'un rapport.
+// Navigue vers /rapports/vue/:reportId?du=...&au=... après validation.
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X, ChevronDown } from 'lucide-react';
@@ -32,7 +32,7 @@ export default function ReportPeriodModal({ report, onClose }) {
   const [perisoDebut, setPerisoDebut] = useState('');
   const [perisoFin, setPerisoFin] = useState('');
 
-  // Parametres supplementaires (extraParams)
+  // Paramètres supplémentaires (extraParams)
   const [extraValues, setExtraValues] = useState({});
 
   const periode = useMemo(() => {
@@ -85,7 +85,7 @@ export default function ReportPeriodModal({ report, onClose }) {
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{report.description}</p>
           </div>
 
-          {/* Mode periode */}
+          {/* Mode période */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Période</label>
             <div className="grid grid-cols-1 gap-1.5">
@@ -99,7 +99,7 @@ export default function ReportPeriodModal({ report, onClose }) {
             </div>
           </div>
 
-          {/* Sous-selecteurs selon le mode */}
+          {/* Sous-sélecteurs selon le mode */}
           {mode === 'annee_calendaire' && (
             <div>
               <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Année</label>
@@ -148,14 +148,14 @@ export default function ReportPeriodModal({ report, onClose }) {
             </div>
           )}
 
-          {/* Apercu de la periode calculee */}
+          {/* Aperçu de la période calculée */}
           {periode && (
             <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
               {periode.label}
             </p>
           )}
 
-          {/* Parametres supplementaires (ex: id_editeur pour R-C06) */}
+          {/* Paramètres supplémentaires (ex: id_editeur pour R-C06) */}
           {(report.extraParams ?? []).map(param => (
             <div key={param.key}>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">

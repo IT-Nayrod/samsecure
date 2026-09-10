@@ -1,4 +1,4 @@
-// Modal - Section 8 Specs UX v0.5
+// Modale commune : tailles, fermeture par la touche Échap et par le fond.
 import { useEffect } from 'react';
 import { X } from 'lucide-react';
 

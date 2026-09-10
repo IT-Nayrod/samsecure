@@ -1,4 +1,4 @@
-// OrganisationDetailPage - fiche detail d'une organisation (donnees reelles)
+// OrganisationDetailPage - fiche détail d'une organisation (données réelles)
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Pencil, Trash2, UserX } from 'lucide-react';
@@ -128,7 +128,7 @@ export default function OrganisationDetailPage() {
   // Retrait d'un utilisateur de cette organisation : le retrait d'une société
   // du rattachement fait tomber les attributions qui n'ont plus d'intersection
   // avec la diffusion de leur groupe (même fonction centralisée que les deux
-  // autres points d'entrée) — le serveur cascade déjà ce retrait précis
+  // autres points d'entrée) : le serveur cascade déjà ce retrait précis
   // (DELETE /utilisateurs/{id}/societes/{id}), on prévient avant.
   function askRetirerRattachement(user) {
     const rattachementActuel = userSocietesMap[user.id] || [];
@@ -289,7 +289,7 @@ export default function OrganisationDetailPage() {
       />
 
       {/* Cas avec groupes orphelins : parcours de réassignation avant suppression,
-          fidèle à supprimerSociete (sandbox) — réassigner d'abord ou supprimer quand même. */}
+          fidèle à supprimerSociete (sandbox) : réassigner d'abord ou supprimer quand même. */}
       <Modal
         isOpen={deleteInfo?.mode === 'orphans'}
         onClose={() => setDeleteInfo(null)}

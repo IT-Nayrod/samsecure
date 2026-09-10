@@ -1,5 +1,5 @@
-// PeriodeFiscaleSelector - selecteur de periode partage (Commandes, Dashboard, Budget)
-// Resout la periode choisie en plage de dates concretes via resolveFiscalPeriod et expose { key, debut, fin, label }
+// PeriodeFiscaleSelector - sélecteur de période partagé (Commandes, Dashboard, Budget)
+// Résout la période choisie en plage de dates concrètes via resolveFiscalPeriod et expose { key, debut, fin, label }
 import { useState, useEffect } from 'react';
 import { Calendar } from 'lucide-react';
 import { PERIODE_OPTIONS, resolveFiscalPeriod, formatPeriodeLabel } from '../../utils/fiscalPeriod';

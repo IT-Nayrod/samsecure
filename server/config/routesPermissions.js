@@ -175,6 +175,22 @@ export const ROUTES_PERMISSIONS = [
   ["GET",    "/dashboards/montants-totaux", "consulter_kpi_financiers"],
   ["GET",    "/dashboards/engages-payes",   "consulter_kpi_financiers"],
 
+  // ---- Notifications (#121) --------------------------------------------------
+  // Routes personnelles : chaque requete est bornee a l'utilisateur du jeton
+  // dans le routeur (id_utilisateur = req.user.id), aucune donnee d'autrui
+  // n'est lisible ni modifiable, d'ou PUBLIC_AUTHENTIFIE. Le declenchement
+  // manuel du traitement planifie est reserve au profil Administrateur SAM
+  // par gerer_connecteurs, seule permission que la matrice 011/021 ne donne
+  // qu'a admin_sam (meme convention que /mails/test). Les chemins litteraux
+  // precedent /notifications/:id/lu.
+  ["GET",    "/notifications/compteur",                PUBLIC_AUTHENTIFIE],
+  ["GET",    "/notifications/preferences",             PUBLIC_AUTHENTIFIE],
+  ["PUT",    "/notifications/preferences",             PUBLIC_AUTHENTIFIE],
+  ["POST",   "/notifications/tout-lu",                 PUBLIC_AUTHENTIFIE],
+  ["POST",   "/notifications/executer-planification",  "gerer_connecteurs"],
+  ["GET",    "/notifications",                         PUBLIC_AUTHENTIFIE],
+  ["PATCH",  "/notifications/:id/lu",                  PUBLIC_AUTHENTIFIE],
+
   // ---- Referentiels en lecture ---------------------------------------------
   ["GET",    "/produits",                    "consulter_referentiels"],
   ["GET",    "/unites-mesure",               "consulter_referentiels"],
@@ -216,6 +232,18 @@ export const ROUTES_PERMISSIONS = [
   ["GET",    "/revendeurs/:id",              "consulter_referentiels"],
   ["POST",   "/revendeurs",                  "gerer_referentiels"],
   ["PATCH",  "/revendeurs/:id",              "gerer_referentiels"],
+
+  // Contacts (#181). Lecture sur consulter_referentiels, ecriture sur
+  // gerer_contacts, le code dedie du module organisation (seede par 007,
+  // matrice 011/021). /contacts/recherche precede /contacts/:id, et
+  // /fonctions sert le selecteur du formulaire.
+  ["GET",    "/fonctions",                   "consulter_referentiels"],
+  ["GET",    "/contacts/recherche",          "consulter_referentiels"],
+  ["GET",    "/contacts",                    "consulter_referentiels"],
+  ["GET",    "/contacts/:id",                "consulter_referentiels"],
+  ["POST",   "/contacts",                    "gerer_contacts"],
+  ["PATCH",  "/contacts/:id",                "gerer_contacts"],
+  ["DELETE", "/contacts/:id",                "gerer_contacts"],
 
   // ---- Organisation : societes ---------------------------------------------
   ["GET",    "/societes/:id/profils-orphelins", "gerer_referentiels"],

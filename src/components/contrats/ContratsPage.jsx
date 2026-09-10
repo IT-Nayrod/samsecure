@@ -1,6 +1,6 @@
-// ContratsPage - echeancier et hierarchie des contrats (Droits d'usage)
-// Donnees API : /contrats, /editeurs, /types-contrat, /revendeurs, /societes.
-// Le statut d'echeance et les jours restants viennent de l'API, jamais recalcules ici.
+// ContratsPage - échéancier et hiérarchie des contrats (Droits d'usage)
+// Données API : /contrats, /editeurs, /types-contrat, /revendeurs, /societes.
+// Le statut d'échéance et les jours restants viennent de l'API, jamais recalculés ici.
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Layers, List, FileText, AlertTriangle, RefreshCw, FolderTree, ChevronRight, ChevronDown, X } from 'lucide-react';
@@ -50,7 +50,7 @@ function TreeNode({ contrat, depth, enfantsParParent, navigate, onValider, onRef
         {contrat.archive && <span className="text-[10px] font-semibold text-gray-600 bg-gray-200 dark:bg-gray-700 dark:text-gray-300 px-2 py-0.5 rounded-full">Archivé</span>}
         <StatutEcheanceBadge statut={contrat.statut_echeance} />
         <ValidationCell statut={contrat.statut_validation} motif={contrat.message_refus} />
-        {/* La ligne entiere navigue au clic (l.32) : sans stopPropagation,
+        {/* La ligne entière navigue au clic (l.32) : sans stopPropagation,
             cliquer Valider ouvrirait la fiche au lieu de traiter la saisie. */}
         <div onClick={e => e.stopPropagation()}>
           {canValider && <ValidationActions
@@ -95,7 +95,7 @@ export default function ContratsPage() {
 
   // Un filtre venu de l'URL ne doit pas survivre au choix explicite de
   // l'utilisateur : le retirer de l'adresse, sinon "Toutes les societes"
-  // retomberait sur le parametre.
+  // retomberait sur le paramètre.
   function purgerParam(nom) {
     if (!searchParams.has(nom)) return;
     const suivants = new URLSearchParams(searchParams);
@@ -109,9 +109,9 @@ export default function ContratsPage() {
     setError(null);
     setErrorStatus(null);
     try {
-      // Seuls les contrats sont indispensables a cet ecran. Les referentiels
+      // Seuls les contrats sont indispensables à cet écran. Les référentiels
       // alimentent les filtres et le formulaire : un droit manquant sur eux
-      // doit priver de ces commodites, pas de la liste.
+      // doit priver de ces commodités, pas de la liste.
       const [c, e, s, t, r] = await Promise.all([
         contratsService.list({ inclureArchives: afficherArchives }),
         optionnel(referentielsContratsService.editeurs()),
@@ -136,7 +136,7 @@ export default function ContratsPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Mise a jour locale plutot qu'un load() : la reponse de traitement porte
+  // Mise à jour locale plutôt qu'un load() : la réponse de traitement porté
   // exactement les trois champs de statut que sert la liste, recharger
   // rejouerait cinq appels pour rien.
   const appliquer = useCallback(reponse => {
@@ -185,10 +185,10 @@ export default function ContratsPage() {
 
   const hasActiveFiltres = !!(filterEditeur || filterSociete || filterType || filterStatut || activeKpi || editeurParam || societeParam);
 
-  // L'arbre se construit sur la liste filtree, jamais sur la liste complete :
-  // un contrat qui passe le filtre est toujours affiche. S'il a un parent, il
+  // L'arbre se construit sur la liste filtrée, jamais sur la liste complète :
+  // un contrat qui passe le filtre est toujours affiché. S'il a un parent, il
   // est rendu sous lui quand le parent passe aussi, sinon il devient racine.
-  // Sans filtre, l'ensemble filtre est la liste entiere et l'arbre est inchange.
+  // Sans filtre, l'ensemble filtré est la liste entière et l'arbre est inchangé.
   const enfantsParParent = useMemo(() => {
     const index = new Map();
     for (const c of filtres) {
@@ -222,8 +222,8 @@ export default function ContratsPage() {
     { key: 'date_fin', label: 'Date fin', sortable: true, render: r => r.date_fin ?? 'Perpétuel' },
     { key: 'statut_echeance', label: 'Statut', sortable: true, render: r => <StatutEcheanceBadge statut={r.statut_echeance} /> },
     { key: 'statut_validation', label: 'Validation', sortable: true,
-      // Le CSV retombe sur row[key] sans csvValue : on y met le libelle et le
-      // motif plutot que le code brut du referentiel.
+      // Le CSV retombe sur row[key] sans csvValue : on y met le libellé et le
+      // motif plutôt que le code brut du référentiel.
       csvValue: r => [r.statut_validation_label, r.message_refus].filter(Boolean).join(' - '),
       render: r => <ValidationCell statut={r.statut_validation} motif={r.message_refus} /> },
     { key: 'actions_validation', label: '', csvValue: () => '',

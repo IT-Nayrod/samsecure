@@ -1,21 +1,21 @@
-// Socle d'envoi de mails, story #15 (tache #87).
+// Socle d'envoi de mails, story #15 (tâche #87).
 //
 // Point de passage unique : aucun autre module du serveur n'importe nodemailer
 // ni ne construit de transport. Tout mail de l'application passe par
-// envoyerMail(), qui applique le gabarit commun SamSecure (en-tete, corps,
-// pied) et centralise le traitement des echecs.
+// envoyerMail(), qui applique le gabarit commun SamSecure (en-tête, corps,
+// pied) et centralise le traitement des échecs.
 //
 // Configuration lue EXCLUSIVEMENT dans l'environnement : SMTP_HOST, SMTP_PORT,
 // SMTP_SECURE, SMTP_USER, SMTP_PASS, MAIL_FROM, MAIL_FROM_NAME, MAIL_REPLY_TO.
 // Aucune valeur de repli, aucune adresse en dur : une configuration absente
-// est un etat d'erreur explicite (code 1001), pas un envoi vers un defaut.
+// est un état d'erreur explicite (code 1001), pas un envoi vers un défaut.
 //
-// Contrat d'echec : envoyerMail() ne leve JAMAIS. Un echec (configuration,
-// adresse, transport) est trace dans log_serveur avec son motif et renvoye
+// Contrat d'échec : envoyerMail() ne lève JAMAIS. Un échec (configuration,
+// adresse, transport) est tracé dans log_serveur avec son motif et renvoyé
 // sous la forme { envoye: false, erreur } que l'appelant peut afficher tel
-// quel. L'action metier qui a demande le mail ne doit pas echouer parce que le
-// mail n'est pas parti : un lien de reinitialisation existe en base meme si
-// le message n'a pas ete remis, et l'administrateur voit qu'il doit le
+// quel. L'action métier qui a demandé le mail ne doit pas échouer parce que le
+// mail n'est pas parti : un lien de réinitialisation existe en base même si
+// le message n'a pas été remis, et l'administrateur voit qu'il doit le
 // renvoyer.
 import nodemailer from "nodemailer";
 import { tenantPool } from "../db.js";
@@ -25,9 +25,9 @@ const VARIABLES = [
   "MAIL_FROM", "MAIL_FROM_NAME", "MAIL_REPLY_TO",
 ];
 
-// Messages d'etat renvoyes a l'appelant. Pas de detail technique : le motif
-// precis (code SMTP, refus d'authentification) va dans log_serveur, pas a
-// l'ecran, ou il ne servirait qu'a renseigner un visiteur mal intentionne.
+// Messages d'état renvoyés à l'appelant. Pas de détail technique : le motif
+// précis (code SMTP, refus d'authentification) va dans log_serveur, pas à
+// l'écran, où il ne servirait qu'à renseigner un visiteur mal intentionné.
 const ERREURS = {
   // code_retour: 1001
   configuration: "L'envoi de mails n'est pas configuré sur ce serveur.",
@@ -39,8 +39,8 @@ const ERREURS = {
 
 let transport = null;
 
-// Le transport est construit a la premiere demande, pas au demarrage : un
-// serveur sans SMTP doit demarrer et servir tout le reste de l'application.
+// Le transport est construit à la première demande, pas au démarrage : un
+// serveur sans SMTP doit démarrer et servir tout le reste de l'application.
 function obtenirTransport() {
   if (transport) return transport;
   transport = nodemailer.createTransport({
@@ -53,13 +53,13 @@ function obtenirTransport() {
 }
 
 // Variables manquantes ou vides. MAIL_REPLY_TO est la seule optionnelle : sans
-// elle les reponses vont a MAIL_FROM, ce qui est un comportement sain.
+// elle les réponses vont à MAIL_FROM, ce qui est un comportement sain.
 function variablesManquantes() {
   return VARIABLES.filter((v) => v !== "MAIL_REPLY_TO" && !process.env[v]);
 }
 
-// Trace d'echec dans log_serveur. Cette ecriture ne doit pas non plus faire
-// echouer l'appelant : si la base est injoignable, la console garde la trace.
+// Trace d'échec dans log_serveur. Cette écriture ne doit pas non plus faire
+// échouer l'appelant : si la base est injoignable, la console garde la trace.
 async function tracerEchec(message, context) {
   try {
     await tenantPool.query(
@@ -77,10 +77,10 @@ function echapper(texte) {
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-// Gabarit commun a tout envoi : en-tete SamSecure, corps, pied. Le corps est
-// recu en texte brut, decoupe en paragraphes sur les lignes vides ; les URL
-// deviennent des liens cliquables. Aucun HTML n'est accepte de l'appelant,
-// ce qui ferme la porte a une injection par un champ saisi (prenom, nom).
+// Gabarit commun à tout envoi : en-tête SamSecure, corps, pied. Le corps est
+// reçu en texte brut, découpé en paragraphes sur les lignes vides ; les URL
+// deviennent des liens cliquables. Aucun HTML n'est accepté de l'appelant,
+// ce qui ferme la porte à une injection par un champ saisi (prenom, nom).
 function gabarit(sujet, contenu) {
   const paragraphes = String(contenu ?? "").split(/\n\s*\n/).map((p) => {
     const html = echapper(p.trim()).replace(
@@ -114,12 +114,12 @@ function gabarit(sujet, contenu) {
   return { html, texte };
 }
 
-// Fonction unique exposee au reste de l'application.
+// Fonction unique exposée au reste de l'application.
 //   destinataire : adresse mail du titulaire
 //   sujet        : ligne d'objet, reprise en titre du corps
-//   contenu      : texte brut, paragraphes separes par une ligne vide
+//   contenu      : texte brut, paragraphes séparés par une ligne vide
 // Renvoie { envoye: true, messageId } ou { envoye: false, erreur, code }.
-// Ne leve jamais.
+// Ne lève jamais.
 export async function envoyerMail({ destinataire, sujet, contenu }) {
   const manquantes = variablesManquantes();
   if (manquantes.length) {
@@ -145,8 +145,8 @@ export async function envoyerMail({ destinataire, sujet, contenu }) {
     // code_retour: 1000
     return { envoye: true, messageId: info.messageId };
   } catch (err) {
-    // Le motif complet va dans log_serveur, jamais dans la reponse. Le
-    // destinataire y figure : il faut pouvoir dire a qui un mail n'est pas
+    // Le motif complet va dans log_serveur, jamais dans la réponse. Le
+    // destinataire y figure : il faut pouvoir dire à qui un mail n'est pas
     // parti, et une adresse n'est pas un secret au sens de l'audit.
     await tracerEchec("Echec d'envoi SMTP", {
       destinataire, sujet, motif: err.message, code_smtp: err.code || null, reponse: err.response || null,

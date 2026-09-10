@@ -1,7 +1,7 @@
-// useCommandesRef - liste des commandes en lecture, pour les ecrans qui n'ont
-// besoin que d'un selecteur ou d'un libelle de commande (documents).
+// useCommandesRef - liste des commandes en lecture, pour les écrans qui n'ont
+// besoin que d'un sélecteur ou d'un libellé de commande (documents).
 // Pendant de useContratsRef : getCommande garde la signature du helper mock
-// qu'il remplace, ce qui limite la retouche a la ligne d'import.
+// qu'il remplace, ce qui limite la retouche à la ligne d'import.
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { commandesService } from '../services/commandesService';
 

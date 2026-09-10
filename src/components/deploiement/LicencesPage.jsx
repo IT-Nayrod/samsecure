@@ -1,8 +1,8 @@
-// LicencesPage - vue patrimoniale du parc de licences (droits acquis), groupee
-// par editeur puis produit. Donnees API : /licences, /produits, /commandes,
-// /revendeurs, /unites-mesure, /mainteneurs. Statuts d'echeance et de
-// maintenance, balance droits/usage et niveau de conformite viennent de l'API,
-// jamais recalcules ici. Les montants sont servis a null (montants_masques)
+// LicencesPage - vue patrimoniale du parc de licences (droits acquis), groupée
+// par éditeur puis produit. Données API : /licences, /produits, /commandes,
+// /revendeurs, /unites-mesure, /mainteneurs. Statuts d'échéance et de
+// maintenance, balance droits/usage et niveau de conformité viennent de l'API,
+// jamais recalculés ici. Les montants sont servis à null (montants_masques)
 // sans consulter_kpi_financiers.
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -66,9 +66,9 @@ export default function LicencesPage() {
     setError(null);
     setErrorStatus(null);
     try {
-      // Seules les licences sont indispensables. Les referentiels alimentent
+      // Seules les licences sont indispensables. Les référentiels alimentent
       // les logos, les filtres et le formulaire : un droit manquant sur eux
-      // prive de ces commodites, pas de la liste.
+      // prive de ces commodités, pas de la liste.
       const [l, p, k, r, u, m] = await Promise.all([
         licencesService.list(),
         optionnel(referentielsLicencesService.produits()),
@@ -116,8 +116,8 @@ export default function LicencesPage() {
     return true;
   }), [licences, produitParam, filterEditeur, filterType, filterConformite, filterMaintenance, filterEcheance, activeKpi]);
 
-  // Groupes editeur -> produit, construits a partir des licences filtrees :
-  // la balance par produit (droits, usage, niveau) est portee par chaque
+  // Groupes éditeur -> produit, construits à partir des licences filtrées :
+  // la balance par produit (droits, usage, niveau) est portée par chaque
   // ligne, identique sur toutes les licences du produit.
   const groupes = useMemo(() => {
     const parEditeur = new Map();
@@ -148,7 +148,7 @@ export default function LicencesPage() {
 
   function handleSaved(saved) {
     setLicences(prev => prev.some(l => l.id === saved.id) ? prev.map(l => l.id === saved.id ? saved : l) : [saved, ...prev]);
-    // La balance par produit des autres lots a change : rechargement silencieux.
+    // La balance par produit des autres lots a changé : rechargement silencieux.
     load();
   }
 

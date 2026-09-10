@@ -1,13 +1,13 @@
 // MotDePasseModal - les trois actions de gestion du mot de passe d'un compte.
 //
-// L'indication en direct des regles est un CONFORT D'AFFICHAGE, jamais une
-// validation : le bouton reste actif meme si une regle n'est pas satisfaite,
+// L'indication en direct des règles est un CONFORT D'AFFICHAGE, jamais une
+// validation : le bouton reste actif même si une règle n'est pas satisfaite,
 // et c'est l'API qui refuse. Dupliquer la politique ici pour bloquer la
-// soumission ferait exister deux regles, dont l'une pourrait deriver de
-// l'autre en silence. Le message de refus affiche est celui du serveur.
+// soumission ferait exister deux règles, dont l'une pourrait dériver de
+// l'autre en silence. Le message de refus affiché est celui du serveur.
 //
-// Le mot de passe genere n'est conserve nulle part : il vit dans un state
-// efface a la fermeture, et n'est jamais renvoye a l'API ni relu.
+// Le mot de passe génère n'est conservé nulle part : il vit dans un state
+// effacé à la fermeture, et n'est jamais renvoyé à l'API ni relu.
 import { useState } from 'react';
 import { Copy, Check, Eye, EyeOff, RefreshCw, Mail } from 'lucide-react';
 import Modal from '../ui/Modal';
@@ -17,8 +17,8 @@ import { usersService } from '../../services/adminService';
 import { useToast } from '../../hooks/useToast';
 
 // Miroir de server/utils/motDePasse.js, pour l'affichage seul. Toute
-// evolution de la politique doit etre reportee dans les deux fichiers : c'est
-// le prix assume d'un retour immediat a la frappe, sans appel reseau.
+// évolution de la politique doit être reportée dans les deux fichiers : c'est
+// le prix assumé d'un retour immédiat à la frappe, sans appel réseau.
 const REGLES = [
   { cle: 'longueur', libelle: '12 caractères minimum', test: (v) => v.length >= 12 },
   { cle: 'majuscule', libelle: 'une majuscule', test: (v) => /[A-Z]/.test(v) },
@@ -48,8 +48,8 @@ export default function MotDePasseModal({ isOpen, utilisateur, onClose }) {
 
   if (!utilisateur) return null;
 
-  // Fermeture : tout est efface. Le mot de passe genere ne doit survivre ni a
-  // la fermeture ni a une reouverture, c'est la regle "affiche une seule fois".
+  // Fermeture : tout est effacé. Le mot de passe génère ne doit survivre ni à
+  // la fermeture ni à une réouverture, c'est la règle "affiche une seule fois".
   function fermer() {
     setValeur(''); setVisible(false); setGenere(null);
     setCopie(false); setConfirmeLien(false); setLienTemporaire(null);
@@ -65,7 +65,7 @@ export default function MotDePasseModal({ isOpen, utilisateur, onClose }) {
         : 'Mot de passe défini.' });
       setValeur('');
     } catch (err) {
-      // Message du serveur affiche tel quel : c'est lui qui fait foi sur la
+      // Message du serveur affiché tel quel : c'est lui qui fait foi sur la
       // politique, y compris s'il refuse ce que l'affichage jugeait conforme.
       addToast({ type: 'error', message: err.message, persistent: true });
     } finally {
@@ -92,7 +92,7 @@ export default function MotDePasseModal({ isOpen, utilisateur, onClose }) {
       const rep = await usersService.envoyerLienReinitialisation(utilisateur.id);
       setConfirmeLien(false);
       // Le socle d'envoi de mails n'existe pas encore : l'API renvoie le lien
-      // en clair (tache 85, option A). Ce bloc disparait avec la story #15.
+      // en clair (tâche 85, option A). Ce bloc disparaît avec la story #15.
       if (rep.lien) setLienTemporaire(rep.lien);
       addToast({ type: 'success', message: rep.lien
         ? `Lien généré, valable ${rep.expire_dans_heures} h. L'envoi par mail arrivera avec le socle mail.`
@@ -157,7 +157,7 @@ export default function MotDePasseModal({ isOpen, utilisateur, onClose }) {
         </ul>
 
         <div className="flex justify-end">
-          {/* Volontairement actif meme si une regle n'est pas satisfaite :
+          {/* Volontairement actif même si une règle n'est pas satisfaite :
               le refus et son message viennent de l'API. */}
           <Button variant="primary" onClick={definir} isLoading={envoi === 'definir'} disabled={!valeur || enCours}>
             Définir

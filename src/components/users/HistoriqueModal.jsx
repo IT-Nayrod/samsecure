@@ -1,12 +1,12 @@
 // HistoriqueModal - trace probante d'un compte, en lecture seule.
 //
-// Les libelles viennent de l'API et sont affiches tels quels : leur redaction
-// est un contrat cote serveur, la reformuler ici ferait diverger deux sources
-// pour un meme evenement.
+// Les libellés viennent de l'API et sont affichés tels quels : leur rédaction
+// est un contrat côté serveur, la reformuler ici ferait diverger deux sources
+// pour un même événement.
 //
-// Seul l'horodatage est mis en forme localement, et c'est necessaire : le
+// Seul l'horodatage est mis en forme localement, et c'est nécessaire : le
 // serveur tourne en UTC et son champ "horodatage" affiche 11:10 pour une
-// action faite a 13:10 heure de Paris. On repart donc de created_at, en ISO,
+// action faite à 13:10 heure de Paris. On repart donc de created_at, en ISO,
 // que formatDateTime rend dans le fuseau du navigateur.
 import { useState, useEffect, useCallback } from 'react';
 import { History } from 'lucide-react';
@@ -28,7 +28,7 @@ export default function HistoriqueModal({ isOpen, utilisateur, onClose }) {
   const [error, setError] = useState(null);
   const [errorStatus, setErrorStatus] = useState(null);
 
-  // charger(1) remplace la liste, charger(n) l'etend : le bouton Voir plus
+  // charger(1) remplace la liste, charger(n) l'étend : le bouton Voir plus
   // empile les pages au lieu de naviguer, l'historique se lit d'un trait.
   const charger = useCallback(async (numero) => {
     if (!utilisateur) return;
@@ -41,7 +41,7 @@ export default function HistoriqueModal({ isOpen, utilisateur, onClose }) {
       setPages(rep.pages);
       setTotal(rep.total);
     } catch (err) {
-      // Message du serveur affiche tel quel, y compris le refus de droit.
+      // Message du serveur affiché tel quel, y compris le refus de droit.
       setError(err.message);
       setErrorStatus(err.status);
     } finally {
@@ -50,8 +50,8 @@ export default function HistoriqueModal({ isOpen, utilisateur, onClose }) {
     }
   }, [utilisateur]);
 
-  // Rechargement a chaque ouverture : un historique affiche doit etre a jour,
-  // pas figé sur l'etat du dernier affichage.
+  // Rechargement à chaque ouverture : un historique affiché doit être à jour,
+  // pas figé sur l'état du dernier affichage.
   useEffect(() => {
     if (!isOpen) return;
     setEvenements([]);
@@ -94,8 +94,8 @@ export default function HistoriqueModal({ isOpen, utilisateur, onClose }) {
         <ul className="flex flex-col divide-y divide-gray-100 dark:divide-gray-700">
           {evenements.map((e) => (
             <li key={e.id ?? `${e.action}-${e.created_at}`} className="flex items-start gap-4 py-2.5">
-              {/* tabular-nums : les horodatages restent alignes d'une ligne a
-                  l'autre malgre la largeur variable des chiffres. */}
+              {/* tabular-nums : les horodatages restent alignés d'une ligne à
+                  l'autre malgré la largeur variable des chiffres. */}
               <span className="text-xs text-gray-400 whitespace-nowrap tabular-nums pt-0.5">
                 {formatDateTime(e.created_at)}
               </span>

@@ -1,4 +1,5 @@
-// AppRouter - Section 10 Specs UX v0.5
+// Routeur de l'application : routes publiques, routes protégées sous AppLayout
+// et gardes de permission par page.
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import AppLayout from '../components/layout/AppLayout';
 import ProtectedRoute from '../components/auth/ProtectedRoute';
@@ -71,7 +72,7 @@ export default function AppRouter() {
               <Route path="/admin/connectors" element={<Navigate to="/admin/settings?tab=connecteurs" replace />} />
             </Route>
 
-            {/* Referentiels */}
+            {/* Référentiels */}
             <Route element={<ProtectedRoute requirePermission={ADMIN_PERMISSIONS.SOCIETES} />}>
               <Route path="/referentiels/organisation" element={<OrganisationPage />} />
               <Route path="/referentiels/organisation/:id" element={<OrganisationDetailPage />} />
@@ -85,7 +86,7 @@ export default function AppRouter() {
             <Route path="/referentiels/logiciels" element={<LogicielsPage />} />
             <Route path="/referentiels/logiciels/:id" element={<ProduitDetailPage />} />
 
-            {/* Deploiement */}
+            {/* Déploiement */}
             <Route path="/conformite/licences" element={<LicencesPage />} />
             <Route path="/conformite/licences/:id" element={<LicenceDetailPage />} />
             <Route path="/conformite/affectations" element={<AffectationsPage />} />
@@ -101,7 +102,7 @@ export default function AppRouter() {
             <Route path="/contrats/factures" element={<FacturesPage />} />
             <Route path="/contrats/factures/:id" element={<DocumentDetailPage />} />
 
-            {/* Budget (#148) : la page suit consulter_budget, l'API reste l'autorite */}
+            {/* Budget (#148) : la page suit consulter_budget, l'API reste l'autorité */}
             <Route element={<ProtectedRoute requirePermission="consulter_budget" />}>
               <Route path="/budget" element={<BudgetPage />} />
             </Route>

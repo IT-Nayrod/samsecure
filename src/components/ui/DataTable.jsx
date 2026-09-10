@@ -1,4 +1,5 @@
-// DataTable - Section 8 Specs UX v0.5
+// Tableau de données commun : tri, pagination, sélection de lignes, export CSV,
+// états de chargement et vide.
 import { useState, useMemo } from 'react';
 import { ArrowUpDown, ArrowUp, ArrowDown, Download, ChevronLeft, ChevronRight } from 'lucide-react';
 import Skeleton from './Skeleton';

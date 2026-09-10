@@ -1,104 +1,160 @@
-// ContactDetailPage - fiche detail d'un contact
-import { useState } from 'react';
+// ContactDetailPage - fiche detail d'un contact.
+// Donnees API : /contacts/:id. La fonction, le rattachement resolu et l'etat
+// actif (derive de la date de fin) sont servis par l'API, jamais recalcules
+// ici.
+//
+// La suppression est reelle : aucune table ne reference le contact, elle sert
+// la fiche creee par erreur. Un contact parti se retire en posant sa date de
+// fin, depuis le formulaire d'edition ; la modale de suppression le rappelle.
+// Un 409 de doublon sur l'edition ouvre ModalDoublonContact, comme sur la
+// liste.
+import { useState, useCallback, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Pencil, Trash2 } from 'lucide-react';
-import { mockContacts, mockFonctions, isContactActif, getRattachementInfo } from '../../data/mockReferentiels';
+import { contactsService } from '../../services/contactsService';
 import Breadcrumb from '../ui/Breadcrumb';
 import Button from '../ui/Button';
 import Badge from '../ui/Badge';
 import ConfirmModal from '../ui/ConfirmModal';
 import EmptyState from '../ui/EmptyState';
-import StatutValidationBadge from './StatutValidationBadge';
-import ValidationActions from './ValidationActions';
+import ErrorState from '../ui/ErrorState';
+import Skeleton from '../ui/Skeleton';
 import ContactFormModal from './ContactFormModal';
+import ModalDoublonContact from './ModalDoublonContact';
 import AvatarContact from './AvatarContact';
 import useRbac from '../../hooks/useRbac';
 import { useToast } from '../../hooks/useToast';
-import useAuth from '../../hooks/useAuth';
 import { formatDate } from '../../utils/dateUtils';
 import { setContactPhoto, removeContactPhoto } from '../../utils/contactPhotos';
 
 const TYPE_LABELS = { client: 'Client', editeur: 'Éditeur', revendeur: 'Revendeur' };
 
+// Fiche de l'entite de rattachement : la cible depend du type servi par l'API.
+function cheminRattachement(contact) {
+  if (contact.id_societe) return `/referentiels/organisation/${contact.id_societe}`;
+  if (contact.id_editeur) return `/referentiels/editeurs/${contact.id_editeur}`;
+  if (contact.id_revendeur) return `/referentiels/revendeurs/${contact.id_revendeur}`;
+  return null;
+}
+
 export default function ContactDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { addToast } = useToast();
-  const { canWrite, canValidate, canDelete, submitsForValidation } = useRbac();
-  const { user } = useAuth();
-  const [contacts, setContacts] = useState(mockContacts);
+  const { canWrite, canDelete } = useRbac({ write: 'gerer_contacts' });
+  const [contact, setContact] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [errorStatus, setErrorStatus] = useState(null);
   const [formOpen, setFormOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [doublon, setDoublon] = useState(null);
 
-  const contact = contacts.find(c => c.id === id);
+  const load = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    setErrorStatus(null);
+    try {
+      setContact(await contactsService.get(id));
+    } catch (err) {
+      setError(err.message);
+      setErrorStatus(err.status);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [id]);
 
-  if (!contact) {
+  useEffect(() => { load(); }, [load]);
+
+  async function handleSave(data, existing, photo) {
+    try {
+      await contactsService.update(existing.id, data);
+      if (photo) setContactPhoto(existing.id, photo);
+      else removeContactPhoto(existing.id);
+      addToast({ type: 'success', message: 'Contact mis à jour.' });
+      await load();
+    } catch (err) {
+      if (err?.status === 409 && err?.details?.existant) {
+        setDoublon({ existant: err.details.existant, motif: err.details.motif });
+      } else if (err?.status !== 400) {
+        addToast({ type: 'error', message: err.message });
+      }
+      throw err;
+    }
+  }
+
+  async function handleDelete() {
+    try {
+      await contactsService.remove(id);
+      removeContactPhoto(id);
+      addToast({ type: 'success', message: 'Contact supprimé.' });
+      navigate('/referentiels/contacts');
+    } catch (err) {
+      setDeleteOpen(false);
+      addToast({ type: 'error', message: err.message });
+    }
+  }
+
+  function ouvrirExistant(existant) {
+    setDoublon(null);
+    setFormOpen(false);
+    navigate(`/referentiels/contacts/${existant.id}`);
+  }
+
+  const fil = (
+    <Breadcrumb items={[
+      { label: 'Référentiels', to: '/referentiels/contacts' },
+      { label: 'Contacts', to: '/referentiels/contacts' },
+      { label: contact ? `${contact.prenom ?? ''} ${contact.nom}`.trim() : '...' },
+    ]} />
+  );
+
+  if (isLoading) {
     return (
       <div className="flex flex-col gap-6">
-        <Breadcrumb items={[{ label: 'Référentiels', to: '/referentiels/contacts' }, { label: 'Contacts', to: '/referentiels/contacts' }, { label: 'Introuvable' }]} />
-        <EmptyState title="Contact introuvable" description="Ce contact n'existe pas ou a été supprimé." ctaLabel="Retour à la liste" onCta={() => navigate('/referentiels/contacts')} />
+        {fil}
+        <Skeleton height="h-20" />
+        <Skeleton height="h-64" />
       </div>
     );
   }
 
-  const fonction = mockFonctions.find(f => f.id === contact.id_fonction);
-  const rattachement = getRattachementInfo(contact.type_rattachement, contact.id_rattachement);
-  const actif = isContactActif(contact);
-
-  function handleValidate() {
-    setContacts(prev => prev.map(c => c.id === contact.id ? { ...c, statut_validation: 'valide', motif_refus: undefined } : c));
-    addToast({ type: 'success', message: 'Contact validé.' });
+  if (error) {
+    // 404 : le contact n'existe pas ou a ete supprime depuis un autre onglet.
+    if (errorStatus === 404) {
+      return (
+        <div className="flex flex-col gap-6">
+          {fil}
+          <EmptyState title="Contact introuvable" description="Ce contact n'existe pas ou a été supprimé." ctaLabel="Retour à la liste" onCta={() => navigate('/referentiels/contacts')} />
+        </div>
+      );
+    }
+    return (
+      <div className="flex flex-col gap-6">
+        {fil}
+        <ErrorState message={error} status={errorStatus} onRetry={load} />
+      </div>
+    );
   }
 
-  function handleRefuse(motif) {
-    setContacts(prev => prev.map(c => c.id === contact.id ? { ...c, statut_validation: 'refuse', motif_refus: motif } : c));
-    addToast({ type: 'info', message: 'Contact refusé.' });
-  }
-
-  function handleSave(data, existing, photo) {
-    if (photo) setContactPhoto(existing.id, photo);
-    else removeContactPhoto(existing.id);
-    const resoumis = submitsForValidation;
-    setContacts(prev => prev.map(c => c.id === existing.id ? {
-      ...c, ...data,
-      statut_validation: resoumis ? 'en_attente' : 'valide',
-      soumis_par: `${user.prenom} ${user.nom}`,
-    } : c));
-    addToast({ type: 'success', message: resoumis ? 'Modification soumise à validation.' : 'Contact mis à jour.' });
-  }
-
-  function handleDelete() {
-    setContacts(prev => prev.filter(c => c.id !== contact.id));
-    addToast({ type: 'success', message: 'Contact supprimé.' });
-    navigate('/referentiels/contacts');
-  }
+  const chemin = cheminRattachement(contact);
 
   return (
     <div className="flex flex-col gap-6">
-      <Breadcrumb items={[
-        { label: 'Référentiels', to: '/referentiels/contacts' },
-        { label: 'Contacts', to: '/referentiels/contacts' },
-        { label: `${contact.prenom} ${contact.nom}` },
-      ]} />
+      {fil}
 
       <div className="flex items-start justify-between flex-wrap gap-4">
         <div className="flex items-start gap-3">
           <AvatarContact contact={contact} size={48} />
           <div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="text-xl font-semibold text-gray-900 dark:text-white">{contact.prenom} {contact.nom}</h1>
-            <Badge variant={actif ? 'success' : 'neutral'} label={actif ? 'Actif' : 'Inactif'} />
-            <StatutValidationBadge statut={contact.statut_validation} />
-          </div>
-          {fonction && <p className="text-sm text-gray-500 mt-1">{fonction.label}</p>}
-          {contact.statut_validation === 'refuse' && contact.motif_refus && (
-            <p className="text-sm text-red-600 dark:text-red-400 mt-2">Motif du refus : {contact.motif_refus}</p>
-          )}
-          <p className="text-xs text-gray-400 mt-1">Soumis par {contact.soumis_par}</p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-xl font-semibold text-gray-900 dark:text-white">{contact.prenom} {contact.nom}</h1>
+              <Badge variant={contact.actif ? 'success' : 'neutral'} label={contact.actif ? 'Actif' : 'Inactif'} />
+            </div>
+            {contact.fonction_label && <p className="text-sm text-gray-500 mt-1">{contact.fonction_label}</p>}
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {canValidate && <ValidationActions statut={contact.statut_validation} onValidate={handleValidate} onRefuse={handleRefuse} />}
           {canWrite && (
             <Button variant="secondary" size="sm" onClick={() => setFormOpen(true)}>
               <Pencil size={14} /> Éditer
@@ -124,22 +180,34 @@ export default function ContactDetailPage() {
         <div>
           <p className="text-xs text-gray-500 mb-1">Rattachement</p>
           <p className="text-sm text-gray-800 dark:text-gray-200">
-            {TYPE_LABELS[contact.type_rattachement]}
-            {rattachement.detailPath
-              ? <> - <Link to={rattachement.detailPath} className="text-blue-800 hover:underline">{rattachement.label}</Link></>
-              : <> - {rattachement.label}</>
-            }
+            {contact.type_rattachement
+              ? (
+                <>
+                  {TYPE_LABELS[contact.type_rattachement]}
+                  {chemin
+                    ? <> - <Link to={chemin} className="text-blue-800 hover:underline">{contact.rattachement_label}</Link></>
+                    : <> - {contact.rattachement_label}</>}
+                </>
+              )
+              : 'Aucun'}
           </p>
         </div>
         <div>
           <p className="text-xs text-gray-500 mb-1">Période</p>
           <p className="text-sm text-gray-800 dark:text-gray-200">
-            Du {formatDate(contact.date_debut)} {contact.date_fin ? `au ${formatDate(contact.date_fin)}` : '(en cours)'}
+            {contact.date_debut ? `Du ${formatDate(contact.date_debut)} ` : ''}
+            {contact.date_fin ? `au ${formatDate(contact.date_fin)}` : '(en cours)'}
           </p>
         </div>
       </div>
 
-      <ContactFormModal isOpen={formOpen} onClose={() => setFormOpen(false)} onSave={handleSave} contact={contact} />
+      <ContactFormModal
+        isOpen={formOpen}
+        onClose={() => setFormOpen(false)}
+        onSave={handleSave}
+        contact={contact}
+        onOuvrirExistant={ouvrirExistant}
+      />
 
       <ConfirmModal
         isOpen={deleteOpen}
@@ -148,8 +216,16 @@ export default function ContactDetailPage() {
         title="Supprimer le contact"
         isDestructive
         confirmLabel="Supprimer"
-        message={`Supprimer définitivement ${contact.prenom} ${contact.nom} ? Cette action est irréversible.`}
+        message={`Supprimer définitivement ${contact.prenom ?? ''} ${contact.nom} ? Cette action est irréversible. Pour un contact qui a quitté ses fonctions, posez plutôt une date de fin depuis l'édition.`}
       />
+
+      {doublon && (
+        <ModalDoublonContact
+          doublon={doublon}
+          onClose={() => setDoublon(null)}
+          onOuvrirFiche={ouvrirExistant}
+        />
+      )}
     </div>
   );
 }

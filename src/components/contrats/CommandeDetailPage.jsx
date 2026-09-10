@@ -1,5 +1,5 @@
-// CommandeDetailPage - fiche detail d'une commande : origine, financier, rattachements.
-// Donnees API. La suppression s'appuie sur le refus du serveur, pas sur un garde-fou local.
+// CommandeDetailPage - fiche détail d'une commande : origine, financier, rattachements.
+// Données API. La suppression s'appuie sur le refus du serveur, pas sur un garde-fou local.
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Pencil, Trash2, XCircle, ExternalLink, Plus } from 'lucide-react';
@@ -32,7 +32,7 @@ export default function CommandeDetailPage() {
   const navigate = useNavigate();
   const { addToast } = useToast();
   const { canWrite, canDelete, canValidate } = useRbac({ write: 'saisir_commande', validate: 'valider_saisie' });
-  // Le depot d'une preuve suit le droit de l'ecran Factures & Preuves, pas celui de la commande.
+  // Le dépôt d'une preuve suit le droit de l'écran Factures & Preuves, pas celui de la commande.
   const { canWrite: canDeposer } = useRbac({ write: 'deposer_facture_preuve' });
 
   const [commande, setCommande] = useState(null);
@@ -59,12 +59,12 @@ export default function CommandeDetailPage() {
     setIntrouvable(false);
     try {
       // Seule la fiche est indispensable, le reste alimente le formulaire.
-      // Preuves et factures rattachees sont accessoires au meme titre : un refus
+      // Preuves et factures rattachées sont accessoires au même titre : un refus
       // de droit sur les documents laisse la fiche lisible, sans sa liste.
       const [k, c, s, r, m, p, f, t] = await Promise.all([
         commandesService.get(id),
-        // Archives inclus : une commande existante peut pointer un contrat archive,
-        // le formulaire d'edition doit pouvoir l'afficher (#96).
+        // Archives inclus : une commande existante peut pointer un contrat archivé,
+        // le formulaire d'édition doit pouvoir l'afficher (#96).
         optionnel(contratsService.list({ inclureArchives: true })),
         optionnel(societesService.list()),
         optionnel(referentielsContratsService.revendeurs()),
@@ -76,7 +76,7 @@ export default function CommandeDetailPage() {
       setCommande(k); setContrats(c); setSocietes(s); setRevendeurs(r); setModes(m);
       setPreuves(p); setFactures(f); setTypesPreuve(t);
     } catch (err) {
-      // 404 : la commande n'existe pas ou vient d'etre supprimee, pas une panne.
+      // 404 : la commande n'existe pas ou vient d'être supprimée, pas une panne.
       if (err.status === 404) setIntrouvable(true);
       else { setError(err.message); setErrorStatus(err.status); addToast({ type: 'error', message: err.message }); }
     } finally {
@@ -90,7 +90,7 @@ export default function CommandeDetailPage() {
   const appliquer = useCallback(reponse => setCommande(k => appliquerStatut(k, reponse)), []);
   const { valider, refuser } = useValidation(appliquer);
 
-  // Le fichier est protege par le jeton : on le telecharge puis on ouvre l'objet
+  // Le fichier est protégé par le jeton : on le télécharge puis on ouvre l'objet
   // URL local, comme le fait la fiche document.
   async function ouvrirFichier(idPreuve) {
     setOuverture(idPreuve);
@@ -111,7 +111,7 @@ export default function CommandeDetailPage() {
       addToast({ type: 'success', message: 'Commande supprimée.' });
       navigate('/contrats/commandes');
     } catch (err) {
-      // Message du serveur affiche tel quel : "Suppression impossible : ..."
+      // Message du serveur affiché tel quel : "Suppression impossible : ..."
       addToast({ type: 'error', message: err.message, persistent: true });
     }
   }

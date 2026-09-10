@@ -1,10 +1,10 @@
-// ProduitDetailPage - fiche detail d'un logiciel.
-// Donnees API : /logiciels/:id. La hierarchie, les declinaisons, le nombre de
-// licences et le caractere supprimable sont servis par l'API.
+// ProduitDetailPage - fiche détail d'un logiciel.
+// Données API : /logiciels/:id. La hiérarchie, les déclinaisons, le nombre de
+// licences et le caractère supprimable sont servis par l'API.
 //
 // Un produit du catalogue commun se consulte mais ne se modifie pas depuis un
-// espace client : l'API refuse toute ecriture le visant, et modifiable porte
-// cette regle jusqu'a l'ecran.
+// espace client : l'API refuse toute écriture le visant, et modifiable porte
+// cette règle jusqu'à l'écran.
 import { useState, useCallback, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Pencil, Trash2, Plus, X } from 'lucide-react';
@@ -49,9 +49,9 @@ export default function ProduitDetailPage() {
     setError(null);
     setErrorStatus(null);
     try {
-      // La fiche est indispensable. La liste complete alimente le selecteur de
-      // parent du formulaire, les editeurs son selecteur d'editeur : un droit
-      // manquant sur eux prive de ces commodites, pas de la fiche.
+      // La fiche est indispensable. La liste complète alimente le sélecteur de
+      // parent du formulaire, les éditeurs son sélecteur d'éditeur : un droit
+      // manquant sur eux prive de ces commodités, pas de la fiche.
       const [p, tous, e] = await Promise.all([
         logicielsService.get(id),
         optionnel(logicielsService.list()),
@@ -92,9 +92,9 @@ export default function ProduitDetailPage() {
     }
   }
 
-  // Les quatre gestes de declinaison partagent leur traitement d'erreur : le
+  // Les quatre gestes de déclinaison partagent leur traitement d'erreur : le
   // message du serveur, doublon compris, part en toast et la fiche est
-  // rechargee pour rester alignee sur la base.
+  // rechargée pour rester alignée sur la base.
   async function gesteDeclinaison(action, succes) {
     try {
       await action();

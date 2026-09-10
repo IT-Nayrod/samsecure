@@ -1,12 +1,16 @@
+// Traitement du workflow de validation : valider ou refuser la dernière saisie
+// d'une entité du catalogue ENTITES_VALIDABLES, avec le hook propre à chaque entité.
+
 import express from "express";
 import { tenantPool } from "../db.js";
 import { succes, erreur } from "../utils/reponse.js";
 import { ENTITES_VALIDABLES, lireStatutCourant, colonneLabel } from "../utils/validationWorkflow.js";
+import { notifierTraitement } from "../utils/notifications/moteur.js";
 
 const router = express.Router();
 
-// Convention du projet : helper de journalisation local a chaque routeur.
-// Celui-ci recoit id_auteur en parametre ; les routeurs de saisie le lisent
+// Convention du projet : helper de journalisation local à chaque routeur.
+// Celui-ci reçoit id_auteur en paramètre ; les routeurs de saisie le lisent
 // dans req.user (aligne le 24/08, #68). Sur un traitement de validation,
 // l'auteur est l'information centrale.
 async function log(client, action, entite_type, entite_id, description, id_auteur, payload) {
@@ -23,20 +27,20 @@ async function log(client, action, entite_type, entite_id, description, id_auteu
 }
 
 // Garde-fou : un :entite_id non UUID part sinon en Postgres et ressort en 500
-// illisible la ou l'entite est simplement introuvable.
+// illisible là où l'entité est simplement introuvable.
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // Corps commun aux deux endpoints : seuls le statut cible et le motif changent.
 //
-// Aucun controle de profil ici, decision de sequencement de la #53 : tout
-// utilisateur authentifie traite, y compris ses propres saisies. La story
-// Droits viendra se brancher exactement a cet endroit, entre le chargement de
-// l'entite et la lecture du statut courant.
+// Aucun contrôle de profil ici, décision de séquencement de la #53 : tout
+// utilisateur authentifié traite, y compris ses propres saisies. La story
+// Droits viendra se brancher exactement à cet endroit, entre le chargement de
+// l'entité et la lecture du statut courant.
 async function traiter(req, res, statutCible, motif) {
   const { entite_type: entiteType, entite_id: entiteId } = req.params;
 
-  // hasOwnProperty et non un acces direct : un entite_type valant "constructor"
-  // resoudrait sinon une propriete du prototype.
+  // hasOwnProperty et non un accès direct : un entite_type valant "constructor"
+  // résoudrait sinon une propriété du prototype.
   const cible = Object.prototype.hasOwnProperty.call(ENTITES_VALIDABLES, entiteType)
     ? ENTITES_VALIDABLES[entiteType]
     : null;
@@ -49,10 +53,10 @@ async function traiter(req, res, statutCible, motif) {
   try {
     await client.query("BEGIN");
 
-    // Le nom de table et celui de la colonne de libelle viennent du catalogue,
-    // jamais du parametre de route. L'alias AS label garde la suite du
-    // traitement ignorante du nom reel : les tiers du module 1 nomment leur
-    // libelle raison_sociale, les entites de saisie le nomment label.
+    // Le nom de table et celui de la colonne de libellé viennent du catalogue,
+    // jamais du paramètre de route. L'alias AS label garde la suite du
+    // traitement ignorante du nom réel : les tiers du module 1 nomment leur
+    // libellé raison_sociale, les entités de saisie le nomment label.
     const { rows: existant } = await client.query(
       `SELECT ${colonneLabel(cible)} AS label FROM ${cible.table} WHERE id = $1`, [entiteId]);
     if (!existant.length) {
@@ -61,8 +65,8 @@ async function traiter(req, res, statutCible, motif) {
     }
 
     const courant = await lireStatutCourant(client, entiteType, entiteId, true);
-    // Cas residuel apres la migration 020 : une entite creee par un chemin qui
-    // ne soumet pas. Refus explicite plutot que creation implicite, un
+    // Cas résiduel après la migration 020 : une entité créée par un chemin qui
+    // ne soumet pas. Refus explicite plutôt que création implicite, un
     // traitement ne doit pas fabriquer la demande qu'il traite.
     if (!courant) {
       await client.query("ROLLBACK");
@@ -78,28 +82,37 @@ async function traiter(req, res, statutCible, motif) {
       });
     }
 
-    // Statut lu avant l'UPDATE plutot qu'en sous-requete : un referentiel
-    // incomplet mettrait sinon id_statut a NULL sans bruit.
+    // Statut lu avant l'UPDATE plutôt qu'en sous-requête : un référentiel
+    // incomplet mettrait sinon id_statut à NULL sans bruit.
     const { rows: [statut] } = await client.query(
       `SELECT id, label FROM validation_status WHERE code = $1`, [statutCible]);
     if (!statut) {
       throw new Error(`validation_status : le code '${statutCible}' est absent du referentiel.`);
     }
 
-    // message_refus = $3 vaut effacement du motif a la validation, motif nul.
+    // message_refus = $3 vaut effacement du motif à la validation, motif nul.
     await client.query(
       `UPDATE workflow_validation
           SET id_statut = $1, id_traite_par = $2, message_refus = $3
         WHERE id = $4`,
       [statut.id, req.user?.id || null, motif, courant.id]);
 
-    // Hook propre a l'entite (revalidation des affectations, #106) : meme
-    // transaction, un echec annule le traitement avec elle.
+    // Hook propre à l'entité (revalidation des affectations, #106) : même
+    // transaction, un échec annule le traitement avec elle.
     if (cible.apresTraitement) {
       await cible.apresTraitement(client, req, entiteId, statutCible, motif);
     }
 
     const label = existant[0].label;
+
+    // Notification saisie_traitee (#121) a l'auteur de la soumission, meme
+    // transaction (SAVEPOINT interne), jamais bloquante ; courrier immediat
+    // sur un refus, recapitulatif sur une validation.
+    await notifierTraitement(client, {
+      entiteType, entiteId, label, statut: statutCible, motif,
+      idWorkflow: courant.id, idTraitePar: req.user?.id || null,
+    });
+
     await log(client,
       statutCible === "valide" ? "VALIDATION" : "REFUS",
       entiteType, entiteId,
@@ -134,8 +147,8 @@ router.post("/validation/:entite_type/:entite_id/valider", (req, res) => {
 router.post("/validation/:entite_type/:entite_id/refuser", (req, res) => {
   const brut = req.body?.message_refus;
   const motif = typeof brut === "string" ? brut.trim() : "";
-  // Controle avant toute connexion : un refus sans motif est irrecevable quelle
-  // que soit l'entite visee.
+  // Contrôle avant toute connexion : un refus sans motif est irrecevable quelle
+  // que soit l'entité visée.
   if (!motif) {
     return erreur(res, 3314, { status: 400, message: "Le motif de refus est obligatoire." });
   }

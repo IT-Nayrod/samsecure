@@ -1,6 +1,6 @@
-// BudgetProgressBar - Section Saisie Budget - SamSecure v0.5
-// Code couleur du pourcentage realise (engage sur alloue) : classesRealisation
-// dans budgetCalculs, partage avec la carte de taux d'engagement de BudgetKPIBar.
+// Barre de progression de l'engagé sur le montant de la ligne.
+// Code couleur du pourcentage réalisé (engagé sur alloué) : classesRealisation
+// dans budgetCalculs, partagé avec la carte de taux d'engagement de BudgetKPIBar.
 import { AlertTriangle } from 'lucide-react';
 import { classesRealisation } from './budgetCalculs';
 

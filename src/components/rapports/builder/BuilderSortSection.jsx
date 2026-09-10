@@ -1,4 +1,4 @@
-// BuilderSortSection - Criteres de tri (max 3) - SamSecure v0.5
+// Critères de tri du constructeur de rapport (trois au plus).
 import { Plus, X } from 'lucide-react';
 
 export default function BuilderSortSection({ champs, tri, onChange }) {

@@ -1,4 +1,4 @@
-// Highlight - surligne la premiere portion d'un texte correspondant a une regex de recherche
+// Highlight - surligne la première portion d'un texte correspondant à une regex de recherche
 export default function Highlight({ text, regex }) {
   if (!text) return null;
   const str = String(text);

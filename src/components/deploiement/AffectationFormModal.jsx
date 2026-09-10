@@ -1,7 +1,7 @@
-// AffectationFormModal - declaration ou modification d'une affectation,
-// branchee sur l'API (#106). La licence remplace le produit du mock :
-// affectation.id_licence est la cle reelle, le produit en decoule. Les
-// messages d'erreur affiches sont ceux renvoyes par le serveur.
+// AffectationFormModal - déclaration ou modification d'une affectation,
+// branchée sur l'API (#106). La licence remplace le produit du mock :
+// affectation.id_licence est la clé réelle, le produit en découle. Les
+// messages d'erreur affichés sont ceux renvoyés par le serveur.
 import { useState, useEffect } from 'react';
 import SlideOver from '../ui/SlideOver';
 import Button from '../ui/Button';
@@ -48,8 +48,8 @@ export default function AffectationFormModal({ isOpen, onClose, onSaved, affecta
 
   useEffect(() => { if (isOpen) saveDraft(draftKey, form); }, [form, isOpen, draftKey]);
 
-  // Confort de saisie seulement : le controle de fond est celui de l'API
-  // (codes 4111 a 4116), dont le message est affiche tel quel.
+  // Confort de saisie seulement : le contrôle de fond est celui de l'API
+  // (codes 4111 à 4116), dont le message est affiché tel quel.
   const complet = form.id_licence && form.id_societe && form.reference_client.trim() && Number(form.quantite) > 0;
 
   async function handleSave() {

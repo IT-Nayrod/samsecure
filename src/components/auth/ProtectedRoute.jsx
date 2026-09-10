@@ -1,4 +1,5 @@
-// ProtectedRoute - Section 2 Specs UX v0.5
+// Garde de route : redirige vers la connexion sans session, vers la page
+// d'accès refusé sans la permission requise.
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import useAuth from '../../hooks/useAuth';
 

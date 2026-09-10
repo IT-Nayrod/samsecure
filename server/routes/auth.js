@@ -1,3 +1,6 @@
+// Authentification : connexion par email et mot de passe, jetons JWT d'accès et de
+// rafraîchissement, déconnexion, identité et droits effectifs de la session courante.
+
 import express from "express";
 import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
@@ -71,9 +74,9 @@ router.post("/login", async (req, res) => {
       await log("LOGIN_FAILED", null, `Échec de connexion : compte inconnu (${email})`);
       return res.status(401).json({ error: "Identifiants incorrects." });
     }
-    // actif = false est le seul etat de retrait d'un compte : la suppression
-    // logique a ete abandonnee (migration 023, colonne date_suppression
-    // supprimee). Un compte retire reste visible et reactivable.
+    // actif = false est le seul état de retrait d'un compte : la suppression
+    // logique a été abandonnée (migration 023, colonne date_suppression
+    // supprimée). Un compte retiré reste visible et réactivable.
     if (!user.actif) {
       await log("LOGIN_FAILED", user.id, `Échec de connexion : compte désactivé (${user.email})`, user.id);
       return res.status(403).json({ error: "Ce compte a été désactivé." });
@@ -98,7 +101,7 @@ router.post("/login", async (req, res) => {
     await log("LOGIN", user.id, `Connexion de ${user.prenom} ${user.nom}`, user.id);
 
     // code_retour: 2030
-    // Aucune valeur avant/apres : une connexion ne modifie rien. L'acteur,
+    // Aucune valeur avant/après : une connexion ne modifie rien. L'acteur,
     // l'horodatage et l'adresse IP portent toute l'information probante.
     await auditer(tenantPool, req, {
       action: "CONNEXION", entiteId: user.id,
@@ -145,9 +148,9 @@ router.post("/refresh", async (req, res) => {
     if (session.refresh_token_hash !== hashToken(refreshToken)) {
       return res.status(401).json({ error: "Jeton invalide." });
     }
-    // Sans ce controle, un compte desactive renouvellerait son jeton d'acces
-    // indefiniment : la desactivation ne prendrait effet qu'a l'expiration du
-    // jeton de rafraichissement, sept jours plus tard.
+    // Sans ce contrôle, un compte désactivé renouvellerait son jeton d'accès
+    // indéfiniment : la désactivation ne prendrait effet qu'à l'expiration du
+    // jeton de rafraîchissement, sept jours plus tard.
     if (!session.actif) {
       return res.status(403).json({ error: "Ce compte a été désactivé." });
     }
@@ -211,9 +214,9 @@ router.get("/me", authMiddleware, async (req, res) => {
 
 router.get("/mes-droits", authMiddleware, async (req, res) => {
   try {
-    // Meme calcul que le middleware de controle : une divergence entre ce que
+    // Même calcul que le middleware de contrôle : une divergence entre ce que
     // le front affiche et ce que l'API autorise produirait des boutons qui
-    // mènent a un refus, ou des actions possibles mais invisibles.
+    // mènent à un refus, ou des actions possibles mais invisibles.
     const { permissions, isTenantScope } = await permissionsEffectives(req.user.id);
     res.json({ permissions: Array.from(permissions).sort(), isTenantScope });
   } catch (err) {

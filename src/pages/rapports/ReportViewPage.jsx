@@ -1,4 +1,4 @@
-// ReportViewPage - Page de visualisation d'un rapport genere - SamSecure v0.5
+// Page de visualisation d'un rapport généré.
 // Route : /rapports/vue/:reportId?du=...&au=...&[extraParams]
 // reportId === 'custom' => config lue depuis sessionStorage ('ss_custom_report_config')
 import { useMemo, useState } from 'react';
@@ -75,7 +75,7 @@ function formaterCellule(valeur, format) {
   }
 }
 
-// --- Tableau de donnees ---------------------------------------------------------
+// --- Tableau de données ---------------------------------------------------------
 const PIE_COLORS = ['#6366f1','#22c55e','#f59e0b','#ef4444','#8b5cf6','#14b8a6','#f97316','#ec4899'];
 
 function DataTable({ colonnes, lignes, titre }) {
@@ -253,7 +253,7 @@ export default function ReportViewPage() {
     return getReportById(reportId);
   }, [reportId, isCustom]);
 
-  // Periode depuis les query params
+  // Période depuis les query params
   const periode = useMemo(() => {
     const du = searchParams.get('du');
     const au = searchParams.get('au');
@@ -261,7 +261,7 @@ export default function ReportViewPage() {
     return { dateDebut: du, dateFin: au };
   }, [searchParams]);
 
-  // Params supplementaires depuis l'URL
+  // Params supplémentaires depuis l'URL
   const extraParams = useMemo(() => {
     const params = {};
     if (rapport?.extraParams) {
@@ -291,7 +291,7 @@ export default function ReportViewPage() {
     }
   }, [rapport, periode, extraParams, isCustom]);
 
-  // --- Export Excel (SpreadsheetML 2 feuilles : Constat + Donnees) ---
+  // --- Export Excel (SpreadsheetML 2 feuilles : Constat + Données) ---
   function handleExport() {
     if (!resultat) return;
     exporterExcel({
@@ -324,7 +324,7 @@ export default function ReportViewPage() {
   const sections = rapport.sections;
   const hasGraphique = rapport.graphique && resultat?.donneesGraphique?.data?.length;
 
-  // Note eventuelle (doublons sans cas)
+  // Note éventuelle (doublons sans cas)
   const note = resultat?.note;
 
   return (
@@ -352,7 +352,7 @@ export default function ReportViewPage() {
           </div>
         )}
 
-        {/* Note (ex: doublons non detectes) */}
+        {/* Note (ex: doublons non détectés) */}
         {note && (
           <div className="mx-6 mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg flex items-start gap-2">
             <Info className="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
@@ -391,7 +391,7 @@ export default function ReportViewPage() {
         <div className="h-12" />
       </div>
 
-      {/* Modal changement de periode */}
+      {/* Modal changement de période */}
       {periodeModalOpen && rapport && (
         <ReportPeriodModal report={rapport} onClose={() => setPeriodeModalOpen(false)} />
       )}

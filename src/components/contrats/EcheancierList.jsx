@@ -1,5 +1,5 @@
-// EcheancierList - echeancier des contrats proches de leur fin ou de leur renouvellement
-// Element distinctif de la page Contrat, meme principe que la file de travail des Affectations.
+// EcheancierList - échéancier des contrats proches de leur fin ou de leur renouvellement
+// Élément distinctif de la page Contrat, même principe que la file de travail des Affectations.
 // Statut et jours restants viennent de l'API, aucun calcul local.
 import { useNavigate } from 'react-router-dom';
 import { CheckCircle2, ArrowRight } from 'lucide-react';
@@ -13,8 +13,7 @@ function rank(statut) {
 
 export default function EcheancierList({ contrats }) {
   const navigate = useNavigate();
-  // Un contrat perpetuel n'a pas d'echeance : il n'a rien a faire dans l'echeancier,
-  // contrairement a ce que produisait le filtre "different de actif".
+  // Un contrat perpétuel n'a pas d'échéance : il n'a rien à faire dans l'échéancier.
   const echeances = contrats
     .filter(c => c.statut_echeance !== 'actif' && c.statut_echeance !== 'perpetuel')
     .sort((a, b) => rank(a.statut_echeance) - rank(b.statut_echeance)

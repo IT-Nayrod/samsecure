@@ -1,5 +1,5 @@
-// Widgets listes des dashboards, branches sur les donnees reelles (#192) :
-// prevision budgetaire par produit (Manager DSI) et fil des dernieres
+// Widgets listes des dashboards, branchés sur les données réelles (#192) :
+// prévision budgétaire par produit (Manager DSI) et fil des dernières
 // saisies du workflow de validation (IT Ops).
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -10,11 +10,11 @@ import { ROUTES_DRILL, routeEntite } from '../drill';
 import { dashboardService } from '../../../services/dashboardService';
 import { budgetService } from '../../../services/budgetService';
 
-// ─── Prévision budgétaire N+1 (Manager DSI) ─────────────────────────────────
-// Lignes budgetaires groupees par produit : alloue de l'exercice courant (N),
-// alloue de l'exercice precedent (N-1), previsionnel de l'exercice suivant
-// (N+1). L'exercice de chaque ligne est celui calcule par l'API (ancrage
-// fiscal de la societe payeuse).
+// --- Prévision budgétaire N+1 (Manager DSI) ---------------------------------
+// Lignes budgétaires groupées par produit : alloué de l'exercice courant (N),
+// alloué de l'exercice précédent (N-1), prévisionnel de l'exercice suivant
+// (N+1). L'exercice de chaque ligne est celui calculé par l'API (ancrage
+// fiscal de la société payeuse).
 export function PrevisionBudgetaireWidget() {
   const navigate = useNavigate();
   const [sortKey, setSortKey] = useState('coutN');
@@ -118,7 +118,7 @@ export function PrevisionBudgetaireWidget() {
   );
 }
 
-// ─── Dernières saisies (IT Ops) ─────────────────────────────────────────────
+// --- Dernières saisies (IT Ops) ---------------------------------------------
 const STATUT_CONFIG = {
   en_attente: { label: 'En attente', color: THRESHOLD_YELLOW },
   valide: { label: 'Validé', color: THRESHOLD_GREEN },

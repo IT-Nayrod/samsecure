@@ -1,4 +1,4 @@
-// Button - Section 8 Specs UX v0.5
+// Bouton commun : variantes, tailles et état de chargement.
 import { Loader2 } from 'lucide-react';
 
 const variants = {

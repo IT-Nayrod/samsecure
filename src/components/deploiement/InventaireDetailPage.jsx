@@ -1,7 +1,7 @@
-// InventaireDetailPage - fiche d'un releve d'inventaire, branchee sur
-// GET /api/inventaire/releves/:id (#111). Donnee brute relue du fichier
-// archive (pointeur "<fichier>#L<n>"), statut de rapprochement, affectation
-// rapprochee ou candidates, actions de rapprochement manuel.
+// InventaireDetailPage - fiche d'un relevé d'inventaire, branchée sur
+// GET /api/inventaire/releves/:id (#111). Donnée brute relue du fichier
+// archivé (pointeur "<fichier>#L<n>"), statut de rapprochement, affectation
+// rapprochée ou candidates, actions de rapprochement manuel.
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { FileText } from 'lucide-react';

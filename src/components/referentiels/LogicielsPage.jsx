@@ -1,12 +1,12 @@
 // LogicielsPage - liste des logiciels, vue arborescente ou liste plate.
-// Donnees API : /logiciels, qui sert le catalogue global (BDD Commune) et les
+// Données API : /logiciels, qui sert le catalogue global (BDD Commune) et les
 // logiciels propres au client (BDD Tenant) sous une forme unique. Chaque ligne
-// porte source et modifiable : seuls les logiciels client s'ecrivent, le
-// catalogue est partage par tous les clients.
+// porte source et modifiable : seuls les logiciels client s'écrivent, le
+// catalogue est partagé par tous les clients.
 //
-// La colonne et le filtre Maintenance ont ete retires : le modele ne porte plus
+// La colonne et le filtre Maintenance ont été retirés : le modèle ne porte plus
 // a_maintenir sur le produit (modif 12), la maintenance est un choix client
-// porte par la licence, ou elle reste visible.
+// porté par la licence, ou elle reste visible.
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, List, GitBranch, ChevronRight, ChevronDown } from 'lucide-react';
@@ -79,9 +79,9 @@ export default function LogicielsPage() {
     setError(null);
     setErrorStatus(null);
     try {
-      // Seuls les logiciels sont indispensables a cet ecran. Les editeurs
+      // Seuls les logiciels sont indispensables à cet écran. Les éditeurs
       // alimentent un filtre et le formulaire : un droit manquant sur eux doit
-      // priver de ces commodites, pas de la liste.
+      // priver de ces commodités, pas de la liste.
       const [p, e] = await Promise.all([
         logicielsService.list(),
         optionnel(editeursService.list(), []),
@@ -110,10 +110,10 @@ export default function LogicielsPage() {
     return true;
   }), [produits, filterEditeur, filterSource, debouncedSearch]);
 
-  // L'arbre se construit sur la liste filtree, jamais sur la liste complete :
-  // un produit qui passe le filtre est toujours affiche. S'il a un parent, il
+  // L'arbre se construit sur la liste filtrée, jamais sur la liste complète :
+  // un produit qui passe le filtre est toujours affiché. S'il a un parent, il
   // est rendu sous lui quand le parent passe aussi, sinon il devient racine.
-  // Sans filtre, l'ensemble filtre est la liste entiere et l'arbre est inchange.
+  // Sans filtre, l'ensemble filtré est la liste entière et l'arbre est inchangé.
   const enfantsParParent = useMemo(() => {
     const index = new Map();
     for (const p of filtered) {

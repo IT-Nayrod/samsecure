@@ -1,4 +1,4 @@
-// ToastContainer - Section 8 Specs UX v0.5
+// Pile des toasts en cours, alimentée par ToastContext.
 import { useToast } from '../../hooks/useToast';
 import Toast from './Toast';
 

@@ -1,8 +1,8 @@
 // Bandeau d'alertes critiques des dashboards (#192).
-// L'ancien bandeau recalculait des alertes a partir des donnees de
-// demonstration. Les alertes reelles (detection, accuse, historique) relevent
-// du module alertes, qui n'existe pas encore : etat propre en attendant,
-// conformement a la regle "zero mock".
+// L'ancien bandeau recalculait des alertes à partir des données de
+// démonstration. Les alertes réelles (detection, accuse, historique) relèvent
+// du module alertes, qui n'existe pas encore : état propre en attendant,
+// conformément à la règle "zero mock".
 import CadreWidget from './CadreWidget';
 
 export default function AlertesWidget() {

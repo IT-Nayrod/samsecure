@@ -1,5 +1,5 @@
-// BudgetOrgSelector - Section Budget - SamSecure v0.5
-// Composant controle : le parent (BudgetPage) porte l'etat societeId + consolider
+// Sélecteur d'organisation du module budget, avec option de consolidation.
+// Composant contrôlé : le parent (BudgetPage) porte l'état societeId + consolider
 // et fournit la liste des organisations servie par /societes (id_societe_parent).
 // Expose deux callbacks : onSocieteChange(id) et onConsoliderChange(bool).
 import { useMemo } from 'react';
@@ -25,8 +25,8 @@ export default function BudgetOrgSelector({ societes = [], societeId, consolider
         aria-label="Organisation"
       >
         <option value="">Toutes les organisations</option>
-        {/* Indentation par espaces insecables, sans glyphe : le texte de
-            l'option est aussi la valeur affichee par le selecteur ferme. */}
+        {/* Indentation par espaces insécables, sans glyphe : le texte de
+            l'option est aussi la valeur affichée par le sélecteur fermé. */}
         {options.map(opt => (
           <option key={opt.id} value={opt.id}>
             {'\u00A0\u00A0\u00A0'.repeat(opt.depth)}{opt.raison_sociale}

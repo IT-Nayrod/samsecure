@@ -1,23 +1,23 @@
 // Calcul des permissions effectives d'un utilisateur.
 //
-// Source unique du RBAC serveur : ce module est consomme par le middleware
-// exigerPermission (controle des actions) et par GET /api/auth/mes-droits
-// (affichage cote front). Les deux doivent repondre exactement la meme chose,
-// sinon un bouton visible mene a un refus, ou l'inverse.
+// Source unique du RBAC serveur : ce module est consommé par le middleware
+// exigerPermission (contrôle des actions) et par GET /api/auth/mes-droits
+// (affichage côté front). Les deux doivent répondre exactement la même chose,
+// sinon un bouton visible mène à un refus, ou l'inverse.
 //
-// Modele acte le 29/07 : union des permissions des groupes attribues sur le
-// perimetre de rattachement, plus les exceptions accordees, moins les
-// exceptions retirees. Le retrait est prioritaire sur l'ajout.
+// Modèle acté le 29/07 : union des permissions des groupes attribués sur le
+// périmètre de rattachement, plus les exceptions accordées, moins les
+// exceptions retirées. Le retrait est prioritaire sur l'ajout.
 import { tenantPool } from "../db.js";
 
 export async function permissionsEffectives(idUtilisateur) {
   const aujourdhui = new Date().toISOString().slice(0, 10);
 
-  // Un compte desactive ou hors de sa periode d'activite n'a aucun droit, meme
-  // porteur d'un jeton encore valide. Sans ce controle, un utilisateur retire
-  // conserve ses permissions jusqu'a l'expiration de son jeton.
-  // actif = false est le seul etat de retrait : la colonne date_suppression a
-  // ete supprimee par la migration 023.
+  // Un compte désactivé ou hors de sa période d'activité n'a aucun droit, même
+  // porteur d'un jeton encore valide. Sans ce contrôle, un utilisateur retiré
+  // conserve ses permissions jusqu'à l'expiration de son jeton.
+  // actif = false est le seul état de retrait : la colonne date_suppression a
+  // été supprimée par la migration 023.
   const { rows: actif } = await tenantPool.query(
     `SELECT 1 FROM utilisateur
       WHERE id = $1 AND actif = true
@@ -32,7 +32,7 @@ export async function permissionsEffectives(idUtilisateur) {
       WHERE id_utilisateur = $1 AND date_suppression IS NULL`,
     [idUtilisateur]
   );
-  // Un rattachement a NULL vaut portee tenant : toutes societes.
+  // Un rattachement à NULL vaut portée tenant : toutes sociétés.
   const isTenantScope = ratt.some((r) => r.id_societe === null);
   const societeIds = ratt.map((r) => r.id_societe).filter(Boolean);
   const dansPerimetre = (idSociete) =>
@@ -43,7 +43,7 @@ export async function permissionsEffectives(idUtilisateur) {
       WHERE id_utilisateur = $1 AND date_suppression IS NULL`,
     [idUtilisateur]
   );
-  // Intersection rattachement x diffusion : une attribution hors perimetre ne
+  // Intersection rattachement x diffusion : une attribution hors périmètre ne
   // produit aucun droit, tout ou rien.
   const profilIds = [...new Set(
     attribs.filter((a) => dansPerimetre(a.id_societe)).map((a) => a.id_profil)
@@ -71,15 +71,15 @@ export async function permissionsEffectives(idUtilisateur) {
     [idUtilisateur, aujourdhui]
   );
 
-  // Tous les accorde avant tous les retire, independamment de l'ordre SQL :
+  // Tous les accorde avant tous les retire, indépendamment de l'ordre SQL :
   // c'est ce qui rend le retrait inconditionnellement prioritaire.
   for (const exc of exceptions) {
     if (exc.type === "accorde" && dansPerimetre(exc.id_societe)) permissions.add(exc.code);
   }
   for (const exc of exceptions) {
     if (exc.type !== "retire" || !dansPerimetre(exc.id_societe)) continue;
-    // Le retrait ne prime que sur son propre perimetre : un retrait limite a une
-    // societe precise ne doit pas masquer un droit toujours acquis ailleurs.
+    // Le retrait ne prime que sur son propre périmètre : un retrait limité à une
+    // société précise ne doit pas masquer un droit toujours acquis ailleurs.
     const retraitCouvreTout = exc.id_societe === null || !isTenantScope;
     if (retraitCouvreTout) permissions.delete(exc.code);
   }

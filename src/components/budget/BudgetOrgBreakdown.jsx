@@ -1,7 +1,7 @@
-// BudgetOrgBreakdown - Repartition du budget par organisation - SamSecure v0.5
-// Une ligne par societe du perimetre, alimentee par la synthese de l'API
-// filtree sur cette societe (BudgetPage fait un appel par societe). Affiche
-// uniquement quand plus d'une societe porte du budget ou de l'engage.
+// Répartition du budget par organisation.
+// Une ligne par société du périmètre, alimentée par la synthèse de l'API
+// filtrée sur cette société (BudgetPage fait un appel par société). Affiche
+// uniquement quand plus d'une société porte du budget ou de l'engagé.
 // Clic sur une ligne = drill-down via onSelectSociete(id).
 import { useMemo } from 'react';
 import { formatEuros, formatPourcentage, cumulerTotaux, totauxVides } from './budgetCalculs';
@@ -17,7 +17,7 @@ function EcartCell({ valeur }) {
   );
 }
 
-// lignes : [{ societe: { id, raison_sociale, depth }, totaux }] dans l'ordre hierarchique
+// lignes : [{ societe: { id, raison_sociale, depth }, totaux }] dans l'ordre hiérarchique
 export default function BudgetOrgBreakdown({ lignes = [], onSelectSociete }) {
   const rows = useMemo(() => lignes.filter(r => !totauxVides(r.totaux)), [lignes]);
   const total = useMemo(() => cumulerTotaux(rows.map(r => r.totaux)), [rows]);

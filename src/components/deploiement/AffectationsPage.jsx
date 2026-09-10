@@ -1,7 +1,7 @@
-// AffectationsPage - vue operationnelle des affectations (#106) : file de
-// travail (validations en attente, revalidations a faire ou depassees) puis
-// liste complete. Branchee sur l'API : statuts de validation et de
-// revalidation sont evalues par le serveur a la lecture, jamais recalcules ici.
+// AffectationsPage - vue opérationnelle des affectations (#106) : file de
+// travail (validations en attente, revalidations à faire ou dépassées) puis
+// liste complète. Branchée sur l'API : statuts de validation et de
+// revalidation sont évalués par le serveur à la lecture, jamais recalculés ici.
 // La validation et le refus passent par le circuit unique du module 2
 // (validationService, entite_type "affectation").
 import { useState, useMemo, useCallback, useEffect } from 'react';
@@ -28,7 +28,7 @@ import useRbac from '../../hooks/useRbac';
 import { useToast } from '../../hooks/useToast';
 import { formatDate } from '../../utils/dateUtils';
 
-// Ordre de la file : depasse, puis en attente de validation, puis a revalider.
+// Ordre de la file : dépassé, puis en attente de validation, puis à revalider.
 function rangFile(a) {
   if (a.statut_revalidation === 'depasse' || a.statut_validation === 'a_revalider') return 0;
   if (a.statut_validation === 'en_attente') return 1;
@@ -41,8 +41,8 @@ function dansFile(a) {
     || a.statut_revalidation === 'a_revalider' || a.statut_revalidation === 'depasse';
 }
 
-// Revalidable : validee (a jour, en alerte ou depassee). Une saisie en attente
-// ou refusee ne l'est pas, l'API repond 4130.
+// Revalidable : validée (à jour, en alerte ou dépassée). Une saisie en attente
+// ou refusée ne l'est pas, l'API répond 4130.
 function revalidable(a) {
   return a.statut_validation === 'valide' || a.statut_validation === 'a_revalider';
 }
@@ -76,9 +76,9 @@ export default function AffectationsPage() {
     setError(null);
     setErrorStatus(null);
     try {
-      // Seules les affectations sont indispensables ; licences et societes
-      // alimentent filtres et formulaire (consulter_licences et
-      // consulter_referentiels peuvent manquer a un lecteur).
+      // Seules les affectations sont indispensables ; licences et sociétés
+      // alimentent filtrés et formulaire (consulter_licences et
+      // consulter_referentiels peuvent manquer à un lecteur).
       const [a, l, s] = await Promise.all([
         affectationsService.list(),
         optionnel(licencesService.list()),
@@ -97,14 +97,14 @@ export default function AffectationsPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Un traitement change le cycle de revalidation (ouvert a la validation) :
-  // la ligne est rechargee depuis l'API plutot que patchee localement.
+  // Un traitement change le cycle de revalidation (ouvert à la validation) :
+  // la ligne est rechargée depuis l'API plutôt que patchée localement.
   const appliquer = useCallback(async (reponse) => {
     setAffectations(prev => prev.map(a => a.id === reponse.entite_id ? appliquerStatut(a, reponse) : a));
     try {
       const fraiche = await affectationsService.get(reponse.entite_id);
       setAffectations(prev => prev.map(a => a.id === fraiche.id ? fraiche : a));
-    } catch { /* le statut est deja applique, le cycle s'affichera au prochain chargement */ }
+    } catch { /* le statut est déjà appliqué, le cycle s'affichera au prochain chargement */ }
   }, []);
   const { valider, refuser } = useValidation(appliquer);
 
@@ -292,7 +292,7 @@ export default function AffectationsPage() {
         />
       </div>
 
-      {/* Historique des declarations de la societe filtree (historique_declaration) */}
+      {/* Historique des déclarations de la société filtrée (historique_declaration) */}
       {societeActive && (
         <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
           <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">

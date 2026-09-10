@@ -1,16 +1,16 @@
-// EditeurFormModal - creation et edition d'un editeur.
+// EditeurFormModal - création et édition d'un éditeur.
 //
-// L'unicite de la raison sociale n'est pas verifiee ici sur une liste chargee
-// en memoire : elle est portee par la base (uq_editeur_raison_sociale) et
-// rendue en 409 par l'API. Un controle local serait contournable par appel
-// direct, et faux des qu'un autre onglet cree le meme editeur.
+// L'unicité de la raison sociale n'est pas vérifiée ici sur une liste chargée
+// en mémoire : elle est portée par la base (uq_editeur_raison_sociale) et
+// rendue en 409 par l'API. Un contrôle local serait contournable par appel
+// direct, et faux dès qu'un autre onglet crée le même éditeur.
 //
-// A la place, le champ propose au fil de la frappe les editeurs deja
-// references (useSuggestionsEditeurs). Le referentiel pouvant compter des
-// milliers de lignes, personne ne peut verifier de visu qu'un editeur en est
-// absent : le doublon nait de cette impossibilite, pas d'une inattention. Les
-// suggestions se montrent donc la ou l'erreur se commet, pendant la saisie, et
-// non a l'enregistrement.
+// À la place, le champ propose au fil de la frappe les éditeurs déjà
+// référencés (useSuggestionsEditeurs). Le référentiel pouvant compter des
+// milliers de lignes, personne ne peut vérifier de visu qu'un éditeur en est
+// absent : le doublon naît de cette impossibilité, pas d'une inattention. Les
+// suggestions se montrent donc là où l'erreur se commet, pendant la saisie, et
+// non à l'enregistrement.
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, Search } from 'lucide-react';
@@ -41,8 +41,8 @@ export default function EditeurFormModal({ isOpen, onClose, onSave, editeur }) {
   const [loading, setLoading] = useState(false);
   const [draftRestaure, setDraftRestaure] = useState(false);
 
-  // L'editeur en cours de modification est ecarte : il ne se signale pas a
-  // lui-meme comme un doublon de lui-meme.
+  // L'éditeur en cours de modification est écarté : il ne se signale pas à
+  // lui-même comme un doublon de lui-même.
   const { suggestions, total, chargement, exact } = useSuggestionsEditeurs(
     form.raison_sociale, { exclureId: editeur?.id, actif: isOpen });
 
@@ -81,24 +81,24 @@ export default function EditeurFormModal({ isOpen, onClose, onSave, editeur }) {
       clearDraft(draftKey);
       onClose();
     } catch (err) {
-      // 409 : raison sociale deja prise. Les autres erreurs partent deja en
-      // toast cote appelant, les porter aussi sur le champ serait redondant.
+      // 409 : raison sociale déjà prise. Les autres erreurs partent déjà en
+      // toast côté appelant, les porter aussi sur le champ serait redondant.
       if (err?.status === 409) setErrors({ raison_sociale: err.message });
     } finally {
       setLoading(false);
     }
   }
 
-  // Aller voir l'editeur existant plutot que d'en creer un second. La saisie en
-  // cours n'est pas perdue : le brouillon reste en localStorage et sera restaure
-  // a la prochaine ouverture du formulaire.
+  // Aller voir l'éditeur existant plutôt que d'en créer un second. La saisie en
+  // cours n'est pas perdue : le brouillon reste en localStorage et sera restauré
+  // à la prochaine ouverture du formulaire.
   function ouvrirFiche(id) {
     onClose();
     navigate(`/referentiels/editeurs/${id}`);
   }
 
-  // Vider le brouillon revient aux valeurs d'origine : celles de l'editeur en
-  // edition, un formulaire vide en creation.
+  // Vider le brouillon revient aux valeurs d'origine : celles de l'éditeur en
+  // édition, un formulaire vide en création.
   function viderBrouillon() {
     clearDraft(draftKey);
     setForm(formDepuis(editeur));
@@ -106,8 +106,8 @@ export default function EditeurFormModal({ isOpen, onClose, onSave, editeur }) {
     setDraftRestaure(false);
   }
 
-  // Un doublon franc est bloque avant l'envoi : l'API le refuserait de toute
-  // facon, autant l'annoncer pendant la saisie.
+  // Un doublon franc est bloqué avant l'envoi : l'API le refuserait de toute
+  // façon, autant l'annoncer pendant la saisie.
   const isValid = !Object.values(validate()).some(Boolean) && !exact;
   const restants = total - suggestions.length;
 
@@ -156,8 +156,8 @@ export default function EditeurFormModal({ isOpen, onClose, onSave, editeur }) {
           </div>
         )}
 
-        {/* Suggestions : ce qui existe deja et ressemble a la saisie. La
-            correspondance exacte est traitee au-dessus, elle n'est pas repetee
+        {/* Suggestions : ce qui existe déjà et ressemble à la saisie. La
+            correspondance exacte est traitée au-dessus, elle n'est pas répétée
             dans la liste. */}
         {!exact && suggestions.length > 0 && (
           <div className="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">

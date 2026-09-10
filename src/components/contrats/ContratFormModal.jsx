@@ -1,5 +1,5 @@
-// ContratFormModal - creation / edition d'un contrat, branche sur l'API.
-// Les messages d'erreur affiches sont ceux renvoyes par le serveur, jamais des
+// ContratFormModal - création / édition d'un contrat, branchée sur l'API.
+// Les messages d'erreur affichés sont ceux renvoyés par le serveur, jamais des
 // messages reconstruits ici.
 import { useState, useEffect } from 'react';
 import SlideOver from '../ui/SlideOver';
@@ -11,8 +11,8 @@ import { useToast } from '../../hooks/useToast';
 
 const INPUT_CLS = 'w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white';
 
-// Un contrat ne peut pas etre son propre ancetre : on retire le contrat edite et
-// tous ses descendants des options de parent. Le serveur refait ce controle
+// Un contrat ne peut pas être son propre ancêtre : on retire le contrat édité et
+// tous ses descendants des options de parent. Le serveur refait ce contrôle
 // (WITH RECURSIVE), c'est ici un simple confort de saisie.
 function getDescendantIds(contrats, rootId) {
   const ids = new Set();
@@ -66,8 +66,8 @@ export default function ContratFormModal({
         duree_resiliation: contrat.duree_resiliation ?? '',
       });
     } else {
-      // Type par defaut : le premier propose, pour ne pas soumettre un formulaire
-      // qui echouerait sur un champ obligatoire cote serveur.
+      // Type par défaut : le premier proposé, pour ne pas soumettre un formulaire
+      // qui échouerait sur un champ obligatoire côté serveur.
       setForm({ ...EMPTY_FORM, id_type_contrat: typesContrat[0]?.id ?? '' });
     }
     setDraftRestaure(false);
@@ -80,7 +80,7 @@ export default function ContratFormModal({
   }, [form, isOpen, draftKey]);
 
   // Champs obligatoires (#95) : le formulaire refuse d'envoyer une saisie
-  // incomplete et nomme le champ manquant ; le serveur applique la meme regle.
+  // incomplète et nomme le champ manquant ; le serveur applique la même règle.
   function validate() {
     const e = {};
     if (!form.label.trim()) e.label = 'Le libellé est obligatoire';
@@ -125,8 +125,8 @@ export default function ContratFormModal({
   }
 
   // Choisir un parent aligne les dates de l'enfant sur les siennes : valeurs par
-  // defaut, modifiables ensuite. Le serveur n'impose pas la plage du parent, il
-  // signale seulement une anomalie qualite quand l'enfant en sort.
+  // défaut, modifiables ensuite. Le serveur n'impose pas la plage du parent, il
+  // signale seulement une anomalie qualité quand l'enfant en sort.
   function choisirParent(idParent) {
     const parent = contrats.find(c => c.id === idParent) ?? null;
     setForm(v => ({
@@ -138,10 +138,10 @@ export default function ContratFormModal({
   }
 
   const excludedIds = contrat ? getDescendantIds(contrats, contrat.id) : new Set();
-  // L'API accepte un parent non cadre et trace une anomalie qualite. Le
-  // formulaire ne le propose pas : l'anomalie ne couvre que les cas herites des imports.
-  // Un contrat archive n'est plus propose comme parent (#96) ; celui deja en
-  // place sur le contrat edite reste selectionnable pour ne pas le perdre.
+  // L'API accepte un parent non cadré et trace une anomalie qualité. Le
+  // formulaire ne le propose pas : l'anomalie ne couvre que les cas hérités des imports.
+  // Un contrat archivé n'est plus proposé comme parent (#96) ; celui déjà en
+  // place sur le contrat édité reste sélectionnable pour ne pas le perdre.
   const parentOptions = contrats.filter(c => c.type_code === 'cadre' && c.id !== contrat?.id && !excludedIds.has(c.id)
     && (!c.archive || c.id === form.id_contrat_parent));
 

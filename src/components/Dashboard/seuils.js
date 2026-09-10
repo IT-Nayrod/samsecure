@@ -1,15 +1,15 @@
-// Resolution des seuils de colorimetrie servis par l'API (#191).
+// Résolution des seuils de colorimétrie servis par l'API (#191).
 //
-// Convention partagee avec la migration 050 et le routeur dashboards :
-// un widget porte jusqu'a 4 lignes { echelle, valeur, unite, direction },
-// echelle N etant la valeur d'entree du niveau N (1 vert, 2 jaune, 3 orange,
+// Convention partagée avec la migration 050 et le routeur dashboards :
+// un widget porte jusqu'à 4 lignes { echelle, valeur, unite, direction },
+// échelle N étant la valeur d'entrée du niveau N (1 vert, 2 jaune, 3 orange,
 // 4 rouge).
-//   - direction 'haut' : une valeur croissante degrade le niveau. Le niveau
-//     est la plus haute echelle dont la valeur est inferieure ou egale a la
-//     valeur mesuree (defaut : 1).
-//   - direction 'bas' : une valeur decroissante degrade. Le niveau est la
-//     premiere echelle dont la valeur est inferieure ou egale a la valeur
-//     mesuree, la quatrieme sinon.
+//   - direction 'haut' : une valeur croissante dégrade le niveau. Le niveau
+//     est la plus haute échelle dont la valeur est inférieure ou égale à la
+//     valeur mesurée (défaut : 1).
+//   - direction 'bas' : une valeur décroissante dégrade. Le niveau est la
+//     première échelle dont la valeur est inférieure ou égale à la valeur
+//     mesurée, la quatrième sinon.
 // Sans seuils connus pour le widget, le niveau vaut 1 : ne jamais alarmer
 // sur une configuration absente.
 import { COULEUR_NIVEAU } from './couleurs';
@@ -33,8 +33,8 @@ export function couleurSeuil(valeur, seuilsWidget) {
   return COULEUR_NIVEAU[niveauSeuil(valeur, seuilsWidget)];
 }
 
-// Valeur d'entree d'une echelle donnee, pour construire legendes et libelles
-// a partir de la configuration reelle et non de constantes locales.
+// Valeur d'entrée d'une échelle donnée, pour construire légendes et libellés
+// à partir de la configuration réelle et non de constantes locales.
 export function borneSeuil(seuilsWidget, echelle, defaut = null) {
   const s = Array.isArray(seuilsWidget)
     ? seuilsWidget.find((x) => x.echelle === echelle) : null;

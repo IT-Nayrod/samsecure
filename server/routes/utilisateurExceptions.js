@@ -1,3 +1,6 @@
+// Exceptions de droits d'un utilisateur : permissions accordées ou retirées
+// individuellement, dans le périmètre de rattachement de l'administrateur.
+
 import express from "express";
 import { tenantPool } from "../db.js";
 import { getAdminScope, scopeWhereClause } from "../utils/scope.js";
@@ -93,7 +96,7 @@ router.post("/utilisateurs/:id/exceptions", async (req, res) => {
     const { rows: s } = id_societe ? await client.query(`SELECT raison_sociale FROM societe WHERE id = $1`, [id_societe]) : { rows: [{ raison_sociale: null }] };
     await log(client, "CREATE", "exception_droit", rows[0].id, `Exception "${p[0]?.label || p[0]?.code || id_permission}" (${type}) créée pour ${u[0]?.prenom || ''} ${u[0]?.nom || ''} sur ${s[0]?.raison_sociale || id_societe || 'toutes sociétés'}`, rows[0]);
     // entiteId vise le COMPTE et non la ligne d'exception : l'historique d'un
-    // utilisateur doit se lire d'une seule requete sur entite_id.
+    // utilisateur doit se lire d'une seule requête sur entite_id.
     // code_retour: 2022
     await auditer(client, req, {
       action: "EXCEPTION_AJOUTEE",
@@ -126,7 +129,7 @@ router.patch("/utilisateurs/:id/exceptions/:excId", async (req, res) => {
   try {
     await client.query("BEGIN");
 
-    // Etat anterieur, pour que la trace dise ce qui a change et non seulement
+    // État antérieur, pour que la trace dise ce qui a changé et non seulement
     // qu'une modification a eu lieu.
     const { rows: avant } = await client.query(
       `SELECT id_utilisateur, id_permission, id_societe, type,
@@ -195,8 +198,8 @@ router.delete("/utilisateurs/:id/exceptions/:excId", async (req, res) => {
     const { rows: p } = await client.query(`SELECT label, code FROM permission WHERE id = $1`, [e[0]?.id_permission]);
     const { rows: s } = e[0]?.id_societe ? await client.query(`SELECT raison_sociale FROM societe WHERE id = $1`, [e[0].id_societe]) : { rows: [{ raison_sociale: null }] };
     await log(client, "SOFT_DELETE", "exception_droit", excId, `Exception "${p[0]?.label || p[0]?.code || e[0]?.id_permission}" supprimée pour ${u[0]?.prenom || ''} ${u[0]?.nom || ''} sur ${s[0]?.raison_sociale || e[0]?.id_societe || 'toutes sociétés'}`, null);
-    // e[0] est lu avant l'UPDATE : le compte porteur est connu meme apres le
-    // retrait. id n'existe pas dans cette portee, seul excId est destructure.
+    // e[0] est lu avant l'UPDATE : le compte porteur est connu même après le
+    // retrait. id n'existe pas dans cette portée, seul excId est destructuré.
     // code_retour: 2024
     await auditer(client, req, {
       action: "EXCEPTION_SUPPRIMEE",

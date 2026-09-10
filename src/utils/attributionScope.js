@@ -9,7 +9,7 @@ export function isTenantScope(societeIds) {
   return societeIds.length === 0 || societeIds.includes(null);
 }
 
-// Calcule la portée valide : { tenant: true } si les deux côtés sont à
+// Calcule la portée validée : { tenant: true } si les deux côtés sont à
 // l'échelle tenant (l'attribution devra porter id_societe = NULL), sinon
 // { tenant: false, societeIds } = liste exacte des sociétés sur lesquelles
 // l'attribution doit être créée (une ligne par société).
@@ -32,7 +32,7 @@ export function isGroupAssignable(userSocieteIds, groupSocieteIds) {
 }
 
 // Crée l'attribution (ou les attributions, une par société de l'intersection)
-// couvrant l'intégralité du périmètre valide.
+// couvrant l'intégralité du périmètre validé.
 export async function attribuerGroupe(userId, groupId, userSocieteIds, groupSocieteIds) {
   const { tenant, societeIds } = computeIntersection(userSocieteIds, groupSocieteIds);
   if (tenant) {

@@ -1,6 +1,6 @@
-// StatutEcheanceBadge - statut d'echeance d'un contrat.
-// Les 4 valeurs sont celles renvoyees par l'API (contrats.js, STATUT_ECHEANCE) :
-// actif / a_renouveler / expire / perpetuel. Aucune n'est calculee ici.
+// StatutEcheanceBadge - statut d'échéance d'un contrat.
+// Les 4 valeurs sont celles renvoyées par l'API (contrats.js, STATUT_ECHEANCE) :
+// actif / a_renouveler / expire / perpetuel. Aucune n'est calculée ici.
 import Badge from '../ui/Badge';
 
 const CONFIG = {

@@ -1,13 +1,13 @@
-// RevendeurDetailPage - fiche detail d'un revendeur.
-// Donnees API : /revendeurs/:id. Les compteurs de contrats, commandes et
+// RevendeurDetailPage - fiche détail d'un revendeur.
+// Données API : /revendeurs/:id. Les compteurs de contrats, commandes et
 // licences sont servis par l'API.
 //
-// Pas de suppression : quatre tables referencent un revendeur et doivent
-// continuer de le nommer. Le retrait est une desactivation, reversible, qui le
-// sort des selecteurs de saisie sans rien effacer.
+// Pas de suppression : quatre tables référencent un revendeur et doivent
+// continuer de le nommer. Le retrait est une désactivation, réversible, qui le
+// sort des sélecteurs de saisie sans rien effacer.
 //
-// La section des contacts a ete retiree : leur module n'est pas branche et ses
-// identifiants de mock ne correspondent a aucun revendeur reel.
+// La section des contacts a été retirée : leur module n'est pas branché et ses
+// identifiants de mock ne correspondent à aucun revendeur réel.
 import { useState, useCallback, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Pencil, Eye, EyeOff, Ban, RotateCcw } from 'lucide-react';
@@ -24,8 +24,8 @@ import ModalDoublonRevendeur from './ModalDoublonRevendeur';
 import useRbac from '../../hooks/useRbac';
 import { useToast } from '../../hooks/useToast';
 
-// L'IBAN est une coordonnee bancaire : il ne s'affiche pas en clair par defaut,
-// meme aux profils qui peuvent le modifier.
+// L'IBAN est une coordonnée bancaire : il ne s'affiche pas en clair par défaut,
+// même aux profils qui peuvent le modifier.
 function maskIban(iban) {
   if (!iban) return '-';
   return `${iban.slice(0, 4)} **** **** **** ${iban.slice(-4)}`;

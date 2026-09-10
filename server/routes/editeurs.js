@@ -1,25 +1,25 @@
-// editeurs - referentiel des editeurs de logiciels (module 1).
+// Référentiel des éditeurs de logiciels (module 1).
 //
-// Meme convention que contrats.js et licences.js : enveloppe normalisee
-// (server/utils/reponse.js, codes 5200-5299 seedes par la migration 041),
+// Même convention que contrats.js et licences.js : enveloppe normalisée
+// (server/utils/reponse.js, codes 5200-5299 seedés par la migration 041),
 // helper log() vers journal_ecriture avec id_auteur, trace probante auditer()
-// vers audit_log sur chaque ecriture, transaction par ecriture, relecture de la
-// projection apres commit.
+// vers audit_log sur chaque écriture, transaction par écriture, relecture de la
+// projection après commit.
 //
 // Ce routeur remplace le GET /editeurs de referentiels.js, qui servait une
-// reponse nue au seul selecteur du formulaire contrat. La projection conserve
+// réponse nue au seul sélecteur du formulaire contrat. La projection conserve
 // les champs qu'il exposait (id, raison_sociale, url_logo_defaut,
 // url_logo_custom) : deballer() dans src/services/http.js rend la bascule vers
 // l'enveloppe transparente pour ses appelants.
 //
-// Deux resolutions ne peuvent pas se faire en SQL, aucune jointure ne
+// Deux résolutions ne peuvent pas se faire en SQL, aucune jointure ne
 // traversant les deux bases :
 //   - le nombre de produits du catalogue global (produit_referentiel, Commune)
-//     rattaches a l'editeur ;
-//   - la conformite, dont la balance se calcule cote Tenant par produit mais
-//     dont le regroupement par editeur suppose de savoir a quel editeur chaque
-//     produit appartient, information partagee entre les deux bases.
-// Elles sont donc faites ici, en une requete par reponse et jamais par ligne,
+//     rattachés à l'éditeur ;
+//   - la conformité, dont la balance se calcule côté Tenant par produit mais
+//     dont le regroupement par éditeur suppose de savoir à quel éditeur chaque
+//     produit appartient, information partagée entre les deux bases.
+// Elles sont donc faites ici, en une requête par réponse et jamais par ligne,
 // comme referentielsLicences.js et inventaire.js.
 import express from "express";
 import { tenantPool, commonPool } from "../db.js";
@@ -30,10 +30,10 @@ import { balanceParProduit, niveauConformite } from "../utils/conformite.js";
 
 const router = express.Router();
 
-// Convention du projet : helper de journalisation local a chaque routeur.
-// id_auteur est lu dans req.user (session JWT) : le routeur est monte apres
-// authMiddleware, req.user est donc toujours renseigne. Il avale ses erreurs,
-// une trace fonctionnelle manquante ne doit pas annuler l'ecriture.
+// Convention du projet : helper de journalisation local à chaque routeur.
+// id_auteur est lu dans req.user (session JWT) : le routeur est monté après
+// authMiddleware, req.user est donc toujours renseigné. Il avale ses erreurs,
+// une trace fonctionnelle manquante ne doit pas annuler l'écriture.
 async function log(client, req, action, entite_type, entite_id, description, payload) {
   try {
     await client.query(
@@ -48,11 +48,11 @@ async function log(client, req, action, entite_type, entite_id, description, pay
 }
 
 // Garde-fou : un :id non UUID part sinon en Postgres et ressort en 500
-// illisible la ou l'editeur est simplement introuvable.
+// illisible là où l'éditeur est simplement introuvable.
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-// Auteur de la derniere soumission. Distinct de jointureStatut, qui sert le
-// statut sans son auteur : l'ecran affiche les deux. Meme LATERAL, meme index
+// Auteur de la dernière soumission. Distinct de jointureStatut, qui sert le
+// statut sans son auteur : l'écran affiche les deux. Même LATERAL, même index
 // idx_workflow_entite.
 const JOINTURE_SOUMETTEUR = `
   LEFT JOIN LATERAL (
@@ -64,11 +64,11 @@ const JOINTURE_SOUMETTEUR = `
      LIMIT 1
   ) wa ON true`;
 
-// Projection identique en liste et en detail : garantit qu'aucun champ
-// n'apparaisse dans un ecran et pas dans l'autre.
-// nb_contrats se compte en SQL, les contrats vivant dans la meme base.
+// Projection identique en liste et en détail : garantit qu'aucun champ
+// n'apparaisse dans un écran et pas dans l'autre.
+// nb_contrats se compte en SQL, les contrats vivant dans la même base.
 // nb_produits n'y est pas : il additionne le catalogue Commune et les produits
-// client du Tenant, il est calcule apres lecture.
+// client du Tenant, il est calculé après lecture.
 const SELECT_EDITEUR = `
   SELECT e.id, e.raison_sociale, e.pays,
          e.taux_hausse_annuelle::float8 AS taux_hausse_annuelle,
@@ -81,11 +81,11 @@ const SELECT_EDITEUR = `
   ${jointureStatut("editeur", "e")}
   ${JOINTURE_SOUMETTEUR}`;
 
-// Colonnes metier ecrivables, dans l'ordre des parametres d'INSERT et d'UPDATE.
+// Colonnes métier écrivables, dans l'ordre des paramètres d'INSERT et d'UPDATE.
 const CHAMPS = ["raison_sociale", "pays", "taux_hausse_annuelle", "url_logo_custom"];
 
 // Un <input> vide envoie "" et non null. Sans cette normalisation, "" part sur
-// une colonne DECIMAL et produit une 22P02 brute remontee en 500.
+// une colonne DECIMAL et produit une 22P02 brute remontée en 500.
 function normaliserCorps(body = {}) {
   const vide = (v) => (v === "" || v === undefined ? null : v);
   const taux = vide(body.taux_hausse_annuelle);
@@ -97,10 +97,10 @@ function normaliserCorps(body = {}) {
   };
 }
 
-// L'unicite est portee par uq_editeur_raison_sociale (migration 039). Ce
-// controle applicatif ne la remplace pas, il la double pour rendre un 409
-// lisible la ou la contrainte produirait une 23505 en 500. Le filet reste pose
-// dans le catch de chaque ecriture, pour la course entre deux requetes.
+// L'unicité est portée par uq_editeur_raison_sociale (migration 039). Ce
+// contrôle applicatif ne la remplace pas, il la double pour rendre un 409
+// lisible là où la contrainte produirait une 23505 en 500. Le filet reste posé
+// dans le catch de chaque écriture, pour la course entre deux requêtes.
 async function raisonSocialePrise(client, raisonSociale, idExclu) {
   const { rowCount } = await client.query(
     `SELECT 1 FROM editeur
@@ -123,17 +123,17 @@ async function validerEditeur(client, corps, idExclu) {
   return null;
 }
 
-// Violation de uq_editeur_raison_sociale : deux creations concurrentes passent
-// le controle applicatif et se croisent sur la contrainte.
+// Violation de uq_editeur_raison_sociale : deux créations concurrentes passent
+// le contrôle applicatif et se croisent sur la contrainte.
 function conflitUnicite(err) {
   return err?.code === "23505" && String(err.constraint || "").includes("editeur_raison_sociale");
 }
 
-// ---- Resolutions inter-bases -----------------------------------------------
+// ---- Résolutions inter-bases -----------------------------------------------
 
-// Produits du catalogue global par editeur. Le catalogue vit en Commune,
-// l'editeur en Tenant : le rapprochement est applicatif, id_editeur y etant une
-// reference logique sans FK (001_commune_schema.sql:30).
+// Produits du catalogue global par éditeur. Le catalogue vit en Commune,
+// l'éditeur en Tenant : le rapprochement est applicatif, id_editeur y étant une
+// référence logique sans FK (001_commune_schema.sql:30).
 async function produitsCatalogueParEditeur() {
   const { rows } = await commonPool.query(
     `SELECT id, id_editeur, label, sku FROM produit_referentiel
@@ -160,12 +160,12 @@ async function produitsClientParEditeur(client) {
   return parEditeur;
 }
 
-// Conformite agregee par editeur. La balance se calcule par produit cote
-// Tenant ; l'editeur d'un produit se lit en Commune pour le catalogue et en
+// Conformité agrégée par éditeur. La balance se calcule par produit côté
+// Tenant ; l'éditeur d'un produit se lit en Commune pour le catalogue et en
 // Tenant pour les produits client. Le regroupement se fait donc ici.
-// Un editeur dont aucun produit ne porte de licence n'a rien a rapprocher :
-// il ressort avec niveau null plutot qu'avec un faux conforme, et l'ecran
-// affiche un etat neutre.
+// Un éditeur dont aucun produit ne porte de licence n'a rien à rapprocher :
+// il ressort avec niveau null plutôt qu'avec un faux conforme, et l'écran
+// affiche un état neutre.
 async function conformiteParEditeur(client, editeurDeProduit) {
   const balance = await balanceParProduit(client);
   const agregat = new Map();
@@ -188,7 +188,7 @@ async function conformiteParEditeur(client, editeurDeProduit) {
   return parEditeur;
 }
 
-// Index produit -> editeur, les deux bases confondues.
+// Index produit -> éditeur, les deux bases confondues.
 function indexEditeurDeProduit(catalogue, client) {
   const index = new Map();
   for (const [idEditeur, produits] of catalogue) {
@@ -200,7 +200,7 @@ function indexEditeurDeProduit(catalogue, client) {
   return index;
 }
 
-// Enrichissement commun a la liste et au detail.
+// Enrichissement commun à la liste et au détail.
 function enrichir(ligne, catalogue, produitsClient, conformite) {
   const produits = [...(catalogue.get(ligne.id) ?? []), ...(produitsClient.get(ligne.id) ?? [])];
   return {
@@ -229,49 +229,49 @@ router.get("/editeurs", async (req, res) => {
   }
 });
 
-// Recherche incrementale, appelee au fil de la frappe par le formulaire.
+// Recherche incrémentale, appelée au fil de la frappe par le formulaire.
 //
-// Raison d'etre : le referentiel peut compter des milliers d'editeurs. Personne
-// ne peut verifier de visu qu'un editeur en est absent, et le doublon nait de
-// cette impossibilite, pas d'une inattention. Montrer les correspondances
-// pendant la saisie evite la creation en double, la contrainte d'unicite
-// n'arrivant sinon qu'a l'enregistrement, une fois le formulaire rempli.
+// Raison d'être : le référentiel peut compter des milliers d'éditeurs. Personne
+// ne peut vérifier de visu qu'un éditeur en est absent, et le doublon naît de
+// cette impossibilité, pas d'une inattention. Montrer les correspondances
+// pendant la saisie évite la création en double, la contrainte d'unicité
+// n'arrivant sinon qu'à l'enregistrement, une fois le formulaire rempli.
 //
-// Volontairement pauvre et rapide : ni compteurs ni conformite, contrairement a
-// la liste, qui interroge les deux bases. Une frappe ne doit couter qu'une
-// seule requete, bornee par LIMIT.
+// Volontairement pauvre et rapide : ni compteurs ni conformité, contrairement à
+// la liste, qui interroge les deux bases. Une frappe ne doit coûter qu'une
+// seule requête, bornée par LIMIT.
 //
-// Montee en charge : le joker en tete du ILIKE interdit l'usage de
-// uq_editeur_raison_sociale, la recherche est donc un parcours sequentiel. Sur
+// Montée en charge : le joker en tête du ILIKE interdit l'usage de
+// uq_editeur_raison_sociale, la recherche est donc un parcours séquentiel. Sur
 // quelques milliers de lignes il se compte en millisecondes et le debounce du
-// front espace les appels. Au-dela, la reponse est un index trigramme :
+// front espace les appels. Au-delà, la réponse est un index trigramme :
 //   CREATE EXTENSION pg_trgm;
 //   CREATE INDEX idx_editeur_raison_sociale_trgm
 //     ON editeur USING gin (raison_sociale gin_trgm_ops);
-// Non pose ici : l'extension demande des droits que le role applicatif n'a pas
-// forcement, et la mesure doit preceder l'optimisation.
+// Non posé ici : l'extension demande des droits que le rôle applicatif n'a pas
+// forcément, et la mesure doit précéder l'optimisation.
 //
-// Declaree avant /editeurs/:id : la route parametree capturerait sinon
-// "recherche" comme un identifiant. Meme regle cote routesPermissions.js.
+// Déclarée avant /editeurs/:id : la route paramétrée capturerait sinon
+// "recherche" comme un identifiant. Même règle côté routesPermissions.js.
 router.get("/editeurs/recherche", async (req, res) => {
   try {
     const brut = typeof req.query.q === "string" ? req.query.q.trim() : "";
-    // Une saisie vide ne suggere rien : renvoyer le referentiel entier a chaque
-    // ouverture du formulaire n'aiderait personne et couterait cher.
+    // Une saisie vide ne suggère rien : renvoyer le référentiel entier à chaque
+    // ouverture du formulaire n'aiderait personne et coûterait cher.
     if (!brut) return succes(res, 5205, { suggestions: [], total: 0 });
 
-    // % et _ sont les jokers de ILIKE : sans echappement, un client tapant
-    // "100%" interrogerait le referentiel avec un joker au milieu de son texte.
+    // % et _ sont les jokers de ILIKE : sans échappement, un client tapant
+    // "100%" interrogerait le référentiel avec un joker au milieu de son texte.
     const motif = brut.replace(/([\\%_])/g, "\\$1");
 
-    // exclure : l'editeur en cours de modification ne se signale pas a
-    // lui-meme comme un doublon de lui-meme.
+    // exclure : l'éditeur en cours de modification ne se signale pas à
+    // lui-même comme un doublon de lui-même.
     const exclu = UUID_RE.test(String(req.query.exclure ?? "")) ? req.query.exclure : null;
     const limite = Math.min(Math.max(parseInt(req.query.limite, 10) || 8, 1), 25);
 
-    // count(*) OVER () : le total des correspondances sans seconde requete, pour
-    // que l'ecran puisse dire combien de resultats ne sont pas montres.
-    // L'ordre place la correspondance exacte en tete, puis celles qui commencent
+    // count(*) OVER () : le total des correspondances sans seconde requête, pour
+    // que l'écran puisse dire combien de résultats ne sont pas montrés.
+    // L'ordre place la correspondance exacte en tête, puis celles qui commencent
     // par le texte saisi, puis le reste.
     const { rows } = await tenantPool.query(
       `SELECT e.id, e.raison_sociale, e.pays, e.url_logo_defaut, e.url_logo_custom,
@@ -319,7 +319,7 @@ router.get("/editeurs/:id", async (req, res) => {
     const base = enrichir(rows[0], catalogue, produitsClient, conformite);
 
     // supprimable : l'API fait foi, le front n'affiche Supprimer que sur sa
-    // reponse. Memes rattachements que le garde-fou du DELETE.
+    // réponse. Mêmes rattachements que le garde-fou du DELETE.
     succes(res, 5201, {
       ...base,
       produits,
@@ -331,7 +331,7 @@ router.get("/editeurs/:id", async (req, res) => {
   }
 });
 
-// ---- Ecriture ---------------------------------------------------------------
+// ---- Écriture ---------------------------------------------------------------
 
 router.post("/editeurs", async (req, res) => {
   const corps = normaliserCorps(req.body);
@@ -350,9 +350,9 @@ router.post("/editeurs", async (req, res) => {
       `INSERT INTO editeur (${CHAMPS.join(", ")}) VALUES ($1, $2, $3, $4) RETURNING id`,
       [raisonSociale, corps.pays, corps.taux_hausse_annuelle, corps.url_logo_custom]);
 
-    // Toute saisie part en attente de validation, dans la meme transaction que
-    // l'ecriture metier : un editeur cree sans son entree de workflow serait
-    // invisible du controle, donc jamais validable.
+    // Toute saisie part en attente de validation, dans la même transaction que
+    // l'écriture métier : un éditeur créé sans son entrée de workflow serait
+    // invisible du contrôle, donc jamais validable.
     await soumettre(client, "editeur", cree.id, req.user?.id);
 
     await log(client, req, "CREATE", "editeur", cree.id,
@@ -399,8 +399,8 @@ router.patch("/editeurs/:id", async (req, res) => {
       return erreur(res, 5210, { status: 404, message: "Editeur introuvable." });
     }
 
-    // Fusion avant validation : un PATCH partiel ne doit pas echouer sur un
-    // champ obligatoire qui n'a simplement pas ete transmis.
+    // Fusion avant validation : un PATCH partiel ne doit pas échouer sur un
+    // champ obligatoire qui n'a simplement pas été transmis.
     const patch = normaliserCorps(req.body);
     const corps = { ...existant[0] };
     for (const champ of CHAMPS) {
@@ -420,14 +420,14 @@ router.patch("/editeurs/:id", async (req, res) => {
         WHERE id = $5`,
       [raisonSociale, corps.pays, corps.taux_hausse_annuelle, corps.url_logo_custom, id]);
 
-    // Une modification est une saisie : un editeur valide qui change repasse en
-    // attente, sans comparaison avant/apres. Decision de la #53.
+    // Une modification est une saisie : un éditeur validé qui change repasse en
+    // attente, sans comparaison avant/après. Décision de la #53.
     await soumettre(client, "editeur", id, req.user?.id);
 
     await log(client, req, "UPDATE", "editeur", id,
       `Modification de l'editeur "${raisonSociale}"`, patch);
-    // Trace probante : seuls les champs reellement modifies, jamais le corps
-    // fusionne, sinon on lirait "mis a null" sur les champs conserves.
+    // Trace probante : seuls les champs réellement modifiés, jamais le corps
+    // fusionné, sinon on lirait "mis à null" sur les champs conservés.
     // code_retour: 5291
     const d = diff(existant[0], { ...corps, raison_sociale: raisonSociale });
     await auditer(client, req, {
@@ -470,11 +470,11 @@ router.delete("/editeurs/:id", async (req, res) => {
       return erreur(res, 5210, { status: 404, message: "Editeur introuvable." });
     }
 
-    // Rattachements bloquants. Les trois premiers sont des FK reelles vers
-    // editeur(id) et feraient echouer le DELETE en 23503 brute ; le quatrieme
-    // vit en Commune, ou aucune FK ne protege quoi que ce soit : sans ce
-    // controle, la suppression laisserait des produits du catalogue pointant
-    // vers un editeur disparu.
+    // Rattachements bloquants. Les trois premiers sont des FK réelles vers
+    // editeur(id) et feraient échouer le DELETE en 23503 brute ; le quatrième
+    // vit en Commune, où aucune FK ne protège quoi que ce soit : sans ce
+    // contrôle, la suppression laisserait des produits du catalogue pointant
+    // vers un éditeur disparu.
     const { rows: [liens] } = await client.query(
       `SELECT (SELECT count(*) FROM contrat        WHERE id_editeur = $1)::int AS contrats,
               (SELECT count(*) FROM produit_client WHERE id_editeur = $1)::int AS produits_client,
@@ -502,7 +502,7 @@ router.delete("/editeurs/:id", async (req, res) => {
     }
 
     // workflow_validation.entite_id est polymorphe et sans FK : le nettoyage est
-    // applicatif, dans la meme transaction que la suppression.
+    // applicatif, dans la même transaction que la suppression.
     await purgerValidations(client, "editeur", id);
     await client.query(`DELETE FROM editeur WHERE id = $1`, [id]);
 

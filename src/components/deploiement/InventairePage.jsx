@@ -1,10 +1,10 @@
-// InventairePage - vue de reconciliation branchee sur l'API inventaire (#111) :
-// import manuel de releves csv, releves et statut de rapprochement, ecarts
-// dans les deux sens (constate sans affectation, affectation jamais
-// constatee), synthese droits / declare / constate par produit.
-// Le bloc "Connecteurs (apercu)" est conserve tel quel : collecte automatique
-// prevue en v2, hors perimetre de la #111.
-// Doctrine actee : l'outil constate et alerte, il ne cree ni ne modifie jamais
+// InventairePage - vue de réconciliation branchée sur l'API inventaire (#111) :
+// import manuel de relevés csv, relevés et statut de rapprochement, écarts
+// dans les deux sens (constaté sans affectation, affectation jamais
+// constatée), synthèse droits / déclaré / constaté par produit.
+// Le bloc "Connecteurs (apercu)" est conservé tel quel : collecte automatique
+// prévue en v2, hors périmètre de la #111.
+// Doctrine actée : l'outil constate et alerte, il ne crée ni ne modifie jamais
 // une affectation. Le rapprochement est manuel (RapprochementModal).
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -37,7 +37,7 @@ export default function InventairePage() {
   const navigate = useNavigate();
   const { addToast } = useToast();
   // write = import (Admin, Manager DSI), validate = rapprochement (Admin,
-  // Manager DSI, IT Ops). Le Financier ne detient que la consultation.
+  // Manager DSI, IT Ops). Le Financier ne détient que la consultation.
   const { canWrite: canImport, canValidate: canRapprocher } = useRbac({ write: 'importer_inventaire', validate: 'rapprocher_inventaire' });
 
   const [releves, setReleves] = useState([]);
@@ -63,8 +63,8 @@ export default function InventairePage() {
     setError(null);
     setErrorStatus(null);
     try {
-      // Les releves sont la ressource principale ; ecarts et historique des
-      // imports sont servis par le meme droit, mais leur refus ne doit pas
+      // Les relevés sont la ressource principale ; écarts et historique des
+      // imports sont servis par le même droit, mais leur refus ne doit pas
       // condamner la liste.
       const [r, e, i] = await Promise.all([
         inventaireService.listReleves(),
@@ -102,7 +102,7 @@ export default function InventairePage() {
   function apresTransition(data, mode) {
     setReleves(liste => liste.map(r => r.id === data.id ? data : r));
     addToast({ type: 'success', message: { rapprocher: 'Relevé rapproché.', 'ecart-assume': 'Écart assumé.', rejeter: 'Relevé rejeté.', reouvrir: 'Relevé remis en attente.' }[mode] });
-    // Compteurs et listes d'ecarts sont une vue calculee : rechargement.
+    // Compteurs et listes d'écarts sont une vue calculée : rechargement.
     optionnel(inventaireService.ecarts(), null).then(setEcarts);
   }
 
