@@ -8,14 +8,17 @@
 // téléchargement de fichier (3206) reste un blob, code en en-tête X-Code-Retour.
 import { http } from './http';
 
-// Les trois filtres sont communs aux deux ressources, pour que l'écran unifié
+// Les filtres sont communs aux deux ressources, pour que l'écran unifié
 // applique un seul jeu de filtres à ses deux sources. Côté factures, contrat et
-// type de preuve passent par les jointures : l'API s'en charge.
-function query({ idTypePreuve, idContrat, idCommande } = {}) {
+// type de preuve passent par les jointures : l'API s'en charge. Le filtre par
+// licence (#208) n'a de sens que côté preuves, une facture ne se rattache
+// jamais à une licence : l'API factures l'ignore.
+function query({ idTypePreuve, idContrat, idCommande, idLicence } = {}) {
   const p = new URLSearchParams();
   if (idTypePreuve) p.set('id_type_preuve', idTypePreuve);
   if (idContrat) p.set('id_contrat', idContrat);
   if (idCommande) p.set('id_commande', idCommande);
+  if (idLicence) p.set('id_licence', idLicence);
   const s = p.toString();
   return s ? `?${s}` : '';
 }

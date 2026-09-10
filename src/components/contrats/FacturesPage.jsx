@@ -12,6 +12,7 @@ import { preuvesService, facturesService, typesPreuveService, manquesService } f
 import { contratsService } from '../../services/contratsService';
 import { optionnel } from '../../services/http';
 import { commandesService } from '../../services/commandesService';
+import { licencesService } from '../../services/licencesService';
 import DataTable from '../ui/DataTable';
 import Button from '../ui/Button';
 import Breadcrumb from '../ui/Breadcrumb';
@@ -41,6 +42,7 @@ export default function FacturesPage() {
   const [typesPreuve, setTypesPreuve] = useState([]);
   const [contrats, setContrats] = useState([]);
   const [commandes, setCommandes] = useState([]);
+  const [licences, setLicences] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [errorStatus, setErrorStatus] = useState(null);
@@ -75,16 +77,19 @@ export default function FacturesPage() {
       // Preuves et factures sont les deux ressources de l'écran. La détection
       // des manques, les types et les listes de rattachement sont accessoires :
       // leur refus retire une section où un filtre, pas la page.
-      const [p, f, m, t, c, k] = await Promise.all([
+      // Les licences (#208) ne servent qu'au rattachement dans la modale de
+      // dépôt : un refus de droit sur le module 3 laisse l'écran complet.
+      const [p, f, m, t, c, k, l] = await Promise.all([
         preuvesService.list(filtres),
         facturesService.list(filtres),
         optionnel(manquesService.list({ idContrat: contratActif || undefined }), null),
         optionnel(typesPreuveService.list()),
         optionnel(contratsService.list()),
         optionnel(commandesService.list()),
+        optionnel(licencesService.list()),
       ]);
       setPreuves(p); setFactures(f); setManques(m);
-      setTypesPreuve(t); setContrats(c); setCommandes(k);
+      setTypesPreuve(t); setContrats(c); setCommandes(k); setLicences(l);
     } catch (err) {
       setError(err.message);
       setErrorStatus(err.status);
@@ -126,6 +131,9 @@ export default function FacturesPage() {
       type_preuve_label: p.type_label,
       contrat_label: p.contrat_label,
       commande_label: p.commande_label,
+      // Une preuve rattachée à une licence sans libellé propre reste
+      // identifiable : la fiche document porte le lien vers la licence.
+      licence_label: p.id_licence ? (p.licence_label ?? 'Licence') : null,
       created_at: p.created_at,
       statut_validation: p.statut_validation,
       statut_validation_label: p.statut_validation_label,
@@ -139,6 +147,7 @@ export default function FacturesPage() {
       type_preuve_label: f.preuve_type_label,
       contrat_label: f.contrat_label,
       commande_label: f.commande_label,
+      licence_label: null,
       created_at: f.created_at,
       statut_validation: f.statut_validation,
       statut_validation_label: f.statut_validation_label,
@@ -158,7 +167,7 @@ export default function FacturesPage() {
     ), csvValue: r => r.label },
     { key: 'ressource', label: 'Type', sortable: true, render: r => r.ressource === 'facture' ? 'Facture' : 'Preuve' },
     { key: 'type_preuve_label', label: 'Type de preuve', render: r => r.type_preuve_label ?? '-' },
-    { key: 'liaison', label: 'Contrat / Commande', render: r => [r.contrat_label, r.commande_label].filter(Boolean).join(' - ') || '-' },
+    { key: 'liaison', label: 'Rattachement', render: r => [r.contrat_label, r.commande_label, r.licence_label].filter(Boolean).join(' - ') || '-' },
     { key: 'created_at', label: 'Déposé le', sortable: true, render: r => formatDate(r.created_at) },
     { key: 'statut_validation', label: 'Validation', sortable: true,
       csvValue: r => [r.statut_validation_label, r.message_refus].filter(Boolean).join(' - '),
@@ -293,6 +302,7 @@ export default function FacturesPage() {
         typesPreuve={typesPreuve}
         contrats={contrats}
         commandes={commandes}
+        licences={licences}
         contratParDefaut={contratActif || null}
         commandeParDefaut={commandeActive || null}
       />

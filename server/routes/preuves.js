@@ -53,6 +53,7 @@ const SELECT_PREUVE = `
          p.id_type_preuve, tp.code AS type_code, tp.label AS type_label,
          p.id_contrat,     ct.label AS contrat_label,
          p.id_commande,    cm.label AS commande_label,
+         p.id_licence,     li.label AS licence_label,
          p.url_fichier, p.hash_sha256, p.nom_origine, p.created_at,
          (SELECT count(*) FROM facture f WHERE f.id_preuve = p.id)::int AS nb_factures,
          ${COLONNES_STATUT}
@@ -60,13 +61,14 @@ const SELECT_PREUVE = `
   LEFT JOIN type_preuve tp ON tp.id = p.id_type_preuve
   LEFT JOIN contrat     ct ON ct.id = p.id_contrat
   LEFT JOIN commande    cm ON cm.id = p.id_commande
+  LEFT JOIN licence     li ON li.id = p.id_licence
   ${jointureStatut("preuve", "p")}`;
 
 // nom_origine en est volontairement absent : il n'est pas saisissable, seul
 // le dépôt de la #49 le renseigne, en même temps que url_fichier et le hash.
 // Ordre identique aux $n de l'INSERT et de l'UPDATE.
 const CHAMPS = [
-  "label", "id_type_preuve", "id_contrat", "id_commande", "url_fichier", "hash_sha256",
+  "label", "id_type_preuve", "id_contrat", "id_commande", "id_licence", "url_fichier", "hash_sha256",
 ];
 
 // Filtres de liste : premier usage de query params dans les CRUD du projet.
@@ -77,6 +79,7 @@ const FILTRES = {
   id_type_preuve: "p.id_type_preuve",
   id_contrat: "p.id_contrat",
   id_commande: "p.id_commande",
+  id_licence: "p.id_licence",
 };
 
 function construireFiltres(query) {
@@ -114,13 +117,14 @@ function normaliserCorps(body = {}) {
     id_type_preuve: vide(body.id_type_preuve),
     id_contrat: vide(body.id_contrat),
     id_commande: vide(body.id_commande),
+    id_licence: vide(body.id_licence),
     url_fichier: vide(body.url_fichier),
     hash_sha256: vide(body.hash_sha256),
   };
 }
 
 async function validerPreuve(client, body) {
-  const { label, id_type_preuve, id_contrat, id_commande, url_fichier, hash_sha256 } = body;
+  const { label, id_type_preuve, id_contrat, id_commande, id_licence, url_fichier, hash_sha256 } = body;
 
   if (!label || !label.trim())
     return { status: 400, code: 3211, error: "Le libelle est obligatoire." };
@@ -128,15 +132,20 @@ async function validerPreuve(client, body) {
     return { status: 400, code: 3212, error: "Le type de preuve est obligatoire." };
   if (!(await existe(client, "type_preuve", id_type_preuve)))
     return { status: 400, code: 3213, error: "Type de preuve introuvable." };
-  // Règle métier de la #48 : une preuve sans rattachement est orpheline, elle
-  // ne serait atteignable ni par un contrat ni par une commande. Le DDL laisse
-  // les deux colonnes nullables, c'est l'API qui porte la contrainte.
-  if (!id_contrat && !id_commande)
-    return { status: 400, code: 3214, error: "Une preuve doit etre rattachee a un contrat, a une commande, ou aux deux." };
+  // Règle métier de la #48, étendue par la #208 : une preuve sans rattachement
+  // est orpheline, elle ne serait atteignable ni par un contrat, ni par une
+  // commande, ni par une licence. Le DDL laisse les trois colonnes nullables,
+  // c'est l'API qui porte la contrainte. Le formulaire propose un seul
+  // rattachement à la fois ; l'API reste tolérante au cumul, les preuves
+  // antérieures à la #208 pouvant porter contrat et commande ensemble.
+  if (!id_contrat && !id_commande && !id_licence)
+    return { status: 400, code: 3214, error: "Une preuve doit être rattachée à un contrat, à une commande ou à une licence." };
   if (!(await existe(client, "contrat", id_contrat)))
     return { status: 400, code: 3215, error: "Contrat introuvable." };
   if (!(await existe(client, "commande", id_commande)))
     return { status: 400, code: 3216, error: "Commande introuvable." };
+  if (!(await existe(client, "licence", id_licence)))
+    return { status: 400, code: 3228, error: "Licence introuvable." };
   // url_fichier est NOT NULL en base (002_tenant_schema.sql:351). Décision du
   // 11/08 : on ne migre pas, le champ est donc obligatoire dès la #48. En #49
   // il sera renseigné par le module de dépôt et non plus par le client, sans
@@ -201,9 +210,9 @@ router.post("/preuves", async (req, res) => {
     const label = corps.label.trim();
     const { rows: [creee] } = await client.query(
       `INSERT INTO preuve (${CHAMPS.join(", ")})
-       VALUES ($1, $2, $3, $4, $5, $6)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING id`,
-      [label, corps.id_type_preuve, corps.id_contrat, corps.id_commande,
+      [label, corps.id_type_preuve, corps.id_contrat, corps.id_commande, corps.id_licence,
        corps.url_fichier, corps.hash_sha256]
     );
 
@@ -237,7 +246,7 @@ router.patch("/preuves/:id", async (req, res) => {
     }
 
     const { rows: existant } = await client.query(
-      `SELECT label, id_type_preuve, id_contrat, id_commande, url_fichier, hash_sha256
+      `SELECT label, id_type_preuve, id_contrat, id_commande, id_licence, url_fichier, hash_sha256
        FROM preuve WHERE id = $1`, [id]);
     if (!existant.length) {
       await client.query("ROLLBACK");
@@ -264,9 +273,9 @@ router.patch("/preuves/:id", async (req, res) => {
     await client.query(
       `UPDATE preuve
           SET label = $1, id_type_preuve = $2, id_contrat = $3, id_commande = $4,
-              url_fichier = $5, hash_sha256 = $6
-        WHERE id = $7`,
-      [label, corps.id_type_preuve, corps.id_contrat, corps.id_commande,
+              id_licence = $5, url_fichier = $6, hash_sha256 = $7
+        WHERE id = $8`,
+      [label, corps.id_type_preuve, corps.id_contrat, corps.id_commande, corps.id_licence,
        corps.url_fichier, corps.hash_sha256, id]
     );
 

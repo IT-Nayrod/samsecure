@@ -253,12 +253,13 @@ commun 3280-3299.
 | 3211 | erreur | Le libelle est obligatoire | POST, PATCH /api/preuves |
 | 3212 | erreur | Le type de preuve est obligatoire | POST, PATCH /api/preuves |
 | 3213 | erreur | Type de preuve introuvable | POST, PATCH /api/preuves |
-| 3214 | erreur | Une preuve doit etre rattachee a un contrat, a une commande, ou aux deux | POST, PATCH /api/preuves |
+| 3214 | erreur | Une preuve doit etre rattachee a un contrat, a une commande ou a une licence (libelle aligne par la 054, #208) | POST, PATCH /api/preuves |
 | 3215 | erreur | Contrat introuvable | POST, PATCH /api/preuves |
 | 3216 | erreur | Commande introuvable | POST, PATCH /api/preuves |
 | 3217 | erreur | Le chemin du fichier est obligatoire | POST, PATCH /api/preuves |
 | 3218 | erreur | L'empreinte SHA-256 doit comporter 64 caracteres hexadecimaux | POST, PATCH /api/preuves |
-| 3219 | erreur | Valeur de filtre invalide | GET /api/preuves |
+| 3219 | erreur | Valeur de filtre invalide (id_type_preuve, id_contrat, id_commande, id_licence depuis la #208) | GET /api/preuves |
+| 3228 | erreur | Licence introuvable (#208, migration 054) | POST, PATCH /api/preuves |
 | 3230 | erreur | Suppression impossible : preuve rattachee a une facture | DELETE /api/preuves/:id |
 | 3231 | reserve | [ARBITRAGE D27] lien externe GED refuse. Non emis a ce jour | POST, PATCH /api/preuves |
 
@@ -362,6 +363,23 @@ Le code 3255 reste reserve : POST /api/factures accepte toujours une facture
 sans preuve. Durcir cette route interdirait toute saisie de facture hors depot
 de fichier, y compris une reprise de donnees, ce qui n'a pas ete demande. A
 trancher separement.
+
+### Rattachement a une licence et liste ferme des types (#208, migrations 053 et 054)
+
+Une preuve se rattache desormais a un contrat, a une commande ou a une
+licence : colonne preuve.id_licence (FK nullable, 053), filtre id_licence sur
+GET /api/preuves, projection id_licence et licence_label. La regle 3214 exige
+au moins un des trois rattachements ; l'API tolere le cumul contrat + commande
+des preuves anterieures, le formulaire n'envoie qu'un seul rattachement. Le
+3228 est le pendant du 3215 et du 3216 pour la licence.
+
+Le referentiel type_preuve passe a sept valeurs (liste ferme du client :
+bon_commande, bon_livraison, certificat, clefs_licence, contrat_annexes,
+facture, autre), seedees en ON CONFLICT sans retrait des types existants. Le
+filtrage des types par objet de rattachement est porte par le formulaire
+(PreuveFormModal, TYPES_PAR_RATTACHEMENT) et non par l'API : aucun code
+retour n'est emis pour un type hors liste, les preuves anterieures restant
+valides telles quelles.
 
 ## Validation des saisies (#53)
 

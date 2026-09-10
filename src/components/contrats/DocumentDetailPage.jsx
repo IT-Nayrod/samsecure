@@ -234,6 +234,11 @@ export default function DocumentDetailPage() {
                 ? <Link to={`/contrats/commandes/${doc.id_commande}`} className="text-blue-800 hover:underline">{doc.commande_label}</Link>
                 : null}
             </Champ>
+            <Champ label="Licence rattachée">
+              {doc.id_licence
+                ? <Link to={`/conformite/licences/${doc.id_licence}`} className="text-blue-800 hover:underline">{doc.licence_label ?? 'Licence'}</Link>
+                : null}
+            </Champ>
             <Champ label="Factures liées">{doc.nb_factures > 0 ? `${doc.nb_factures} facture(s)` : 'Aucune'}</Champ>
           </>
         ) : (
