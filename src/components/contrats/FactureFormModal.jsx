@@ -4,6 +4,9 @@
 // preuve et la facture dans une transaction serveur. En cas d'échec, rien n'est
 // créé : il n'y a donc pas d'état intermédiaire à rattraper ici, contrairement
 // au dépôt d'une preuve seule.
+// Objet unique (#204) : la preuve créée est de type Facture, le serveur le
+// résout seul. L'utilisateur ne voit qu'une ligne dans Factures & Preuves et
+// une seule validation.
 import { useState, useEffect } from 'react';
 import SlideOver from '../ui/SlideOver';
 import Button from '../ui/Button';
@@ -13,9 +16,9 @@ import { facturesService } from '../../services/documentsService';
 
 const INPUT_CLS = 'w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white';
 
-const EMPTY = { label: '', id_commande: '', id_type_preuve: '' };
+const EMPTY = { label: '', id_commande: '' };
 
-export default function FactureFormModal({ isOpen, onClose, onDone, typesPreuve, commandes, commandeParDefaut }) {
+export default function FactureFormModal({ isOpen, onClose, onDone, commandes, commandeParDefaut }) {
   const [form, setForm] = useState(EMPTY);
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -26,13 +29,12 @@ export default function FactureFormModal({ isOpen, onClose, onDone, typesPreuve,
     setForm({
       ...EMPTY,
       id_commande: commandeParDefaut ?? '',
-      id_type_preuve: typesPreuve[0]?.id ?? '',
     });
     setFile(null);
     setErreur(null);
-  }, [isOpen, typesPreuve, commandeParDefaut]);
+  }, [isOpen, commandeParDefaut]);
 
-  const complet = !!(file && form.label.trim() && form.id_commande && form.id_type_preuve);
+  const complet = !!(file && form.label.trim() && form.id_commande);
 
   async function handleSave() {
     setLoading(true);
@@ -42,9 +44,8 @@ export default function FactureFormModal({ isOpen, onClose, onDone, typesPreuve,
         file,
         label: form.label.trim(),
         idCommande: form.id_commande,
-        idTypePreuve: form.id_type_preuve,
       });
-      onDone({ type: 'success', message: 'Facture et justificatif enregistrés.' });
+      onDone({ type: 'success', message: 'Facture enregistrée avec son justificatif.' });
       onClose();
     } catch (err) {
       setErreur(err.message);
@@ -84,15 +85,9 @@ export default function FactureFormModal({ isOpen, onClose, onDone, typesPreuve,
             {commandes.map(k => <option key={k.id} value={k.id}>{k.label}</option>)}
           </select>
         </FormField>
-        <FormField label="Type de la preuve créée" required>
-          <select className={INPUT_CLS} value={form.id_type_preuve}
-            onChange={e => setForm(v => ({ ...v, id_type_preuve: e.target.value }))}>
-            {typesPreuve.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
-          </select>
-        </FormField>
         <p className="text-xs text-gray-500 dark:text-gray-400 -mt-2">
-          Le fichier déposé devient la preuve rattachée à cette commande, et la facture y renvoie.
-          Les deux sont enregistrés ensemble ou pas du tout.
+          Le fichier déposé est enregistré comme preuve de type Facture, rattachée à cette commande.
+          La facture apparaît une seule fois dans Factures &amp; Preuves et se valide une seule fois.
         </p>
       </div>
     </SlideOver>

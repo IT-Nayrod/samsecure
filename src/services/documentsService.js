@@ -51,13 +51,14 @@ export const facturesService = {
 
   // Dépôt combiné : fichier, preuve et facture en une transaction serveur.
   // Il n'existe pas de création de facture sans justificatif dans l'interface,
-  // c'est l'arbitrage de flux rendu le 11/08.
+  // c'est l'arbitrage de flux rendu le 11/08. Le type de la preuve est
+  // facultatif depuis la #204 : le serveur applique le type Facture.
   deposer: ({ file, label, idCommande, idTypePreuve, labelPreuve }) => {
     const fd = new FormData();
     fd.append('fichier', file);
     fd.append('label', label);
     fd.append('id_commande', idCommande);
-    fd.append('id_type_preuve', idTypePreuve);
+    if (idTypePreuve) fd.append('id_type_preuve', idTypePreuve);
     if (labelPreuve) fd.append('label_preuve', labelPreuve);
     return http.postForm('/factures/depot', fd);
   },

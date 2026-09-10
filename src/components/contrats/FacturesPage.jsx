@@ -3,6 +3,9 @@
 // fidèlement au schéma : la page les assemble pour l'affichage mais ne fusionne
 // pas les modèles. Chaque ligne conserve sa ressource d'origine, qui détermine
 // l'API à interroger pour sa fiche.
+// Objet unique (#204) : une facture et sa preuve support ne font qu'une ligne,
+// celle de type Facture. GET /preuves ne sert que les preuves libres, la ligne
+// facture porte le fichier de sa preuve : aucun doublon d'affichage.
 // La détection des manques vient de /api/commandes/manques : une vue temps
 // réel, jamais un stock d'anomalies, d'où le rechargement après chaque dépôt.
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
@@ -143,7 +146,7 @@ export default function FacturesPage() {
       ressource: 'facture',
       id: f.id,
       label: f.label,
-      nom_fichier: f.preuve_url_fichier,
+      nom_fichier: f.preuve_nom_origine || f.preuve_url_fichier,
       type_preuve_label: f.preuve_type_label,
       contrat_label: f.contrat_label,
       commande_label: f.commande_label,
@@ -310,7 +313,6 @@ export default function FacturesPage() {
         isOpen={factureModal}
         onClose={() => setFactureModal(false)}
         onDone={apresDepot}
-        typesPreuve={typesPreuve}
         commandes={commandes}
         commandeParDefaut={commandeActive || null}
       />

@@ -15,13 +15,22 @@
 --                une licence. FK sans action referentielle (RESTRICT) : une
 --                preuve est une piece d'audit, elle ne doit pas etre detachee
 --                en silence par la suppression d'une licence.
+--             3) objet unique facture = preuve (#204) : la preuve support d'une
+--                facture ne porte plus de demande de validation propre, seule
+--                la facture se valide. Les demandes en_attente deja portees par
+--                ces preuves (deux entrees par depot avant la #204) sont
+--                retirees : elles n'etaient plus traitables depuis l'ecran et
+--                gonflaient le compteur des validations en attente du
+--                tableau de bord. Les entrees deja traitees (valide, refuse)
+--                sont conservees comme historique. DELETE borne par WHERE.
 --             Le pendant Commune (default_type_preuve, codes retour) est la 054.
 -- Cible     : PostgreSQL 16 - base Tenant (aucun mot "commune" dans le nom :
 --             migrate.js route sur tenantPool)
 -- Exécution : npm run migrate:dev / migrate:staging
 -- Depend    : 002 (type_preuve, preuve, licence), 003 et 018 (seed protege).
 -- Rejouable : ON CONFLICT (code) sur le seed, IF NOT EXISTS sur la colonne et
---             l'index, contrainte ajoutee sous garde pg_constraint.
+--             l'index, contrainte ajoutee sous garde pg_constraint, DELETE
+--             sans effet au second passage.
 -- Numero    : 053 et 054 absents de server/bdd et de toutes les branches
 --             distantes au 10/09/2026, numeros prevus par le protocole.
 -- ============================================================================
@@ -60,5 +69,14 @@ CREATE INDEX IF NOT EXISTS idx_preuve_licence ON preuve (id_licence);
 
 COMMENT ON COLUMN preuve.id_licence IS
   'Licence a laquelle la preuve se rattache (certificat, clefs de licence). Nullable : une preuve se rattache a un contrat, a une commande ou a une licence, l''API impose au moins un rattachement (#208).';
+
+-- ----------------------------------------------------------------------------
+-- 3. Objet unique facture = preuve (#204) : retrait des demandes en attente
+--    portees par les preuves support d'une facture
+-- ----------------------------------------------------------------------------
+DELETE FROM workflow_validation w
+ WHERE w.entite_type = 'preuve'
+   AND w.id_statut = (SELECT vs.id FROM validation_status vs WHERE vs.code = 'en_attente')
+   AND EXISTS (SELECT 1 FROM facture f WHERE f.id_preuve = w.entite_id);
 
 COMMIT;

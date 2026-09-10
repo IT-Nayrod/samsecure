@@ -108,6 +108,16 @@ async function existe(client, table, id) {
   return rowCount > 0;
 }
 
+// Objet unique facture = preuve (#204) : la preuve support d'une facture ne
+// porte aucune demande de validation propre. Toute modification de cette
+// preuve (métadonnées, remplacement du fichier) resoumet la facture qui la
+// référence, jamais la preuve. Une preuve libre se resoumet elle-même.
+async function resoumettre(client, idPreuve, idUtilisateur) {
+  const { rows } = await client.query(`SELECT id FROM facture WHERE id_preuve = $1`, [idPreuve]);
+  if (!rows.length) return soumettre(client, "preuve", idPreuve, idUtilisateur);
+  for (const facture of rows) await soumettre(client, "facture", facture.id, idUtilisateur);
+}
+
 // Un select vide envoie "" et non null. Sans cette normalisation, "" part sur
 // une colonne UUID et produit une 22P02 brute remontée en 500.
 function normaliserCorps(body = {}) {
@@ -169,8 +179,13 @@ router.get("/preuves", async (req, res) => {
     const filtres = construireFiltres(req.query);
     if (filtres.erreur) return erreur(res, 3219, { status: 400, message: filtres.erreur });
 
+    // Objet unique (#204) : une preuve support d'une facture est servie par
+    // la ligne de type facture de GET /factures, jamais par cette liste. Le
+    // détail GET /preuves/:id reste accessible, c'est l'affichage qui fusionne.
+    const libre = "NOT EXISTS (SELECT 1 FROM facture f WHERE f.id_preuve = p.id)";
+    const where = filtres.clause ? `${filtres.clause} AND ${libre}` : `WHERE ${libre}`;
     const { rows } = await tenantPool.query(
-      `${SELECT_PREUVE} ${filtres.clause} ORDER BY p.created_at DESC, p.label`,
+      `${SELECT_PREUVE} ${where} ORDER BY p.created_at DESC, p.label`,
       filtres.params
     );
     succes(res, 3200, rows);
@@ -280,7 +295,7 @@ router.patch("/preuves/:id", async (req, res) => {
     );
 
     // Une modification est une saisie : retour en attente, motif de refus effacé.
-    await soumettre(client, "preuve", id, req.user?.id);
+    await resoumettre(client, id, req.user?.id);
 
     await log(client, req, "UPDATE", "preuve", id, `Modification de la preuve "${label}"`, patch);
     await client.query("COMMIT");
@@ -405,7 +420,8 @@ async function deposerFichier(req, res) {
 
     // Remplacer le justificatif d'une preuve validée est une modification :
     // elle repasse en attente. C'est le cas où le contrôle a le plus de valeur.
-    await soumettre(client, "preuve", id, req.user?.id);
+    // Support d'une facture : c'est la facture qui repasse en attente (#204).
+    await resoumettre(client, id, req.user?.id);
 
     await audit(client, req, remplacement ? "REMPLACEMENT_FICHIER" : "DEPOT_FICHIER", id,
       remplacement

@@ -381,6 +381,32 @@ filtrage des types par objet de rattachement est porte par le formulaire
 retour n'est emis pour un type hors liste, les preuves anterieures restant
 valides telles quelles.
 
+### Objet unique facture = preuve (#204, migration 053)
+
+Le depot combine POST /api/factures/depot cree toujours une preuve et une
+facture liees par facture.id_preuve, mais l'utilisateur ne voit plus qu'un
+objet : la ligne de type facture. Consequences, sans nouveau code :
+- id_type_preuve devient facultatif sur POST /api/factures/depot : a defaut,
+  le type de code `facture` (053) est applique ; un type explicite reste
+  accepte et verifie (3213). Une base sans le type `facture` fait echouer le
+  depot en 3299, comme un referentiel de validation absent ;
+- seule la facture est soumise au workflow (3245 inchange) : la preuve
+  support ne porte aucune demande, elle n'est jamais 3312 depuis l'ecran
+  puisqu'elle n'y apparait plus. La 053 retire les demandes en_attente
+  residuelles des preuves support deja creees ;
+- GET /api/preuves (3200) ne sert que les preuves libres, hors preuves
+  referencees par une facture ; GET /api/preuves/:id reste accessible ;
+- PATCH /api/preuves/:id et POST /api/preuves/:id/fichier sur une preuve
+  support resoumettent la ou les factures qui la referencent (3203, 3205
+  inchanges), jamais la preuve ;
+- DELETE /api/factures/:id (3244) supprime aussi la preuve support et son
+  fichier quand aucune autre facture ne la reference, sinon elle
+  reapparaitrait seule dans la liste. Le 3230 continue d'interdire la
+  suppression directe d'une preuve referencee par une facture ;
+- projection GET /api/factures enrichie de preuve_nom_origine,
+  preuve_hash_sha256 et preuve_type_code, pour que la fiche facture porte le
+  justificatif sans second appel.
+
 ## Validation des saisies (#53)
 
 Plage validation 3300-3399. Le statut n'est pas une colonne des tables metier :
