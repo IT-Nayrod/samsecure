@@ -15,6 +15,14 @@
 --               (entite_type 'produit', entite_id = id_produit). Elle est
 --               close automatiquement des que des droits reviennent ou que
 --               les usages disparaissent.
+--             D44 etendu : les licences de type version d'essai sortent des
+--               droits a leur date de fin, exactement comme les
+--               souscriptions. Le code 'version_essai' est celui attendu du
+--               referentiel type_licence a sept valeurs (migration 055,
+--               branche parallele) ; tant qu'aucune licence ne le porte, la
+--               regle se replie d'elle-meme sur les seules souscriptions :
+--               aucune table ni colonne nouvelle n'est lue. Meme constante
+--               cote API : TYPES_A_ECHEANCE dans server/utils/conformite.js.
 --             Un trigger sur commande complete la chaine : la date de
 --             commande entre desormais dans le calcul du prix.
 --             Recalcul complet en fin de migration.
@@ -55,11 +63,12 @@ BEGIN
     RETURN;
   END IF;
 
-  -- Droits des licences actives : souscription echue le jour meme de sa date
-  -- de fin, sans tolerance ; perpetuelle jamais echue ; souscription sans
-  -- date de fin (donnee anterieure a la validation) active (regle #102).
+  -- Droits des licences actives : souscription et version d'essai (D44
+  -- etendu) echues le lendemain de leur date de fin, sans tolerance ;
+  -- perpetuelle jamais echue ; licence a echeance sans date de fin (donnee
+  -- anterieure a la validation) active (regle #102).
   SELECT COALESCE(sum(l.quantite) FILTER (WHERE NOT (
-           l.type = 'souscription' AND l.date_fin_souscription IS NOT NULL
+           l.type IN ('souscription', 'version_essai') AND l.date_fin_souscription IS NOT NULL
            AND l.date_fin_souscription < CURRENT_DATE)), 0)::int
     INTO v_droits
     FROM licence l

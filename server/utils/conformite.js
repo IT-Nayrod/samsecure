@@ -28,11 +28,35 @@
 
 const arrondi2 = (n) => (n == null ? null : Math.round(n * 100) / 100);
 
-// Souscription échue : le jour même de sa date de fin, sans tolérance
-// (hypothèse v0.5 assumée). Une perpétuelle n'expire jamais. Une souscription
-// sans date de fin (donnée antérieure à la validation) reste active.
-export const LICENCE_EXPIREE = `(l.type = 'souscription' AND l.date_fin_souscription IS NOT NULL
+// Types de licence bornés par une date de fin : ils sortent des droits à
+// leur date de fin, sans tolérance (hypothèse v0.5 assumée). D44 étendu
+// (10/09/2026) : la version d'essai suit la même règle que la souscription.
+// Son code est celui du référentiel type_licence à sept valeurs, apporté par
+// la migration 055 d'une branche parallèle : c'est ici, et seulement ici,
+// qu'il est à aligner si la 055 retient un autre code. Repli propre tant que
+// ce référentiel n'existe pas : la règle ne lit aucune table ni colonne
+// nouvelle, elle compare le code porté par licence.type ; aucune licence ne
+// portant encore ce code, seules les souscriptions échoient, comme avant.
+export const TYPE_VERSION_ESSAI = "version_essai";
+export const TYPES_A_ECHEANCE = ["souscription", TYPE_VERSION_ESSAI];
+const SQL_TYPES_A_ECHEANCE = TYPES_A_ECHEANCE.map((t) => `'${t}'`).join(", ");
+
+// Licence échue : type à échéance et date de fin passée. Une perpétuelle
+// n'expire jamais. Une licence à échéance sans date de fin (donnée antérieure
+// à la validation) reste active. Le jour de la date de fin, la licence est
+// encore active ; elle sort des droits le lendemain (borne stricte).
+export const LICENCE_EXPIREE = `(l.type IN (${SQL_TYPES_A_ECHEANCE}) AND l.date_fin_souscription IS NOT NULL
                   AND l.date_fin_souscription < CURRENT_DATE)`;
+
+// Pendant JS de LICENCE_EXPIREE, pour les tests et les traitements hors SQL.
+// aujourdhui : Date ou chaîne ISO (AAAA-MM-JJ) ; la comparaison se fait sur
+// le jour calendaire, jamais sur l'heure.
+export function licenceExpiree({ type, date_fin_souscription }, aujourdhui = new Date()) {
+  if (!TYPES_A_ECHEANCE.includes(type)) return false;
+  if (!date_fin_souscription) return false;
+  const jour = (v) => (v instanceof Date ? v.toISOString() : String(v)).slice(0, 10);
+  return jour(date_fin_souscription) < jour(aujourdhui);
+}
 
 // Droits = quantités des licences non expirées. Usage déclaré = affectations de
 // toutes les licences du produit, y compris celles portées par une licence

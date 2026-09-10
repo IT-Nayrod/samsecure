@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 import {
   prixUnitaireDerniereCommande, tauxConformite, valoriserBalance,
   statutConformite, niveauConformite,
+  licenceExpiree, LICENCE_EXPIREE, TYPES_A_ECHEANCE, TYPE_VERSION_ESSAI,
 } from "./conformite.js";
 
 const seuils = { seuilTaux: 90, seuilMontant: 10000 };
@@ -133,5 +134,50 @@ describe("statutConformite et niveauConformite", () => {
   test("attention sur ecart valorise negatif au-dela du seuil en montant", () => {
     assert.equal(statutConformite(10, 5, -20000, seuils), "attention");
     assert.equal(statutConformite(10, 5, -500, seuils), "conforme");
+  });
+});
+
+describe("licenceExpiree (D44 etendu : versions d'essai)", () => {
+  const aujourdhui = "2026-09-10";
+
+  test("une perpetuelle n'expire jamais, meme avec une date de fin", () => {
+    assert.equal(licenceExpiree({ type: "perpetuelle", date_fin_souscription: "2020-01-01" }, aujourdhui), false);
+  });
+
+  test("une souscription sort des droits le lendemain de sa date de fin", () => {
+    assert.equal(licenceExpiree({ type: "souscription", date_fin_souscription: "2026-09-09" }, aujourdhui), true);
+    assert.equal(licenceExpiree({ type: "souscription", date_fin_souscription: "2026-09-10" }, aujourdhui), false);
+    assert.equal(licenceExpiree({ type: "souscription", date_fin_souscription: "2026-12-31" }, aujourdhui), false);
+  });
+
+  test("une version d'essai suit exactement la regle de la souscription", () => {
+    assert.equal(licenceExpiree({ type: TYPE_VERSION_ESSAI, date_fin_souscription: "2026-09-09" }, aujourdhui), true);
+    assert.equal(licenceExpiree({ type: TYPE_VERSION_ESSAI, date_fin_souscription: "2026-09-10" }, aujourdhui), false);
+    assert.equal(licenceExpiree({ type: TYPE_VERSION_ESSAI, date_fin_souscription: null }, aujourdhui), false);
+  });
+
+  test("sans date de fin, une licence a echeance reste active", () => {
+    assert.equal(licenceExpiree({ type: "souscription", date_fin_souscription: null }, aujourdhui), false);
+    assert.equal(licenceExpiree({ type: "souscription" }, aujourdhui), false);
+  });
+
+  test("repli : un type inconnu du referentiel (055 non jouee ou autre code) n'echoit pas", () => {
+    assert.equal(licenceExpiree({ type: "location", date_fin_souscription: "2020-01-01" }, aujourdhui), false);
+    assert.equal(licenceExpiree({ type: null, date_fin_souscription: "2020-01-01" }, aujourdhui), false);
+  });
+
+  test("dates JS et chaines ISO comparees au jour calendaire", () => {
+    assert.equal(licenceExpiree(
+      { type: "souscription", date_fin_souscription: new Date("2026-09-09T23:59:00Z") },
+      new Date("2026-09-10T00:01:00Z")), true);
+    assert.equal(licenceExpiree(
+      { type: "souscription", date_fin_souscription: new Date("2026-09-10T00:00:00Z") },
+      new Date("2026-09-10T23:00:00Z")), false);
+  });
+
+  test("le fragment SQL porte les memes types que la regle JS", () => {
+    assert.deepEqual(TYPES_A_ECHEANCE, ["souscription", TYPE_VERSION_ESSAI]);
+    for (const t of TYPES_A_ECHEANCE) assert.ok(LICENCE_EXPIREE.includes(`'${t}'`));
+    assert.ok(LICENCE_EXPIREE.includes("l.date_fin_souscription < CURRENT_DATE"));
   });
 });
