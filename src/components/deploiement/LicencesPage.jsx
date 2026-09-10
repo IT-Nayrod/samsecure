@@ -7,7 +7,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Layers, List, AlertTriangle, Wallet, Hash, CalendarClock, X } from 'lucide-react';
-import { licencesService, referentielsLicencesService, formatMontant, editeurPourLogo } from '../../services/licencesService';
+import { licencesService, referentielsLicencesService, formatMontant, editeurPourLogo, TYPES_LICENCE, libelleType as libelleTypeCode } from '../../services/licencesService';
 import { referentielsContratsService } from '../../services/contratsService';
 import { commandesService } from '../../services/commandesService';
 import { optionnel } from '../../services/http';
@@ -31,7 +31,8 @@ import { useToast } from '../../hooks/useToast';
 
 const SELECT_CLS = 'text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500';
 
-function libelleType(t) { return t === 'perpetuelle' ? 'Perpétuelle' : 'Souscription'; }
+// Libellé du type : celui servi par l'API (type_label), sinon le miroir local (#209).
+function libelleType(t, licence = null) { return libelleTypeCode(t, licence); }
 
 export default function LicencesPage() {
   const navigate = useNavigate();
@@ -158,7 +159,7 @@ export default function LicencesPage() {
     ) },
     { key: 'produit_label', label: 'Produit', sortable: true, render: r => r.produit_label ?? '-' },
     { key: 'editeur_label', label: 'Éditeur', sortable: true, render: r => r.editeur_label ?? '-' },
-    { key: 'type', label: 'Type', sortable: true, render: r => libelleType(r.type) },
+    { key: 'type', label: 'Type', sortable: true, render: r => libelleType(r.type, r) },
     { key: 'quantite', label: 'Quantité', sortable: true, render: r => `${r.quantite} ${r.unite_label ?? ''}` },
     { key: 'cout_licence', label: 'Coût', sortable: true, getValue: r => r.cout_licence ?? -1, csvValue: r => r.montants_masques ? 'Masqué' : (r.cout_licence ?? ''), render: r => formatMontant(r.cout_licence, r.montants_masques) },
     { key: 'statut_echeance', label: 'Échéance', sortable: true, render: r => (
@@ -232,8 +233,7 @@ export default function LicencesPage() {
         </select>
         <select value={filterType} onChange={e => setFilterType(e.target.value)} className={SELECT_CLS}>
           <option value="">Tous les types</option>
-          <option value="souscription">Souscription</option>
-          <option value="perpetuelle">Perpétuelle</option>
+          {TYPES_LICENCE.map(t => <option key={t.code} value={t.code}>{t.label}</option>)}
         </select>
         <select value={filterEcheance} onChange={e => setFilterEcheance(e.target.value)} className={SELECT_CLS}>
           <option value="">Toute échéance</option>
@@ -303,7 +303,7 @@ export default function LicencesPage() {
                             className={`inline-flex items-center gap-2 text-xs px-2.5 py-1.5 rounded-lg transition-colors ${l.droits_actifs ? 'bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300' : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 line-through'}`}
                             title={l.droits_actifs ? undefined : 'Souscription expirée, exclue de la balance'}
                           >
-                            {l.label ? `${l.label} - ` : ''}{l.quantite} {l.unite_label ?? ''} - {libelleType(l.type)} - {formatMontant(l.cout_licence, l.montants_masques)}
+                            {l.label ? `${l.label} - ` : ''}{l.quantite} {l.unite_label ?? ''} - {libelleType(l.type, l)} - {formatMontant(l.cout_licence, l.montants_masques)}
                             <StatutEcheanceBadge statut={l.statut_echeance} />
                           </button>
                         ))}
@@ -333,6 +333,7 @@ export default function LicencesPage() {
         onSaved={handleSaved}
         licence={formModal.licence}
         produits={produits} commandes={commandes} revendeurs={revendeurs} unites={unites} mainteneurs={mainteneurs}
+        licences={licences}
         montantsVisibles={montantsVisibles}
       />
     </div>

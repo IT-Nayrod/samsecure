@@ -1,6 +1,10 @@
 // MaintenanceFormModal - ajout / modification d'une période de maintenance
 // (maintenance_historique) d'une licence. Écriture par l'API, les règles de
-// validation serveur (4031 à 4033, 4022, 4016, 4024) sont rendues telles quelles.
+// validation serveur (4031 à 4033, 4022, 4016, 4024, 4014) sont rendues telles
+// quelles. La période peut porter la version qu'elle apporte (D59, #209) : la
+// version courante de la licence suit alors la période la plus récente, tant
+// que la maintenance n'est pas arrêtée. Le champ n'est proposé que sur un type
+// à version (versionGeree) et hors arrêt (versions vide sinon).
 import { useState, useEffect } from 'react';
 import SlideOver from '../ui/SlideOver';
 import Button from '../ui/Button';
@@ -10,9 +14,9 @@ import { useToast } from '../../hooks/useToast';
 
 const INPUT_CLS = 'w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white';
 
-const EMPTY_FORM = { date_debut: '', date_fin: '', cout: '', id_mainteneur: '', id_revendeur: '' };
+const EMPTY_FORM = { date_debut: '', date_fin: '', cout: '', id_mainteneur: '', id_revendeur: '', id_version: '' };
 
-export default function MaintenanceFormModal({ isOpen, onClose, onSaved, licenceId, periode, mainteneurs = [], revendeurs = [], montantsVisibles = true }) {
+export default function MaintenanceFormModal({ isOpen, onClose, onSaved, licenceId, periode, mainteneurs = [], revendeurs = [], montantsVisibles = true, versions = [], versionGeree = true }) {
   const isEdit = !!periode;
   const { addToast } = useToast();
   const [form, setForm] = useState(EMPTY_FORM);
@@ -24,6 +28,7 @@ export default function MaintenanceFormModal({ isOpen, onClose, onSaved, licence
     setForm(periode ? {
       date_debut: periode.date_debut ?? '', date_fin: periode.date_fin ?? '',
       cout: periode.cout ?? '', id_mainteneur: periode.id_mainteneur ?? '', id_revendeur: periode.id_revendeur ?? '',
+      id_version: periode.id_version ?? '',
     } : EMPTY_FORM);
     setErrors({});
   }, [periode, isOpen]);
@@ -94,6 +99,17 @@ export default function MaintenanceFormModal({ isOpen, onClose, onSaved, licence
             {revendeurs.map(r => <option key={r.id} value={r.id}>{r.raison_sociale}</option>)}
           </select>
         </FormField>
+        {versionGeree && (
+          <FormField label="Version apportée" hint={versions.length ? 'Optionnel : devient la version courante de la licence' : 'Aucune version sélectionnable (produit sans version ou maintenance arrêtée)'}>
+            <select className={INPUT_CLS} value={form.id_version} onChange={e => setForm(v => ({ ...v, id_version: e.target.value }))} disabled={!versions.length && !form.id_version}>
+              <option value="">Aucune</option>
+              {versions.map(ve => <option key={ve.id} value={ve.id}>{ve.label}</option>)}
+              {form.id_version && !versions.some(ve => ve.id === form.id_version) && (
+                <option value={form.id_version}>{periode?.version_label ?? 'Version actuelle'}</option>
+              )}
+            </select>
+          </FormField>
+        )}
         {montantsVisibles && (
           <FormField label="Coût (EUR)" error={errors.cout}>
             <input type="number" min={0} step="0.01" className={INPUT_CLS} value={form.cout} onChange={e => { setForm(v => ({ ...v, cout: e.target.value })); setErrors(v => ({ ...v, cout: null })); }} />

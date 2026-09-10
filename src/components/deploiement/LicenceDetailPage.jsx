@@ -1,12 +1,14 @@
 // LicenceDetailPage - fiche détail d'une licence : identité, origine (commande,
 // contrat déduit, société payeuse), jauge droits vs usage déclaré du produit,
-// historique et arrêt de maintenance. Données API ; la suppression s'appuie
-// sur le refus du serveur (4023), pas sur un garde-fou local.
+// historique et arrêt de maintenance, historique des versions (D60) et lien de
+// succession (D35). Données API ; la suppression s'appuie sur le refus du
+// serveur (4023), pas sur un garde-fou local. Les dates affichées suivent la
+// règle du type servie par l'API (#209).
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Pencil, Trash2, ChevronDown, ShieldOff, ShieldCheck, Plus, EyeOff } from 'lucide-react';
+import { Pencil, Trash2, ChevronDown, ShieldOff, ShieldCheck, Plus, EyeOff, History } from 'lucide-react';
 import BudgetEmbeddedSection from '../budget/BudgetEmbeddedSection';
-import { licencesService, referentielsLicencesService, formatMontant, editeurPourLogo } from '../../services/licencesService';
+import { licencesService, referentielsLicencesService, formatMontant, editeurPourLogo, regleType, libelleType, EVENEMENTS_VERSION } from '../../services/licencesService';
 import { referentielsContratsService } from '../../services/contratsService';
 import { commandesService } from '../../services/commandesService';
 import { optionnel } from '../../services/http';
@@ -53,6 +55,7 @@ export default function LicenceDetailPage() {
   const [revendeurs, setRevendeurs] = useState([]);
   const [unites, setUnites] = useState([]);
   const [mainteneurs, setMainteneurs] = useState([]);
+  const [licences, setLicences] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [errorStatus, setErrorStatus] = useState(null);
@@ -74,7 +77,7 @@ export default function LicenceDetailPage() {
     try {
       // Seule la fiche est indispensable. L'historique de maintenance suit le
       // même droit (consulter_licences) ; les référentiels servent aux formulaires.
-      const [l, h, p, k, r, u, m] = await Promise.all([
+      const [l, h, p, k, r, u, m, ls] = await Promise.all([
         licencesService.get(id),
         optionnel(licencesService.maintenance.list(id)),
         optionnel(referentielsLicencesService.produits()),
@@ -82,8 +85,9 @@ export default function LicenceDetailPage() {
         optionnel(referentielsContratsService.revendeurs()),
         optionnel(referentielsLicencesService.unitesMesure()),
         optionnel(referentielsLicencesService.mainteneurs()),
+        optionnel(licencesService.list()),
       ]);
-      setLicence(l); setPeriodes(h); setProduits(p); setCommandes(k); setRevendeurs(r); setUnites(u); setMainteneurs(m);
+      setLicence(l); setPeriodes(h); setProduits(p); setCommandes(k); setRevendeurs(r); setUnites(u); setMainteneurs(m); setLicences(ls);
     } catch (err) {
       if (err.status === 404) setIntrouvable(true);
       else { setError(err.message); setErrorStatus(err.status); addToast({ type: 'error', message: err.message }); }
@@ -99,9 +103,13 @@ export default function LicenceDetailPage() {
   const versions = produit?.versions ?? [];
   const editeurLogo = licence ? editeurPourLogo(licence.editeur_label, produit?.editeur_url_logo_defaut) : null;
 
-  // La fiche détail porte des compteurs (nb_affectations...) que les réponses
-  // d'écriture ne renvoient pas : fusion plutôt que remplacement.
-  const appliquer = (saved) => setLicence(prev => ({ ...prev, ...saved }));
+  // La fiche détail porte des compteurs (nb_affectations...) et l'historique
+  // des versions que les réponses d'écriture ne renvoient pas : fusion puis
+  // relecture de la fiche pour rafraîchir cet historique.
+  const appliquer = (saved) => {
+    setLicence(prev => ({ ...prev, ...saved }));
+    licencesService.get(id).then(setLicence).catch(() => {});
+  };
 
   async function rechargerPeriodes() {
     try {
@@ -165,6 +173,12 @@ export default function LicenceDetailPage() {
 
   const titre = licence.label ?? licence.produit_label ?? licence.id;
   const arretee = licence.statut_maintenance === 'arretee';
+  const regle = regleType(licence.type, licence);
+  const debutVisible = regle.regle_date_debut !== 'masquee';
+  const finVisible = regle.regle_date_fin !== 'masquee';
+  const historiqueVersions = licence.historique_versions ?? [];
+  const versionLabel = (idv, label) => (idv ? (label ?? 'Version inconnue') : 'Aucune');
+  const auteur = (h) => [h.auteur_prenom, h.auteur_nom].filter(Boolean).join(' ') || 'Auteur inconnu';
   const peutArreter = canWrite && !arretee && (licence.a_maintenance || periodes.length > 0);
 
   return (
@@ -177,7 +191,7 @@ export default function LicenceDetailPage() {
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-xl font-semibold text-gray-900 dark:text-white">{titre}</h1>
-              <Badge variant={licence.type === 'perpetuelle' ? 'neutral' : 'success'} label={licence.type === 'perpetuelle' ? 'Perpétuelle' : 'Souscription'} />
+              <Badge variant={finVisible ? 'success' : 'neutral'} label={libelleType(licence.type, licence)} />
               <StatutEcheanceBadge statut={licence.statut_echeance} />
               <StatutMaintenanceBadge licence={licence} compact />
             </div>
@@ -196,7 +210,7 @@ export default function LicenceDetailPage() {
 
       {licence.statut_echeance === 'expire' && (
         <div className="flex items-center gap-2 text-sm text-red-700 bg-red-50 dark:bg-red-900/20 dark:text-red-300 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3">
-          Souscription expirée le {licence.date_fin_souscription} : ces {licence.quantite} {licence.unite_label ?? ''} ne comptent plus dans la balance de conformité.
+          Licence expirée le {licence.date_fin_souscription} : ces {licence.quantite} {licence.unite_label ?? ''} ne comptent plus dans la balance de conformité.
         </div>
       )}
 
@@ -210,7 +224,9 @@ export default function LicenceDetailPage() {
                 ? <span className="inline-flex items-center gap-1 text-gray-400"><EyeOff size={13} /> Masqué</span>
                 : formatMontant(licence.cout_licence)}
             </Champ>
-            <Champ label="Fin de souscription">{licence.type === 'souscription' ? (licence.date_fin_souscription ?? '-') : 'Perpétuelle'}</Champ>
+            <Champ label="Type">{libelleType(licence.type, licence)}</Champ>
+            <Champ label="Date de début">{debutVisible ? (licence.date_debut ?? '-') : 'Sans objet'}</Champ>
+            <Champ label="Date de fin">{finVisible ? (licence.date_fin_souscription ?? '-') : 'Sans fin'}</Champ>
             <Champ label="Jours restants">{licence.jours_restants ?? '-'}</Champ>
             <Champ label="Société payeuse">
               {licence.id_societe
@@ -234,6 +250,16 @@ export default function LicenceDetailPage() {
             </Champ>
             <Champ label="Usage déclaré sur ce lot">{licence.usage_declare} {licence.unite_label ?? ''} ({licence.nb_affectations ?? 0} affectation(s))</Champ>
             <Champ label="Référence produit">{licence.produit_sku ?? '-'}</Champ>
+            <Champ label="Renouvelle la licence">
+              {licence.id_licence_predecesseur
+                ? <Link to={`/conformite/licences/${licence.id_licence_predecesseur}`} className="text-blue-800 hover:underline">{licence.predecesseur_label ?? 'Licence renouvelée'}</Link>
+                : <span className="text-gray-500">-</span>}
+            </Champ>
+            <Champ label="Renouvelée par">
+              {licence.nb_successeurs > 0
+                ? <span>{licence.nb_successeurs} licence(s) : aucune alerte d&apos;échéance ne sera émise</span>
+                : <span className="text-gray-500">-</span>}
+            </Champ>
           </div>
         </section>
 
@@ -275,6 +301,40 @@ export default function LicenceDetailPage() {
           </div>
         </section>
 
+        <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 md:col-span-2">
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2"><History size={14} /> Historique des versions</h2>
+          {!regle.version_geree ? (
+            <p className="text-sm text-gray-500">Une licence de type {regle.label} ne porte pas de version : elle suit la version courante de l&apos;éditeur.</p>
+          ) : !historiqueVersions.length ? (
+            <p className="text-sm text-gray-500">Aucun changement de version enregistré.{licence.version_label ? ` Version courante : ${licence.version_label}.` : ''}</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs text-gray-500">
+                    <th className="py-1 pr-3 font-medium">Date d&apos;effet</th>
+                    <th className="py-1 pr-3 font-medium">Événement</th>
+                    <th className="py-1 pr-3 font-medium">Avant</th>
+                    <th className="py-1 pr-3 font-medium">Après</th>
+                    <th className="py-1 pr-3 font-medium">Auteur</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {historiqueVersions.map(h => (
+                    <tr key={h.id} className="border-t border-gray-100 dark:border-gray-700 text-gray-800 dark:text-gray-200">
+                      <td className="py-1.5 pr-3 whitespace-nowrap">{h.date_effet}</td>
+                      <td className="py-1.5 pr-3">{EVENEMENTS_VERSION[h.evenement] ?? h.evenement}</td>
+                      <td className="py-1.5 pr-3">{versionLabel(h.id_version_avant, h.version_avant_label)}</td>
+                      <td className="py-1.5 pr-3">{versionLabel(h.id_version_apres, h.version_apres_label)}</td>
+                      <td className="py-1.5 pr-3 text-gray-500">{auteur(h)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+
         <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden md:col-span-2">
           <button onClick={() => setBudgetOpen(v => !v)} className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
             <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Budget</h2>
@@ -291,12 +351,15 @@ export default function LicenceDetailPage() {
       <LicenceFormModal
         isOpen={formOpen} onClose={() => setFormOpen(false)} onSaved={appliquer} licence={licence}
         produits={produits} commandes={commandes} revendeurs={revendeurs} unites={unites} mainteneurs={mainteneurs}
+        licences={licences}
         montantsVisibles={montantsVisibles}
       />
       <MaintenanceFormModal
         isOpen={periodeModal.open} onClose={() => setPeriodeModal({ open: false, periode: null })}
         onSaved={rechargerPeriodes} licenceId={licence.id} periode={periodeModal.periode}
         mainteneurs={mainteneurs} revendeurs={revendeurs} montantsVisibles={montantsVisibles}
+        versions={regle.version_geree && !arretee ? versions : []}
+        versionGeree={regle.version_geree}
       />
       <ArretMaintenanceModal
         isOpen={arretOpen} onClose={() => setArretOpen(false)} licence={licence} versions={versions}
