@@ -50,6 +50,12 @@ describe("couvreSociete et selectionnerDestinataires", () => {
     assert.deepEqual(horsPortee, ["a"]);
   });
 
+  test("contrat_a_suivre : Manager DSI et Admin SAM de la portee, comme l'echeance de contrat", () => {
+    const ids = selectionnerDestinataires(candidats, { type: "contrat_a_suivre", id_societe: "S1" }).map((c) => c.id);
+    assert.deepEqual(ids.sort(), ["a", "m"]);
+    assert.deepEqual(selectionnerDestinataires(candidats, { type: "contrat_a_suivre", id_societe: "S2" }).map((c) => c.id), ["a"]);
+  });
+
   test("depassement_conformite sans societe : les quatre profils, jamais le sans-droit", () => {
     const ids = selectionnerDestinataires(candidats, { type: "depassement_conformite", id_societe: null }).map((c) => c.id);
     assert.deepEqual(ids.sort(), ["a", "f", "i", "m"]);
@@ -70,6 +76,28 @@ describe("couvreSociete et selectionnerDestinataires", () => {
   test("permissions passees en tableau acceptees", () => {
     const c = { ...itops, permissions: [PROFILS.it_ops] };
     assert.equal(selectionnerDestinataires([c], { type: "revalidation_echue", id_societe: "S2" }).length, 1);
+  });
+});
+
+describe("composerTexte contrat_a_suivre (decision du 11/09/2026)", () => {
+  test("contrat echu : texte accentue, lien vers la fiche, gravite rouge", () => {
+    const t = composerTexte("contrat_a_suivre", {
+      id_contrat: "c1", label: "Contrat Microsoft", date_fin: "2026-01-31", jours_restants: -10,
+      nb_licences_renouvelees: 2, societe_label: "Filiale A",
+    });
+    assert.match(t.message, /^Ce contrat doit être renouvelé ou prolongé : 2 licences ont été renouvelées dessus\./);
+    assert.match(t.message, /échu depuis le 31\/01\/2026/);
+    assert.equal(t.lien, "/contrats/liste/c1");
+    assert.equal(t.gravite, "rouge");
+  });
+  test("contrat a echeance, une seule licence : gravite orange", () => {
+    const t = composerTexte("contrat_a_suivre", {
+      id_contrat: "c1", label: "Contrat Oracle", date_fin: "2026-12-01", jours_restants: 45, nb_licences_renouvelees: 1,
+    });
+    assert.match(t.message, /une licence a été renouvelée dessus/);
+    assert.match(t.message, /dans 45 jours/);
+    assert.equal(t.gravite, "orange");
+    assert.ok(TYPES_CODES.includes("contrat_a_suivre"));
   });
 });
 
