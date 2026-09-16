@@ -639,15 +639,20 @@ router.delete("/licences/:id", async (req, res) => {
     // Une licence renouvelée par un successeur (id_licence_predecesseur, 056,
     // sans cascade) est également protégée : le lien de succession se retire
     // d'abord sur le successeur.
+    // Une preuve rattachée à la licence (preuve.id_licence, 053, FK RESTRICT
+    // volontaire : une pièce d'audit ne se détache pas en silence) bloque de
+    // même, en 4023 lisible plutôt qu'en 23503 brute remontée en 4099.
     const { rows: [liens] } = await client.query(
       `SELECT (SELECT count(*) FROM affectation WHERE id_licence = $1) AS affectations,
               (SELECT count(*) FROM budget      WHERE id_licence = $1) AS budgets,
-              (SELECT count(*) FROM licence     WHERE id_licence_predecesseur = $1) AS successeurs`,
+              (SELECT count(*) FROM licence     WHERE id_licence_predecesseur = $1) AS successeurs,
+              (SELECT count(*) FROM preuve      WHERE id_licence = $1) AS preuves`,
       [id]);
     const bloquants = [];
     if (+liens.affectations) bloquants.push(`${liens.affectations} affectation(s)`);
     if (+liens.budgets)      bloquants.push(`${liens.budgets} ligne(s) budgetaire(s)`);
     if (+liens.successeurs)  bloquants.push(`${liens.successeurs} licence(s) qui la renouvelle(nt)`);
+    if (+liens.preuves)      bloquants.push(`${liens.preuves} preuve(s)`);
     if (bloquants.length) {
       await client.query("ROLLBACK");
       return erreur(res, 4023, {

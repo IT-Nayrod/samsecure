@@ -726,7 +726,7 @@ cout de maintenance) servis a null avec `montants_masques: true` sans
 | 4020 | erreur | Le cout doit etre un montant positif ou nul | POST, PATCH /api/licences |
 | 4021 | erreur | La date de fin de souscription est obligatoire pour une souscription | POST, PATCH /api/licences (message rendu depuis #209 : "La date de fin est obligatoire pour une licence de type <label>.", selon type_licence.regle_date_fin) |
 | 4022 | erreur | Mainteneur introuvable | POST, PATCH /api/licences et maintenance |
-| 4023 | erreur | Suppression impossible : elements lies | DELETE /api/licences/:id (409, details = compteurs affectations, budgets et successeurs) |
+| 4023 | erreur | Suppression impossible : elements lies | DELETE /api/licences/:id (409, details = compteurs affectations, budgets, successeurs et preuves depuis le 16/09, #209) |
 | 4024 | erreur | Date invalide | POST, PATCH /api/licences et maintenance |
 | 4030 | erreur | Periode de maintenance introuvable | PATCH/DELETE /api/licences/:id/maintenance/:mid |
 | 4031 | erreur | La date de debut est obligatoire | POST, PATCH .../maintenance ; POST, PATCH /api/licences (message rendu : "La date de debut est obligatoire pour une licence de type <label>.", selon type_licence.regle_date_debut, #209) |
@@ -794,6 +794,12 @@ maintenance), 4010 (licence renouvelee introuvable ou boucle), 4023
 catalogue ; leur realignement (par exemple 4018 "Type de licence inconnu")
 demande une migration Commune ulterieure, hors des numeros 055 et 056
 reserves au chantier.
+
+Harmonisation du 16/09/2026 (#209) : DELETE /api/licences/:id compte aussi les
+preuves rattachées à la licence (preuve.id_licence, migration 053, FK RESTRICT
+volontaire) parmi les bloquants du 4023, au lieu de la 23503 brute remontée en
+4099 ; `details` porte affectations, budgets, successeurs et preuves. Aucun
+code nouveau.
 
 ## Inventaire, import et ecarts (#111, module 3)
 
