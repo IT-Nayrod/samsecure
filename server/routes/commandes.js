@@ -487,16 +487,21 @@ router.delete("/commandes/:id", async (req, res) => {
     // Les 3 FK entrantes du DDL v4. Depuis le drop de licence.id_contrat par la
     // migration 014, la commande est le seul chemin de la licence vers le
     // contrat : ce blocage protège toute la chaîne de rattachement.
+    // Quatrième FK depuis la 062 : maintenance_historique.id_commande, sans
+    // cascade (une période de maintenance est portée par sa commande). Sans
+    // ce compteur, la suppression échouait en 23503 brute remontée en 3199.
     const { rows: [liens] } = await client.query(
-      `SELECT (SELECT count(*) FROM facture WHERE id_commande = $1) AS factures,
-              (SELECT count(*) FROM preuve  WHERE id_commande = $1) AS preuves,
-              (SELECT count(*) FROM licence WHERE id_commande = $1) AS licences`,
+      `SELECT (SELECT count(*) FROM facture               WHERE id_commande = $1) AS factures,
+              (SELECT count(*) FROM preuve                WHERE id_commande = $1) AS preuves,
+              (SELECT count(*) FROM licence               WHERE id_commande = $1) AS licences,
+              (SELECT count(*) FROM maintenance_historique WHERE id_commande = $1) AS maintenances`,
       [id]);
 
     const bloquants = [];
-    if (+liens.factures) bloquants.push(`${liens.factures} facture(s)`);
-    if (+liens.preuves)  bloquants.push(`${liens.preuves} preuve(s)`);
-    if (+liens.licences) bloquants.push(`${liens.licences} licence(s)`);
+    if (+liens.factures)     bloquants.push(`${liens.factures} facture(s)`);
+    if (+liens.preuves)      bloquants.push(`${liens.preuves} preuve(s)`);
+    if (+liens.licences)     bloquants.push(`${liens.licences} licence(s)`);
+    if (+liens.maintenances) bloquants.push(`${liens.maintenances} période(s) de maintenance`);
 
     if (bloquants.length) {
       await client.query("ROLLBACK");

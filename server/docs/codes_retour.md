@@ -227,7 +227,7 @@ Le 3021 n'est pas un refus : le rattachement est accepté. Il est réservé pour
 | 3119 | erreur | Le montant doit être strictement positif | POST, PATCH /api/commandes |
 | 3120 | erreur | La date de commande est obligatoire | POST, PATCH /api/commandes |
 | 3121 | erreur | La date de fin doit être postérieure à la date de commande | POST, PATCH /api/commandes |
-| 3130 | erreur | Suppression impossible : éléments liés | DELETE /api/commandes/:id |
+| 3130 | erreur | Suppression impossible : éléments liés | DELETE /api/commandes/:id (409, message rendu avec les bloquants, details = compteurs factures, preuves, licences et, depuis le 16/09/2026, périodes de maintenance de la 062) |
 | 3140 | succes | Agrégats financiers | GET /api/commandes/agregats |
 | 3141 | erreur | L'endpoint accepte soit annee, soit le couple date_debut / date_fin. Le précalcul étant mensuel, une plage au jour près est servie au mois près et les bornes appliquées sont renvoyées dans periode_debut et periode_fin. | GET /api/commandes/agregats |
 | 3142 | erreur | Identifiant de société invalide | GET /api/commandes/agregats |
