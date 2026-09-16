@@ -28,6 +28,7 @@ import { tenantPool, commonPool } from "../db.js";
 import { succes, erreur, erreurPivot } from "../utils/reponse.js";
 import { auditer, diff } from "../utils/audit.js";
 import { permissionsEffectives } from "../utils/droitsUtilisateur.js";
+import { LICENCE_EXPIREE } from "../utils/conformite.js";
 
 const router = express.Router();
 
@@ -61,11 +62,11 @@ async function lireTypeLicence(client, code) {
   return rows[0] ?? null;
 }
 
-// Licence échue : le jour même de sa date de fin, sans tolérance (hypothèse
-// v0.5 assumée). Seuls les types dont la règle de dates prévoit une fin
-// (souscription, essai) en portent une, coherer() efface les autres : une
-// licence sans date de fin n'expire jamais.
-const EXPIREE = `(l.date_fin_souscription IS NOT NULL AND l.date_fin_souscription < CURRENT_DATE)`;
+// Licence échue : règle partagée de server/utils/conformite.js (LICENCE_EXPIREE,
+// forme SQL de TYPES_A_ECHEANCE : souscription et version d'essai, date de fin
+// strictement passée), importée et non recopiée depuis l'harmonisation du
+// 16/09 (#209) pour que licences, conformité, qualité et tableaux de bord
+// expirent les mêmes licences. Une licence sans date de fin n'expire jamais.
 
 // Statut d'échéance : même vocabulaire que contrats et commandes, pour que
 // StatutEcheanceBadge serve les trois écrans. Source unique, jamais recalculé
@@ -99,7 +100,7 @@ const SELECT_LICENCE = `
      GROUP BY a.id_licence
   ), balance AS (
     SELECT l.id_produit,
-           coalesce(sum(l.quantite) FILTER (WHERE NOT ${EXPIREE}), 0)::int AS droits,
+           coalesce(sum(l.quantite) FILTER (WHERE NOT ${LICENCE_EXPIREE}), 0)::int AS droits,
            coalesce(sum(u.quantite), 0)::int AS usage_declare
       FROM licence l
       LEFT JOIN usage_licence u ON u.id_licence = l.id
@@ -128,7 +129,7 @@ const SELECT_LICENCE = `
          ${STATUT_ECHEANCE},
          CASE WHEN l.date_fin_souscription IS NULL THEN NULL
               ELSE (l.date_fin_souscription - CURRENT_DATE) END AS jours_restants,
-         NOT ${EXPIREE} AS droits_actifs,
+         NOT ${LICENCE_EXPIREE} AS droits_actifs,
          ${STATUT_MAINTENANCE},
          coalesce(ul.quantite, 0)::int AS usage_declare,
          b.droits        AS produit_droits,

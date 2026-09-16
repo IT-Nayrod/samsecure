@@ -15,6 +15,7 @@ import express from "express";
 import { tenantPool, commonPool } from "../db.js";
 import { succes, erreur } from "../utils/reponse.js";
 import { jointureStatut, ENTITES_VALIDABLES, colonneLabel } from "../utils/validationWorkflow.js";
+import { LICENCE_EXPIREE } from "../utils/conformite.js";
 
 const router = express.Router();
 
@@ -289,7 +290,9 @@ function lirePeriode(query) {
 //     engagements), période optionnelle sur date_commande ;
 //   - produit : somme des coûts des licences non expirées (le montant d'une
 //     commande ne se ventile pas par produit sans invention). La différence
-//     de source est dite dans la bulle d'information du widget.
+//     de source est dite dans la bulle d'information du widget. Licence
+//     expirée : règle partagée LICENCE_EXPIREE de server/utils/conformite.js
+//     (souscription et version d'essai), importée depuis le 16/09 (#209).
 // ---------------------------------------------------------------------------
 router.get("/dashboards/montants-totaux", async (req, res) => {
   try {
@@ -306,8 +309,7 @@ router.get("/dashboards/montants-totaux", async (req, res) => {
       const { rows } = await tenantPool.query(
         `SELECT l.id_produit AS id, sum(COALESCE(l.cout_licence, 0))::float8 AS montant
            FROM licence l
-          WHERE NOT (l.type = 'souscription' AND l.date_fin_souscription IS NOT NULL
-                     AND l.date_fin_souscription < CURRENT_DATE)
+          WHERE NOT ${LICENCE_EXPIREE}
           GROUP BY l.id_produit
           ORDER BY montant DESC`);
       const ids = rows.map((x) => x.id).filter(Boolean);
