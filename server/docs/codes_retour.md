@@ -503,7 +503,7 @@ dans la transaction du traitement.
 | 4115 | erreur | La quantité doit être un entier strictement positif | POST, PATCH |
 | 4116 | erreur | La référence client est obligatoire | POST, PATCH |
 | 4117 | erreur | Identifiant de société invalide | filtres GET |
-| 4118 | erreur | Identifiant de produit invalide | filtres GET |
+| 4118 | erreur | Identifiant de logiciel invalide | filtres GET |
 | 4119 | erreur | Identifiant de licence invalide | filtre GET /affectations |
 | 4130 | erreur | Seule une affectation validée peut être revalidée | POST .../revalider (409, `details.statut_validation`) |
 | 4132 | erreur | Suppression impossible : affectation rapprochée d'un inventaire | DELETE (409, `details.inventaires`) |
@@ -539,11 +539,11 @@ du module licences.
 
 | Code | Type | Libelle propose | Route |
 |------|------|-----------------|-------|
-| 4300 | succes | État de conformité par produit | GET /api/conformite |
+| 4300 | succes | État de conformité par logiciel | GET /api/conformite |
 | 4301 | succes | Synthèse de conformité | GET /api/conformite/synthese |
 | 4310 | erreur | Identifiant de société invalide | GET /api/conformite |
 | 4311 | erreur | Identifiant d'éditeur invalide | GET /api/conformite |
-| 4312 | erreur | Identifiant de produit invalide | GET /api/conformite |
+| 4312 | erreur | Identifiant de logiciel invalide | GET /api/conformite |
 | 4313 | erreur | Le niveau demandé doit être global, editeur ou societe | GET /api/conformite/synthese |
 | 4399 | erreur | Erreur serveur inattendue (module conformité) | toutes |
 
@@ -714,10 +714,10 @@ cout de maintenance) servis a null avec `montants_masques: true` sans
 | 4008 | succes | Periode de maintenance supprimee | DELETE /api/licences/:id/maintenance/:mid |
 | 4009 | succes | Maintenance arretee, version figee | POST /api/licences/:id/arret-maintenance |
 | 4010 | erreur | Licence introuvable | GET/PATCH/DELETE /api/licences/:id et sous-routes (400 sur un filtre invalide de la liste ; 400 "Licence renouvelee introuvable" et 409 boucle de succession sur id_licence_predecesseur, #209) |
-| 4011 | erreur | Le produit est obligatoire | POST, PATCH /api/licences |
-| 4012 | erreur | Produit introuvable au catalogue | POST, PATCH /api/licences |
-| 4013 | erreur | Edition introuvable ou etrangere au produit | POST, PATCH /api/licences |
-| 4014 | erreur | Version introuvable ou etrangere au produit | POST, PATCH /api/licences ; POST, PATCH .../maintenance (id_version de la periode, #209) |
+| 4011 | erreur | Le logiciel est obligatoire | POST, PATCH /api/licences |
+| 4012 | erreur | Logiciel introuvable au catalogue | POST, PATCH /api/licences |
+| 4013 | erreur | Édition introuvable ou étrangère au logiciel | POST, PATCH /api/licences |
+| 4014 | erreur | Version introuvable ou étrangère au logiciel | POST, PATCH /api/licences ; POST, PATCH .../maintenance (id_version de la periode, #209) |
 | 4015 | erreur | Commande introuvable | POST, PATCH /api/licences |
 | 4016 | erreur | Revendeur introuvable | POST, PATCH /api/licences et maintenance |
 | 4017 | erreur | Unite de mesure introuvable | POST, PATCH /api/licences |
@@ -734,21 +734,21 @@ cout de maintenance) servis a null avec `montants_masques: true` sans
 | 4033 | erreur | Le cout de maintenance doit etre un montant positif ou nul | POST, PATCH .../maintenance |
 | 4040 | erreur | La maintenance de cette licence est deja arretee | POST .../arret-maintenance (409) |
 | 4041 | erreur | La date d'arret est invalide | POST .../arret-maintenance |
-| 4042 | erreur | Version a figer introuvable ou etrangere au produit | POST .../arret-maintenance |
+| 4042 | erreur | Version à figer introuvable ou étrangère au logiciel | POST .../arret-maintenance |
 | 4043 | erreur | Cette licence ne porte aucune maintenance a arreter | POST .../arret-maintenance (409) |
 | 4044 | succes | Maintenance reprise, version liberee | POST .../reprise-maintenance |
 | 4045 | erreur | La maintenance de cette licence n'est pas arretee | POST .../reprise-maintenance (409) |
-| 4050 | succes | Catalogue des produits (versions et editions incluses) | GET /api/produits |
+| 4050 | succes | Catalogue des logiciels (versions et éditions incluses) | GET /api/produits |
 | 4051 | succes | Liste des unites de mesure | GET /api/unites-mesure |
 | 4006 | succes | Période de maintenance ajoutée | POST /api/licences/:id/maintenance |
 | 4007 | succes | Période de maintenance modifiée | PATCH /api/licences/:id/maintenance/:mid |
 | 4008 | succes | Période de maintenance supprimée | DELETE /api/licences/:id/maintenance/:mid |
 | 4009 | succes | Maintenance arrêtée, version figée | POST /api/licences/:id/arret-maintenance |
 | 4010 | erreur | Licence introuvable | GET/PATCH/DELETE /api/licences/:id et sous-routes (400 sur un filtre invalide de la liste) |
-| 4011 | erreur | Le produit est obligatoire | POST, PATCH /api/licences |
-| 4012 | erreur | Produit introuvable au catalogue | POST, PATCH /api/licences |
-| 4013 | erreur | Édition introuvable ou étrangère au produit | POST, PATCH /api/licences |
-| 4014 | erreur | Version introuvable ou étrangère au produit | POST, PATCH /api/licences |
+| 4011 | erreur | Le logiciel est obligatoire | POST, PATCH /api/licences |
+| 4012 | erreur | Logiciel introuvable au catalogue | POST, PATCH /api/licences |
+| 4013 | erreur | Édition introuvable ou étrangère au logiciel | POST, PATCH /api/licences |
+| 4014 | erreur | Version introuvable ou étrangère au logiciel | POST, PATCH /api/licences |
 | 4015 | erreur | Commande introuvable | POST, PATCH /api/licences |
 | 4016 | erreur | Revendeur introuvable | POST, PATCH /api/licences et maintenance |
 | 4017 | erreur | Unité de mesure introuvable | POST, PATCH /api/licences |
@@ -765,11 +765,11 @@ cout de maintenance) servis a null avec `montants_masques: true` sans
 | 4033 | erreur | Le coût de maintenance doit être un montant positif ou nul | POST, PATCH .../maintenance |
 | 4040 | erreur | La maintenance de cette licence est déjà arrêtée | POST .../arret-maintenance (409) |
 | 4041 | erreur | La date d'arrêt est invalide | POST .../arret-maintenance |
-| 4042 | erreur | Version à figer introuvable ou étrangère au produit | POST .../arret-maintenance |
+| 4042 | erreur | Version à figer introuvable ou étrangère au logiciel | POST .../arret-maintenance |
 | 4043 | erreur | Cette licence ne porte aucune maintenance à arrêter | POST .../arret-maintenance (409) |
 | 4044 | succes | Maintenance reprise, version libérée | POST .../reprise-maintenance |
 | 4045 | erreur | La maintenance de cette licence n'est pas arrêtée | POST .../reprise-maintenance (409) |
-| 4050 | succes | Catalogue des produits (versions et éditions incluses) | GET /api/produits |
+| 4050 | succes | Catalogue des logiciels (versions et éditions incluses) | GET /api/produits |
 | 4051 | succes | Liste des unités de mesure | GET /api/unites-mesure |
 | 4052 | succes | Liste des mainteneurs | GET /api/mainteneurs |
 | 4059 | erreur | Erreur serveur inattendue (référentiels du module licences) | les trois |
@@ -984,8 +984,8 @@ par le circuit unique de la #53, avec ses propres codes 3300-3314.
 | 5310 | erreur | Logiciel introuvable | GET/PATCH/DELETE /api/logiciels/:id |
 | 5311 | erreur | Le libellé est obligatoire | POST, PATCH /api/logiciels |
 | 5312 | erreur | Éditeur introuvable | POST, PATCH /api/logiciels |
-| 5313 | erreur | Produit parent introuvable | POST, PATCH /api/logiciels |
-| 5314 | erreur | Un produit ne peut pas être son propre parent | PATCH /api/logiciels/:id |
+| 5313 | erreur | Logiciel parent introuvable | POST, PATCH /api/logiciels |
+| 5314 | erreur | Un logiciel ne peut pas être son propre parent | PATCH /api/logiciels/:id |
 | 5315 | erreur | Ce rattachement fermerait une boucle dans la hiérarchie | PATCH /api/logiciels/:id |
 | 5316 | erreur | Le catalogue commun n'est pas modifiable | PATCH/DELETE et declinaisons |
 | 5317 | erreur | Suppression impossible : rattachements | DELETE /api/logiciels/:id |
@@ -1251,3 +1251,24 @@ Points de lecture :
 - les codes 1001 a 1003 du socle mail restent les etats d'envoi, ils ne sont
   pas repris dans cette plage.
 
+## Terminologie logiciel (A67, décision D47, migration 059)
+
+Dans l'interface, « logiciel » remplace « produit » (menus, titres,
+formulaires, colonnes, messages, widgets, infobulles, textes d'aide). La
+migration 059 (Commune) réécrit les onze libellés du catalogue qui
+contenaient « produit », en ON CONFLICT (code) DO UPDATE SET libelle, sans
+toucher au type ni au code : 4011, 4012, 4013, 4014, 4042, 4050, 4118, 4300,
+4312, 5313, 5314. Les tableaux ci-dessus sont alignés. Exclu : 4227, qui cite
+les noms de colonnes du CSV d'import d'inventaire (produit, reference,
+quantite), identifiants techniques conservés, même doctrine que la 057 sur
+les valeurs d'énumération. Les identifiants techniques (id_produit,
+produit_client, produit_referentiel, route /api/produits, axe `produit` des
+montants totaux) ne changent pas.
+
+Les messages rendus (`error`) par les routes licences.js et dashboards.js
+sont réécrits dans le même lot (4011, 4012, 4013, 4014, 4042 et « Logiciel
+local »). Hors du lot, trois routes émettent encore un message propre avec
+« produit », prioritaire sur le libellé du catalogue à l'écran :
+affectations.js (4118, deux occurrences), conformite.js (4312) et
+logiciels.js (5313, 5314). À réécrire dans leur chantier respectif ; le 4300
+(succès) est servi avec le libellé du catalogue, donc aligné par la 059.
