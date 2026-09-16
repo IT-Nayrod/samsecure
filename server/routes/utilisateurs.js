@@ -126,6 +126,103 @@ router.post("/utilisateurs", async (req, res) => {
   }
 });
 
+// POST /api/utilisateurs/desactivation
+// Désactivation immédiate d'une sélection de comptes (#212). Même effet que
+// la désactivation unitaire immédiate (PATCH actif = false et date du jour),
+// une trace UTILISATEUR_DESACTIVE par compte, le tout dans une transaction :
+// soit toute la sélection est traitée, soit rien. Les comptes déjà
+// désactivés (actif = false) sont ignorés et comptés dans la réponse. Aucune
+// suppression, aucun retrait de droit : les groupes et rattachements restent.
+// Corps : { ids: [uuid, ...] }. Déclarée avant les routes /utilisateurs/:id.
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+router.post("/utilisateurs/desactivation", async (req, res) => {
+  const brut = Array.isArray(req.body?.ids) ? req.body.ids : [];
+  const ids = [...new Set(brut.map((v) => String(v).toLowerCase()))];
+  // code_retour: 2054
+  if (!ids.length || ids.some((id) => !UUID.test(id))) {
+    return res.status(400).json({ error: "La sélection est vide ou invalide." });
+  }
+  // Refus avant toute écriture : un administrateur ne se désactive pas
+  // lui-même par une action groupée, il perdrait la main sans l'avoir voulu.
+  // La désactivation unitaire reste possible pour ce cas, en connaissance de
+  // cause.
+  // code_retour: 2055
+  if (ids.includes(String(req.user.id).toLowerCase())) {
+    return res.status(409).json({ error: "La sélection contient votre propre compte : retirez-le avant de désactiver." });
+  }
+  // Même contrôle de périmètre que la désactivation unitaire, compte par
+  // compte, et refus de toute la sélection au premier compte hors périmètre :
+  // rien n'est écrit.
+  const scope = await getAdminScope(req.user.id);
+  for (const id of ids) {
+    if (!(await isUserInScope(id, scope))) {
+      // code_retour: 2051
+      return res.status(403).json({ error: "Un compte de la sélection n'est pas dans votre périmètre." });
+    }
+  }
+
+  const client = await tenantPool.connect();
+  try {
+    await client.query("BEGIN");
+    // FOR UPDATE : deux administrateurs traitant la même sélection ne
+    // produisent pas deux traces pour un même compte, le second lit l'état
+    // désactivé et l'ignore.
+    const { rows: comptes } = await client.query(
+      `SELECT id, prenom, nom, actif, date_finale::text AS date_finale
+         FROM utilisateur WHERE id = ANY($1::uuid[])
+        FOR UPDATE`, [ids]);
+    // code_retour: 2050
+    if (comptes.length !== ids.length) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Un compte de la sélection est introuvable." });
+    }
+
+    const ignores = comptes.filter((c) => !c.actif);
+    const desactives = [];
+    for (const c of comptes.filter((c) => c.actif)) {
+      // date_finale : la date du jour, comme la désactivation unitaire
+      // immédiate, sauf échéance déjà passée : elle est conservée, elle dit
+      // depuis quand le compte n'a plus accès.
+      const { rows: [apres] } = await client.query(
+        `UPDATE utilisateur
+            SET actif = false,
+                date_finale = LEAST(COALESCE(date_finale, CURRENT_DATE), CURRENT_DATE)
+          WHERE id = $1
+          RETURNING actif, date_finale::text AS date_finale`, [c.id]);
+      await log(client, "UPDATE", "utilisateur", c.id,
+        `Utilisateur "${c.prenom} ${c.nom}" désactivé (action sur la sélection)`,
+        { actif: false, date_finale: apres.date_finale });
+      // Même événement, même forme que PATCH /utilisateurs/:id : l'historique
+      // du compte ne distingue pas une désactivation groupée d'une unitaire,
+      // l'acteur et l'adresse IP sont portés par la trace.
+      // code_retour: 2003
+      await auditer(client, req, {
+        action: "UTILISATEUR_DESACTIVE",
+        entiteId: c.id,
+        avant: { actif: true, date_finale: c.date_finale },
+        apres: { actif: false, date_finale: apres.date_finale },
+      });
+      desactives.push(c.id);
+    }
+    await client.query("COMMIT");
+    // code_retour: 2053
+    res.json({
+      desactives: desactives.length,
+      ignores: ignores.length,
+      ids_desactives: desactives,
+      ids_ignores: ignores.map((c) => c.id),
+    });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("POST /utilisateurs/desactivation error", err);
+    // code_retour: 2099
+    res.status(500).json({ error: "Erreur serveur" });
+  } finally {
+    client.release();
+  }
+});
+
 router.patch("/utilisateurs/:id", async (req, res) => {
   const { id } = req.params;
   const { nom, prenom, email, actif, langue, date_finale, date_mise_en_fonction } = req.body;

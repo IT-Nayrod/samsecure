@@ -88,7 +88,7 @@ resoudre comme les autres.
 | 2000 | trace | Compte créé | POST /api/utilisateurs |
 | 2001 | trace | Compte modifié | PATCH /api/utilisateurs/:id |
 | 2002 | trace | Compte activé | PATCH /api/utilisateurs/:id |
-| 2003 | trace | Compte désactivé | PATCH /api/utilisateurs/:id |
+| 2003 | trace | Compte désactivé | PATCH /api/utilisateurs/:id, POST /api/utilisateurs/desactivation (une trace par compte) |
 | 2004 | trace | Désactivation planifiée | PATCH /api/utilisateurs/:id |
 | 2005 | trace | Planification levée | PATCH /api/utilisateurs/:id |
 | 2006 | trace | Mise en fonction planifiée | PATCH /api/utilisateurs/:id |
@@ -116,10 +116,25 @@ resoudre comme les autres.
 | 2030 | trace | Connexion réussie | POST /api/auth/login |
 | 2040 | reserve | [PREREQUIS] Exécution d'une planification à l'échéance. Aucun ordonnanceur n'existe | - |
 | 2041 | reserve | [PREREQUIS] Activation de la double authentification. Aucune route serveur | - |
-| 2050 | erreur | Utilisateur introuvable | GET /api/utilisateurs/:id/historique |
-| 2051 | erreur | Cet utilisateur n'est pas dans votre périmètre | GET /api/utilisateurs/:id/historique |
+| 2050 | erreur | Utilisateur introuvable | GET /api/utilisateurs/:id/historique, POST /api/utilisateurs/desactivation (un compte de la sélection) |
+| 2051 | erreur | Cet utilisateur n'est pas dans votre périmètre | GET /api/utilisateurs/:id/historique, POST /api/utilisateurs/desactivation (un compte de la sélection) |
 | 2052 | succes | Historique du compte | GET /api/utilisateurs/:id/historique |
+| 2053 | succes | Sélection désactivée (desactives, ignores, ids_desactives, ids_ignores) | POST /api/utilisateurs/desactivation |
+| 2054 | erreur | La sélection est vide ou invalide | POST /api/utilisateurs/desactivation |
+| 2055 | erreur | La sélection contient le compte connecté | POST /api/utilisateurs/desactivation |
 | 2099 | erreur | Erreur serveur inattendue (module administration) | toutes |
+
+Désactivation d'une sélection (#212, 16/09/2026) : POST /api/utilisateurs/desactivation
+reçoit { ids } et désactive immédiatement chaque compte encore actif, dans une
+seule transaction, avec la même trace 2003 par compte que la désactivation
+unitaire (valeur_avant et valeur_apres : actif, date_finale) ; date_finale prend
+la date du jour, une échéance déjà passée est conservée. Les comptes à
+actif = false sont ignorés et comptés (2053). Refus sans écriture : sélection
+vide ou identifiant non UUID (2054, 400), compte connecté dans la sélection
+(2055, 409), compte hors périmètre (2051, 403), compte introuvable (2050, 404).
+Comme le reste de la plage administration, ces codes sont des commentaires de
+route hors enveloppe ; 2053 à 2055 restent à seeder par une prochaine
+migration Commune (aucune migration dans le chantier correctifs-admin).
 
 Les champs sensibles ne sont jamais ecrits dans valeur_avant ni valeur_apres :
 mot de passe, hash, jetons et secret 2FA sont retires A L'ECRITURE par

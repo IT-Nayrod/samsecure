@@ -20,12 +20,23 @@ export default function DataTable({
   onRowClick,
   // Style conditionnel par ligne, ex. griser une ligne inactive.
   rowClassName,
+  // Sélection contrôlée par le parent (Set d'identifiants), optionnelle : sans
+  // selectedIds la sélection reste interne, comme avant. onSelectionChange
+  // reçoit le nouveau Set à chaque changement, dans les deux modes (#212).
+  selectedIds,
+  onSelectionChange,
 }) {
   const [sortKey, setSortKey] = useState(null);
   const [sortDir, setSortDir] = useState('asc');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(defaultPageSize);
-  const [selected, setSelected] = useState(new Set());
+  const [selectionInterne, setSelectionInterne] = useState(new Set());
+  const selected = selectedIds ?? selectionInterne;
+  function setSelected(suivant) {
+    const s = typeof suivant === 'function' ? suivant(selected) : suivant;
+    if (selectedIds === undefined) setSelectionInterne(s);
+    if (onSelectionChange) onSelectionChange(s);
+  }
 
   function handleSort(key) {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');

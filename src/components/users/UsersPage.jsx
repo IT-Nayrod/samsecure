@@ -11,9 +11,13 @@ import MotDePasseModal from './MotDePasseModal';
 import ProfileBadge from './ProfileBadge';
 import DroitsViewer from '../admin/DroitsViewer';
 import UserFormModal from './UserFormModal';
+import SelectionActionsBar from './SelectionActionsBar';
+import ConfirmModal from '../ui/ConfirmModal';
 import { useToast } from '../../hooks/useToast';
+import useAuth from '../../hooks/useAuth';
 import { formatDate } from '../../utils/dateUtils';
 import useDebounce from '../../hooks/useDebounce';
+import { exportToCsv } from '../../utils/exportCsv';
 import { usersService, societesService, groupsService, attributionsService } from '../../services/adminService';
 import { attribuerGroupe } from '../../utils/attributionScope';
 import { estInactif, estEnAttenteDeMiseEnFonction, dateIso, FILTRES_STATUT, FILTRES_DATES, filtrerParStatut } from './statutCompte';
@@ -33,8 +37,17 @@ function computeStatus(u) {
   return { label: 'Actif', variant: 'success' };
 }
 
+// Message de résultat de la désactivation groupée : les comptes déjà inactifs
+// sont ignorés par le serveur et comptés ici.
+function messageResultatDesactivation({ desactives = 0, ignores = 0 }) {
+  const parts = [`${desactives} compte${desactives > 1 ? 's' : ''} désactivé${desactives > 1 ? 's' : ''}`];
+  if (ignores) parts.push(`${ignores} déjà inactif${ignores > 1 ? 's' : ''} ignoré${ignores > 1 ? 's' : ''}`);
+  return `${parts.join(', ')}.`;
+}
+
 export default function UsersPage() {
   const { addToast } = useToast();
+  const { user: utilisateurConnecte } = useAuth();
   const [users, setUsers] = useState([]);
   const [societes, setSocietes] = useState([]);
   const [groups, setGroups] = useState([]);
@@ -52,6 +65,11 @@ export default function UsersPage() {
   const [statutModal, setStatutModal] = useState(null); // { user, sens }
   const [historique, setHistorique] = useState(null);
   const [motDePasse, setMotDePasse] = useState(null);
+  // Sélection des lignes (#212), portée ici et non par le tableau : les
+  // actions groupées en ont besoin, et elle doit se vider après traitement.
+  const [selection, setSelection] = useState(new Set());
+  const [confirmDesactivation, setConfirmDesactivation] = useState(false);
+  const [desactivationEnCours, setDesactivationEnCours] = useState(false);
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -107,6 +125,20 @@ export default function UsersPage() {
     const q = debouncedSearch.toLowerCase();
     return parStatut.filter((u) => `${u.prenom} ${u.nom} ${u.email}`.toLowerCase().includes(q));
   }, [users, filterStatut, debouncedSearch]);
+
+  // Une ligne qui sort de la liste (filtre, recherche, rechargement) sort de la
+  // sélection : les actions ne portent que sur des comptes visibles, jamais
+  // sur une coche oubliée derrière un filtre.
+  useEffect(() => {
+    setSelection((prev) => {
+      if (prev.size === 0) return prev;
+      const visibles = new Set(filtered.map((u) => u.id));
+      const suivant = new Set([...prev].filter((id) => visibles.has(id)));
+      return suivant.size === prev.size ? prev : suivant;
+    });
+  }, [filtered]);
+
+  const selectionnes = useMemo(() => filtered.filter((u) => selection.has(u.id)), [filtered, selection]);
 
   async function handleSubmit(payload, nouvellesSocietes, impactees = [], additions = []) {
     let userId = formModal.user?.id;
@@ -183,6 +215,46 @@ export default function UsersPage() {
     }
   }
 
+  // Le refus du compte connecté est aussi porté par le serveur (409) : le
+  // contrôle ici évite seulement d'ouvrir une confirmation vouée à l'échec.
+  function demanderDesactivation() {
+    if (utilisateurConnecte && selection.has(utilisateurConnecte.id)) {
+      addToast({ type: 'error', message: 'La sélection contient votre propre compte : retirez-le avant de désactiver.' });
+      return;
+    }
+    if (selectionnes.every((u) => !u.actif)) {
+      addToast({ type: 'info', message: 'Tous les comptes sélectionnés sont déjà inactifs.' });
+      return;
+    }
+    setConfirmDesactivation(true);
+  }
+
+  async function desactiverSelection() {
+    setDesactivationEnCours(true);
+    try {
+      const resultat = await usersService.desactiverSelection(selectionnes.map((u) => u.id));
+      addToast({ type: 'info', message: messageResultatDesactivation(resultat) });
+      setSelection(new Set());
+      await load();
+    } catch (err) {
+      // Refus du serveur (compte connecté, périmètre, introuvable) : rien n'a
+      // été écrit, la sélection reste pour corriger et relancer.
+      addToast({ type: 'error', message: err.message });
+    } finally {
+      setDesactivationEnCours(false);
+    }
+  }
+
+  const dejaInactifs = selectionnes.filter((u) => !u.actif).length;
+  const aDesactiver = selectionnes.length - dejaInactifs;
+  const messageConfirmation = [
+    `${selectionnes.length} compte${selectionnes.length > 1 ? 's' : ''} sélectionné${selectionnes.length > 1 ? 's' : ''}`
+      + (dejaInactifs ? `, dont ${dejaInactifs} déjà inactif${dejaInactifs > 1 ? 's' : ''} qui ${dejaInactifs > 1 ? 'seront ignorés' : 'sera ignoré'}` : '')
+      + '.',
+    `${aDesactiver} compte${aDesactiver > 1 ? 's' : ''} ${aDesactiver > 1 ? 'seront désactivés' : 'sera désactivé'} immédiatement : la connexion est refusée dès la validation.`,
+    'Les comptes désactivés restent visibles dans la liste et peuvent être réactivés à tout moment.',
+  ].join(' ');
+
   const columns = [
     { key: 'nom', label: 'Prénom Nom', sortable: true, render: r => <span className="font-medium text-gray-900 dark:text-white">{r.prenom} {r.nom}</span>, csvValue: r => `${r.prenom} ${r.nom}` },
     { key: 'email', label: 'Email', sortable: true },
@@ -228,6 +300,12 @@ export default function UsersPage() {
     },
   ];
 
+  // Export de la sélection : mêmes colonnes et même format que l'export CSV
+  // du tableau, restreint aux lignes cochées.
+  function exporterSelection() {
+    exportToCsv('utilisateurs-selection', columns.filter((c) => c.key && c.label && c.label !== 'Actions'), selectionnes);
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
@@ -256,8 +334,16 @@ export default function UsersPage() {
         />
       </div>
 
+      <SelectionActionsBar
+        nombre={selectionnes.length}
+        onExporter={exporterSelection}
+        onDesactiver={demanderDesactivation}
+        onEffacer={() => setSelection(new Set())}
+        enCours={desactivationEnCours}
+      />
+
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-        <DataTable columns={columns} data={filtered} filename="utilisateurs" isLoading={isLoading} emptyState={{ message: 'Aucun utilisateur ne correspond aux filtres.' }} rowClassName={r => estInactif(r)
+        <DataTable columns={columns} data={filtered} filename="utilisateurs" isLoading={isLoading} emptyState={{ message: 'Aucun utilisateur ne correspond aux filtres.' }} selectedIds={selection} onSelectionChange={setSelection} rowClassName={r => estInactif(r)
           // L'atténuation porte sur les cellules et non sur la ligne :
           // opacity sur le <tr> s'appliquerait aussi aux boutons d'action, et
           // aucun enfant ne peut la contrarier, la propriété créant un
@@ -310,6 +396,16 @@ export default function UsersPage() {
         sens={statutModal?.sens}
         onClose={() => setStatutModal(null)}
         onConfirm={handleStatut}
+      />
+
+      <ConfirmModal
+        isOpen={confirmDesactivation}
+        onClose={() => setConfirmDesactivation(false)}
+        onConfirm={desactiverSelection}
+        title="Désactiver la sélection"
+        message={messageConfirmation}
+        confirmLabel={`Désactiver ${aDesactiver} compte${aDesactiver > 1 ? 's' : ''}`}
+        isDestructive
       />
 
     </div>

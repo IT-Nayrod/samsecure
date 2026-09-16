@@ -282,6 +282,8 @@ export const ROUTES_PERMISSIONS = [
   ["DELETE", "/utilisateurs/:id/societes/:societeId",           "gerer_utilisateurs"],
   ["DELETE", "/utilisateurs/:id/rattachement-tenant",           "gerer_utilisateurs"],
   ["GET",    "/attributions",                                   "gerer_utilisateurs"],
+  // Chemin litteral avant les chemins parametres (#212).
+  ["POST",   "/utilisateurs/desactivation",                     "gerer_utilisateurs"],
   ["GET",    "/utilisateurs",                                   "gerer_utilisateurs"],
   ["POST",   "/utilisateurs",                                   "gerer_utilisateurs"],
   ["PATCH",  "/utilisateurs/:id",                               "gerer_utilisateurs"],

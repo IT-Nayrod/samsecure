@@ -43,6 +43,10 @@ export const usersService = {
   list: () => http.get('/utilisateurs'),
   create: (payload) => http.post('/utilisateurs', payload),
   update: (id, payload) => http.patch(`/utilisateurs/${id}`, payload),
+  // Désactivation immédiate d'une sélection (#212). Réponse : { desactives,
+  // ignores, ids_desactives, ids_ignores } ; refus 409 si la sélection
+  // contient le compte connecté, rien n'est alors écrit.
+  desactiverSelection: (ids) => http.post('/utilisateurs/desactivation', { ids }),
   // Historique probant d'un compte, lecture seule. La pagination est portée
   // par l'API, 20 événements par page.
   historique: (id, page = 1) => http.get(`/utilisateurs/${id}/historique?page=${page}`),
