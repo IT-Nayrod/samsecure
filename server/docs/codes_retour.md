@@ -50,13 +50,17 @@ appelante repond son propre code et joint l'etat du mail.
 
 | Code | Type | Libelle propose | Route |
 |------|------|-----------------|-------|
-| 1000 | succes | Mail envoye | envoyerMail(), toutes routes appelantes |
-| 1001 | erreur | L'envoi de mails n'est pas configure sur ce serveur | envoyerMail(), toutes routes appelantes |
+| 1000 | succes | Mail envoyé | envoyerMail(), toutes routes appelantes |
+| 1001 | erreur | L'envoi de mails n'est pas configuré sur ce serveur | envoyerMail(), toutes routes appelantes |
 | 1002 | erreur | Adresse de destinataire absente ou invalide | envoyerMail(), toutes routes appelantes |
-| 1003 | erreur | Le mail n'a pas pu etre envoye. L'incident a ete journalise | envoyerMail(), toutes routes appelantes |
-| 1010 | succes | Mail de test envoye | POST /api/mails/test |
-| 1011 | erreur | Mail de test non envoye (etat 1001 a 1003 joint) | POST /api/mails/test |
+| 1003 | erreur | Le mail n'a pas pu être envoyé. L'incident a été journalisé | envoyerMail(), toutes routes appelantes |
+| 1010 | succes | Mail de test envoyé | POST /api/mails/test |
+| 1011 | erreur | Mail de test non envoyé (état 1001 à 1003 joint) | POST /api/mails/test |
 | 1099 | erreur | Erreur serveur inattendue (module mails) | POST /api/mails/test |
+
+Codes seedés par la migration 064 (16/09/2026) : ils étaient au pré-catalogue
+sans figurer dans aucune migration, l'enveloppe les servait avec `libelle` à
+null.
 
 Un echec d'envoi ne fait jamais echouer l'action appelante : envoyerMail() ne
 leve pas, elle renvoie { envoye: false, code, erreur } et l'action repond en
@@ -223,7 +227,7 @@ Le 3021 n'est pas un refus : le rattachement est accepté. Il est réservé pour
 | 3119 | erreur | Le montant doit être strictement positif | POST, PATCH /api/commandes |
 | 3120 | erreur | La date de commande est obligatoire | POST, PATCH /api/commandes |
 | 3121 | erreur | La date de fin doit être postérieure à la date de commande | POST, PATCH /api/commandes |
-| 3130 | erreur | Suppression impossible : éléments liés | DELETE /api/commandes/:id |
+| 3130 | erreur | Suppression impossible : éléments liés | DELETE /api/commandes/:id (409, message rendu avec les bloquants, details = compteurs factures, preuves, licences et, depuis le 16/09/2026, périodes de maintenance de la 062) |
 | 3140 | succes | Agrégats financiers | GET /api/commandes/agregats |
 | 3141 | erreur | L'endpoint accepte soit annee, soit le couple date_debut / date_fin. Le précalcul étant mensuel, une plage au jour près est servie au mois près et les bornes appliquées sont renvoyées dans periode_debut et periode_fin. | GET /api/commandes/agregats |
 | 3142 | erreur | Identifiant de société invalide | GET /api/commandes/agregats |
@@ -745,15 +749,15 @@ cout de maintenance) servis a null avec `montants_masques: true` sans
 | 4044 | succes | Maintenance reprise, version liberee | POST .../reprise-maintenance |
 | 4045 | erreur | La maintenance de cette licence n'est pas arretee | POST .../reprise-maintenance (409) |
 | 4050 | succes | Catalogue des logiciels (versions et éditions incluses) | GET /api/produits |
-| 4025 | succes | Licence prolongée | POST /api/licences/:id/prolonger (decision du 11/09/2026 : date de fin de la periode en cours etendue, souscription ou essai par date_fin_souscription, perpetuelle par la fin de sa maintenance en cours ; alerte d'echeance liberee pour la nouvelle date) |
+| 4025 | succes | Licence prolongée | POST /api/licences/:id/prolonger (decision du 11/09/2026 : date de fin de la periode en cours etendue, souscription ou essai par date_fin_souscription, perpetuelle par la fin de sa maintenance en cours ; depuis le 16/09/2026 la cle d'evenement des alertes porte la date de fin, la nouvelle echeance est notifiee au passage suivant sans liberation manuelle) |
 | 4026 | erreur | Cette licence ne porte aucune échéance à prolonger | POST /api/licences/:id/prolonger (409 : ni date de fin, ni maintenance en cours non arretee) |
 | 4027 | erreur | La nouvelle date de fin doit être postérieure à l'échéance actuelle | POST /api/licences/:id/prolonger (400, message rendu avec l'echeance actuelle ; 4024 sur un format invalide) |
-| 4034 | succes | Version ajoutée au produit | POST /api/produits/:id/versions (201, complement Tenant du catalogue, migration 063 ; 4012 en 404 sur un produit inconnu du catalogue) |
-| 4035 | succes | Édition ajoutée au produit | POST /api/produits/:id/editions (201, idem) |
+| 4034 | succes | Version ajoutée au logiciel | POST /api/produits/:id/versions (201, complement Tenant du catalogue, migration 063 ; 4012 en 404 sur un produit inconnu du catalogue) |
+| 4035 | succes | Édition ajoutée au logiciel | POST /api/produits/:id/editions (201, idem) |
 | 4036 | erreur | Le libellé de la version ou de l'édition est obligatoire | POST /api/produits/:id/versions et editions (400, aussi au-dela de 100 caracteres) |
-| 4037 | erreur | Cette version ou édition existe déjà pour ce produit | POST /api/produits/:id/versions et editions (409, doublon a la casse et aux accents pres, contre le catalogue Commune et les complements ; details = id, label, source) |
+| 4037 | erreur | Cette version ou édition existe déjà pour ce logiciel | POST /api/produits/:id/versions et editions (409, doublon a la casse et aux accents pres, contre le catalogue Commune et les complements ; details = id, label, source) |
 | 4038 | succes | Compléments du catalogue (versions et éditions ajoutées par le client) | GET /api/produits/complements |
-| 4050 | succes | Catalogue des produits (versions et editions incluses) | GET /api/produits |
+| 4050 | succes | Catalogue des logiciels (versions et éditions incluses) | GET /api/produits |
 | 4051 | succes | Liste des unites de mesure | GET /api/unites-mesure |
 | 4006 | succes | Période de maintenance ajoutée | POST /api/licences/:id/maintenance |
 | 4007 | succes | Période de maintenance modifiée | PATCH /api/licences/:id/maintenance/:mid |
@@ -799,12 +803,10 @@ quantitatif ; les licences ne passent pas par le workflow de validation (#53).
 Decisions de la reunion client du 11/09/2026 (migrations 062 et 063, chantier
 successions et maintenance) : huit codes nouveaux dans les plages libres du
 module (4025 a 4027, 4034 a 4038), consignes ci-dessus. Le catalogue
-code_retour vit en BDD Commune et les deux numeros reserves au chantier sont
-Tenant : ces codes ne sont pas encore seedes. L'enveloppe les sert avec
-`libelle` a null et `error` porte le message rendu par la route (aucune
-reponse cassee, ecart signale en console au premier usage, reponse.js). Le
-seed Commune est a prevoir dans la prochaine migration Commune libre, avec
-les libelles de ce tableau. Autres projections sans code nouveau : chaque
+code_retour vit en BDD Commune et les deux numeros reserves au chantier
+etaient Tenant : ces huit codes sont seedes par la migration 064 (Commune,
+16/09/2026, ON CONFLICT DO NOTHING, libelles de ce tableau, terminologie
+A67). Autres projections sans code nouveau : chaque
 licence et chaque contrat servent `contrat_a_suivre` (regle pure
 server/utils/successionContrat.js : le contrat suit les licences) ; une
 periode de maintenance sert `id_commande`, `commande_label`,
@@ -1222,6 +1224,25 @@ Points de lecture :
 - GET /fonctions (5246) sert le referentiel des fonctions (copy-on-write,
   seede par 003) au selecteur du formulaire.
 
+## Dashboards (M4-L, #190, migrations 050 et 057)
+
+Plage 5450-5499, routeur `server/routes/dashboards.js`. Codes seedes par la
+050 (libelles accentues par la 057) et absents de ce pre-catalogue jusqu'au
+releve du 16/09/2026 (migration 064) ; tableau ajoute pour que la comparaison
+pre-catalogue contre migrations soit complete dans les deux sens.
+
+| Code | Type | Libelle propose | Route |
+|------|------|-----------------|-------|
+| 5450 | succes | Configuration des dashboards | GET /api/dashboards/configuration |
+| 5451 | succes | Préférences de dashboard enregistrées | PUT /api/dashboards/preferences |
+| 5452 | succes | Synthèse des saisies et revalidations | GET /api/dashboards/synthese |
+| 5453 | succes | Montants totaux par axe | GET /api/dashboards/montants-totaux |
+| 5454 | succes | Montants engagés et payés par éditeur | GET /api/dashboards/engages-payes |
+| 5460 | erreur | L'axe demandé est invalide | GET /api/dashboards/montants-totaux (400) |
+| 5461 | erreur | La période demandée est invalide | GET /api/dashboards/montants-totaux (400) |
+| 5462 | erreur | Les préférences transmises sont invalides | PUT /api/dashboards/preferences (400) |
+| 5499 | erreur | Erreur serveur inattendue (dashboards) | toutes |
+
 ## Notifications (#121, M3-notifications)
 
 Plage 5500-5549, seedee par la migration Commune 052. Routeur
@@ -1271,7 +1292,7 @@ Points de lecture :
 - anti-doublon : index unique (id_utilisateur, cle_evenement), insertion en
   ON CONFLICT DO NOTHING ; une cle par contrat et palier, par licence, par
   produit et jour de recalcul, par societe et exercice, par soumission, par
-  cycle de revalidation ;
+  cycle de revalidation ; Depuis le 16/09/2026, la cle des types echeance_contrat et echeance_souscription porte la date de fin (type:id:date_fin:palier, cleEcheance de regles.js) : une prolongation produit une nouvelle alerte au passage suivant, sans liberation manuelle ; les cles anterieures sont realignees par la migration 065.
 - destinataires par droits et portee : permissions effectives
   (`permissionsEffectives`) et rattachement (`getAdminScope`) ; les profils de
   la specification sont reconnus par leur permission signature (droits de

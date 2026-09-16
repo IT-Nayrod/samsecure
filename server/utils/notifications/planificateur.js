@@ -22,7 +22,7 @@ import { jointureStatut } from "../validationWorkflow.js";
 import { jointureRevalidation } from "../revalidation.js";
 import { PALIER_SOUSCRIPTION, SEUIL_BUDGET_DEFAUT } from "./catalogue.js";
 import {
-  cleEvenement, paliersDepuisSeuils, palierAtteint, prochaineOccurrence, heurePassee, dateParis,
+  cleEvenement, cleEcheance, paliersDepuisSeuils, palierAtteint, prochaineOccurrence, heurePassee, dateParis,
   echeanceNotifiable,
 } from "./regles.js";
 import { creerNotification, nouveauContexte, libellesProduits, tracer } from "./moteur.js";
@@ -63,7 +63,9 @@ async function seuilBudget() {
 // ---------------------------------------------------------------------------
 
 // 1. Echeances de contrats : contrats actifs (non archives, commences), un
-//    palier a la fois (le plus serre atteint), cle par contrat et palier.
+//    palier a la fois (le plus serre atteint), cle par contrat, date de fin et
+//    palier (cleEcheance, 16/09/2026) : une date de fin prolongee produit une
+//    nouvelle alerte au passage suivant, l'ancienne cle restant prise.
 //    Continuite (D35) : un contrat renouvele par un successeur
 //    (id_contrat_predecesseur, migration 056) n'est plus notifie.
 export async function detecterEcheancesContrats(contexte) {
@@ -89,7 +91,7 @@ export async function detecterEcheancesContrats(contexte) {
     if (palier === null) continue;
     const r = await creerNotification(null, {
       type: "echeance_contrat",
-      cle: cleEvenement("echeance_contrat", c.id, palier),
+      cle: cleEcheance("echeance_contrat", c.id, c.date_fin, palier),
       id_societe: c.id_societe,
       entite_type: "contrat", entite_id: c.id,
       donnees: {
@@ -102,7 +104,10 @@ export async function detecterEcheancesContrats(contexte) {
   return crees;
 }
 
-// 2. Echeances de souscriptions : 30 jours avant la fin, un seul palier.
+// 2. Echeances de souscriptions : 30 jours avant la fin, un seul palier,
+//    cle par licence, date de fin et palier (cleEcheance, 16/09/2026) : une
+//    licence prolongee (POST /licences/:id/prolonger) est notifiee a sa
+//    nouvelle echeance sans liberation manuelle de l'ancienne cle.
 //    Continuite (D35) : une licence renouvelee par un successeur
 //    (id_licence_predecesseur, migration 056) n'est plus notifiee.
 export async function detecterEcheancesSouscriptions(contexte) {
@@ -127,7 +132,7 @@ export async function detecterEcheancesSouscriptions(contexte) {
     const p = produits.get(l.id_produit);
     const r = await creerNotification(null, {
       type: "echeance_souscription",
-      cle: cleEvenement("echeance_souscription", l.id, PALIER_SOUSCRIPTION),
+      cle: cleEcheance("echeance_souscription", l.id, l.date_fin, PALIER_SOUSCRIPTION),
       id_societe: l.id_societe,
       entite_type: "licence", entite_id: l.id,
       donnees: {

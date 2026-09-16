@@ -21,6 +21,21 @@ export function cleEvenement(type, ...parties) {
   return [type, ...segments].join(":");
 }
 
+// Cle d'une echeance (echeance_contrat, echeance_souscription), 16/09/2026 :
+// type:id:date_fin:palier. La date de fin fait partie de la cle pour qu'une
+// prolongation (nouvelle date de fin) produise naturellement une nouvelle
+// notification au passage suivant, sans liberation manuelle de la cle
+// precedente. L'anti-doublon reste porte par l'index unique (051) : meme
+// entite, meme date de fin, meme palier, une seule notification par
+// utilisateur. La date est reduite au jour calendaire, qu'elle arrive en
+// chaine ISO ou en Date ; sans date, le segment vaut "aucun" comme ailleurs.
+export function cleEcheance(type, id, dateFin, palier) {
+  const jour = dateFin === null || dateFin === undefined || dateFin === ""
+    ? null
+    : (dateFin instanceof Date ? dateFin.toISOString() : String(dateFin)).slice(0, 10);
+  return cleEvenement(type, id, jour, palier);
+}
+
 // ---------------------------------------------------------------------------
 // Continuite des renouvellements (D35, story #209)
 // ---------------------------------------------------------------------------

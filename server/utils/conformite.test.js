@@ -175,6 +175,17 @@ describe("licenceExpiree (D44 etendu : versions d'essai)", () => {
       new Date("2026-09-10T23:00:00Z")), false);
   });
 
+  test("le code de la version d'essai est celui du referentiel type_licence seede par la 055", () => {
+    assert.equal(TYPE_VERSION_ESSAI, "essai");
+    assert.ok(TYPES_A_ECHEANCE.includes("essai"));
+    assert.equal(licenceExpiree({ type: "essai", date_fin_souscription: "2026-09-09" }, aujourdhui), true);
+    assert.equal(licenceExpiree({ type: "essai", date_fin_souscription: "2026-09-10" }, aujourdhui), false);
+    // L'ancien code provisoire ne doit plus apparaitre : il ne correspond a
+    // aucune licence et n'expirerait rien.
+    assert.equal(licenceExpiree({ type: "version_essai", date_fin_souscription: "2020-01-01" }, aujourdhui), false);
+    assert.ok(!LICENCE_EXPIREE.includes("version_essai"));
+  });
+
   test("le fragment SQL porte les memes types que la regle JS", () => {
     assert.deepEqual(TYPES_A_ECHEANCE, ["souscription", TYPE_VERSION_ESSAI]);
     for (const t of TYPES_A_ECHEANCE) assert.ok(LICENCE_EXPIREE.includes(`'${t}'`));

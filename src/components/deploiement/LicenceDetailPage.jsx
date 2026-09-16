@@ -64,7 +64,6 @@ export default function LicenceDetailPage() {
   const [unites, setUnites] = useState([]);
   const [mainteneurs, setMainteneurs] = useState([]);
   const [licences, setLicences] = useState([]);
-  const [contrats, setContrats] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [errorStatus, setErrorStatus] = useState(null);
@@ -88,7 +87,7 @@ export default function LicenceDetailPage() {
     try {
       // Seule la fiche est indispensable. L'historique de maintenance suit le
       // même droit (consulter_licences) ; les référentiels servent aux formulaires.
-      const [l, h, p, k, r, u, m, ls, ct] = await Promise.all([
+      const [l, h, p, k, r, u, m, ls] = await Promise.all([
         licencesService.get(id),
         optionnel(licencesService.maintenance.list(id)),
         optionnel(referentielsLicencesService.produits()),
@@ -97,11 +96,8 @@ export default function LicenceDetailPage() {
         optionnel(referentielsLicencesService.unitesMesure()),
         optionnel(referentielsLicencesService.mainteneurs()),
         optionnel(licencesService.list()),
-        // Société signataire des contrats, pour le sélecteur de commande du
-        // formulaire (format « Commande (Contrat (Société)) »).
-        optionnel(contratsService.list({ inclureArchives: true })),
       ]);
-      setLicence(l); setPeriodes(h); setProduits(p); setCommandes(k); setRevendeurs(r); setUnites(u); setMainteneurs(m); setLicences(ls); setContrats(ct);
+      setLicence(l); setPeriodes(h); setProduits(p); setCommandes(k); setRevendeurs(r); setUnites(u); setMainteneurs(m); setLicences(ls);
     } catch (err) {
       if (err.status === 404) setIntrouvable(true);
       else { setError(err.message); setErrorStatus(err.status); addToast({ type: 'error', message: err.message }); }
@@ -387,7 +383,7 @@ export default function LicenceDetailPage() {
       <LicenceFormModal
         isOpen={formOpen} onClose={() => setFormOpen(false)} onSaved={appliquer} licence={licence}
         produits={produits} commandes={commandes} revendeurs={revendeurs} unites={unites} mainteneurs={mainteneurs}
-        licences={licences} contrats={contrats}
+        licences={licences}
         montantsVisibles={montantsVisibles}
       />
       <LicenceFormModal

@@ -1065,24 +1065,12 @@ function echeanceProlongeable(licence) {
   return null;
 }
 
-// Les alertes d'échéance de souscription sont dédoublonnées par la clé
-// d'événement (type:licence:palier, index unique de la 051) : sans
-// libération, une licence prolongée ne serait plus jamais notifiée à sa
-// nouvelle échéance. Les notifications déjà émises pour l'échéance qui vient
-// d'être étendue sont conservées (historique de l'utilisateur) mais leur clé
-// est suffixée de l'ancienne date : la clé courante redevient libre pour le
-// prochain passage du planificateur. Aucune alerte n'existe pour la fin de
-// maintenance : rien à libérer dans ce mode.
-async function libererAlertesEcheance(client, idLicence, ancienneDate) {
-  await client.query(
-    `UPDATE notification
-        SET cle_evenement = cle_evenement || ':' || $2::text
-      WHERE entite_type = 'licence' AND entite_id = $1::uuid
-        AND type = 'echeance_souscription'
-        AND cle_evenement LIKE 'echeance_souscription:' || $1::text || ':%'
-        AND cle_evenement NOT LIKE '%:' || $2::text`,
-    [idLicence, ancienneDate]);
-}
+// Alertes d'échéance après prolongation : depuis le 16/09/2026 la clé
+// d'événement du planificateur porte la date de fin (cleEcheance,
+// server/utils/notifications/regles.js) : la nouvelle échéance produit
+// d'elle-même une nouvelle notification au passage suivant, les notifications
+// déjà émises restent dans l'historique de l'utilisateur. Plus aucune
+// libération manuelle ici (migration 065 pour les clés antérieures).
 
 // Prolonger étend la date de fin de la période en cours, sans créer de
 // licence : la nouvelle date doit être postérieure à l'échéance actuelle.
@@ -1116,7 +1104,6 @@ router.post("/licences/:id/prolonger", async (req, res) => {
     let periode = null;
     if (echeance.mode === "souscription") {
       await client.query(`UPDATE licence SET date_fin_souscription = $1 WHERE id = $2`, [nouvelleDate, id]);
-      await libererAlertesEcheance(client, id, echeance.date);
     } else {
       // Période de maintenance en cours : la plus récente de l'historique,
       // étendue à la nouvelle date ; la fin de maintenance de la licence suit.
@@ -1196,7 +1183,7 @@ function ajouterComplement(type) {
       await client.query("BEGIN");
       if (!UUID_RE.test(id) || !(await produitExiste(id))) {
         await client.query("ROLLBACK");
-        return erreur(res, 4012, { status: 404, message: "Produit introuvable au catalogue." });
+        return erreur(res, 4012, { status: 404, message: "Logiciel introuvable au catalogue." });
       }
       if (!normalise) {
         await client.query("ROLLBACK");
@@ -1218,7 +1205,7 @@ function ajouterComplement(type) {
         const deja = existante ?? complement;
         return erreur(res, 4037, {
           status: 409,
-          message: `Cette ${d.table} existe deja pour ce produit sous le libelle "${deja.label}".`,
+          message: `Cette ${d.table} existe déjà pour ce logiciel sous le libellé "${deja.label}".`,
           details: { id: deja.id, label: deja.label, source: existante ? "catalogue" : "complement" },
         });
       }

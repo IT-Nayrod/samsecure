@@ -7,6 +7,9 @@
 // (server/utils/successionContrat.js) : la projection sert contrat_a_suivre,
 // vrai quand des licences ont été renouvelées sur ce contrat alors qu'il est
 // échu ou à échéance sans successeur. Signal seulement, rien n'est modifié.
+// Harmonisation du 16/09/2026 : la projection sert aussi la société du
+// prédécesseur et la liste des successeurs (id, label, societe_label,
+// archive), pour la fiche et le champ « Renouvelle le contrat » du formulaire.
 
 import express from "express";
 import { tenantPool } from "../db.js";
@@ -63,7 +66,12 @@ const SELECT_CONTRAT = `
          c.id_societe,   s.raison_sociale AS societe_label,
          c.id_revendeur, r.raison_sociale AS revendeur_label,
          c.id_contrat_parent, p.label AS parent_label, ps.raison_sociale AS parent_societe_label,
-         c.id_contrat_predecesseur, pr.label AS predecesseur_label,
+         c.id_contrat_predecesseur, pr.label AS predecesseur_label, prs.raison_sociale AS predecesseur_societe_label,
+         (SELECT COALESCE(json_agg(json_build_object(
+                   'id', sx.id, 'label', sx.label, 'societe_label', sxs.raison_sociale, 'archive', sx.archive)
+                 ORDER BY sx.label), '[]'::json)
+            FROM contrat sx LEFT JOIN societe sxs ON sxs.id = sx.id_societe
+           WHERE sx.id_contrat_predecesseur = c.id) AS successeurs,
          (SELECT count(*) FROM contrat cx WHERE cx.id_contrat_predecesseur = c.id)::int AS nb_successeurs,
          (SELECT count(*) FROM licence sx
             JOIN commande sc  ON sc.id  = sx.id_commande
@@ -87,6 +95,7 @@ const SELECT_CONTRAT = `
   LEFT JOIN contrat      p  ON p.id  = c.id_contrat_parent
   LEFT JOIN societe      ps ON ps.id = p.id_societe
   LEFT JOIN contrat      pr ON pr.id = c.id_contrat_predecesseur
+  LEFT JOIN societe      prs ON prs.id = pr.id_societe
   LEFT JOIN utilisateur  ua ON ua.id = c.id_archive_par
   ${jointureStatut("contrat", "c")}`;
 

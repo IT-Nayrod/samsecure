@@ -1,6 +1,13 @@
 // ContratFormModal - création / édition d'un contrat, branchée sur l'API.
 // Les messages d'erreur affichés sont ceux renvoyés par le serveur, jamais des
 // messages reconstruits ici.
+// Renouvellement (D35, décision du 11/09/2026, champ ajouté le 16/09/2026) :
+// « Renouvelle le contrat » pose id_contrat_predecesseur, distinct du
+// rattachement cadre. Seuls les contrats de la même société signataire sont
+// proposés, jamais le contrat lui-même ni ceux qui le renouvellent déjà (le
+// serveur refait le contrôle de boucle, 3019). Modifiable tant que le contrat
+// n'est pas validé. C'est la sortie naturelle de l'alerte « contrat à
+// suivre » : un contrat qui a un successeur n'est plus signalé.
 import { useState, useEffect } from 'react';
 import SlideOver from '../ui/SlideOver';
 import Button from '../ui/Button';
@@ -26,9 +33,22 @@ function getDescendantIds(contrats, rootId) {
   return ids;
 }
 
+// Contrats qui renouvellent déjà rootId, directement ou en chaîne : ils ne
+// peuvent pas devenir son prédécesseur (boucle de succession).
+function getSuccesseurIds(contrats, rootId) {
+  const ids = new Set();
+  let frontier = [rootId];
+  while (frontier.length) {
+    const next = contrats.filter(c => frontier.includes(c.id_contrat_predecesseur) && !ids.has(c.id)).map(c => c.id);
+    next.forEach(id => ids.add(id));
+    frontier = next;
+  }
+  return ids;
+}
+
 const EMPTY_FORM = {
   label: '', id_type_contrat: '', id_editeur: '', id_societe: '', id_revendeur: '',
-  id_contrat_parent: '', date_debut: '', date_fin: '', a_renouveler: false, duree_resiliation: '',
+  id_contrat_parent: '', id_contrat_predecesseur: '', date_debut: '', date_fin: '', a_renouveler: false, duree_resiliation: '',
 };
 
 export default function ContratFormModal({
@@ -61,6 +81,7 @@ export default function ContratFormModal({
         id_societe: contrat.id_societe ?? '',
         id_revendeur: contrat.id_revendeur ?? '',
         id_contrat_parent: contrat.id_contrat_parent ?? '',
+        id_contrat_predecesseur: contrat.id_contrat_predecesseur ?? '',
         date_debut: contrat.date_debut ?? '',
         date_fin: contrat.date_fin ?? '',
         a_renouveler: !!contrat.a_renouveler,
@@ -106,6 +127,7 @@ export default function ContratFormModal({
       id_societe: form.id_societe,
       id_revendeur: form.id_revendeur,
       id_contrat_parent: form.id_contrat_parent,
+      id_contrat_predecesseur: form.id_contrat_predecesseur,
       date_debut: form.date_debut,
       date_fin: form.date_fin,
       a_renouveler: form.a_renouveler,
@@ -145,6 +167,22 @@ export default function ContratFormModal({
   // place sur le contrat édité reste sélectionnable pour ne pas le perdre.
   const parentOptions = contrats.filter(c => c.type_code === 'cadre' && c.id !== contrat?.id && !excludedIds.has(c.id)
     && (!c.archive || c.id === form.id_contrat_parent));
+
+  // Renouvellement : contrats de la même société signataire, hors le contrat
+  // édité et ceux qui le renouvellent déjà ; un archivé n'est proposé que s'il
+  // est déjà en place. Verrouillé dès que le contrat est validé.
+  const predecesseurVerrouille = isEdit && contrat?.statut_validation === 'valide';
+  const successeurIds = contrat ? getSuccesseurIds(contrats, contrat.id) : new Set();
+  const predecesseurOptions = contrats.filter(c => c.id !== contrat?.id && c.id_societe === form.id_societe
+    && !successeurIds.has(c.id) && (!c.archive || c.id === form.id_contrat_predecesseur));
+
+  // Changer de société signataire retire un prédécesseur d'une autre société.
+  function choisirSociete(idSociete) {
+    setForm(v => {
+      const pred = contrats.find(c => c.id === v.id_contrat_predecesseur);
+      return { ...v, id_societe: idSociete, id_contrat_predecesseur: pred && pred.id_societe === idSociete ? v.id_contrat_predecesseur : '' };
+    });
+  }
 
   return (
     <SlideOver
@@ -188,7 +226,7 @@ export default function ContratFormModal({
         </FormField>
         <div className="grid grid-cols-2 gap-4">
           <FormField label="Société signataire" required hint="Signataire client" error={erreurs.id_societe}>
-            <select className={INPUT_CLS} value={form.id_societe} onChange={e => setForm(v => ({ ...v, id_societe: e.target.value }))}>
+            <select className={INPUT_CLS} value={form.id_societe} onChange={e => choisirSociete(e.target.value)}>
               <option value="">Choisir...</option>
               {societes.map(s => <option key={s.id} value={s.id}>{s.raison_sociale}</option>)}
             </select>
@@ -204,6 +242,18 @@ export default function ContratFormModal({
           <select className={INPUT_CLS} value={form.id_contrat_parent} onChange={e => choisirParent(e.target.value)}>
             <option value="">Aucun</option>
             {parentOptions.map(c => <option key={c.id} value={c.id}>{libelleContrat(c.label, c.societe_label)}</option>)}
+          </select>
+        </FormField>
+        <FormField label="Renouvelle le contrat"
+          hint={predecesseurVerrouille
+            ? 'Non modifiable : le contrat est validé'
+            : form.id_societe
+              ? 'Optionnel, contrats de la même société signataire ; modifiable tant que le contrat n\'est pas validé'
+              : 'Choisissez d\'abord la société signataire'}>
+          <select className={INPUT_CLS} value={form.id_contrat_predecesseur} disabled={predecesseurVerrouille || !form.id_societe}
+            onChange={e => setForm(v => ({ ...v, id_contrat_predecesseur: e.target.value }))}>
+            <option value="">Aucun</option>
+            {predecesseurOptions.map(c => <option key={c.id} value={c.id}>{libelleContrat(c.label, c.societe_label)}{c.archive ? ' (Archivé)' : ''}</option>)}
           </select>
         </FormField>
         <div className="grid grid-cols-2 gap-4">

@@ -31,7 +31,7 @@ import DocumentIcon from './DocumentIcon';
 import ManqueBadge from './ManqueBadge';
 import DeploiementKpiCard from '../deploiement/DeploiementKpiCard';
 import PreuveFormModal from './PreuveFormModal';
-import { libelleContrat, societeParContrat } from './libelleContrat';
+import { libelleContrat } from './libelleContrat';
 import useRbac from '../../hooks/useRbac';
 import { useToast } from '../../hooks/useToast';
 import { formatDate } from '../../utils/dateUtils';
@@ -166,10 +166,6 @@ export default function FacturesPage() {
     return visibles.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
   }, [preuves, factures, filterType]);
 
-  // Société signataire des contrats, pour les commandes en manque qui ne
-  // portent que contrat_label.
-  const societeContrat = useMemo(() => societeParContrat(contrats), [contrats]);
-
   const columns = [
     { key: 'label', label: 'Document', render: r => (
       <button onClick={() => navigate(`/contrats/factures/${r.id}?ressource=${r.ressource}`)} className="flex items-center gap-2.5 font-medium text-blue-800 hover:underline text-left">
@@ -256,7 +252,7 @@ export default function FacturesPage() {
               <div key={c.id} className="flex items-center justify-between gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-900/40" style={{ borderLeft: '3px solid #EF4444' }}>
                 <button onClick={() => navigate(`/contrats/commandes/${c.id}`)} className="text-sm font-medium text-gray-900 dark:text-white hover:underline text-left">
                   {c.label}
-                  <span className="ml-2 text-xs font-normal text-gray-500">{[libelleContrat(c.contrat_label, societeContrat.get(c.id_contrat)), c.societe_label].filter(Boolean).join(' - ')}</span>
+                  <span className="ml-2 text-xs font-normal text-gray-500">{[libelleContrat(c.contrat_label, c.contrat_societe_label), c.societe_label].filter(Boolean).join(' - ')}</span>
                 </button>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   {c.facture_manquante && <ManqueBadge label="Sans facture" />}

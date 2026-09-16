@@ -31,13 +31,13 @@ const arrondi2 = (n) => (n == null ? null : Math.round(n * 100) / 100);
 // Types de licence bornés par une date de fin : ils sortent des droits à
 // leur date de fin, sans tolérance (hypothèse v0.5 assumée). D44 étendu
 // (10/09/2026) : la version d'essai suit la même règle que la souscription.
-// Son code est celui du référentiel type_licence à sept valeurs, apporté par
-// la migration 055 d'une branche parallèle : c'est ici, et seulement ici,
-// qu'il est à aligner si la 055 retient un autre code. Repli propre tant que
-// ce référentiel n'existe pas : la règle ne lit aucune table ni colonne
-// nouvelle, elle compare le code porté par licence.type ; aucune licence ne
-// portant encore ce code, seules les souscriptions échoient, comme avant.
-export const TYPE_VERSION_ESSAI = "version_essai";
+// Son code est celui du référentiel type_licence à sept valeurs seedé par la
+// migration 055 (`essai`), aligné le 16/09/2026 : la constante initiale
+// (`version_essai`) avait été posée avant la 055. Côté SQL, la fonction de
+// recalcul du précalcul porte le même code (058, rejouée par la 065). C'est
+// ici, et seulement ici côté API, que vit ce code : la règle compare le code
+// porté par licence.type, sans lire d'autre table.
+export const TYPE_VERSION_ESSAI = "essai";
 export const TYPES_A_ECHEANCE = ["souscription", TYPE_VERSION_ESSAI];
 const SQL_TYPES_A_ECHEANCE = TYPES_A_ECHEANCE.map((t) => `'${t}'`).join(", ");
 
