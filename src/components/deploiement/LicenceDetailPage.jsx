@@ -28,6 +28,7 @@ import StatutMaintenanceBadge from './StatutMaintenanceBadge';
 import MaintenanceTimeline from './MaintenanceTimeline';
 import MaintenanceFormModal from './MaintenanceFormModal';
 import ArretMaintenanceModal from './ArretMaintenanceModal';
+import PreuvesLicenceSection from '../contrats/PreuvesLicenceSection';
 import useRbac from '../../hooks/useRbac';
 import useAuth from '../../hooks/useAuth';
 import { useToast } from '../../hooks/useToast';
@@ -280,6 +281,12 @@ export default function LicenceDetailPage() {
             </div>
           </div>
         </section>
+
+        {/* Preuves rattachées à la licence (#208, intégrée le 16/09) : section
+            autonome, elle charge ses données et porte son bouton de dépôt. */}
+        <div className="md:col-span-2">
+          <PreuvesLicenceSection licence={licence} />
+        </div>
 
         <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 md:col-span-2">
           <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
