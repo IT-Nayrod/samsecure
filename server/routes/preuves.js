@@ -96,6 +96,27 @@ function construireFiltres(query) {
   return { clause: clauses.length ? `WHERE ${clauses.join(" AND ")}` : "", params };
 }
 
+// Objet unique facture = preuve (#204), retour de recette du 16/09 (#99) : une
+// preuve de type Facture naît du dépôt de facture (POST /factures/depot), qui
+// crée le fichier, la preuve support et la facture en une transaction. Créée
+// ou requalifiée par ce routeur, elle n'aurait ni facture ni fichier garanti :
+// la détection des manques la verrait « sans facture » et la liste la
+// montrerait sans validation de facture. Le refus est lisible (3234) plutôt
+// qu'un objet à moitié né ; une preuve déjà portée par une facture reste
+// modifiable (PATCH du libellé, de la date).
+async function typeEstFacture(client, idTypePreuve) {
+  if (!idTypePreuve || !UUID_RE.test(idTypePreuve)) return false;
+  const { rowCount } = await client.query(
+    `SELECT 1 FROM type_preuve WHERE id = $1 AND code = 'facture'`, [idTypePreuve]);
+  return rowCount > 0;
+}
+
+async function porteeParFacture(client, idPreuve) {
+  if (!idPreuve) return false;
+  const { rowCount } = await client.query(`SELECT 1 FROM facture WHERE id_preuve = $1`, [idPreuve]);
+  return rowCount > 0;
+}
+
 // Vérifie l'existence d'une référence. Évite qu'un UUID inconnu remonte en
 // 23503 brute transformée en 500 illisible. Un id absent est valide : c'est
 // la validation de présence qui tranche, pas celle d'existence.
@@ -134,7 +155,9 @@ function normaliserCorps(body = {}) {
   };
 }
 
-async function validerPreuve(client, body) {
+// idPreuve : preuve existante (PATCH), pour tolérer le type Facture sur une
+// preuve déjà portée par sa facture.
+async function validerPreuve(client, body, { idPreuve = null } = {}) {
   const { label, id_type_preuve, id_contrat, id_commande, id_licence, url_fichier, hash_sha256 } = body;
 
   if (!label || !label.trim())
@@ -143,6 +166,8 @@ async function validerPreuve(client, body) {
     return { status: 400, code: 3212, error: "Le type de preuve est obligatoire." };
   if (!(await existe(client, "type_preuve", id_type_preuve)))
     return { status: 400, code: 3213, error: "Type de preuve introuvable." };
+  if (await typeEstFacture(client, id_type_preuve) && !(await porteeParFacture(client, idPreuve)))
+    return { status: 400, code: 3234, error: "Le type Facture n'est pas accepté ici : une facture se dépose avec son fichier par le dépôt de facture (POST /factures/depot)." };
   // Règle métier de la #48, étendue par la #208 : une preuve sans rattachement
   // est orpheline, elle ne serait atteignable ni par un contrat, ni par une
   // commande, ni par une licence. Le DDL laisse les trois colonnes nullables,
@@ -318,7 +343,7 @@ router.patch("/preuves/:id", async (req, res) => {
       if (Object.prototype.hasOwnProperty.call(req.body, champ)) corps[champ] = patch[champ];
     }
 
-    const invalide = await validerPreuve(client, corps);
+    const invalide = await validerPreuve(client, corps, { idPreuve: id });
     if (invalide) {
       await client.query("ROLLBACK");
       return erreurPivot(res, invalide);

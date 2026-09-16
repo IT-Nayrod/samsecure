@@ -267,6 +267,7 @@ commun 3280-3299.
 | 3229 | succes | Définition des champs par type de preuve (#204, migration 060) | GET /api/types-preuve/champs |
 | 3230 | erreur | Suppression impossible : preuve rattachee a une facture | DELETE /api/preuves/:id |
 | 3231 | reserve | [ARBITRAGE D27] lien externe GED refuse. Non emis a ce jour | POST, PATCH /api/preuves |
+| 3234 | erreur | Le type Facture n'est pas accepté ici : une facture se dépose avec son fichier par le dépôt de facture (#99, retour de recette du 16/09, non seedé : voir plus bas) | POST, PATCH /api/preuves |
 | 3214 | erreur | Une preuve doit être rattachée à un contrat, à une commande, ou aux deux | POST, PATCH /api/preuves |
 | 3215 | erreur | Contrat introuvable | POST, PATCH /api/preuves |
 | 3216 | erreur | Commande introuvable | POST, PATCH /api/preuves |
@@ -442,6 +443,34 @@ par la base, jamais par le front, servie par un nouveau code :
   autres types gardent POST /api/preuves puis POST /api/preuves/:id/fichier.
   Objet unique, validation unique, budget engagé et détection des manques
   (3280) inchangés : une facture naît toujours par le circuit facture.
+
+### Retour de recette du 16/09 : une facture emprunte toujours le circuit facture (#99)
+
+Symptôme constaté en recette : un dépôt en type facture depuis la modale
+unifiée produisait une preuve non reconnue comme facture (aucune ligne
+facture, commande toujours « sans facture », fichier absent). Ce résultat
+n'est atteignable que par le circuit preuve simple (POST /api/preuves puis
+POST /api/preuves/:id/fichier) avec un second appel refusé, refus que le
+rechargement de la page masquait. Corrections, un code nouveau :
+- 3234, POST et PATCH /api/preuves : le type de code `facture` est refusé
+  quand la preuve n'est pas déjà portée par une facture (facture.id_preuve).
+  Une facture naît du dépôt de facture, POST /api/factures/depot (3245), qui
+  crée le fichier, la preuve support et la facture en une transaction : plus
+  aucune preuve de type Facture ne peut exister sans sa facture ni sans son
+  fichier, quel que soit le client de l'API. Une preuve support existante
+  reste modifiable (libellé, date de la preuve) ;
+- la modale décide du circuit au moment du dépôt, sur le code du type choisi,
+  et envoie le fichier dans la même requête multipart que la facture (champ
+  `fichier`, attendu par multer) ;
+- un échec du second appel du circuit simple (preuve créée, fichier refusé :
+  3220 à 3227, 3299) reste affiché dans la modale, la liste n'est rechargée
+  qu'à sa fermeture.
+
+Le 3234 n'est pas encore seedé dans `code_retour` : seule la migration 066
+(Tenant) était réservée pour ce chantier, la table vit en Commune.
+`server/utils/reponse.js` sert alors le message rendu par la route avec un
+libellé null et le signale en console ; à seeder par la prochaine migration
+Commune, comme la 064 l'a fait pour les codes orphelins.
 
 ## Validation des saisies (#53)
 
