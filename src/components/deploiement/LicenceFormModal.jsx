@@ -109,7 +109,7 @@ export default function LicenceFormModal({
 
   function validate() {
     const e = {};
-    if (!form.id_produit) e.id_produit = 'Le produit est requis';
+    if (!form.id_produit) e.id_produit = 'Le logiciel est requis';
     const qte = Number(form.quantite);
     if (!Number.isInteger(qte) || qte < 1) e.quantite = 'La quantité doit être un entier supérieur à 0';
     if (form.cout_licence !== '' && Number(form.cout_licence) < 0) e.cout_licence = 'Le coût ne peut pas être négatif';
@@ -177,10 +177,10 @@ export default function LicenceFormModal({
       }
     >
       <div className="flex flex-col gap-4">
-        <FormField label="Libellé du lot" hint="Optionnel, le produit sert de libellé par défaut">
+        <FormField label="Libellé du lot" hint="Optionnel, le logiciel sert de libellé par défaut">
           <input type="text" className={INPUT_CLS} value={form.label} onChange={champ('label')} placeholder="Ex. M365, siège" />
         </FormField>
-        <FormField label="Produit" required error={errors.id_produit}>
+        <FormField label="Logiciel" required error={errors.id_produit}>
           <select className={INPUT_CLS} value={form.id_produit} onChange={e => { setForm(v => ({ ...v, id_produit: e.target.value, id_edition: '', id_version: '' })); setErrors(v => ({ ...v, id_produit: null })); }}>
             <option value="">Choisir...</option>
             {produits.map(p => <option key={p.id} value={p.id}>{p.label}{p.editeur_label ? ` (${p.editeur_label})` : ''}</option>)}

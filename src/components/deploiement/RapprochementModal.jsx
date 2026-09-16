@@ -108,7 +108,7 @@ export default function RapprochementModal({ isOpen, onClose, releve, onDone }) 
                 </div>
               </FormField>
             )}
-            <FormField label="Autre affectation" hint="Recherche par référence, libellé, produit ou société.">
+            <FormField label="Autre affectation" hint="Recherche par référence, libellé, logiciel ou société.">
               <input value={recherche} onChange={e => setRecherche(e.target.value)} placeholder="Rechercher" className={`${inputCls} mb-2`} />
               <select value={candidates.some(c => c.id === idAffectation) ? '' : idAffectation} onChange={e => setIdAffectation(e.target.value)} className={inputCls} size={Math.min(6, Math.max(2, autres.length + 1))}>
                 <option value="">Choisir une affectation ({autres.length})</option>

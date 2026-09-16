@@ -53,11 +53,11 @@ export function IndiceConformiteWidget() {
       widgetId="indice-conformite"
       titre="Indice de conformité global"
       sousTitre="Conformité contractuelle du parc"
-      info={"Répartition des produits du parc par statut de conformité (usage déclaré face aux droits acquis) et part de produits conformes, colorée selon les seuils configurés. Le clic ouvre la liste des licences."}
+      info={"Répartition des logiciels du parc par statut de conformité (usage déclaré face aux droits acquis) et part de logiciels conformes, colorée selon les seuils configurés. Le clic ouvre la liste des licences."}
       derniereMaj={ag?.derniere_maj}
       chargement={chargement} erreur={erreur} onRelancer={relancer}
       vide={!chargement && !erreur && nbProduits === 0}
-      videMessage="Aucun produit avec droits ou usage pour le moment."
+      videMessage="Aucun logiciel avec droits ou usage pour le moment."
       onOuvrir={() => navigate(ROUTES_DRILL.licences())}
     >
       <div style={{ position: 'relative', height: 150 }}>
@@ -129,7 +129,7 @@ export function ValorisationLicencesWidget() {
     <CadreWidget
       widgetId="valorisation-licences"
       titre="Valorisation licences non utilisées"
-      info={"Valeur des droits acquis au-delà de l'usage déclaré (écart valorisé positif, au prix unitaire de la dernière commande de chaque produit), répartie par éditeur. Le pourcentage rapporte cet écart à la valorisation totale du parc observé (coût des licences actives du périmètre), coloré selon les seuils configurés."}
+      info={"Valeur des droits acquis au-delà de l'usage déclaré (écart valorisé positif, au prix unitaire de la dernière commande de chaque logiciel), répartie par éditeur. Le pourcentage rapporte cet écart à la valorisation totale du parc observé (coût des licences actives du périmètre), coloré selon les seuils configurés."}
       derniereMaj={data?.agregats?.derniere_maj}
       chargement={chargement} erreur={erreur} onRelancer={relancer}
       vide={!chargement && !erreur && segments.length === 0}

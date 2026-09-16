@@ -196,7 +196,7 @@ export default function LicenceDetailPage() {
               <StatutMaintenanceBadge licence={licence} compact />
             </div>
             <p className="text-sm text-gray-500 mt-1">
-              {licence.produit_label ?? 'Produit inconnu'}{licence.editeur_label ? ` - ${licence.editeur_label}` : ''}{licence.edition_label ? ` - ${licence.edition_label}` : ''}{licence.version_label ? ` - v${licence.version_label}` : ''}
+              {licence.produit_label ?? 'Logiciel inconnu'}{licence.editeur_label ? ` - ${licence.editeur_label}` : ''}{licence.edition_label ? ` - ${licence.edition_label}` : ''}{licence.version_label ? ` - v${licence.version_label}` : ''}
             </p>
           </div>
         </div>
@@ -249,7 +249,7 @@ export default function LicenceDetailPage() {
                 : <span className="text-gray-500">-</span>}
             </Champ>
             <Champ label="Usage déclaré sur ce lot">{licence.usage_declare} {licence.unite_label ?? ''} ({licence.nb_affectations ?? 0} affectation(s))</Champ>
-            <Champ label="Référence produit">{licence.produit_sku ?? '-'}</Champ>
+            <Champ label="Référence logiciel">{licence.produit_sku ?? '-'}</Champ>
             <Champ label="Renouvelle la licence">
               {licence.id_licence_predecesseur
                 ? <Link to={`/conformite/licences/${licence.id_licence_predecesseur}`} className="text-blue-800 hover:underline">{licence.predecesseur_label ?? 'Licence renouvelée'}</Link>
@@ -264,13 +264,13 @@ export default function LicenceDetailPage() {
         </section>
 
         <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Balance droits vs usage (produit)</h2>
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Balance droits vs usage (logiciel)</h2>
           <div className="flex flex-col gap-4">
             <ConformiteGaugeBar droits={licence.produit_droits} usage={licence.produit_usage_declare} niveau={licence.produit_niveau} unite={licence.unite_label ?? ''} label="Droits acquis vs usage déclaré" />
             <ConformiteGaugeBar droits={licence.produit_droits} usage={licence.usage_declare} niveau={licence.usage_declare > licence.quantite ? 'depassement' : 'conforme'} unite={licence.unite_label ?? ''} label="Part de ce lot dans l'usage déclaré" />
-            <p className="text-xs text-gray-500">Les droits comptent toutes les licences non expirées du produit, l&apos;usage toutes ses affectations. Les seuils (attention à 90 %) sont ceux de l&apos;API.</p>
+            <p className="text-xs text-gray-500">Les droits comptent toutes les licences non expirées du logiciel, l&apos;usage toutes ses affectations. Les seuils (attention à 90 %) sont ceux de l&apos;API.</p>
             <div className="flex gap-3 text-xs">
-              <Link to={`/conformite/licences?produit=${licence.id_produit}`} className="text-blue-800 hover:underline">Voir les lots du produit</Link>
+              <Link to={`/conformite/licences?produit=${licence.id_produit}`} className="text-blue-800 hover:underline">Voir les lots du logiciel</Link>
               <Link to={`/conformite/affectations?produit=${licence.id_produit}`} className="text-blue-800 hover:underline">Voir les affectations</Link>
             </div>
           </div>

@@ -297,7 +297,7 @@ function ModeContrat({ id, contrat }) {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600">
-                    <th className={`${TH_CLS} text-left`}>Produit / Licence</th>
+                    <th className={`${TH_CLS} text-left`}>Logiciel / Licence</th>
                     <th className={`${TH_CLS} text-right`}>Prévisionnel CAPEX</th>
                     <th className={`${TH_CLS} text-right`}>Prévisionnel OPEX</th>
                     <th className={`${TH_CLS} text-right`}>Alloué CAPEX</th>

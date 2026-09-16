@@ -349,13 +349,13 @@ async function validerLicence(client, corps, { typeInitial = null, idLicence = n
     return { status: 400, code: 4018, error: "Type de licence inconnu." };
   coherer(c, regle);
   if (!c.id_produit)
-    return { status: 400, code: 4011, error: "Le produit est obligatoire." };
+    return { status: 400, code: 4011, error: "Le logiciel est obligatoire." };
   if (!uuidValide(c.id_produit) || !(await produitExiste(c.id_produit)))
-    return { status: 400, code: 4012, error: "Produit introuvable au catalogue." };
+    return { status: 400, code: 4012, error: "Logiciel introuvable au catalogue." };
   if (!uuidValide(c.id_edition) || !(await declinaisonDuProduit("edition", c.id_edition, c.id_produit)))
-    return { status: 400, code: 4013, error: "Edition introuvable ou etrangere au produit." };
+    return { status: 400, code: 4013, error: "Édition introuvable ou étrangère au logiciel." };
   if (!uuidValide(c.id_version) || !(await declinaisonDuProduit("version", c.id_version, c.id_produit)))
-    return { status: 400, code: 4014, error: "Version introuvable ou etrangere au produit." };
+    return { status: 400, code: 4014, error: "Version introuvable ou étrangère au logiciel." };
   if (!uuidValide(c.id_commande) || !(await existe(client, "commande", c.id_commande)))
     return { status: 400, code: 4015, error: "Commande introuvable." };
   if (!uuidValide(c.id_revendeur) || !(await existe(client, "revendeur", c.id_revendeur)))
@@ -452,7 +452,7 @@ async function validerMaintenance(client, m, licence) {
     return { status: 400, code: 4016, error: "Revendeur introuvable." };
   if (m.id_version && (!uuidValide(m.id_version) || !licence?.id_produit
       || !(await declinaisonDuProduit("version", m.id_version, licence.id_produit))))
-    return { status: 400, code: 4014, error: "Version introuvable ou etrangere au produit." };
+    return { status: 400, code: 4014, error: "Version introuvable ou étrangère au logiciel." };
   return null;
 }
 
@@ -884,7 +884,7 @@ router.post("/licences/:id/arret-maintenance", async (req, res) => {
       ? (req.body.version_figee_id || null) : avant.id_version;
     if (versionFigee && (!UUID_RE.test(versionFigee) || !(await declinaisonDuProduit("version", versionFigee, avant.id_produit)))) {
       await client.query("ROLLBACK");
-      return erreur(res, 4042, { status: 400, message: "Version a figer introuvable ou etrangere au produit." });
+      return erreur(res, 4042, { status: 400, message: "Version à figer introuvable ou étrangère au logiciel." });
     }
 
     // La version figée devient la version courante (D59 : la version se fige

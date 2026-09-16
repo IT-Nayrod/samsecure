@@ -13,7 +13,7 @@ import { mockContrats, mockCommandes, mockDocuments, getEditeurLabel, getSociete
 import { mockLicences, mockAffectations } from './mockDeploiement';
 
 function produitLabel(idProduit) {
-  return mockProduits.find(p => p.id === idProduit)?.label ?? 'Produit inconnu';
+  return mockProduits.find(p => p.id === idProduit)?.label ?? 'Logiciel inconnu';
 }
 
 function societeLabel(idSociete) {

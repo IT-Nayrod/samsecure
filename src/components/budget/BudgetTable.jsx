@@ -106,7 +106,7 @@ export default function BudgetTable({
     },
     {
       key: 'produit_label',
-      label: 'Produit',
+      label: 'Logiciel',
       sortable: true,
       getValue: row => row.produit_label ?? row.licence_label ?? '',
       render: row => (
@@ -222,8 +222,8 @@ export default function BudgetTable({
           <option value="">Tous les éditeurs</option>
           {editeursUniques.map(e => <option key={e.id} value={e.id}>{e.label}</option>)}
         </select>
-        <select value={produitActif} onChange={e => setFiltreProduit(e.target.value)} className={SELECT_CLS} aria-label="Filtre produit">
-          <option value="">Tous les produits</option>
+        <select value={produitActif} onChange={e => setFiltreProduit(e.target.value)} className={SELECT_CLS} aria-label="Filtre logiciel">
+          <option value="">Tous les logiciels</option>
           {produitsUniques.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
         </select>
       </div>

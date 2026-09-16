@@ -317,7 +317,7 @@ router.get("/dashboards/montants-totaux", async (req, res) => {
           `SELECT id, label FROM produit_referentiel WHERE id = ANY($1::uuid[])`, [ids]);
         for (const p of prods) labels.set(p.id, p.label);
       }
-      lignes = rows.map((x) => ({ ...x, label: labels.get(x.id) ?? "Produit local" }));
+      lignes = rows.map((x) => ({ ...x, label: labels.get(x.id) ?? "Logiciel local" }));
     } else {
       const jointure = axe === "editeur"
         ? `LEFT JOIN contrat ct ON ct.id = c.id_contrat

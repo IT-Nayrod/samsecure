@@ -173,7 +173,7 @@ export function EcheancesWidget({ variante }) {
 const AXES = [
   { valeur: 'editeur', label: 'Par éditeur' },
   { valeur: 'societe', label: 'Par société' },
-  { valeur: 'produit', label: 'Par produit' },
+  { valeur: 'produit', label: 'Par logiciel' },
 ];
 const PERIODES = [
   { valeur: 1, label: '1 an' },
@@ -210,7 +210,7 @@ export function MontantsTotauxWidget() {
     <CadreWidget
       widgetId="montants-totaux"
       titre="Montants totaux"
-      info={"Par éditeur ou par société : somme des montants de commandes sur la période choisie. Par produit : somme des coûts des licences non expirées du parc (le montant d'une commande ne se ventile pas par produit). Le clic sur une barre ouvre la liste filtrée."}
+      info={"Par éditeur ou par société : somme des montants de commandes sur la période choisie. Par logiciel : somme des coûts des licences non expirées du parc (le montant d'une commande ne se ventile pas par logiciel). Le clic sur une barre ouvre la liste filtrée."}
       chargement={chargement} erreur={erreur} onRelancer={relancer}
       vide={!chargement && !erreur && !lignes.length}
       videMessage="Aucun montant sur la période."
