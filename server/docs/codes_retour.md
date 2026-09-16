@@ -749,7 +749,7 @@ cout de maintenance) servis a null avec `montants_masques: true` sans
 | 4044 | succes | Maintenance reprise, version liberee | POST .../reprise-maintenance |
 | 4045 | erreur | La maintenance de cette licence n'est pas arretee | POST .../reprise-maintenance (409) |
 | 4050 | succes | Catalogue des logiciels (versions et éditions incluses) | GET /api/produits |
-| 4025 | succes | Licence prolongée | POST /api/licences/:id/prolonger (decision du 11/09/2026 : date de fin de la periode en cours etendue, souscription ou essai par date_fin_souscription, perpetuelle par la fin de sa maintenance en cours ; alerte d'echeance liberee pour la nouvelle date) |
+| 4025 | succes | Licence prolongée | POST /api/licences/:id/prolonger (decision du 11/09/2026 : date de fin de la periode en cours etendue, souscription ou essai par date_fin_souscription, perpetuelle par la fin de sa maintenance en cours ; depuis le 16/09/2026 la cle d'evenement des alertes porte la date de fin, la nouvelle echeance est notifiee au passage suivant sans liberation manuelle) |
 | 4026 | erreur | Cette licence ne porte aucune échéance à prolonger | POST /api/licences/:id/prolonger (409 : ni date de fin, ni maintenance en cours non arretee) |
 | 4027 | erreur | La nouvelle date de fin doit être postérieure à l'échéance actuelle | POST /api/licences/:id/prolonger (400, message rendu avec l'echeance actuelle ; 4024 sur un format invalide) |
 | 4034 | succes | Version ajoutée au logiciel | POST /api/produits/:id/versions (201, complement Tenant du catalogue, migration 063 ; 4012 en 404 sur un produit inconnu du catalogue) |
@@ -1235,7 +1235,7 @@ pre-catalogue contre migrations soit complete dans les deux sens.
 |------|------|-----------------|-------|
 | 5450 | succes | Configuration des dashboards | GET /api/dashboards/configuration |
 | 5451 | succes | Préférences de dashboard enregistrées | PUT /api/dashboards/preferences |
-| 5452 | succes | Synthèse des saisies et revalidations | GET /api/dashboards/saisies |
+| 5452 | succes | Synthèse des saisies et revalidations | GET /api/dashboards/synthese |
 | 5453 | succes | Montants totaux par axe | GET /api/dashboards/montants-totaux |
 | 5454 | succes | Montants engagés et payés par éditeur | GET /api/dashboards/engages-payes |
 | 5460 | erreur | L'axe demandé est invalide | GET /api/dashboards/montants-totaux (400) |
@@ -1292,7 +1292,7 @@ Points de lecture :
 - anti-doublon : index unique (id_utilisateur, cle_evenement), insertion en
   ON CONFLICT DO NOTHING ; une cle par contrat et palier, par licence, par
   produit et jour de recalcul, par societe et exercice, par soumission, par
-  cycle de revalidation ;
+  cycle de revalidation ; Depuis le 16/09/2026, la cle des types echeance_contrat et echeance_souscription porte la date de fin (type:id:date_fin:palier, cleEcheance de regles.js) : une prolongation produit une nouvelle alerte au passage suivant, sans liberation manuelle ; les cles anterieures sont realignees par la migration 065.
 - destinataires par droits et portee : permissions effectives
   (`permissionsEffectives`) et rattachement (`getAdminScope`) ; les profils de
   la specification sont reconnus par leur permission signature (droits de

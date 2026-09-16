@@ -154,6 +154,45 @@ COMMENT ON FUNCTION recalculer_precalcul_conformite IS
   'Recalcule la ligne precalcul_conformite d''un logiciel par relecture des licences et affectations. Prix unitaire de la derniere commande (D52), aucun taux sans droit et anomalie usage_sans_droit (D53), types a echeance souscription et essai (D44 etendu, code de la 055). Un logiciel sans droit ni usage garde une ligne a zero, filtree par l''API.';
 
 -- ----------------------------------------------------------------------------
+-- 2. Cles d'evenement des alertes d'echeance : la date de fin entre dans la
+--    cle (type:id:date_fin:palier). UPDATE bornes par type et motif, jamais
+--    appliques quand la cle cible existe deja pour le meme utilisateur (index
+--    unique de la 051) : la ligne est alors laissee telle quelle.
+-- ----------------------------------------------------------------------------
+-- a) Cles suffixees par l'ancienne liberation manuelle a la prolongation
+--    (type:id:palier:ancienne_date) : l'ancienne date passe avant le palier.
+UPDATE notification n
+   SET cle_evenement = regexp_replace(n.cle_evenement,
+         '^(echeance_(?:contrat|souscription)):([^:]+):([0-9]+):([0-9]{4}-[0-9]{2}-[0-9]{2})$',
+         '\1:\2:\4:\3')
+ WHERE n.type IN ('echeance_contrat', 'echeance_souscription')
+   AND n.cle_evenement ~ '^echeance_(contrat|souscription):[^:]+:[0-9]+:[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+   AND NOT EXISTS (
+     SELECT 1 FROM notification n2
+      WHERE n2.id_utilisateur = n.id_utilisateur
+        AND n2.cle_evenement = regexp_replace(n.cle_evenement,
+              '^(echeance_(?:contrat|souscription)):([^:]+):([0-9]+):([0-9]{4}-[0-9]{2}-[0-9]{2})$',
+              '\1:\2:\4:\3'));
+
+-- b) Cles nues (type:id:palier) : la date de fin portee par donnees (posee a
+--    l'emission) s'insere avant le palier ; sans date connue, le segment vaut
+--    'aucun', comme le rend cleEvenement.
+UPDATE notification n
+   SET cle_evenement = regexp_replace(n.cle_evenement,
+         '^(echeance_(?:contrat|souscription)):([^:]+):([0-9]+)$',
+         '\1:\2:' || COALESCE(substr(n.donnees->>'date_fin', 1, 10), 'aucun') || ':\3')
+ WHERE n.type IN ('echeance_contrat', 'echeance_souscription')
+   AND n.cle_evenement ~ '^echeance_(contrat|souscription):[^:]+:[0-9]+$'
+   AND NOT EXISTS (
+     SELECT 1 FROM notification n2
+      WHERE n2.id_utilisateur = n.id_utilisateur
+        AND n2.cle_evenement = regexp_replace(n.cle_evenement,
+              '^(echeance_(?:contrat|souscription)):([^:]+):([0-9]+)$',
+              '\1:\2:' || COALESCE(substr(n.donnees->>'date_fin', 1, 10), 'aucun') || ':\3'));
+
+COMMENT ON COLUMN notification.cle_evenement IS 'Cle d''evenement unique par utilisateur (anti-doublon) : type:identifiants:palier ; pour echeance_contrat et echeance_souscription, type:id:date_fin:palier depuis la 065 (une prolongation produit une nouvelle cle, sans liberation manuelle). Une seule notification par utilisateur et par cle.';
+
+-- ----------------------------------------------------------------------------
 -- 3. Amorcage : le parc est recalcule avec le code aligne.
 -- ----------------------------------------------------------------------------
 SELECT recalculer_conformite_complete();

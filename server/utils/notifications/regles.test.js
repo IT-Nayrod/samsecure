@@ -5,7 +5,7 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import {
-  cleEvenement, couvreSociete, selectionnerDestinataires, modeCourrier,
+  cleEvenement, cleEcheance, couvreSociete, selectionnerDestinataires, modeCourrier,
   statutCourrierInitial, paliersDepuisSeuils, palierAtteint,
   composerCourrier, composerRecapitulatif,
   composantsParis, dateParis, instantParis, prochaineOccurrence, heurePassee,
@@ -25,6 +25,32 @@ describe("cleEvenement", () => {
   });
   test("deux evenements distincts ne partagent pas de cle", () => {
     assert.notEqual(cleEvenement("t", "a", "b"), cleEvenement("t", "ab"));
+  });
+});
+
+describe("cleEcheance (cle d'echeance durable, 16/09/2026)", () => {
+  test("type, entite, date de fin au jour, palier", () => {
+    assert.equal(cleEcheance("echeance_contrat", "c1", "2026-12-31", 30), "echeance_contrat:c1:2026-12-31:30");
+    assert.equal(cleEcheance("echeance_souscription", "l1", "2027-03-01", 30), "echeance_souscription:l1:2027-03-01:30");
+  });
+  test("anti-doublon : meme entite, meme date de fin, meme palier donnent la meme cle", () => {
+    assert.equal(cleEcheance("echeance_contrat", "c1", "2026-12-31", 30), cleEcheance("echeance_contrat", "c1", "2026-12-31", 30));
+    assert.equal(cleEcheance("echeance_contrat", "c1", new Date("2026-12-31T00:00:00Z"), 30), cleEcheance("echeance_contrat", "c1", "2026-12-31", 30));
+    assert.equal(cleEcheance("echeance_contrat", "c1", "2026-12-31T00:00:00.000Z", 30), cleEcheance("echeance_contrat", "c1", "2026-12-31", 30));
+  });
+  test("une prolongation (nouvelle date de fin) produit une nouvelle cle, sans liberation manuelle", () => {
+    const avant = cleEcheance("echeance_souscription", "l1", "2026-12-31", 30);
+    const apres = cleEcheance("echeance_souscription", "l1", "2027-12-31", 30);
+    assert.notEqual(avant, apres);
+    assert.ok(avant.startsWith("echeance_souscription:l1:") && apres.startsWith("echeance_souscription:l1:"));
+  });
+  test("paliers distincts, cles distinctes ; date absente rendue explicite", () => {
+    assert.notEqual(cleEcheance("echeance_contrat", "c1", "2026-12-31", 30), cleEcheance("echeance_contrat", "c1", "2026-12-31", 60));
+    assert.equal(cleEcheance("echeance_contrat", "c1", null, 30), "echeance_contrat:c1:aucun:30");
+    assert.equal(cleEcheance("echeance_contrat", "c1", "", 30), "echeance_contrat:c1:aucun:30");
+  });
+  test("compatible avec cleEvenement : meme separateur, meme rendu des vides", () => {
+    assert.equal(cleEcheance("echeance_contrat", "c1", "2026-12-31", 30), cleEvenement("echeance_contrat", "c1", "2026-12-31", 30));
   });
 });
 
