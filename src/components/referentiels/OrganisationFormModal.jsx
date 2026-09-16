@@ -51,7 +51,7 @@ export default function OrganisationFormModal({ isOpen, onClose, onSubmit, organ
     if (reqErr) e.raison_sociale = reqErr;
     else {
       const dup = existingOrganisations.some(o => o.id !== organisation?.id && o.raison_sociale.trim().toLowerCase() === form.raison_sociale.trim().toLowerCase());
-      if (dup) e.raison_sociale = 'Une organisation avec cette raison sociale existe déjà';
+      if (dup) e.raison_sociale = 'Une société avec cette raison sociale existe déjà';
     }
     if (form.siret) {
       const siretErr = validateSiret(form.siret);
@@ -95,7 +95,7 @@ export default function OrganisationFormModal({ isOpen, onClose, onSubmit, organ
     <SlideOver
       isOpen={isOpen}
       onClose={onClose}
-      title={isEdit ? "Modifier l'organisation" : 'Nouvelle organisation'}
+      title={isEdit ? 'Modifier la société' : 'Nouvelle société'}
       size="sm"
       footer={
         <>
@@ -116,9 +116,9 @@ export default function OrganisationFormModal({ isOpen, onClose, onSubmit, organ
         <FormField label="SIRET" error={errors.siret} hint="14 chiffres, optionnel">
           <input className={INPUT_CLS} value={form.siret} onChange={e => { setForm(v => ({ ...v, siret: e.target.value })); setErrors(v => ({ ...v, siret: null })); }} maxLength={14} />
         </FormField>
-        <FormField label="Organisation parente" hint="Optionnel">
+        <FormField label="Société parente" hint="Optionnel">
           <select className={INPUT_CLS} value={form.id_societe_parent} onChange={e => setForm(v => ({ ...v, id_societe_parent: e.target.value }))}>
-            <option value="">Aucune (organisation mère)</option>
+            <option value="">Aucune (société mère)</option>
             {parentOptions.map(o => (
               <option key={o.id} value={o.id}>{'  '.repeat(o.depth)}{o.depth > 0 ? '└ ' : ''}{o.raison_sociale}</option>
             ))}

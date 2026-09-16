@@ -101,7 +101,7 @@ export default function UsersPage() {
 
   function societesLabel(userId) {
     const ids = userSocietes[userId] || [];
-    if (ids.includes(null) || ids.length === 0) return 'Toutes organisations (tenant)';
+    if (ids.includes(null) || ids.length === 0) return 'Toutes sociétés (tenant)';
     return ids.map((id) => societes.find((s) => s.id === id)?.raison_sociale || id).join(', ');
   }
 

@@ -67,11 +67,11 @@ export default function BudgetTable({
   const columns = [
     {
       key: 'societe_label',
-      label: 'Organisation',
+      label: 'Société',
       sortable: true,
       render: row => row.id_societe
         ? row.societe_label
-        : <span className="text-gray-400 dark:text-gray-500" title="Licence sans commande : organisation payeuse non déterminée">Non déterminée</span>,
+        : <span className="text-gray-400 dark:text-gray-500" title="Licence sans commande : société payeuse non déterminée">Non déterminée</span>,
       csvValue: row => row.societe_label ?? '',
     },
     {

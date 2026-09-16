@@ -220,7 +220,7 @@ export default function BudgetPage() {
     }
     for (const [id, s] of synthesesParSociete) {
       if (!id || vues.has(id)) continue;
-      const label = lignes.find(l => l.id_societe === id)?.societe_label ?? 'Organisation';
+      const label = lignes.find(l => l.id_societe === id)?.societe_label ?? 'Société';
       rows.push({ societe: { id, raison_sociale: label, depth: 0 }, totaux: s.totaux });
     }
     return rows;
@@ -384,7 +384,7 @@ export default function BudgetPage() {
           <BudgetOrgBreakdown lignes={repartition} onSelectSociete={handleSelectSociete} />
           {!societeIds && nbSansSociete > 0 && (
             <p className="text-xs text-gray-500 dark:text-gray-400">
-              {nbSansSociete} ligne{nbSansSociete > 1 ? 's' : ''} sans organisation payeuse (licence sans commande) : comprise{nbSansSociete > 1 ? 's' : ''} dans les indicateurs, absente{nbSansSociete > 1 ? 's' : ''} de la répartition par organisation.
+              {nbSansSociete} ligne{nbSansSociete > 1 ? 's' : ''} sans société payeuse (licence sans commande) : comprise{nbSansSociete > 1 ? 's' : ''} dans les indicateurs, absente{nbSansSociete > 1 ? 's' : ''} de la répartition par société.
             </p>
           )}
         </>

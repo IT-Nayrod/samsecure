@@ -141,7 +141,7 @@ function ModeLicence({ id, licence }) {
                   <th className={`${TH_CLS} text-right`}>CAPEX</th>
                   <th className={`${TH_CLS} text-right`}>OPEX</th>
                   <th className={`${TH_CLS} text-left`}>Période</th>
-                  <th className={`${TH_CLS} text-left`}>Organisation</th>
+                  <th className={`${TH_CLS} text-left`}>Société</th>
                   {showActions && <th className="w-16 px-3 py-2"></th>}
                 </tr>
               </thead>

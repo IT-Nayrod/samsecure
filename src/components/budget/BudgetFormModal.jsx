@@ -283,7 +283,7 @@ export default function BudgetFormModal({
               )}
             </FormField>
 
-            <FormField label="Organisation payeuse" hint="Déduite de la commande d'origine de la licence, non modifiable.">
+            <FormField label="Société payeuse" hint="Déduite de la commande d'origine de la licence, non modifiable.">
               {form.id_licence ? (
                 <div className={`${LECTURE_CLS} flex flex-col gap-0.5`}>
                   <span className="font-medium">
@@ -423,7 +423,7 @@ export default function BudgetFormModal({
               )}
               {!prefillEnCours && prefill?.societe_indeterminee && (
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Licence sans commande : organisation payeuse non déterminée, exercice par défaut appliqué.
+                  Licence sans commande : société payeuse non déterminée, exercice par défaut appliqué.
                 </p>
               )}
               {!prefillEnCours && prefill?.lignes_existantes?.length > 0 && (

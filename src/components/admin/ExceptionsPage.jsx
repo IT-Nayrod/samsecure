@@ -81,7 +81,7 @@ export default function ExceptionsPage() {
     const e = {};
     if (!form.userId) e.userId = 'Utilisateur requis';
     if (!form.permissionId) e.permissionId = 'Permission requise';
-    if (form.portee !== 'TOUT' && !form.portee) e.portee = 'Sélectionnez une organisation ou "Tout le rattachement"';
+    if (form.portee !== 'TOUT' && !form.portee) e.portee = 'Sélectionnez une société ou "Tout le rattachement"';
     const motifErr = validateRequired(form.motif, 'Le motif');
     if (motifErr) e.motif = motifErr;
     return e;
@@ -233,7 +233,7 @@ export default function ExceptionsPage() {
                 onClick={() => setForm(v => ({ ...v, portee: v.portee === 'TOUT' ? '' : v.portee }))}
                 className={`flex-1 px-3 py-2 rounded-lg text-sm border ${form.portee !== 'TOUT' ? 'bg-blue-50 border-blue-400 text-blue-700 font-medium' : 'border-gray-200 text-gray-600'}`}
               >
-                Organisation spécifique
+                Société spécifique
               </button>
             </div>
             {form.portee !== 'TOUT' && (
