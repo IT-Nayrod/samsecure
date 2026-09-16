@@ -3,7 +3,7 @@
 // il charge ses données et porte le bouton de dépôt, la fiche licence ne fait
 // que le monter avec la licence courante :
 //   <PreuvesLicenceSection licence={licence} />
-// Le dépôt suit le droit de l'écran Factures & Preuves, pas celui des licences.
+// Le dépôt suit le droit de l'écran Preuves, pas celui des licences.
 import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { ExternalLink, Plus } from 'lucide-react';

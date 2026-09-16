@@ -2,8 +2,9 @@
 //
 // Deux passages quotidiens, heure de Paris :
 //   - 7 h    : traitement quotidien (echeances de contrats et de
-//              souscriptions, revalidations echues, conformite, budget), purge
-//              bornee, puis envoi des courriers immediats produits ;
+//              souscriptions, contrats a faire suivre, revalidations echues,
+//              conformite, budget), purge bornee, puis envoi des courriers
+//              immediats produits ;
 //   - 7 h 30 : recapitulatif quotidien (un courrier par utilisateur).
 // Rattrapage au demarrage : si l'heure est passee et que le traitement du
 // jour n'a pas tourne, il est lance apres un court delai. Declenchement manuel
@@ -21,11 +22,12 @@ import { jointureStatut } from "../validationWorkflow.js";
 import { jointureRevalidation } from "../revalidation.js";
 import { PALIER_SOUSCRIPTION, SEUIL_BUDGET_DEFAUT } from "./catalogue.js";
 import {
-  cleEvenement, paliersDepuisSeuils, palierAtteint, prochaineOccurrence, heurePassee, dateParis,
+  cleEvenement, cleEcheance, paliersDepuisSeuils, palierAtteint, prochaineOccurrence, heurePassee, dateParis,
   echeanceNotifiable,
 } from "./regles.js";
 import { creerNotification, nouveauContexte, libellesProduits, tracer } from "./moteur.js";
 import { envoyerImmediats, envoyerRecapitulatifs } from "./courriers.js";
+import { contratASuivre } from "../successionContrat.js";
 
 export const HEURE_TRAITEMENT = { heure: 7, minute: 0 };
 export const HEURE_RECAPITULATIF = { heure: 7, minute: 30 };
@@ -61,7 +63,9 @@ async function seuilBudget() {
 // ---------------------------------------------------------------------------
 
 // 1. Echeances de contrats : contrats actifs (non archives, commences), un
-//    palier a la fois (le plus serre atteint), cle par contrat et palier.
+//    palier a la fois (le plus serre atteint), cle par contrat, date de fin et
+//    palier (cleEcheance, 16/09/2026) : une date de fin prolongee produit une
+//    nouvelle alerte au passage suivant, l'ancienne cle restant prise.
 //    Continuite (D35) : un contrat renouvele par un successeur
 //    (id_contrat_predecesseur, migration 056) n'est plus notifie.
 export async function detecterEcheancesContrats(contexte) {
@@ -87,7 +91,7 @@ export async function detecterEcheancesContrats(contexte) {
     if (palier === null) continue;
     const r = await creerNotification(null, {
       type: "echeance_contrat",
-      cle: cleEvenement("echeance_contrat", c.id, palier),
+      cle: cleEcheance("echeance_contrat", c.id, c.date_fin, palier),
       id_societe: c.id_societe,
       entite_type: "contrat", entite_id: c.id,
       donnees: {
@@ -100,7 +104,10 @@ export async function detecterEcheancesContrats(contexte) {
   return crees;
 }
 
-// 2. Echeances de souscriptions : 30 jours avant la fin, un seul palier.
+// 2. Echeances de souscriptions : 30 jours avant la fin, un seul palier,
+//    cle par licence, date de fin et palier (cleEcheance, 16/09/2026) : une
+//    licence prolongee (POST /licences/:id/prolonger) est notifiee a sa
+//    nouvelle echeance sans liberation manuelle de l'ancienne cle.
 //    Continuite (D35) : une licence renouvelee par un successeur
 //    (id_licence_predecesseur, migration 056) n'est plus notifiee.
 export async function detecterEcheancesSouscriptions(contexte) {
@@ -125,13 +132,52 @@ export async function detecterEcheancesSouscriptions(contexte) {
     const p = produits.get(l.id_produit);
     const r = await creerNotification(null, {
       type: "echeance_souscription",
-      cle: cleEvenement("echeance_souscription", l.id, PALIER_SOUSCRIPTION),
+      cle: cleEcheance("echeance_souscription", l.id, l.date_fin, PALIER_SOUSCRIPTION),
       id_societe: l.id_societe,
       entite_type: "licence", entite_id: l.id,
       donnees: {
         id_licence: l.id, label: l.label, produit_label: p?.label || null,
         quantite: l.quantite, date_fin: l.date_fin, jours_restants: l.jours_restants,
         societe_label: l.societe_label,
+      },
+    }, contexte);
+    crees += r.crees;
+  }
+  return crees;
+}
+
+// 2 bis. Contrats a faire suivre (decision du 11/09/2026) : des licences ont
+//    ete renouvelees (successeur et predecesseur rattaches au meme contrat, par
+//    leur commande) sur un contrat echu ou a echeance sans successeur. Regle
+//    pure server/utils/successionContrat.js, cle par contrat, Manager DSI et
+//    Admin SAM de la portee. Signal seulement : rien n'est modifie.
+export async function detecterContratsASuivre(contexte) {
+  const { rows } = await tenantPool.query(
+    `SELECT c.id, c.label, c.date_fin::text AS date_fin, c.a_renouveler, c.archive,
+            (c.date_fin - CURRENT_DATE)::int AS jours_restants,
+            c.id_societe, s.raison_sociale AS societe_label,
+            (SELECT count(*) FROM contrat sx WHERE sx.id_contrat_predecesseur = c.id)::int AS nb_successeurs,
+            (SELECT count(*) FROM licence sx
+               JOIN commande sc  ON sc.id  = sx.id_commande
+               JOIN licence  px  ON px.id  = sx.id_licence_predecesseur
+               JOIN commande pcm ON pcm.id = px.id_commande
+              WHERE sc.id_contrat = c.id AND pcm.id_contrat = c.id)::int AS nb_licences_renouvelees
+       FROM contrat c
+       LEFT JOIN societe s ON s.id = c.id_societe
+      WHERE c.archive = false
+        AND c.date_fin IS NOT NULL`);
+  const aujourdhui = dateParis();
+  let crees = 0;
+  for (const c of rows) {
+    if (!contratASuivre(c, { aujourdhui })) continue;
+    const r = await creerNotification(null, {
+      type: "contrat_a_suivre",
+      cle: cleEvenement("contrat_a_suivre", c.id),
+      id_societe: c.id_societe,
+      entite_type: "contrat", entite_id: c.id,
+      donnees: {
+        id_contrat: c.id, label: c.label, date_fin: c.date_fin, jours_restants: c.jours_restants,
+        nb_licences_renouvelees: c.nb_licences_renouvelees, societe_label: c.societe_label,
       },
     }, contexte);
     crees += r.crees;
@@ -314,6 +360,7 @@ export async function traitementQuotidien(contexte = nouveauContexte()) {
   const bilan = {};
   bilan.echeance_contrat = await detecterEcheancesContrats(contexte);
   bilan.echeance_souscription = await detecterEcheancesSouscriptions(contexte);
+  bilan.contrat_a_suivre = await detecterContratsASuivre(contexte);
   bilan.revalidation_echue = await detecterRevalidationsEchues(contexte);
   bilan.depassement_conformite = await detecterDepassementsConformite(contexte);
   bilan.budget_seuil = await detecterBudgetSeuils(contexte);

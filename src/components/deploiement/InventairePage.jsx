@@ -117,7 +117,7 @@ export default function InventairePage() {
   const c = ecarts?.compteurs;
 
   const columns = [
-    { key: 'produit_label', label: 'Produit', sortable: true, render: r => (
+    { key: 'produit_label', label: 'Logiciel', sortable: true, render: r => (
       <button onClick={() => navigate(`/conformite/inventaire/${r.id}`)} className="font-medium text-blue-800 hover:underline text-left">{r.produit_label ?? (r.fichier_absent ? 'Fichier archivé absent' : '-')}</button>
     ) },
     { key: 'reference', label: 'Référence constatée', sortable: true, render: r => <span className="font-mono text-xs">{r.reference ?? '-'}</span> },
@@ -238,12 +238,12 @@ export default function InventairePage() {
 
           {ecarts && ecarts.synthese_produits.length > 0 && (
             <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-              <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 px-4 pt-4 pb-3">Réconciliation par produit - droits, déclaré, constaté</h2>
+              <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 px-4 pt-4 pb-3">Réconciliation par logiciel - droits, déclaré, constaté</h2>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 dark:bg-gray-900/40">
                     <tr>
-                      <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase">Produit</th>
+                      <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase">Logiciel</th>
                       <th className="px-4 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase">Droits acquis</th>
                       <th className="px-4 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase">Usage déclaré</th>
                       <th className="px-4 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase">Usage constaté</th>
@@ -276,7 +276,7 @@ export default function InventairePage() {
               {societes.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
             </select>
             <select value={produitActif} onChange={e => setFilterProduit(e.target.value)} className={selectCls}>
-              <option value="">Tous les produits</option>
+              <option value="">Tous les logiciels</option>
               {produits.map(p => <option key={p} value={p}>{p}</option>)}
             </select>
             <select value={filterStatut} onChange={e => setFilterStatut(e.target.value)} className={selectCls}>

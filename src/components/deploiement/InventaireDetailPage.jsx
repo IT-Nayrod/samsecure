@@ -101,7 +101,7 @@ export default function InventaireDetailPage() {
           )}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <p className="text-xs text-gray-500 mb-1">Produit (tel que relevé)</p>
+              <p className="text-xs text-gray-500 mb-1">Logiciel (tel que relevé)</p>
               <p className="text-sm text-gray-800 dark:text-gray-200">{releve.produit ?? '-'}</p>
             </div>
             <div>

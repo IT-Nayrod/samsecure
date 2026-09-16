@@ -139,7 +139,7 @@ export default function ProduitFormModal({ isOpen, onClose, onSave, produit, all
             {editeurs.map(ed => <option key={ed.id} value={ed.id}>{ed.raison_sociale}</option>)}
           </select>
         </FormField>
-        <FormField label="Produit parent" hint="Optionnel, catalogue commun inclus" error={errors.id_produit_parent}>
+        <FormField label="Logiciel parent" hint="Optionnel, catalogue commun inclus" error={errors.id_produit_parent}>
           <select
             className={INPUT_CLS}
             value={form.id_produit_parent}

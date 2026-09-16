@@ -6,7 +6,7 @@
 // (cout_licence, coût de maintenance) arrivent à null avec montants_masques =
 // true quand l'utilisateur n'a pas consulter_kpi_financiers : ne jamais les
 // afficher comme un zéro.
-import { http } from './http';
+import { http, optionnel } from './http';
 
 export const licencesService = {
   list:   (filtres = {}) => {
@@ -28,15 +28,91 @@ export const licencesService = {
   // Reprise : annule un arrêt saisi par erreur, libère la version.
   arreterMaintenance:  (id, payload = {}) => http.post(`/licences/${id}/arret-maintenance`, payload),
   reprendreMaintenance: (id)              => http.post(`/licences/${id}/reprise-maintenance`, {}),
+  // Prolongation (décision du 11/09/2026) : étend la date de fin de la période
+  // en cours (souscription ou essai, ou fin de maintenance d'une perpétuelle),
+  // sans créer de licence. La "nouvelle période" passe par create() avec
+  // id_licence_predecesseur (4025, 4026, 4027).
+  prolonger: (id, dateFin) => http.post(`/licences/${id}/prolonger`, { date_fin: dateFin }),
+
+  // Versions et éditions ajoutées par le client à un produit du catalogue
+  // (compléments Tenant, migration 063) : doublons refusés à la casse et aux
+  // accents près (4037), le libellé est obligatoire (4036).
+  complements: {
+    list:           ()                 => http.get('/produits/complements'),
+    ajouterVersion: (idProduit, label) => http.post(`/produits/${idProduit}/versions`, { label }),
+    ajouterEdition: (idProduit, label) => http.post(`/produits/${idProduit}/editions`, { label }),
+  },
 };
 
+// Fusion des compléments (versions et éditions ajoutées par le client) dans
+// le catalogue servi par GET /produits, qui ne connaît que la BDD Commune :
+// chaque produit reçoit ses compléments à la suite de ses déclinaisons du
+// catalogue, avec source = 'complement'. Aucun doublon d'identifiant possible
+// (deux tables distinctes).
+export function fusionnerComplements(produits = [], complements = {}) {
+  const parProduit = (liste = []) => {
+    const index = new Map();
+    for (const x of liste) {
+      const l = index.get(x.id_produit) ?? [];
+      l.push({ id: x.id, label: x.label, source: 'complement' });
+      index.set(x.id_produit, l);
+    }
+    return index;
+  };
+  const versions = parProduit(complements.versions);
+  const editions = parProduit(complements.editions);
+  return produits.map(p => ({
+    ...p,
+    versions: [...(p.versions ?? []), ...(versions.get(p.id) ?? [])],
+    editions: [...(p.editions ?? []), ...(editions.get(p.id) ?? [])],
+  }));
+}
+
 // Référentiels du module : catalogue des produits (BDD Commune, versions et
-// éditions imbriquées, éditeur résolu), unités de mesure, mainteneurs.
+// éditions imbriquées, éditeur résolu) complété des versions et éditions
+// ajoutées par le client, unités de mesure, mainteneurs.
 export const referentielsLicencesService = {
-  produits:     () => http.get('/produits'),
+  produits: async () => {
+    const [produits, complements] = await Promise.all([
+      http.get('/produits'),
+      // Ressource accessoire : sans le droit de lire les licences, le
+      // catalogue est servi tel quel.
+      optionnel(licencesService.complements.list(), { versions: [], editions: [] }),
+    ]);
+    return fusionnerComplements(produits, complements);
+  },
   unitesMesure: () => http.get('/unites-mesure'),
   mainteneurs:  () => http.get('/mainteneurs'),
 };
+
+// Commandes proposées à une période de maintenance (décision du 11/09/2026) :
+// celles du contrat de la licence en premier, puis les autres.
+export function commandesPourMaintenance(commandes = [], idContrat = null) {
+  if (!idContrat) return commandes;
+  const duContrat = commandes.filter(c => c.id_contrat === idContrat);
+  const autres = commandes.filter(c => c.id_contrat !== idContrat);
+  return [...duContrat, ...autres];
+}
+
+// Échéance prolongeable d'une licence, même règle que l'API (4026) : la date
+// de fin de souscription quand le type en porte une, sinon la fin de la
+// maintenance en cours d'une licence sous maintenance non arrêtée.
+export function echeanceProlongeable(licence) {
+  if (!licence) return null;
+  if (licence.date_fin_souscription) return { mode: 'souscription', date: licence.date_fin_souscription };
+  if (licence.a_maintenance && licence.statut_maintenance !== 'arretee' && licence.date_fin_maintenance) {
+    return { mode: 'maintenance', date: licence.date_fin_maintenance };
+  }
+  return null;
+}
+
+// Lendemain d'une date AAAA-MM-JJ, en UTC (aucun glissement de fuseau).
+export function lendemain(iso) {
+  if (!iso) return '';
+  const t = Date.parse(String(iso).slice(0, 10));
+  if (!Number.isFinite(t)) return '';
+  return new Date(t + 86400000).toISOString().slice(0, 10);
+}
 
 // Types de licences (#209, référentiel type_licence de la migration 055) :
 // sept valeurs et, pour chacune, la règle de la date de début et de la date

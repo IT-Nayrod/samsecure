@@ -78,7 +78,7 @@ export default function UserFormModal({ isOpen, onClose, onSubmit, user, initial
     }
     if (form.temporaire && !form.date_finale) e.date_finale = 'Date finale requise pour un compte temporaire';
     if (scope === 'specifique' && selectedSocietes.length === 0) {
-      e.societes = 'Sélectionnez au moins une organisation, ou choisissez le rattachement tenant';
+      e.societes = 'Sélectionnez au moins une société, ou choisissez le rattachement tenant';
     }
     return e;
   }
@@ -234,21 +234,21 @@ export default function UserFormModal({ isOpen, onClose, onSubmit, user, initial
               onClick={() => setScope('tenant')}
               className={`flex-1 px-3 py-2 rounded-lg text-sm border ${scope === 'tenant' ? 'bg-blue-50 border-blue-400 text-blue-700 font-medium' : 'border-gray-200 text-gray-600'}`}
             >
-              Échelle tenant (toutes organisations)
+              Échelle tenant (toutes sociétés)
             </button>
             <button
               type="button"
               onClick={() => setScope('specifique')}
               className={`flex-1 px-3 py-2 rounded-lg text-sm border ${scope === 'specifique' ? 'bg-blue-50 border-blue-400 text-blue-700 font-medium' : 'border-gray-200 text-gray-600'}`}
             >
-              Organisations spécifiques
+              Sociétés spécifiques
             </button>
           </div>
           {scope === 'specifique' && (
             <FormField error={errors.societes}>
               {(societes || []).length === 0 ? (
                 <p className="px-3 py-3 text-sm text-gray-400 border border-gray-200 dark:border-gray-600 rounded-lg">
-                  Aucune organisation. Créez-en une depuis Administration &gt; Organisation.
+                  Aucune société. Créez-en une depuis Administration &gt; Organisation.
                 </p>
               ) : (
                 <SocieteSelector organisations={societes} selectedIds={selectedSocietes} onChange={setSelectedSocietes} />

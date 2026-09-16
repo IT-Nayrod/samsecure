@@ -151,7 +151,7 @@ export default function LogicielsPage() {
     { key: 'editeur_label', label: 'Éditeur', sortable: true, render: r => r.editeur_label ?? '-' },
     { key: 'sku', label: 'SKU', render: r => r.sku ?? '-' },
     { key: 'source', label: 'Source', sortable: true, render: r => <SourceBadge source={r.source} /> },
-    { key: 'niveau', label: 'Niveau', getValue: r => r.id_produit_parent ? 'Sous-produit' : 'Produit', render: r => r.id_produit_parent ? 'Sous-produit' : 'Produit' },
+    { key: 'niveau', label: 'Niveau', getValue: r => r.id_produit_parent ? 'Sous-logiciel' : 'Logiciel', render: r => r.id_produit_parent ? 'Sous-logiciel' : 'Logiciel' },
     { key: 'nb_versions', label: 'Nb versions', getValue: r => r.versions.length, render: r => r.versions.length },
     { key: 'nb_editions', label: 'Nb éditions', getValue: r => r.editions.length, render: r => r.editions.length },
     { key: 'nb_licences', label: 'Nb licences', sortable: true },
@@ -167,7 +167,7 @@ export default function LogicielsPage() {
         <div>
           <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Logiciels</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            {produits.length} produit{produits.length > 1 ? 's' : ''} au total (catalogue commun + logiciels client)
+            {produits.length} logiciel{produits.length > 1 ? 's' : ''} au total (catalogue commun + logiciels client)
           </p>
         </div>
         <div className="flex items-center gap-2">

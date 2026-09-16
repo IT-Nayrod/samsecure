@@ -4,11 +4,16 @@
 // succession (D35). Données API ; la suppression s'appuie sur le refus du
 // serveur (4023), pas sur un garde-fou local. Les dates affichées suivent la
 // règle du type servie par l'API (#209).
+// Décisions du 11/09/2026 : "Prolonger" étend la période en cours
+// (LicenceProlongationModal), "Nouvelle période" crée la licence suivante
+// préremplie et liée (LicenceFormModal, prop modele) ; bandeau "le contrat doit
+// suivre" quand l'API sert contrat_a_suivre ; la maintenance se rattache à une
+// commande.
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Pencil, Trash2, ChevronDown, ShieldOff, ShieldCheck, Plus, EyeOff, History } from 'lucide-react';
+import { Pencil, Trash2, ChevronDown, ShieldOff, ShieldCheck, Plus, EyeOff, History, CalendarPlus, CalendarClock, AlertTriangle } from 'lucide-react';
 import BudgetEmbeddedSection from '../budget/BudgetEmbeddedSection';
-import { licencesService, referentielsLicencesService, formatMontant, editeurPourLogo, regleType, libelleType, EVENEMENTS_VERSION } from '../../services/licencesService';
+import { licencesService, referentielsLicencesService, formatMontant, editeurPourLogo, regleType, libelleType, EVENEMENTS_VERSION, echeanceProlongeable } from '../../services/licencesService';
 import { referentielsContratsService } from '../../services/contratsService';
 import { commandesService } from '../../services/commandesService';
 import { optionnel } from '../../services/http';
@@ -21,12 +26,15 @@ import ErrorState from '../ui/ErrorState';
 import Skeleton from '../ui/Skeleton';
 import LogoEditeur from '../referentiels/LogoEditeur';
 import StatutEcheanceBadge from '../contrats/StatutEcheanceBadge';
+import { libelleContrat } from '../contrats/libelleContrat';
 import ConformiteGaugeBar from './ConformiteGaugeBar';
 import LicenceFormModal from './LicenceFormModal';
 import StatutMaintenanceBadge from './StatutMaintenanceBadge';
 import MaintenanceTimeline from './MaintenanceTimeline';
 import MaintenanceFormModal from './MaintenanceFormModal';
 import ArretMaintenanceModal from './ArretMaintenanceModal';
+import PreuvesLicenceSection from '../contrats/PreuvesLicenceSection';
+import LicenceProlongationModal from './LicenceProlongationModal';
 import useRbac from '../../hooks/useRbac';
 import useAuth from '../../hooks/useAuth';
 import { useToast } from '../../hooks/useToast';
@@ -62,6 +70,8 @@ export default function LicenceDetailPage() {
   const [introuvable, setIntrouvable] = useState(false);
 
   const [formOpen, setFormOpen] = useState(false);
+  const [periodeSuivanteOpen, setPeriodeSuivanteOpen] = useState(false);
+  const [prolongerOpen, setProlongerOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [budgetOpen, setBudgetOpen] = useState(false);
   const [periodeModal, setPeriodeModal] = useState({ open: false, periode: null });
@@ -180,6 +190,7 @@ export default function LicenceDetailPage() {
   const versionLabel = (idv, label) => (idv ? (label ?? 'Version inconnue') : 'Aucune');
   const auteur = (h) => [h.auteur_prenom, h.auteur_nom].filter(Boolean).join(' ') || 'Auteur inconnu';
   const peutArreter = canWrite && !arretee && (licence.a_maintenance || periodes.length > 0);
+  const echeance = echeanceProlongeable(licence);
 
   return (
     <div className="flex flex-col gap-6">
@@ -196,17 +207,32 @@ export default function LicenceDetailPage() {
               <StatutMaintenanceBadge licence={licence} compact />
             </div>
             <p className="text-sm text-gray-500 mt-1">
-              {licence.produit_label ?? 'Produit inconnu'}{licence.editeur_label ? ` - ${licence.editeur_label}` : ''}{licence.edition_label ? ` - ${licence.edition_label}` : ''}{licence.version_label ? ` - v${licence.version_label}` : ''}
+              {licence.produit_label ?? 'Logiciel inconnu'}{licence.editeur_label ? ` - ${licence.editeur_label}` : ''}{licence.edition_label ? ` - ${licence.edition_label}` : ''}{licence.version_label ? ` - v${licence.version_label}` : ''}
             </p>
           </div>
         </div>
         {canWrite && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {echeance && <Button variant="secondary" size="sm" onClick={() => setProlongerOpen(true)}><CalendarClock size={14} /> Prolonger</Button>}
+            {echeance && <Button variant="secondary" size="sm" onClick={() => setPeriodeSuivanteOpen(true)}><CalendarPlus size={14} /> Nouvelle période</Button>}
             <Button variant="secondary" size="sm" onClick={() => setFormOpen(true)}><Pencil size={14} /> Éditer</Button>
             {canDelete && <Button variant="secondary" size="sm" onClick={() => setDeleteOpen(true)}><Trash2 size={14} /> Supprimer</Button>}
           </div>
         )}
       </div>
+
+      {licence.contrat_a_suivre && (
+        <div className="flex items-start gap-2 text-sm text-amber-800 bg-amber-50 dark:bg-amber-900/20 dark:text-amber-200 border border-amber-200 dark:border-amber-800 rounded-xl px-4 py-3">
+          <AlertTriangle size={16} className="flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="font-medium">Ce contrat doit être renouvelé ou prolongé : des licences ont été renouvelées dessus.</p>
+            <p className="text-xs mt-0.5">
+              Le contrat <Link to={`/contrats/liste/${licence.id_contrat}`} className="underline">{licence.contrat_label ?? 'rattaché'}</Link>
+              {licence.contrat_date_fin ? ` (fin le ${licence.contrat_date_fin})` : ''} est échu ou arrive à échéance et n&apos;a ni successeur ni prolongation. Rien n&apos;est modifié automatiquement.
+            </p>
+          </div>
+        </div>
+      )}
 
       {licence.statut_echeance === 'expire' && (
         <div className="flex items-center gap-2 text-sm text-red-700 bg-red-50 dark:bg-red-900/20 dark:text-red-300 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3">
@@ -245,11 +271,11 @@ export default function LicenceDetailPage() {
             </Champ>
             <Champ label="Contrat (déduit de la commande)">
               {licence.id_contrat
-                ? <Link to={`/contrats/liste/${licence.id_contrat}`} className="text-blue-800 hover:underline">{licence.contrat_label}</Link>
+                ? <Link to={`/contrats/liste/${licence.id_contrat}`} className="text-blue-800 hover:underline">{libelleContrat(licence.contrat_label, licence.contrat_societe_label)}</Link>
                 : <span className="text-gray-500">-</span>}
             </Champ>
             <Champ label="Usage déclaré sur ce lot">{licence.usage_declare} {licence.unite_label ?? ''} ({licence.nb_affectations ?? 0} affectation(s))</Champ>
-            <Champ label="Référence produit">{licence.produit_sku ?? '-'}</Champ>
+            <Champ label="Référence logiciel">{licence.produit_sku ?? '-'}</Champ>
             <Champ label="Renouvelle la licence">
               {licence.id_licence_predecesseur
                 ? <Link to={`/conformite/licences/${licence.id_licence_predecesseur}`} className="text-blue-800 hover:underline">{licence.predecesseur_label ?? 'Licence renouvelée'}</Link>
@@ -264,17 +290,23 @@ export default function LicenceDetailPage() {
         </section>
 
         <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Balance droits vs usage (produit)</h2>
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Balance droits vs usage (logiciel)</h2>
           <div className="flex flex-col gap-4">
             <ConformiteGaugeBar droits={licence.produit_droits} usage={licence.produit_usage_declare} niveau={licence.produit_niveau} unite={licence.unite_label ?? ''} label="Droits acquis vs usage déclaré" />
             <ConformiteGaugeBar droits={licence.produit_droits} usage={licence.usage_declare} niveau={licence.usage_declare > licence.quantite ? 'depassement' : 'conforme'} unite={licence.unite_label ?? ''} label="Part de ce lot dans l'usage déclaré" />
-            <p className="text-xs text-gray-500">Les droits comptent toutes les licences non expirées du produit, l&apos;usage toutes ses affectations. Les seuils (attention à 90 %) sont ceux de l&apos;API.</p>
+            <p className="text-xs text-gray-500">Les droits comptent toutes les licences non expirées du logiciel, l&apos;usage toutes ses affectations. Les seuils (attention à 90 %) sont ceux de l&apos;API.</p>
             <div className="flex gap-3 text-xs">
-              <Link to={`/conformite/licences?produit=${licence.id_produit}`} className="text-blue-800 hover:underline">Voir les lots du produit</Link>
+              <Link to={`/conformite/licences?produit=${licence.id_produit}`} className="text-blue-800 hover:underline">Voir les lots du logiciel</Link>
               <Link to={`/conformite/affectations?produit=${licence.id_produit}`} className="text-blue-800 hover:underline">Voir les affectations</Link>
             </div>
           </div>
         </section>
+
+        {/* Preuves rattachées à la licence (#208, intégrée le 16/09) : section
+            autonome, elle charge ses données et porte son bouton de dépôt. */}
+        <div className="md:col-span-2">
+          <PreuvesLicenceSection licence={licence} />
+        </div>
 
         <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 md:col-span-2">
           <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
@@ -354,10 +386,23 @@ export default function LicenceDetailPage() {
         licences={licences}
         montantsVisibles={montantsVisibles}
       />
+      <LicenceFormModal
+        isOpen={periodeSuivanteOpen} onClose={() => setPeriodeSuivanteOpen(false)}
+        onSaved={(creee) => { addToast({ type: 'success', message: 'Nouvelle période créée, l\'ancienne licence conserve son terme.' }); navigate(`/conformite/licences/${creee.id}`); }}
+        licence={null} modele={licence}
+        produits={produits} commandes={commandes} revendeurs={revendeurs} unites={unites} mainteneurs={mainteneurs}
+        licences={licences}
+        montantsVisibles={montantsVisibles}
+      />
+      <LicenceProlongationModal
+        isOpen={prolongerOpen} onClose={() => setProlongerOpen(false)} licence={licence}
+        onSaved={(saved) => { appliquer(saved); rechargerPeriodes(); }}
+      />
       <MaintenanceFormModal
         isOpen={periodeModal.open} onClose={() => setPeriodeModal({ open: false, periode: null })}
         onSaved={rechargerPeriodes} licenceId={licence.id} periode={periodeModal.periode}
-        mainteneurs={mainteneurs} revendeurs={revendeurs} montantsVisibles={montantsVisibles}
+        mainteneurs={mainteneurs} commandes={commandes} idContrat={licence.id_contrat ?? null} idProduit={licence.id_produit ?? null}
+        montantsVisibles={montantsVisibles}
         versions={regle.version_geree && !arretee ? versions : []}
         versionGeree={regle.version_geree}
       />

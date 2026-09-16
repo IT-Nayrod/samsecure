@@ -91,6 +91,7 @@ const SELECT_BUDGET = `
          c.montant::float8  AS commande_montant,
          c.date_commande::text AS commande_date,
          c.id_contrat,      ct.label          AS contrat_label,
+         sct.raison_sociale AS contrat_societe_label,
          ct.id_editeur,     e.raison_sociale  AS editeur_label,
          c.id_societe,      s.raison_sociale  AS societe_label,
          ${DEBUT_EXERCICE}::text AS debut_exercice_fiscal,
@@ -101,6 +102,7 @@ const SELECT_BUDGET = `
   LEFT JOIN contrat  ct ON ct.id = c.id_contrat
   LEFT JOIN editeur  e  ON e.id  = ct.id_editeur
   LEFT JOIN societe  s  ON s.id  = c.id_societe
+  LEFT JOIN societe  sct ON sct.id = ct.id_societe
   ${JOIN_TENANT}`;
 
 const CHAMPS = [
@@ -396,6 +398,7 @@ router.get("/budget/preremplissage", async (req, res) => {
               l.date_fin_maintenance::text   AS date_fin_maintenance,
               l.id_commande,   c.label          AS commande_label,
               c.id_contrat,    ct.label         AS contrat_label,
+              sct.raison_sociale AS contrat_societe_label,
               ct.id_editeur,   e.raison_sociale AS editeur_label,
               c.id_societe,    s.raison_sociale AS societe_label,
               ${DEBUT_EXERCICE}::text AS debut_exercice_fiscal,
@@ -405,6 +408,7 @@ router.get("/budget/preremplissage", async (req, res) => {
          LEFT JOIN contrat  ct ON ct.id = c.id_contrat
          LEFT JOIN editeur  e  ON e.id  = ct.id_editeur
          LEFT JOIN societe  s  ON s.id  = c.id_societe
+         LEFT JOIN societe  sct ON sct.id = ct.id_societe
          ${JOIN_TENANT}
         WHERE l.id = $1`, [id_licence]);
     if (!lic.length)
@@ -466,6 +470,7 @@ router.get("/budget/preremplissage", async (req, res) => {
       produit_sku: licence.produit_sku,
       id_commande: licence.id_commande,   commande_label: licence.commande_label,
       id_contrat: licence.id_contrat,     contrat_label: licence.contrat_label,
+      contrat_societe_label: licence.contrat_societe_label,
       id_editeur: licence.id_editeur,     editeur_label: licence.editeur_label,
       id_societe: licence.id_societe,     societe_label: licence.societe_label,
       societe_indeterminee: licence.id_societe === null,

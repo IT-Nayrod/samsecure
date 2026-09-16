@@ -20,6 +20,7 @@ import StatutEcheanceBadge from './StatutEcheanceBadge';
 import DeploiementKpiCard from '../deploiement/DeploiementKpiCard';
 import PeriodeFiscaleSelector from '../ui/PeriodeFiscaleSelector';
 import CommandeFormModal from './CommandeFormModal';
+import { libelleContrat } from './libelleContrat';
 import useRbac from '../../hooks/useRbac';
 import { useToast } from '../../hooks/useToast';
 import { formatDate } from '../../utils/dateUtils';
@@ -214,7 +215,9 @@ export default function CommandesPage() {
     ) },
     { key: 'numero_devis', label: 'Devis', sortable: true, render: r => r.numero_devis ?? '-' },
     { key: 'reference_interne', label: 'Référence', sortable: true, render: r => r.reference_interne ?? '-' },
-    { key: 'contrat_label', label: 'Contrat', sortable: true, render: r => r.contrat_label ?? '-' },
+    { key: 'contrat_label', label: 'Contrat', sortable: true,
+      render: r => libelleContrat(r.contrat_label, r.contrat_societe_label) ?? '-',
+      csvValue: r => libelleContrat(r.contrat_label, r.contrat_societe_label) ?? '' },
     { key: 'societe_label', label: 'Société acheteuse', sortable: true, render: r => r.societe_label ?? '-' },
     { key: 'revendeur_label', label: 'Revendeur', sortable: true, render: r => r.revendeur_label ?? '-' },
     { key: 'mode_label', label: 'Mode', sortable: true, render: r => r.mode_label ?? '-' },
@@ -383,7 +386,7 @@ export default function CommandesPage() {
         </select>
         <select value={filterContrat} onChange={e => setFilterContrat(e.target.value)} className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="">Tous les contrats</option>
-          {contrats.filter(c => commandes.some(k => k.id_contrat === c.id)).map(c => <option key={c.id} value={c.id}>{c.label}{c.archive ? " (Archivé)" : ""}</option>)}
+          {contrats.filter(c => commandes.some(k => k.id_contrat === c.id)).map(c => <option key={c.id} value={c.id}>{libelleContrat(c.label, c.societe_label)}{c.archive ? " (Archivé)" : ""}</option>)}
         </select>
         <select value={filterRenouvellement} onChange={e => setFilterRenouvellement(e.target.value)} className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="">Renouvellement : tous</option>

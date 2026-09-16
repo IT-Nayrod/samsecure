@@ -291,7 +291,7 @@ function lireFiltres(query) {
     return { erreur: { code: 4311, message: "Identifiant d'editeur invalide." } };
   }
   if (id_produit && !UUID_RE.test(id_produit)) {
-    return { erreur: { code: 4312, message: "Identifiant de produit invalide." } };
+    return { erreur: { code: 4312, message: "Identifiant de logiciel invalide." } };
   }
   return { filtres: {
     id_societe: id_societe || null,

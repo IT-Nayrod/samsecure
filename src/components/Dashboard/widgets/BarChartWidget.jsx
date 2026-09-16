@@ -105,7 +105,7 @@ export function EcartUsageDroitsWidget() {
         <table style={{ borderCollapse: 'collapse', width: '100%' }}>
           <thead>
             <tr style={{ opacity: 0.6, fontSize: 10 }}>
-              <th style={{ textAlign: 'left', paddingRight: 8, fontWeight: 500 }}>Produit</th>
+              <th style={{ textAlign: 'left', paddingRight: 8, fontWeight: 500 }}>Logiciel</th>
               <th style={{ textAlign: 'right', paddingRight: 8 }}>Droits</th>
               <th style={{ textAlign: 'right', paddingRight: 8 }}>Usage</th>
               <th style={{ textAlign: 'right' }}>Écart</th>
@@ -139,11 +139,11 @@ export function EcartUsageDroitsWidget() {
     <CadreWidget
       widgetId="ecart-usage-droits"
       titre="Écart usage vs droits"
-      info={"Pour chaque éditeur, droits acquis (licences non expirées) face à l'usage déclaré (affectations validées), en quantités. La couleur suit l'écart en pourcentage des droits, selon les seuils configurés. Un produit qui a des usages sans aucun droit est en dépassement et n'a pas de taux (tiret). Le clic sur un éditeur ouvre sa fiche."}
+      info={"Pour chaque éditeur, droits acquis (licences non expirées) face à l'usage déclaré (affectations validées), en quantités. La couleur suit l'écart en pourcentage des droits, selon les seuils configurés. Un logiciel qui a des usages sans aucun droit est en dépassement et n'a pas de taux (tiret). Le clic sur un éditeur ouvre sa fiche."}
       derniereMaj={data?.agregats?.derniere_maj}
       chargement={chargement} erreur={erreur} onRelancer={relancer}
       vide={!chargement && !erreur && serie.length === 0}
-      videMessage="Aucun produit avec droits ou usage sur ce périmètre."
+      videMessage="Aucun logiciel avec droits ou usage sur ce périmètre."
       onOuvrir={() => navigate(ROUTES_DRILL.licences())}
       actions={(societes ?? []).length > 0 && (
         <select value={idSociete} onChange={(e) => setIdSociete(e.target.value)} style={SELECT_STYLE}>

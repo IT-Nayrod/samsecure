@@ -123,7 +123,7 @@ export default function AffectationsPage() {
 
   const produits = useMemo(() => {
     const m = new Map();
-    for (const a of affectations) if (a.id_produit && !m.has(a.id_produit)) m.set(a.id_produit, a.produit_label ?? 'Produit inconnu');
+    for (const a of affectations) if (a.id_produit && !m.has(a.id_produit)) m.set(a.id_produit, a.produit_label ?? 'Logiciel inconnu');
     return [...m.entries()];
   }, [affectations]);
 
@@ -157,9 +157,9 @@ export default function AffectationsPage() {
   );
 
   const columns = [
-    { key: 'produit', label: 'Produit', sortable: true, getValue: r => r.produit_label ?? '', render: r => (
+    { key: 'produit', label: 'Logiciel', sortable: true, getValue: r => r.produit_label ?? '', render: r => (
       <button onClick={() => navigate(`/conformite/affectations/${r.id}`)} className="font-medium text-blue-800 hover:underline text-left">
-        {r.produit_label ?? r.licence_label ?? 'Produit inconnu'}
+        {r.produit_label ?? r.licence_label ?? 'Logiciel inconnu'}
       </button>
     ) },
     { key: 'societe_label', label: 'Société', sortable: true, render: r => r.societe_label ?? '-' },
@@ -230,7 +230,7 @@ export default function AffectationsPage() {
               return (
                 <div key={a.id} className="flex items-center justify-between gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-900/40" style={{ borderLeft: `3px solid ${couleur}` }}>
                   <button onClick={() => navigate(`/conformite/affectations/${a.id}`)} className="flex flex-col items-start text-left min-w-0">
-                    <span className="text-sm font-medium text-gray-900 dark:text-white truncate">{a.produit_label ?? a.licence_label ?? 'Produit inconnu'} - {a.reference_client}</span>
+                    <span className="text-sm font-medium text-gray-900 dark:text-white truncate">{a.produit_label ?? a.licence_label ?? 'Logiciel inconnu'} - {a.reference_client}</span>
                     <span className="text-xs text-gray-500">{a.societe_label ?? 'Société non renseignée'} · {a.quantite} · soumis par {a.soumis_par ?? 'inconnu'}</span>
                   </button>
                   <div className="flex items-center gap-2 flex-shrink-0">
@@ -265,7 +265,7 @@ export default function AffectationsPage() {
           {societes.map(s => <option key={s.id} value={s.id}>{s.raison_sociale}</option>)}
         </select>
         <select value={filterProduit} onChange={e => setFilterProduit(e.target.value)} className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-          <option value="">Tous les produits</option>
+          <option value="">Tous les logiciels</option>
           {produits.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
         </select>
         <select value={filterStatutValidation} onChange={e => setFilterStatutValidation(e.target.value)} className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">

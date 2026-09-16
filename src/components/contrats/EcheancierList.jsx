@@ -4,6 +4,7 @@
 import { useNavigate } from 'react-router-dom';
 import { CheckCircle2, ArrowRight } from 'lucide-react';
 import StatutEcheanceBadge from './StatutEcheanceBadge';
+import { libelleContrat } from './libelleContrat';
 
 function rank(statut) {
   if (statut === 'expire') return 0;
@@ -34,7 +35,7 @@ export default function EcheancierList({ contrats }) {
         return (
           <div key={contrat.id} className="flex items-center justify-between gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-900/40" style={{ borderLeft: `3px solid ${borderColor}` }}>
             <button onClick={() => navigate(`/contrats/liste/${contrat.id}`)} className="flex flex-col items-start text-left min-w-0">
-              <span className="text-sm font-medium text-gray-900 dark:text-white truncate">{contrat.label}</span>
+              <span className="text-sm font-medium text-gray-900 dark:text-white truncate">{libelleContrat(contrat.label, contrat.societe_label)}</span>
               <span className="text-xs text-gray-500">{contrat.editeur_label ?? '-'}</span>
             </button>
             <div className="flex items-center gap-2 flex-shrink-0">

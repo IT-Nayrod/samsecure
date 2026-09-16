@@ -94,6 +94,15 @@ export const ROUTES_PERMISSIONS = [
   ["DELETE", "/licences/:id/maintenance/:mid",         "saisir_licence"],
   ["POST",   "/licences/:id/arret-maintenance",        "saisir_licence"],
   ["POST",   "/licences/:id/reprise-maintenance",      "saisir_licence"],
+  // Decision du 11/09/2026 : prolongation d'une licence a echeance, et
+  // versions / editions ajoutees a un produit du catalogue depuis les
+  // formulaires de licence et de maintenance (complements Tenant, routeur
+  // licences). Meme droit que la saisie de licence : le referentiel n'est pas
+  // modifie, le catalogue global reste en lecture seule.
+  ["POST",   "/licences/:id/prolonger",                "saisir_licence"],
+  ["GET",    "/produits/complements",                  "consulter_licences"],
+  ["POST",   "/produits/:id/versions",                 "saisir_licence"],
+  ["POST",   "/produits/:id/editions",                 "saisir_licence"],
 
   // ---- Module 3 : affectations, usage declare et revalidation (#106) --------
   // Lecture : consulter_inventaire (Financier, IT Ops, Manager DSI). Saisie :

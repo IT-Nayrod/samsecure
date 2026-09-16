@@ -5,7 +5,7 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import {
-  cleEvenement, couvreSociete, selectionnerDestinataires, modeCourrier,
+  cleEvenement, cleEcheance, couvreSociete, selectionnerDestinataires, modeCourrier,
   statutCourrierInitial, paliersDepuisSeuils, palierAtteint,
   composerCourrier, composerRecapitulatif,
   composantsParis, dateParis, instantParis, prochaineOccurrence, heurePassee,
@@ -25,6 +25,32 @@ describe("cleEvenement", () => {
   });
   test("deux evenements distincts ne partagent pas de cle", () => {
     assert.notEqual(cleEvenement("t", "a", "b"), cleEvenement("t", "ab"));
+  });
+});
+
+describe("cleEcheance (cle d'echeance durable, 16/09/2026)", () => {
+  test("type, entite, date de fin au jour, palier", () => {
+    assert.equal(cleEcheance("echeance_contrat", "c1", "2026-12-31", 30), "echeance_contrat:c1:2026-12-31:30");
+    assert.equal(cleEcheance("echeance_souscription", "l1", "2027-03-01", 30), "echeance_souscription:l1:2027-03-01:30");
+  });
+  test("anti-doublon : meme entite, meme date de fin, meme palier donnent la meme cle", () => {
+    assert.equal(cleEcheance("echeance_contrat", "c1", "2026-12-31", 30), cleEcheance("echeance_contrat", "c1", "2026-12-31", 30));
+    assert.equal(cleEcheance("echeance_contrat", "c1", new Date("2026-12-31T00:00:00Z"), 30), cleEcheance("echeance_contrat", "c1", "2026-12-31", 30));
+    assert.equal(cleEcheance("echeance_contrat", "c1", "2026-12-31T00:00:00.000Z", 30), cleEcheance("echeance_contrat", "c1", "2026-12-31", 30));
+  });
+  test("une prolongation (nouvelle date de fin) produit une nouvelle cle, sans liberation manuelle", () => {
+    const avant = cleEcheance("echeance_souscription", "l1", "2026-12-31", 30);
+    const apres = cleEcheance("echeance_souscription", "l1", "2027-12-31", 30);
+    assert.notEqual(avant, apres);
+    assert.ok(avant.startsWith("echeance_souscription:l1:") && apres.startsWith("echeance_souscription:l1:"));
+  });
+  test("paliers distincts, cles distinctes ; date absente rendue explicite", () => {
+    assert.notEqual(cleEcheance("echeance_contrat", "c1", "2026-12-31", 30), cleEcheance("echeance_contrat", "c1", "2026-12-31", 60));
+    assert.equal(cleEcheance("echeance_contrat", "c1", null, 30), "echeance_contrat:c1:aucun:30");
+    assert.equal(cleEcheance("echeance_contrat", "c1", "", 30), "echeance_contrat:c1:aucun:30");
+  });
+  test("compatible avec cleEvenement : meme separateur, meme rendu des vides", () => {
+    assert.equal(cleEcheance("echeance_contrat", "c1", "2026-12-31", 30), cleEvenement("echeance_contrat", "c1", "2026-12-31", 30));
   });
 });
 
@@ -50,6 +76,12 @@ describe("couvreSociete et selectionnerDestinataires", () => {
     assert.deepEqual(horsPortee, ["a"]);
   });
 
+  test("contrat_a_suivre : Manager DSI et Admin SAM de la portee, comme l'echeance de contrat", () => {
+    const ids = selectionnerDestinataires(candidats, { type: "contrat_a_suivre", id_societe: "S1" }).map((c) => c.id);
+    assert.deepEqual(ids.sort(), ["a", "m"]);
+    assert.deepEqual(selectionnerDestinataires(candidats, { type: "contrat_a_suivre", id_societe: "S2" }).map((c) => c.id), ["a"]);
+  });
+
   test("depassement_conformite sans societe : les quatre profils, jamais le sans-droit", () => {
     const ids = selectionnerDestinataires(candidats, { type: "depassement_conformite", id_societe: null }).map((c) => c.id);
     assert.deepEqual(ids.sort(), ["a", "f", "i", "m"]);
@@ -70,6 +102,28 @@ describe("couvreSociete et selectionnerDestinataires", () => {
   test("permissions passees en tableau acceptees", () => {
     const c = { ...itops, permissions: [PROFILS.it_ops] };
     assert.equal(selectionnerDestinataires([c], { type: "revalidation_echue", id_societe: "S2" }).length, 1);
+  });
+});
+
+describe("composerTexte contrat_a_suivre (decision du 11/09/2026)", () => {
+  test("contrat echu : texte accentue, lien vers la fiche, gravite rouge", () => {
+    const t = composerTexte("contrat_a_suivre", {
+      id_contrat: "c1", label: "Contrat Microsoft", date_fin: "2026-01-31", jours_restants: -10,
+      nb_licences_renouvelees: 2, societe_label: "Filiale A",
+    });
+    assert.match(t.message, /^Ce contrat doit être renouvelé ou prolongé : 2 licences ont été renouvelées dessus\./);
+    assert.match(t.message, /échu depuis le 31\/01\/2026/);
+    assert.equal(t.lien, "/contrats/liste/c1");
+    assert.equal(t.gravite, "rouge");
+  });
+  test("contrat a echeance, une seule licence : gravite orange", () => {
+    const t = composerTexte("contrat_a_suivre", {
+      id_contrat: "c1", label: "Contrat Oracle", date_fin: "2026-12-01", jours_restants: 45, nb_licences_renouvelees: 1,
+    });
+    assert.match(t.message, /une licence a été renouvelée dessus/);
+    assert.match(t.message, /dans 45 jours/);
+    assert.equal(t.gravite, "orange");
+    assert.ok(TYPES_CODES.includes("contrat_a_suivre"));
   });
 });
 

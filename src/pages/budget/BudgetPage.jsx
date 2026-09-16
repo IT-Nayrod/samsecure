@@ -25,6 +25,7 @@ import BudgetTable from '../../components/budget/BudgetTable';
 import BudgetFormModal from '../../components/budget/BudgetFormModal';
 import { budgetService } from '../../services/budgetService';
 import { licencesService } from '../../services/licencesService';
+import { libelleContrat } from '../../components/contrats/libelleContrat';
 import { societesService } from '../../services/adminService';
 import { optionnel } from '../../services/http';
 import { sortByHierarchy } from '../../utils/societeHierarchy';
@@ -220,7 +221,7 @@ export default function BudgetPage() {
     }
     for (const [id, s] of synthesesParSociete) {
       if (!id || vues.has(id)) continue;
-      const label = lignes.find(l => l.id_societe === id)?.societe_label ?? 'Organisation';
+      const label = lignes.find(l => l.id_societe === id)?.societe_label ?? 'Société';
       rows.push({ societe: { id, raison_sociale: label, depth: 0 }, totaux: s.totaux });
     }
     return rows;
@@ -237,9 +238,11 @@ export default function BudgetPage() {
 
   const contratFilterLabel = useMemo(() => {
     if (!contratFilter) return null;
-    return lignes.find(l => l.id_contrat === contratFilter)?.contrat_label
-      ?? licences.find(l => l.id_contrat === contratFilter)?.contrat_label
-      ?? 'contrat sélectionné';
+    // Lignes GET /budget et licences GET /licences portent toutes deux
+    // contrat_label et contrat_societe_label.
+    const source = lignes.find(l => l.id_contrat === contratFilter)
+      ?? licences.find(l => l.id_contrat === contratFilter);
+    return libelleContrat(source?.contrat_label, source?.contrat_societe_label) ?? 'contrat sélectionné';
   }, [contratFilter, lignes, licences]);
 
   // Lignes sans société payeuse (licence sans commande) : dans les indicateurs
@@ -384,7 +387,7 @@ export default function BudgetPage() {
           <BudgetOrgBreakdown lignes={repartition} onSelectSociete={handleSelectSociete} />
           {!societeIds && nbSansSociete > 0 && (
             <p className="text-xs text-gray-500 dark:text-gray-400">
-              {nbSansSociete} ligne{nbSansSociete > 1 ? 's' : ''} sans organisation payeuse (licence sans commande) : comprise{nbSansSociete > 1 ? 's' : ''} dans les indicateurs, absente{nbSansSociete > 1 ? 's' : ''} de la répartition par organisation.
+              {nbSansSociete} ligne{nbSansSociete > 1 ? 's' : ''} sans société payeuse (licence sans commande) : comprise{nbSansSociete > 1 ? 's' : ''} dans les indicateurs, absente{nbSansSociete > 1 ? 's' : ''} de la répartition par société.
             </p>
           )}
         </>

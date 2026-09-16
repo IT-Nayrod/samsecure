@@ -89,10 +89,10 @@ export default function OrganisationPage() {
   async function handleSubmit(data, existing) {
     if (existing) {
       await societesService.update(existing.id, data);
-      addToast({ type: 'success', message: 'Organisation mise à jour.' });
+      addToast({ type: 'success', message: 'Société mise à jour.' });
     } else {
       await societesService.create(data);
-      addToast({ type: 'success', message: 'Organisation créée.' });
+      addToast({ type: 'success', message: 'Société créée.' });
     }
     await load();
   }
@@ -104,7 +104,7 @@ export default function OrganisationPage() {
       </button>
     ) },
     { key: 'siret', label: 'SIRET', sortable: true },
-    { key: 'organisation_parente', label: 'Organisation parente', getValue: r => organisations.find(o => o.id === r.id_societe_parent)?.raison_sociale ?? '', render: r => organisations.find(o => o.id === r.id_societe_parent)?.raison_sociale ?? '-' },
+    { key: 'organisation_parente', label: 'Société parente', getValue: r => organisations.find(o => o.id === r.id_societe_parent)?.raison_sociale ?? '', render: r => organisations.find(o => o.id === r.id_societe_parent)?.raison_sociale ?? '-' },
     { key: 'duree_amortissement', label: 'Durée amort.', sortable: true, render: r => r.duree_amortissement ? `${r.duree_amortissement} mois` : '-' },
     { key: 'actif', label: 'Statut', sortable: true, render: r => <Badge variant={r.actif ? 'success' : 'neutral'} label={r.actif ? 'Active' : 'Inactive'} /> },
   ];
@@ -115,7 +115,7 @@ export default function OrganisationPage() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Organisation</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{organisations.length} organisation{organisations.length > 1 ? 's' : ''} au total</p>
+          <p className="text-sm text-gray-500 mt-0.5">{organisations.length} société{organisations.length > 1 ? 's' : ''} au total</p>
         </div>
         <div className="flex items-center gap-2">
           <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
@@ -127,14 +127,14 @@ export default function OrganisationPage() {
             </button>
           </div>
           <Button variant="primary" onClick={() => setFormModal({ open: true, organisation: null })}>
-            <Plus size={15} /> Nouvelle organisation
+            <Plus size={15} /> Nouvelle société
           </Button>
         </div>
       </div>
 
       <div className="flex flex-wrap gap-3 bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
         <select value={filterParent} onChange={e => setFilterParent(e.target.value)} className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-          <option value="">Toutes les organisations parentes</option>
+          <option value="">Toutes les sociétés parentes</option>
           {organisationsMeres.map(o => <option key={o.id} value={o.id}>{o.raison_sociale}</option>)}
         </select>
         <input
@@ -151,7 +151,7 @@ export default function OrganisationPage() {
           {isLoading
             ? <p className="text-sm text-gray-400">Chargement…</p>
             : racinesArbo.length === 0
-            ? <EmptyState title="Aucune organisation" description="Aucune organisation dans le référentiel." ctaLabel="Nouvelle organisation" onCta={() => setFormModal({ open: true, organisation: null })} />
+            ? <EmptyState title="Aucune société" description="Aucune société dans le référentiel." ctaLabel="Nouvelle société" onCta={() => setFormModal({ open: true, organisation: null })} />
             : racinesArbo.map(o => <TreeNode key={o.id} organisation={o} depth={0} navigate={navigate} organisations={organisations} />)
           }
         </div>
@@ -163,8 +163,8 @@ export default function OrganisationPage() {
             filename="organisations"
             isLoading={isLoading}
             emptyState={{
-              message: 'Aucune organisation ne correspond aux filtres.',
-              ctaLabel: 'Nouvelle organisation',
+              message: 'Aucune société ne correspond aux filtres.',
+              ctaLabel: 'Nouvelle société',
               onCta: () => setFormModal({ open: true, organisation: null }),
             }}
           />

@@ -9,7 +9,7 @@ export const fieldsDictionary = {
     champDateDefaut: 'contrat.date_debut',
     colonnesDefaut: ['produit.label', 'editeur.raison_sociale', 'type', 'quantite', 'cout'],
     champs: [
-      { key: 'produit.label',           label: 'Produit',              type: 'reference', source: 'produits' },
+      { key: 'produit.label',           label: 'Logiciel',              type: 'reference', source: 'produits' },
       { key: 'editeur.raison_sociale',  label: 'Éditeur',              type: 'reference', source: 'editeurs' },
       { key: 'contrat.label',           label: 'Contrat',              type: 'reference', source: 'contrats' },
       { key: 'type',                    label: 'Type de licence',      type: 'enum', valeurs: ['souscription', 'perpetuelle', 'oem'] },
@@ -28,7 +28,7 @@ export const fieldsDictionary = {
     champDateDefaut: 'date_derniere_revalidation',
     colonnesDefaut: ['produit.label', 'editeur.raison_sociale', 'societe.raison_sociale', 'quantite', 'statut_validation'],
     champs: [
-      { key: 'produit.label',            label: 'Produit',           type: 'reference', source: 'produits' },
+      { key: 'produit.label',            label: 'Logiciel',           type: 'reference', source: 'produits' },
       { key: 'editeur.raison_sociale',   label: 'Éditeur',           type: 'reference', source: 'editeurs' },
       { key: 'societe.raison_sociale',   label: 'Société',           type: 'reference', source: 'societes' },
       { key: 'reference_client',         label: 'Référence client',  type: 'texte' },
@@ -100,7 +100,7 @@ export const fieldsDictionary = {
     champDateDefaut: 'date_fin',
     colonnesDefaut: ['produit.label', 'editeur.raison_sociale', 'prestataire', 'date_debut', 'date_fin', 'cout'],
     champs: [
-      { key: 'produit.label',            label: 'Produit',           type: 'reference', source: 'produits' },
+      { key: 'produit.label',            label: 'Logiciel',           type: 'reference', source: 'produits' },
       { key: 'editeur.raison_sociale',   label: 'Éditeur',           type: 'reference', source: 'editeurs' },
       { key: 'prestataire',              label: 'Prestataire',       type: 'texte' },
       { key: 'cout',                     label: 'Coût annuel',       type: 'montant' },
@@ -115,7 +115,7 @@ export const fieldsDictionary = {
     champDateDefaut: 'date_debut',
     colonnesDefaut: ['produit.label', 'editeur.raison_sociale', 'type', 'montant_OPEX', 'montant_CAPEX'],
     champs: [
-      { key: 'produit.label',            label: 'Produit',       type: 'reference', source: 'produits' },
+      { key: 'produit.label',            label: 'Logiciel',       type: 'reference', source: 'produits' },
       { key: 'editeur.raison_sociale',   label: 'Éditeur',       type: 'reference', source: 'editeurs' },
       { key: 'contrat.label',            label: 'Contrat',       type: 'reference', source: 'contrats' },
       { key: 'type',                     label: 'Type budget',   type: 'enum', valeurs: ['previsionnel', 'alloue'] },
@@ -134,7 +134,7 @@ export const fieldsDictionary = {
     champDateDefaut: null,
     colonnesDefaut: ['produit', 'editeur', 'droits', 'usages', 'ecart', 'statut'],
     champs: [
-      { key: 'produit',    label: 'Produit',         type: 'texte' },
+      { key: 'produit',    label: 'Logiciel',         type: 'texte' },
       { key: 'editeur',    label: 'Éditeur',         type: 'texte' },
       { key: 'droits',     label: 'Droits acquis',   type: 'nombre' },
       { key: 'usages',     label: 'Usages déclarés', type: 'nombre' },

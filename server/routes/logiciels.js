@@ -202,9 +202,9 @@ async function validerProduit(client, corps, idProduit) {
   if (!(await existeTenant(client, "editeur", id_editeur)))
     return { status: 400, code: 5312, error: "Editeur introuvable." };
   if (!(await parentExiste(client, id_produit_parent)))
-    return { status: 400, code: 5313, error: "Produit parent introuvable." };
+    return { status: 400, code: 5313, error: "Logiciel parent introuvable." };
   if (idProduit && id_produit_parent === idProduit)
-    return { status: 409, code: 5314, error: "Un produit ne peut pas etre son propre parent." };
+    return { status: 409, code: 5314, error: "Un logiciel ne peut pas être son propre parent." };
   if (await fermeUneBoucle(client, id_produit_parent, idProduit))
     return { status: 409, code: 5315, error: "Ce rattachement fermerait une boucle dans la hierarchie." };
   return null;

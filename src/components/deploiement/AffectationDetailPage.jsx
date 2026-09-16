@@ -133,7 +133,7 @@ export default function AffectationDetailPage() {
             <ValidationCell statut={a.statut_validation} motif={a.message_refus} />
             {validee && <StatutRevalidationBadge revalidation={a.statut_revalidation} />}
           </div>
-          <p className="text-sm text-gray-500 mt-1">{a.produit_label ?? a.licence_label ?? 'Produit inconnu'} - {a.societe_label ?? 'Société non renseignée'}</p>
+          <p className="text-sm text-gray-500 mt-1">{a.produit_label ?? a.licence_label ?? 'Logiciel inconnu'} - {a.societe_label ?? 'Société non renseignée'}</p>
           <p className="text-xs text-gray-400 mt-1">
             Soumis par {a.soumis_par ?? 'inconnu'} le {formatDateTime(a.date_soumission)}
             {a.traite_par ? `, traité par ${a.traite_par}` : ''}
@@ -164,7 +164,7 @@ export default function AffectationDetailPage() {
           <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Identité</h2>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <p className="text-xs text-gray-500 mb-1">Produit</p>
+              <p className="text-xs text-gray-500 mb-1">Logiciel</p>
               <p className="text-sm text-gray-800 dark:text-gray-200">{a.produit_label ?? '-'}</p>
             </div>
             <div>
@@ -193,7 +193,7 @@ export default function AffectationDetailPage() {
         </section>
 
         <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Balance du produit</h2>
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Balance du logiciel</h2>
           {balance ? (
             <>
               <ConformiteGaugeBar droits={balance.droits_total} usage={balance.quantite_declaree} niveau={niveau(ratio)} label="Droits acquis vs usage déclaré" />
@@ -203,7 +203,7 @@ export default function AffectationDetailPage() {
               </p>
             </>
           ) : (
-            <p className="text-sm text-gray-500">Aucun usage valide pour ce produit, ou décompte non accessible.</p>
+            <p className="text-sm text-gray-500">Aucun usage valide pour ce logiciel, ou décompte non accessible.</p>
           )}
         </section>
 

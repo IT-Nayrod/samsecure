@@ -102,7 +102,7 @@ export default function AffectationFormModal({ isOpen, onClose, onSaved, affecta
         {isEdit && (
           <p className="text-xs text-gray-500">Toute modification resoumet l&apos;affectation au circuit de validation.</p>
         )}
-        <FormField label="Licence" required hint="Le produit découle de la licence">
+        <FormField label="Licence" required hint="Le logiciel découle de la licence">
           <select className={INPUT_CLS} value={form.id_licence} onChange={e => setForm(v => ({ ...v, id_licence: e.target.value }))}>
             <option value="">Choisir...</option>
             {licences.map(l => <option key={l.id} value={l.id}>{licenceLabel(l)}</option>)}

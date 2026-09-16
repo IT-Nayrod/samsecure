@@ -83,7 +83,7 @@ export default function ImportReleveModal({ isOpen, onClose, onImported }) {
         </div>
       ) : (
         <form id="import-releve-form" onSubmit={submit} className="flex flex-col gap-4">
-          <FormField label="Fichier csv" required hint="Colonnes attendues : produit (identifiant ou libellé), référence, quantité. Colonne société optionnelle. 20 Mo et 10 000 lignes maximum.">
+          <FormField label="Fichier csv" required hint="Colonnes attendues : produit (identifiant ou libellé du logiciel), référence, quantité. Colonne société optionnelle. 20 Mo et 10 000 lignes maximum.">
             <input type="file" accept=".csv,text/csv" onChange={e => setFile(e.target.files?.[0] ?? null)} className={inputCls} />
           </FormField>
           <FormField label="Société par défaut" hint="Appliquée aux lignes sans colonne société.">

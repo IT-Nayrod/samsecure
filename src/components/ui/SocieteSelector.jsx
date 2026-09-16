@@ -13,7 +13,7 @@ export default function SocieteSelector({
   selectedIds,
   onChange,
   multiple = true,
-  placeholder = 'Sélectionner des organisations…',
+  placeholder = 'Sélectionner des sociétés…',
   disabledIds = [],
   disabledHint,
 }) {
@@ -81,7 +81,7 @@ export default function SocieteSelector({
               </label>
             );
           })}
-          {tree.length === 0 && <p className="px-3 py-2 text-sm text-gray-400">Aucune organisation.</p>}
+          {tree.length === 0 && <p className="px-3 py-2 text-sm text-gray-400">Aucune société.</p>}
         </div>
       )}
     </div>

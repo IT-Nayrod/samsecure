@@ -1,8 +1,11 @@
 // ContratDetailPage - fiche détail d'un contrat : identité, échéance, hiérarchie, rattachements.
 // Données API. La suppression s'appuie sur le refus du serveur, pas sur un garde-fou local.
+// Décision du 11/09/2026 : bandeau "le contrat doit suivre" quand l'API sert
+// contrat_a_suivre (des licences renouvelées sur un contrat échu ou à échéance
+// sans successeur). Signal seulement, rien n'est modifié automatiquement.
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Pencil, Trash2, ChevronDown, XCircle, Archive, ArchiveRestore } from 'lucide-react';
+import { Pencil, Trash2, ChevronDown, XCircle, Archive, ArchiveRestore, AlertTriangle } from 'lucide-react';
 import BudgetEmbeddedSection from '../budget/BudgetEmbeddedSection';
 import { contratsService, referentielsContratsService } from '../../services/contratsService';
 import { optionnel } from '../../services/http';
@@ -130,7 +133,7 @@ export default function ContratDetailPage() {
     <Breadcrumb items={[
       { label: 'Droits d\'usage', to: '/contrats/liste' },
       { label: 'Contrat', to: '/contrats/liste' },
-      { label: contrat?.label ?? '...' },
+      { label: contrat ? libelleContrat(contrat.label, contrat.societe_label) : '...' },
     ]} />
   );
 
@@ -172,7 +175,7 @@ export default function ContratDetailPage() {
       <div className="flex items-start justify-between flex-wrap gap-4">
         <div>
           <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="text-xl font-semibold text-gray-900 dark:text-white">{contrat.label}</h1>
+            <h1 className="text-xl font-semibold text-gray-900 dark:text-white">{libelleContrat(contrat.label, contrat.societe_label)}</h1>
             {contrat.type_code === 'cadre' && <span className="text-xs font-semibold text-blue-700 bg-blue-100 dark:bg-blue-900/30 px-2.5 py-1 rounded-full">Cadre</span>}
             <StatutEcheanceBadge statut={contrat.statut_echeance} />
             <StatutValidationBadge statut={contrat.statut_validation} />
@@ -227,6 +230,20 @@ export default function ContratDetailPage() {
               <ArchiveRestore size={14} /> Restaurer
             </Button>
           )}
+        </div>
+      )}
+
+      {contrat.contrat_a_suivre && (
+        <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+          <AlertTriangle size={16} className="text-amber-700 dark:text-amber-300 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-amber-800 dark:text-amber-200">Ce contrat doit être renouvelé ou prolongé : des licences ont été renouvelées dessus.</p>
+            <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
+              {contrat.nb_licences_renouvelees > 1 ? `${contrat.nb_licences_renouvelees} licences ont été renouvelées` : 'Une licence a été renouvelée'} sur ce contrat,
+              {contrat.statut_echeance === 'expire' ? ' échu' : ' à échéance'}{contrat.date_fin ? ` le ${formatDate(contrat.date_fin)}` : ''} et sans successeur.
+              Prolongez sa date de fin ou créez le contrat qui le renouvelle (champ « Renouvelle le contrat » du formulaire). Rien n&apos;est modifié automatiquement.
+            </p>
+          </div>
         </div>
       )}
 
@@ -285,6 +302,36 @@ export default function ContratDetailPage() {
               : `Échéance dans ${contrat.jours_restants} jours`}
           </p>
         )}
+        {/* Succession (D35) : prédécesseur et successeurs servis par l'API
+            (predecesseur_label, predecesseur_societe_label, successeurs). */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+          <div>
+            <p className="text-xs text-gray-500 mb-1">Renouvelle le contrat</p>
+            {contrat.id_contrat_predecesseur
+              ? (
+                <Link to={`/contrats/liste/${contrat.id_contrat_predecesseur}`} className="text-sm text-blue-800 hover:underline">
+                  {libelleContrat(contrat.predecesseur_label, contrat.predecesseur_societe_label)}
+                </Link>
+              )
+              : <p className="text-sm text-gray-500">Aucun</p>}
+          </div>
+          <div>
+            <p className="text-xs text-gray-500 mb-1">Renouvelé par ({(contrat.successeurs ?? []).length})</p>
+            {(contrat.successeurs ?? []).length === 0
+              ? <p className="text-sm text-gray-500">Aucun successeur.</p>
+              : (
+                <ul className="flex flex-col gap-1">
+                  {contrat.successeurs.map(s => (
+                    <li key={s.id}>
+                      <Link to={`/contrats/liste/${s.id}`} className="text-sm text-blue-800 hover:underline">
+                        {libelleContrat(s.label, s.societe_label)}{s.archive ? ' (Archivé)' : ''}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+          </div>
+        </div>
       </section>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -373,7 +420,7 @@ export default function ContratDetailPage() {
         onConfirm={handleArchiver}
         title="Archiver le contrat"
         confirmLabel="Archiver"
-        message={`Archiver ${contrat.label} ? Il disparaîtra des listes, restera consultable et pourra être restauré. Ses sous-contrats et commandes ne changent pas.`}
+        message={`Archiver ${libelleContrat(contrat.label, contrat.societe_label)} ? Il disparaîtra des listes, restera consultable et pourra être restauré. Ses sous-contrats et commandes ne changent pas.`}
       />
       <ConfirmModal
         isOpen={deleteOpen}
@@ -382,7 +429,7 @@ export default function ContratDetailPage() {
         title="Supprimer le contrat"
         isDestructive
         confirmLabel="Supprimer"
-        message={`Supprimer définitivement ${contrat.label} ? Cette action est irréversible.`}
+        message={`Supprimer définitivement ${libelleContrat(contrat.label, contrat.societe_label)} ? Cette action est irréversible.`}
       />
     </div>
   );

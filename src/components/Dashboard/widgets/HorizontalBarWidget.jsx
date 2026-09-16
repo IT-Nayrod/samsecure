@@ -30,7 +30,7 @@ export function CoutParLogicielWidget() {
     <CadreWidget
       widgetId="cout-par-logiciel"
       titre="Coût par logiciel"
-      info={"Somme des coûts des licences non expirées du parc, par produit, et part de chaque produit dans le coût total. Le clic sur une ligne ouvre les licences du produit."}
+      info={"Somme des coûts des licences non expirées du parc, par logiciel, et part de chaque logiciel dans le coût total. Le clic sur une ligne ouvre les licences du logiciel."}
       chargement={chargement} erreur={erreur} onRelancer={relancer}
       vide={!chargement && !erreur && lignes.length === 0}
       videMessage="Aucune licence valorisée sur le parc."

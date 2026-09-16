@@ -1,5 +1,15 @@
 // Contrats du module 2 : saisie sous workflow de validation, rattachement à un
 // contrat cadre avec contrôle de cycle, archivage et restauration.
+//
+// Succession (D35, migration 056, décision du 11/09/2026) : un contrat qui en
+// renouvelle un autre le désigne par id_contrat_predecesseur (distinct du
+// rattachement cadre id_contrat_parent). Le contrat suit les licences
+// (server/utils/successionContrat.js) : la projection sert contrat_a_suivre,
+// vrai quand des licences ont été renouvelées sur ce contrat alors qu'il est
+// échu ou à échéance sans successeur. Signal seulement, rien n'est modifié.
+// Harmonisation du 16/09/2026 : la projection sert aussi la société du
+// prédécesseur et la liste des successeurs (id, label, societe_label,
+// archive), pour la fiche et le champ « Renouvelle le contrat » du formulaire.
 
 import express from "express";
 import { tenantPool } from "../db.js";
@@ -7,6 +17,7 @@ import { succes, erreur, erreurPivot } from "../utils/reponse.js";
 import {
   jointureStatut, COLONNES_STATUT, soumettre, purgerValidations,
 } from "../utils/validationWorkflow.js";
+import { contratASuivre } from "../utils/successionContrat.js";
 
 const router = express.Router();
 
@@ -55,6 +66,18 @@ const SELECT_CONTRAT = `
          c.id_societe,   s.raison_sociale AS societe_label,
          c.id_revendeur, r.raison_sociale AS revendeur_label,
          c.id_contrat_parent, p.label AS parent_label, ps.raison_sociale AS parent_societe_label,
+         c.id_contrat_predecesseur, pr.label AS predecesseur_label, prs.raison_sociale AS predecesseur_societe_label,
+         (SELECT COALESCE(json_agg(json_build_object(
+                   'id', sx.id, 'label', sx.label, 'societe_label', sxs.raison_sociale, 'archive', sx.archive)
+                 ORDER BY sx.label), '[]'::json)
+            FROM contrat sx LEFT JOIN societe sxs ON sxs.id = sx.id_societe
+           WHERE sx.id_contrat_predecesseur = c.id) AS successeurs,
+         (SELECT count(*) FROM contrat cx WHERE cx.id_contrat_predecesseur = c.id)::int AS nb_successeurs,
+         (SELECT count(*) FROM licence sx
+            JOIN commande sc  ON sc.id  = sx.id_commande
+            JOIN licence  px  ON px.id  = sx.id_licence_predecesseur
+            JOIN commande pcm ON pcm.id = px.id_commande
+           WHERE sc.id_contrat = c.id AND pcm.id_contrat = c.id)::int AS nb_licences_renouvelees,
          c.date_debut::text AS date_debut, c.date_fin::text AS date_fin,
           c.a_renouveler, c.duree_resiliation,
          c.archive, c.date_archivage, c.id_archive_par,
@@ -71,8 +94,17 @@ const SELECT_CONTRAT = `
   LEFT JOIN revendeur    r  ON r.id  = c.id_revendeur
   LEFT JOIN contrat      p  ON p.id  = c.id_contrat_parent
   LEFT JOIN societe      ps ON ps.id = p.id_societe
+  LEFT JOIN contrat      pr ON pr.id = c.id_contrat_predecesseur
+  LEFT JOIN societe      prs ON prs.id = pr.id_societe
   LEFT JOIN utilisateur  ua ON ua.id = c.id_archive_par
   ${jointureStatut("contrat", "c")}`;
+
+// Le contrat suit les licences : règle pure appliquée sur les faits de la
+// projection (échéance, successeurs, licences renouvelées dessus), jamais
+// stockée. Appliquée à chaque réponse qui sert SELECT_CONTRAT.
+function habiller(rows) {
+  return rows.map((r) => ({ ...r, contrat_a_suivre: contratASuivre(r) }));
+}
 
 // Trace probante de l'archivage, distincte du journal fonctionnel, même gabarit
 // que factures.js et preuves.js : elle n'avale pas ses erreurs, une trace
@@ -109,6 +141,7 @@ async function jamaisValide(client, id) {
 const CHAMPS = [
   "label", "id_type_contrat", "id_editeur", "id_societe", "id_revendeur",
   "id_contrat_parent", "date_debut", "date_fin", "a_renouveler", "duree_resiliation",
+  "id_contrat_predecesseur",
 ];
 
 // Un <select> vide et un <input type="date"> vide envoient "" et non null.
@@ -127,6 +160,7 @@ function normaliserCorps(body = {}) {
     date_fin: vide(body.date_fin),
     a_renouveler: body.a_renouveler === true,
     duree_resiliation: vide(body.duree_resiliation) === null ? null : Number(body.duree_resiliation),
+    id_contrat_predecesseur: vide(body.id_contrat_predecesseur),
   };
 }
 
@@ -168,6 +202,28 @@ async function validerContrat(client, body) {
     return { status: 400, code: 3016, error: "Societe signataire introuvable." };
   if (!(await existe(client, "revendeur", id_revendeur)))
     return { status: 400, code: 3017, error: "Revendeur signataire introuvable." };
+  return null;
+}
+
+// Succession (D35) : le contrat renouvelé doit exister et n'être ni le contrat
+// lui-même ni l'un de ses propres successeurs (pas de boucle). Même code 3018
+// que le parent introuvable et 3019 que le cycle, message rendu propre.
+async function verifierPredecesseur(client, idPredecesseur, idContrat) {
+  if (!idPredecesseur) return null;
+  if (!UUID_RE.test(idPredecesseur) || !(await existe(client, "contrat", idPredecesseur)))
+    return { status: 400, code: 3018, error: "Contrat renouvele introuvable." };
+  if (!idContrat) return null;
+  if (idPredecesseur === idContrat)
+    return { status: 409, code: 3019, error: "Un contrat ne peut pas se renouveler lui-meme." };
+  const { rowCount } = await client.query(
+    `WITH RECURSIVE chaine AS (
+       SELECT id, id_contrat_predecesseur FROM contrat WHERE id = $1
+       UNION
+       SELECT c.id, c.id_contrat_predecesseur FROM contrat c JOIN chaine ch ON c.id = ch.id_contrat_predecesseur
+     )
+     SELECT 1 FROM chaine WHERE id_contrat_predecesseur = $2 LIMIT 1`, [idPredecesseur, idContrat]);
+  if (rowCount)
+    return { status: 409, code: 3019, error: "Un contrat ne peut pas renouveler l'une de ses propres successions." };
   return null;
 }
 
@@ -287,7 +343,7 @@ router.get("/contrats", async (req, res) => {
     const inclureArchives = ["1", "true"].includes(String(req.query.inclure_archives ?? ""));
     const { rows } = await tenantPool.query(
       `${SELECT_CONTRAT} ${inclureArchives ? "" : "WHERE c.archive = false"} ORDER BY c.label`);
-    succes(res, inclureArchives ? 3007 : 3000, rows);
+    succes(res, inclureArchives ? 3007 : 3000, habiller(rows));
   } catch (err) {
     console.error("GET /contrats error", err);
     erreur(res, 3099, { status: 500, message: "Erreur serveur" });
@@ -313,7 +369,7 @@ router.get("/contrats/:id", async (req, res) => {
     // supprimable : l'API fait foi, le front n'affiche Supprimer que sur sa réponse.
     const supprimable = await jamaisValide(tenantPool, id);
 
-    succes(res, 3001, { ...rows[0], ...liens, supprimable });
+    succes(res, 3001, { ...habiller(rows)[0], ...liens, supprimable });
   } catch (err) {
     console.error("GET /contrats/:id error", err);
     erreur(res, 3099, { status: 500, message: "Erreur serveur" });
@@ -337,15 +393,20 @@ router.post("/contrats", async (req, res) => {
       await client.query("ROLLBACK");
       return erreurPivot(res, parent.erreur);
     }
+    const predecesseurInvalide = await verifierPredecesseur(client, corps.id_contrat_predecesseur, null);
+    if (predecesseurInvalide) {
+      await client.query("ROLLBACK");
+      return erreurPivot(res, predecesseurInvalide);
+    }
 
     const label = corps.label.trim();
     const { rows: [cree] } = await client.query(
       `INSERT INTO contrat (${CHAMPS.join(", ")})
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        RETURNING id`,
       [label, corps.id_type_contrat, corps.id_editeur, corps.id_societe, corps.id_revendeur,
        corps.id_contrat_parent, corps.date_debut, corps.date_fin, corps.a_renouveler,
-       corps.duree_resiliation]
+       corps.duree_resiliation, corps.id_contrat_predecesseur]
     );
 
     if (parent.anomalie) {
@@ -365,7 +426,7 @@ router.post("/contrats", async (req, res) => {
     const { rows } = await client.query(`${SELECT_CONTRAT} WHERE c.id = $1`, [cree.id]);
     await client.query("COMMIT");
 
-    succes(res, 3002, rows[0], { status: 201 });
+    succes(res, 3002, habiller(rows)[0], { status: 201 });
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("POST /contrats error", err);
@@ -391,7 +452,7 @@ router.patch("/contrats/:id", async (req, res) => {
     const { rows: existant } = await client.query(
       `SELECT label, id_type_contrat, id_editeur, id_societe, id_revendeur, id_contrat_parent,
               date_debut::text AS date_debut, date_fin::text AS date_fin,
-              a_renouveler, duree_resiliation, archive
+              a_renouveler, duree_resiliation, id_contrat_predecesseur, archive
        FROM contrat WHERE id = $1`, [id]);
     if (!existant.length) {
       await client.query("ROLLBACK");
@@ -425,17 +486,23 @@ router.patch("/contrats/:id", async (req, res) => {
       await client.query("ROLLBACK");
       return erreurPivot(res, parent.erreur);
     }
+    const predecesseurInvalide = await verifierPredecesseur(client, corps.id_contrat_predecesseur, id);
+    if (predecesseurInvalide) {
+      await client.query("ROLLBACK");
+      return erreurPivot(res, predecesseurInvalide);
+    }
 
     const label = corps.label.trim();
     await client.query(
       `UPDATE contrat
           SET label = $1, id_type_contrat = $2, id_editeur = $3, id_societe = $4,
               id_revendeur = $5, id_contrat_parent = $6, date_debut = $7, date_fin = $8,
-              a_renouveler = $9, duree_resiliation = $10, updated_at = now()
-        WHERE id = $11`,
+              a_renouveler = $9, duree_resiliation = $10, id_contrat_predecesseur = $11,
+              updated_at = now()
+        WHERE id = $12`,
       [label, corps.id_type_contrat, corps.id_editeur, corps.id_societe, corps.id_revendeur,
        corps.id_contrat_parent, corps.date_debut, corps.date_fin, corps.a_renouveler,
-       corps.duree_resiliation, id]
+       corps.duree_resiliation, corps.id_contrat_predecesseur, id]
     );
 
     // Rattachement à un cadre ou détachement : l'anomalie éventuelle n'a plus lieu d'être.
@@ -453,7 +520,7 @@ router.patch("/contrats/:id", async (req, res) => {
     const { rows } = await client.query(`${SELECT_CONTRAT} WHERE c.id = $1`, [id]);
     await client.query("COMMIT");
 
-    succes(res, 3003, rows[0]);
+    succes(res, 3003, habiller(rows)[0]);
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("PATCH /contrats/:id error", err);
@@ -495,13 +562,16 @@ router.delete("/contrats/:id", async (req, res) => {
     const { rows: [liens] } = await client.query(
       `SELECT (SELECT count(*) FROM commande WHERE id_contrat = $1)        AS commandes,
               (SELECT count(*) FROM preuve   WHERE id_contrat = $1)        AS preuves,
-              (SELECT count(*) FROM contrat  WHERE id_contrat_parent = $1) AS sous_contrats`,
+              (SELECT count(*) FROM contrat  WHERE id_contrat_parent = $1) AS sous_contrats,
+              (SELECT count(*) FROM contrat  WHERE id_contrat_predecesseur = $1) AS successeurs`,
       [id]);
 
     const bloquants = [];
     if (+liens.commandes)     bloquants.push(`${liens.commandes} commande(s)`);
     if (+liens.preuves)       bloquants.push(`${liens.preuves} preuve(s)`);
     if (+liens.sous_contrats) bloquants.push(`${liens.sous_contrats} sous-contrat(s)`);
+    // FK sans cascade (056) : un contrat renouvelé par un successeur se détache d'abord.
+    if (+liens.successeurs)   bloquants.push(`${liens.successeurs} contrat(s) qui le renouvelle(nt)`);
 
     if (bloquants.length) {
       await client.query("ROLLBACK");
@@ -563,7 +633,7 @@ router.post("/contrats/:id/archiver", async (req, res) => {
 
     const { rows } = await client.query(`${SELECT_CONTRAT} WHERE c.id = $1`, [id]);
     await client.query("COMMIT");
-    succes(res, 3005, rows[0]);
+    succes(res, 3005, habiller(rows)[0]);
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("POST /contrats/:id/archiver error", err);
@@ -604,7 +674,7 @@ router.post("/contrats/:id/restaurer", async (req, res) => {
 
     const { rows } = await client.query(`${SELECT_CONTRAT} WHERE c.id = $1`, [id]);
     await client.query("COMMIT");
-    succes(res, 3006, rows[0]);
+    succes(res, 3006, habiller(rows)[0]);
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("POST /contrats/:id/restaurer error", err);
