@@ -2,7 +2,7 @@
 // téléchargement du fichier justificatif stocké hors de l'arborescence servie.
 
 import express from "express";
-import { tenantPool } from "../db.js";
+import { tenantPool, commonPool } from "../db.js";
 import { succes, erreur, erreurPivot, codeEntete } from "../utils/reponse.js";
 import fs from "node:fs";
 import path from "node:path";
@@ -191,6 +191,46 @@ router.get("/preuves", async (req, res) => {
     succes(res, 3200, rows);
   } catch (err) {
     console.error("GET /preuves error", err);
+    erreur(res, 3299, { status: 500, message: "Erreur serveur" });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Définition des champs par type de preuve (#204, dépôt unifié, 060 et 061)
+// ---------------------------------------------------------------------------
+// La modale de preuve rend ses champs additionnels depuis cette réponse et
+// n'en connaît aucun en dur. Définition SamSecure en Commune
+// (default_type_preuve_champ), surcharge par espace client en Tenant
+// (type_preuve_champ, même structure) : une ligne Tenant de même
+// (code_type_preuve, nom) remplace la ligne Commune, une ligne Tenant sans
+// équivalent s'ajoute, une ligne inactive masque le champ. Les deux bases ne
+// se joignent pas : la fusion se fait ici, comme pour les seuils de dashboard.
+// Seuls les champs actifs sont servis, triés par type, ordre puis nom. Le
+// rapprochement se fait sur le code du type, que GET /types-preuve sert avec
+// chaque type.
+// Déclarée avant /preuves/:id par convention ; le chemin ne peut de toute
+// façon pas être capté par referentiels.js, dont /types-preuve est exact.
+const COLONNES_CHAMP = "code_type_preuve, nom, libelle, type_champ, obligatoire, ordre, actif";
+
+router.get("/types-preuve/champs", async (req, res) => {
+  try {
+    const [{ rows: defauts }, { rows: surcharges }] = await Promise.all([
+      commonPool.query(`SELECT ${COLONNES_CHAMP} FROM default_type_preuve_champ`),
+      tenantPool.query(`SELECT ${COLONNES_CHAMP} FROM type_preuve_champ`),
+    ]);
+    const cle = (c) => `${c.code_type_preuve}/${c.nom}`;
+    const fusion = new Map();
+    for (const d of defauts) fusion.set(cle(d), { ...d, origine: "commune" });
+    for (const s of surcharges) fusion.set(cle(s), { ...s, origine: "tenant" });
+    const champs = [...fusion.values()]
+      .filter((c) => c.actif)
+      .sort((a, b) =>
+        a.code_type_preuve.localeCompare(b.code_type_preuve)
+        || a.ordre - b.ordre
+        || a.nom.localeCompare(b.nom));
+    succes(res, 3229, champs);
+  } catch (err) {
+    console.error("GET /types-preuve/champs error", err);
     erreur(res, 3299, { status: 500, message: "Erreur serveur" });
   }
 });

@@ -260,6 +260,7 @@ commun 3280-3299.
 | 3218 | erreur | L'empreinte SHA-256 doit comporter 64 caracteres hexadecimaux | POST, PATCH /api/preuves |
 | 3219 | erreur | Valeur de filtre invalide (id_type_preuve, id_contrat, id_commande, id_licence depuis la #208) | GET /api/preuves |
 | 3228 | erreur | Licence introuvable (#208, migration 054) | POST, PATCH /api/preuves |
+| 3229 | succes | Définition des champs par type de preuve (#204, migration 060) | GET /api/types-preuve/champs |
 | 3230 | erreur | Suppression impossible : preuve rattachee a une facture | DELETE /api/preuves/:id |
 | 3231 | reserve | [ARBITRAGE D27] lien externe GED refuse. Non emis a ce jour | POST, PATCH /api/preuves |
 | 3214 | erreur | Une preuve doit être rattachée à un contrat, à une commande, ou aux deux | POST, PATCH /api/preuves |
@@ -414,6 +415,29 @@ objet : la ligne de type facture. Consequences, sans nouveau code :
 - projection GET /api/factures enrichie de preuve_nom_origine,
   preuve_hash_sha256 et preuve_type_code, pour que la fiche facture porte le
   justificatif sans second appel.
+
+### Dépôt unifié depuis la modale de preuve (#204, décision du 12/09, migrations 060 et 061)
+
+Le bouton « Déposer une facture » disparaît de l'écran Preuves et de la fiche
+commande : la modale de preuve est la seule porte d'entrée des pièces, facture
+comprise. Elle s'adapte au type choisi d'après une définition de champs portée
+par la base, jamais par le front, servie par un nouveau code :
+- 3229, GET /api/types-preuve/champs : définition fusionnée des champs
+  additionnels par type de preuve, défauts Commune (default_type_preuve_champ,
+  060) et surcharge par espace client (type_preuve_champ, Tenant, 061, même
+  structure, vide à la création). Fusion par l'API sur le couple code du type
+  et nom technique, surcharge prioritaire, une ligne inactive masque le défaut ;
+  champs actifs seulement, triés par type, ordre puis nom. Seed 060 du type
+  facture, inventorié depuis la table facture (label et id_commande, tous deux
+  obligatoires ; la table ne porte ni montant ni date de facturation, rien
+  n'est inventé). Un champ déjà porté par le formulaire commun (label,
+  id_contrat, id_commande, id_licence) n'est pas rendu deux fois, un
+  rattachement obligatoire impose l'objet de rattachement ;
+- type facture choisi : la modale emprunte POST /api/factures/depot (3245,
+  3251, 3252, 3253 et 3213 inchangés) en transmettant id_type_preuve ; les six
+  autres types gardent POST /api/preuves puis POST /api/preuves/:id/fichier.
+  Objet unique, validation unique, budget engagé et détection des manques
+  (3280) inchangés : une facture naît toujours par le circuit facture.
 
 ## Validation des saisies (#53)
 

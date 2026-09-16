@@ -6,6 +6,9 @@
 // Objet unique (#204) : une facture et sa preuve support ne font qu'une ligne,
 // celle de type Facture. GET /preuves ne sert que les preuves libres, la ligne
 // facture porte le fichier de sa preuve : aucun doublon d'affichage.
+// Dépôt unifié (#204, 12/09) : un seul bouton, « Déposer une preuve » ; la
+// modale de preuve emprunte le circuit facture quand le type facture est
+// choisi. Il n'y a plus de modale facture.
 // La détection des manques vient de /api/commandes/manques : une vue temps
 // réel, jamais un stock d'anomalies, d'où le rechargement après chaque dépôt.
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
@@ -25,7 +28,6 @@ import DocumentIcon from './DocumentIcon';
 import ManqueBadge from './ManqueBadge';
 import DeploiementKpiCard from '../deploiement/DeploiementKpiCard';
 import PreuveFormModal from './PreuveFormModal';
-import FactureFormModal from './FactureFormModal';
 import { libelleContrat } from './libelleContrat';
 import useRbac from '../../hooks/useRbac';
 import { useToast } from '../../hooks/useToast';
@@ -59,7 +61,6 @@ export default function FacturesPage() {
   const contratParam = searchParams.get('contrat');
   const commandeParam = searchParams.get('commande');
   const [preuveModal, setPreuveModal] = useState(false);
-  const [factureModal, setFactureModal] = useState(false);
   const manquesRef = useRef(null);
 
   // Les filtres partent à l'API plutôt que d'être appliqués en mémoire : c'est
@@ -216,14 +217,9 @@ export default function FacturesPage() {
           <p className="text-sm text-gray-500 mt-0.5">Pièces justificatives et aptitude à l&apos;audit</p>
         </div>
         {canWrite && (
-          <div className="flex gap-2">
-            <Button variant="secondary" onClick={() => setPreuveModal(true)}>
-              <Plus size={15} /> Déposer une preuve
-            </Button>
-            <Button variant="primary" onClick={() => setFactureModal(true)}>
-              <Plus size={15} /> Déposer une facture
-            </Button>
-          </div>
+          <Button variant="primary" onClick={() => setPreuveModal(true)}>
+            <Plus size={15} /> Déposer une preuve
+          </Button>
         )}
       </div>
 
@@ -308,13 +304,6 @@ export default function FacturesPage() {
         commandes={commandes}
         licences={licences}
         contratParDefaut={contratActif || null}
-        commandeParDefaut={commandeActive || null}
-      />
-      <FactureFormModal
-        isOpen={factureModal}
-        onClose={() => setFactureModal(false)}
-        onDone={apresDepot}
-        commandes={commandes}
         commandeParDefaut={commandeActive || null}
       />
     </div>
