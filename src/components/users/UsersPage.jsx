@@ -16,28 +16,21 @@ import { formatDate } from '../../utils/dateUtils';
 import useDebounce from '../../hooks/useDebounce';
 import { usersService, societesService, groupsService, attributionsService } from '../../services/adminService';
 import { attribuerGroupe } from '../../utils/attributionScope';
+import { estInactif, estEnAttenteDeMiseEnFonction, dateIso, FILTRES_STATUT, FILTRES_DATES, filtrerParStatut } from './statutCompte';
 
 // Le statut Supprime n'existe plus : depuis la migration 022, le retrait d'un
 // compte est une désactivation. Un utilisateur retiré reste dans la liste,
 // porte le statut Désactivé et se réactive d'un clic.
+// Les règles de dates vivent dans statutCompte.js (#211), partagées avec les
+// filtres et testées ; seul le libellé du badge reste ici.
 function computeStatus(u) {
-  const today = new Date().toISOString().slice(0, 10);
   if (!u.actif) return { label: 'Désactivé', variant: 'neutral' };
   // Une échéance dépassée vaut désactivation : le login et le calcul des droits
   // la refusent déjà, l'écran doit dire la même chose.
-  if (u.date_finale && u.date_finale < today) return { label: 'Désactivé (échéance)', variant: 'neutral' };
-  if (u.date_mise_en_fonction && u.date_mise_en_fonction > today) return { label: 'Mise en fonction à venir', variant: 'warning' };
-  if (u.date_finale) return { label: 'Fin programmée', variant: 'warning' };
+  if (estInactif(u)) return { label: 'Désactivé (échéance)', variant: 'neutral' };
+  if (estEnAttenteDeMiseEnFonction(u)) return { label: 'Mise en fonction à venir', variant: 'warning' };
+  if (dateIso(u.date_finale)) return { label: 'Fin programmée', variant: 'warning' };
   return { label: 'Actif', variant: 'success' };
-}
-
-// Inactif au sens du serveur : le login et le calcul des droits refusent un
-// compte à actif = false comme un compte dont l'échéance est dépassée. L'écran
-// doit dire exactement la même chose, sans quoi il montrerait comme actif un
-// compte que l'API refuse.
-function estInactif(u) {
-  const today = new Date().toISOString().slice(0, 10);
-  return !u.actif || (u.date_finale && u.date_finale < today);
 }
 
 export default function UsersPage() {
@@ -105,19 +98,14 @@ export default function UsersPage() {
     return ids.map((id) => societes.find((s) => s.id === id)?.raison_sociale || id).join(', ');
   }
 
+  // Filtrage côté front, comme l'existant : GET /utilisateurs n'expose aucun
+  // paramètre de filtre. Le statut est calculé depuis les dates du compte
+  // (statutCompte.js), puis la recherche s'applique.
   const filtered = useMemo(() => {
-    return users.filter((u) => {
-      const status = computeStatus(u);
-      if (filterStatut === 'actifs'   && estInactif(u)) return false;
-      if (filterStatut === 'inactifs' && !estInactif(u)) return false;
-      // Les autres valeurs restent un filtrage fin par libellé de statut.
-      if (filterStatut && !['actifs', 'inactifs', 'tous'].includes(filterStatut) && status.label !== filterStatut) return false;
-      if (debouncedSearch) {
-        const q = debouncedSearch.toLowerCase();
-        if (!`${u.prenom} ${u.nom} ${u.email}`.toLowerCase().includes(q)) return false;
-      }
-      return true;
-    });
+    const parStatut = filtrerParStatut(users, filterStatut);
+    if (!debouncedSearch) return parStatut;
+    const q = debouncedSearch.toLowerCase();
+    return parStatut.filter((u) => `${u.prenom} ${u.nom} ${u.email}`.toLowerCase().includes(q));
   }, [users, filterStatut, debouncedSearch]);
 
   async function handleSubmit(payload, nouvellesSocietes, impactees = [], additions = []) {
@@ -253,13 +241,10 @@ export default function UsersPage() {
       </div>
 
       <div className="flex flex-wrap gap-3 bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
-        <select value={filterStatut} onChange={e => setFilterStatut(e.target.value)} className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-          <option value="actifs">Utilisateurs actifs</option>
-          <option value="inactifs">Utilisateurs inactifs</option>
-          <option value="tous">Tous les utilisateurs</option>
-          <optgroup label="Par statut">
-            <option value="Mise en fonction à venir">Mise en fonction à venir</option>
-            <option value="Fin programmée">Fin programmée</option>
+        <select value={filterStatut} onChange={e => setFilterStatut(e.target.value)} aria-label="Filtrer par statut" className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+          {FILTRES_STATUT.map((f) => <option key={f.valeur} value={f.valeur}>{f.libelle}</option>)}
+          <optgroup label="Par dates du compte">
+            {FILTRES_DATES.map((f) => <option key={f.valeur} value={f.valeur}>{f.libelle}</option>)}
           </optgroup>
         </select>
         <input

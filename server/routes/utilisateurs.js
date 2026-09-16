@@ -29,12 +29,18 @@ async function log(client, action, entite_type, entite_id, description, payload)
 
 // Tous les comptes sont servis, désactivés compris : la suppression n'existe
 // plus, un compte retiré doit rester visible pour être réactivable.
+// Dates castées en text, comme POST et PATCH : sans le cast pg sérialise une
+// colonne DATE en horodatage UTC (2026-09-30T00:00:00.000Z), que les filtres
+// par dates de la liste (#211) et le champ date du formulaire ne lisent pas
+// comme un jour AAAA-MM-JJ.
 router.get("/utilisateurs", async (req, res) => {
   try {
     const scope = await getAdminScope(req.user.id);
     const { clause, params } = scopeWhereClause(scope, 1);
     const { rows } = await tenantPool.query(
-      `SELECT u.id, u.nom, u.prenom, u.email, u.actif, u.date_finale, u.date_mise_en_fonction
+      `SELECT u.id, u.nom, u.prenom, u.email, u.actif,
+              u.date_finale::text AS date_finale,
+              u.date_mise_en_fonction::text AS date_mise_en_fonction
        FROM utilisateur u
        WHERE (${clause})
        ORDER BY u.nom, u.prenom`,
