@@ -100,7 +100,7 @@ export default function MaintenanceFormModal({ isOpen, onClose, onSaved, licence
           </select>
         </FormField>
         {versionGeree && (
-          <FormField label="Version apportée" hint={versions.length ? 'Optionnel : devient la version courante de la licence' : 'Aucune version sélectionnable (produit sans version ou maintenance arrêtée)'}>
+          <FormField label="Version apportée" hint={versions.length ? 'Optionnel : devient la version courante de la licence' : 'Aucune version sélectionnable (logiciel sans version ou maintenance arrêtée)'}>
             <select className={INPUT_CLS} value={form.id_version} onChange={e => setForm(v => ({ ...v, id_version: e.target.value }))} disabled={!versions.length && !form.id_version}>
               <option value="">Aucune</option>
               {versions.map(ve => <option key={ve.id} value={ve.id}>{ve.label}</option>)}

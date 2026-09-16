@@ -15,6 +15,7 @@ import { budgetService } from '../../services/budgetService';
 import { loadDraft, saveDraft, clearDraft } from '../../utils/formDraft';
 import { useToast } from '../../hooks/useToast';
 import { libelleLicence, libelleType, formatEuros, formatDateIso, MOTIFS_BASE_VIDE } from './budgetCalculs';
+import { libelleContrat } from '../contrats/libelleContrat';
 
 const INPUT_CLS = 'w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white';
 const NUM_CLS = `${INPUT_CLS} text-right`;
@@ -283,7 +284,7 @@ export default function BudgetFormModal({
               )}
             </FormField>
 
-            <FormField label="Organisation payeuse" hint="Déduite de la commande d'origine de la licence, non modifiable.">
+            <FormField label="Société payeuse" hint="Déduite de la commande d'origine de la licence, non modifiable.">
               {form.id_licence ? (
                 <div className={`${LECTURE_CLS} flex flex-col gap-0.5`}>
                   <span className="font-medium">
@@ -297,7 +298,7 @@ export default function BudgetFormModal({
                     <span className="text-xs text-gray-500 dark:text-gray-400">
                       {[
                         organisation.commande_label ? `Commande ${organisation.commande_label}` : null,
-                        organisation.contrat_label ? `Contrat ${organisation.contrat_label}` : null,
+                        organisation.contrat_label ? `Contrat ${libelleContrat(organisation.contrat_label, organisation.contrat_societe_label)}` : null,
                       ].filter(Boolean).join(' · ')}
                     </span>
                   )}
@@ -423,7 +424,7 @@ export default function BudgetFormModal({
               )}
               {!prefillEnCours && prefill?.societe_indeterminee && (
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Licence sans commande : organisation payeuse non déterminée, exercice par défaut appliqué.
+                  Licence sans commande : société payeuse non déterminée, exercice par défaut appliqué.
                 </p>
               )}
               {!prefillEnCours && prefill?.lignes_existantes?.length > 0 && (

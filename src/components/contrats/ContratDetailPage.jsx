@@ -130,7 +130,7 @@ export default function ContratDetailPage() {
     <Breadcrumb items={[
       { label: 'Droits d\'usage', to: '/contrats/liste' },
       { label: 'Contrat', to: '/contrats/liste' },
-      { label: contrat?.label ?? '...' },
+      { label: contrat ? libelleContrat(contrat.label, contrat.societe_label) : '...' },
     ]} />
   );
 
@@ -172,7 +172,7 @@ export default function ContratDetailPage() {
       <div className="flex items-start justify-between flex-wrap gap-4">
         <div>
           <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="text-xl font-semibold text-gray-900 dark:text-white">{contrat.label}</h1>
+            <h1 className="text-xl font-semibold text-gray-900 dark:text-white">{libelleContrat(contrat.label, contrat.societe_label)}</h1>
             {contrat.type_code === 'cadre' && <span className="text-xs font-semibold text-blue-700 bg-blue-100 dark:bg-blue-900/30 px-2.5 py-1 rounded-full">Cadre</span>}
             <StatutEcheanceBadge statut={contrat.statut_echeance} />
             <StatutValidationBadge statut={contrat.statut_validation} />
@@ -373,7 +373,7 @@ export default function ContratDetailPage() {
         onConfirm={handleArchiver}
         title="Archiver le contrat"
         confirmLabel="Archiver"
-        message={`Archiver ${contrat.label} ? Il disparaîtra des listes, restera consultable et pourra être restauré. Ses sous-contrats et commandes ne changent pas.`}
+        message={`Archiver ${libelleContrat(contrat.label, contrat.societe_label)} ? Il disparaîtra des listes, restera consultable et pourra être restauré. Ses sous-contrats et commandes ne changent pas.`}
       />
       <ConfirmModal
         isOpen={deleteOpen}
@@ -382,7 +382,7 @@ export default function ContratDetailPage() {
         title="Supprimer le contrat"
         isDestructive
         confirmLabel="Supprimer"
-        message={`Supprimer définitivement ${contrat.label} ? Cette action est irréversible.`}
+        message={`Supprimer définitivement ${libelleContrat(contrat.label, contrat.societe_label)} ? Cette action est irréversible.`}
       />
     </div>
   );

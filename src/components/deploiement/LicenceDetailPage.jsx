@@ -9,7 +9,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Pencil, Trash2, ChevronDown, ShieldOff, ShieldCheck, Plus, EyeOff, History } from 'lucide-react';
 import BudgetEmbeddedSection from '../budget/BudgetEmbeddedSection';
 import { licencesService, referentielsLicencesService, formatMontant, editeurPourLogo, regleType, libelleType, EVENEMENTS_VERSION } from '../../services/licencesService';
-import { referentielsContratsService } from '../../services/contratsService';
+import { contratsService, referentielsContratsService } from '../../services/contratsService';
 import { commandesService } from '../../services/commandesService';
 import { optionnel } from '../../services/http';
 import Breadcrumb from '../ui/Breadcrumb';
@@ -21,12 +21,14 @@ import ErrorState from '../ui/ErrorState';
 import Skeleton from '../ui/Skeleton';
 import LogoEditeur from '../referentiels/LogoEditeur';
 import StatutEcheanceBadge from '../contrats/StatutEcheanceBadge';
+import { libelleContrat } from '../contrats/libelleContrat';
 import ConformiteGaugeBar from './ConformiteGaugeBar';
 import LicenceFormModal from './LicenceFormModal';
 import StatutMaintenanceBadge from './StatutMaintenanceBadge';
 import MaintenanceTimeline from './MaintenanceTimeline';
 import MaintenanceFormModal from './MaintenanceFormModal';
 import ArretMaintenanceModal from './ArretMaintenanceModal';
+import PreuvesLicenceSection from '../contrats/PreuvesLicenceSection';
 import useRbac from '../../hooks/useRbac';
 import useAuth from '../../hooks/useAuth';
 import { useToast } from '../../hooks/useToast';
@@ -56,6 +58,7 @@ export default function LicenceDetailPage() {
   const [unites, setUnites] = useState([]);
   const [mainteneurs, setMainteneurs] = useState([]);
   const [licences, setLicences] = useState([]);
+  const [contrats, setContrats] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [errorStatus, setErrorStatus] = useState(null);
@@ -77,7 +80,7 @@ export default function LicenceDetailPage() {
     try {
       // Seule la fiche est indispensable. L'historique de maintenance suit le
       // même droit (consulter_licences) ; les référentiels servent aux formulaires.
-      const [l, h, p, k, r, u, m, ls] = await Promise.all([
+      const [l, h, p, k, r, u, m, ls, ct] = await Promise.all([
         licencesService.get(id),
         optionnel(licencesService.maintenance.list(id)),
         optionnel(referentielsLicencesService.produits()),
@@ -86,8 +89,11 @@ export default function LicenceDetailPage() {
         optionnel(referentielsLicencesService.unitesMesure()),
         optionnel(referentielsLicencesService.mainteneurs()),
         optionnel(licencesService.list()),
+        // Société signataire des contrats, pour le sélecteur de commande du
+        // formulaire (format « Commande (Contrat (Société)) »).
+        optionnel(contratsService.list({ inclureArchives: true })),
       ]);
-      setLicence(l); setPeriodes(h); setProduits(p); setCommandes(k); setRevendeurs(r); setUnites(u); setMainteneurs(m); setLicences(ls);
+      setLicence(l); setPeriodes(h); setProduits(p); setCommandes(k); setRevendeurs(r); setUnites(u); setMainteneurs(m); setLicences(ls); setContrats(ct);
     } catch (err) {
       if (err.status === 404) setIntrouvable(true);
       else { setError(err.message); setErrorStatus(err.status); addToast({ type: 'error', message: err.message }); }
@@ -196,7 +202,7 @@ export default function LicenceDetailPage() {
               <StatutMaintenanceBadge licence={licence} compact />
             </div>
             <p className="text-sm text-gray-500 mt-1">
-              {licence.produit_label ?? 'Produit inconnu'}{licence.editeur_label ? ` - ${licence.editeur_label}` : ''}{licence.edition_label ? ` - ${licence.edition_label}` : ''}{licence.version_label ? ` - v${licence.version_label}` : ''}
+              {licence.produit_label ?? 'Logiciel inconnu'}{licence.editeur_label ? ` - ${licence.editeur_label}` : ''}{licence.edition_label ? ` - ${licence.edition_label}` : ''}{licence.version_label ? ` - v${licence.version_label}` : ''}
             </p>
           </div>
         </div>
@@ -245,11 +251,11 @@ export default function LicenceDetailPage() {
             </Champ>
             <Champ label="Contrat (déduit de la commande)">
               {licence.id_contrat
-                ? <Link to={`/contrats/liste/${licence.id_contrat}`} className="text-blue-800 hover:underline">{licence.contrat_label}</Link>
+                ? <Link to={`/contrats/liste/${licence.id_contrat}`} className="text-blue-800 hover:underline">{libelleContrat(licence.contrat_label, licence.contrat_societe_label)}</Link>
                 : <span className="text-gray-500">-</span>}
             </Champ>
             <Champ label="Usage déclaré sur ce lot">{licence.usage_declare} {licence.unite_label ?? ''} ({licence.nb_affectations ?? 0} affectation(s))</Champ>
-            <Champ label="Référence produit">{licence.produit_sku ?? '-'}</Champ>
+            <Champ label="Référence logiciel">{licence.produit_sku ?? '-'}</Champ>
             <Champ label="Renouvelle la licence">
               {licence.id_licence_predecesseur
                 ? <Link to={`/conformite/licences/${licence.id_licence_predecesseur}`} className="text-blue-800 hover:underline">{licence.predecesseur_label ?? 'Licence renouvelée'}</Link>
@@ -264,17 +270,23 @@ export default function LicenceDetailPage() {
         </section>
 
         <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Balance droits vs usage (produit)</h2>
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Balance droits vs usage (logiciel)</h2>
           <div className="flex flex-col gap-4">
             <ConformiteGaugeBar droits={licence.produit_droits} usage={licence.produit_usage_declare} niveau={licence.produit_niveau} unite={licence.unite_label ?? ''} label="Droits acquis vs usage déclaré" />
             <ConformiteGaugeBar droits={licence.produit_droits} usage={licence.usage_declare} niveau={licence.usage_declare > licence.quantite ? 'depassement' : 'conforme'} unite={licence.unite_label ?? ''} label="Part de ce lot dans l'usage déclaré" />
-            <p className="text-xs text-gray-500">Les droits comptent toutes les licences non expirées du produit, l&apos;usage toutes ses affectations. Les seuils (attention à 90 %) sont ceux de l&apos;API.</p>
+            <p className="text-xs text-gray-500">Les droits comptent toutes les licences non expirées du logiciel, l&apos;usage toutes ses affectations. Les seuils (attention à 90 %) sont ceux de l&apos;API.</p>
             <div className="flex gap-3 text-xs">
-              <Link to={`/conformite/licences?produit=${licence.id_produit}`} className="text-blue-800 hover:underline">Voir les lots du produit</Link>
+              <Link to={`/conformite/licences?produit=${licence.id_produit}`} className="text-blue-800 hover:underline">Voir les lots du logiciel</Link>
               <Link to={`/conformite/affectations?produit=${licence.id_produit}`} className="text-blue-800 hover:underline">Voir les affectations</Link>
             </div>
           </div>
         </section>
+
+        {/* Preuves rattachées à la licence (#208, intégrée le 16/09) : section
+            autonome, elle charge ses données et porte son bouton de dépôt. */}
+        <div className="md:col-span-2">
+          <PreuvesLicenceSection licence={licence} />
+        </div>
 
         <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 md:col-span-2">
           <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
@@ -351,7 +363,7 @@ export default function LicenceDetailPage() {
       <LicenceFormModal
         isOpen={formOpen} onClose={() => setFormOpen(false)} onSaved={appliquer} licence={licence}
         produits={produits} commandes={commandes} revendeurs={revendeurs} unites={unites} mainteneurs={mainteneurs}
-        licences={licences}
+        licences={licences} contrats={contrats}
         montantsVisibles={montantsVisibles}
       />
       <MaintenanceFormModal

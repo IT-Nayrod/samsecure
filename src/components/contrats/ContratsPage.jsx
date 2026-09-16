@@ -16,6 +16,7 @@ import Skeleton from '../ui/Skeleton';
 import StatutEcheanceBadge from './StatutEcheanceBadge';
 import EcheancierList from './EcheancierList';
 import ContratFormModal from './ContratFormModal';
+import { libelleContrat } from './libelleContrat';
 import DeploiementKpiCard from '../deploiement/DeploiementKpiCard';
 import useRbac from '../../hooks/useRbac';
 import { useToast } from '../../hooks/useToast';
@@ -43,9 +44,9 @@ function TreeNode({ contrat, depth, enfantsParParent, navigate, onValider, onRef
           ? <button onClick={e => { e.stopPropagation(); setOpen(o => !o); }} className="text-gray-400 flex-shrink-0">{open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</button>
           : <span className="w-3.5 flex-shrink-0" />
         }
-        <span className="text-sm text-blue-800 hover:underline">{contrat.label}</span>
-        <span className="text-xs text-gray-400">{contrat.editeur_label ?? '-'} - {contrat.societe_label ?? '-'}</span>
-        {parentHorsFiltre && <span className="text-[10px] text-gray-500 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-full">Rattaché à : {contrat.parent_label ?? '-'}</span>}
+        <span className="text-sm text-blue-800 hover:underline">{libelleContrat(contrat.label, contrat.societe_label)}</span>
+        <span className="text-xs text-gray-400">{contrat.editeur_label ?? '-'}</span>
+        {parentHorsFiltre && <span className="text-[10px] text-gray-500 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-full">Rattaché à : {libelleContrat(contrat.parent_label, contrat.parent_societe_label) ?? '-'}</span>}
         {contrat.type_code === 'cadre' && <span className="text-[10px] font-semibold text-blue-700 bg-blue-100 dark:bg-blue-900/30 px-2 py-0.5 rounded-full">Cadre</span>}
         {contrat.archive && <span className="text-[10px] font-semibold text-gray-600 bg-gray-200 dark:bg-gray-700 dark:text-gray-300 px-2 py-0.5 rounded-full">Archivé</span>}
         <StatutEcheanceBadge statut={contrat.statut_echeance} />
@@ -208,10 +209,10 @@ export default function ContratsPage() {
   const columns = [
     { key: 'label', label: 'Libellé', sortable: true, render: r => (
       <span className="flex items-center gap-2">
-        <button onClick={() => navigate(`/contrats/liste/${r.id}`)} className="font-medium text-blue-800 hover:underline text-left">{r.label}</button>
+        <button onClick={() => navigate(`/contrats/liste/${r.id}`)} className="font-medium text-blue-800 hover:underline text-left">{libelleContrat(r.label, r.societe_label)}</button>
         {r.archive && <span className="text-[10px] font-semibold text-gray-600 bg-gray-200 dark:bg-gray-700 dark:text-gray-300 px-2 py-0.5 rounded-full">Archivé</span>}
       </span>
-    ) },
+    ), csvValue: r => libelleContrat(r.label, r.societe_label) },
     { key: 'type_label', label: 'Type', sortable: true, render: r => r.type_code === 'cadre'
       ? <span className="text-xs font-semibold text-blue-700 bg-blue-100 dark:bg-blue-900/30 px-2 py-0.5 rounded-full">Cadre</span>
       : (r.type_label ?? '-') },

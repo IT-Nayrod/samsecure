@@ -60,7 +60,7 @@ export default function ArretMaintenanceModal({ isOpen, onClose, onSaved, licenc
         <FormField label="Date d'arrêt" required>
           <input type="date" className={INPUT_CLS} value={dateArret} onChange={e => setDateArret(e.target.value)} />
         </FormField>
-        <FormField label="Version figée" hint={versions.length ? 'Par défaut, la version courante de la licence' : 'Aucune version connue pour ce produit'}>
+        <FormField label="Version figée" hint={versions.length ? 'Par défaut, la version courante de la licence' : 'Aucune version connue pour ce logiciel'}>
           <select className={INPUT_CLS} value={versionFigee} onChange={e => setVersionFigee(e.target.value)} disabled={!versions.length}>
             <option value="">Sans version</option>
             {versions.map(v => <option key={v.id} value={v.id}>{v.label}</option>)}

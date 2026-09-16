@@ -28,6 +28,7 @@ import { tenantPool, commonPool } from "../db.js";
 import { succes, erreur, erreurPivot } from "../utils/reponse.js";
 import { auditer, diff } from "../utils/audit.js";
 import { permissionsEffectives } from "../utils/droitsUtilisateur.js";
+import { LICENCE_EXPIREE } from "../utils/conformite.js";
 
 const router = express.Router();
 
@@ -61,11 +62,11 @@ async function lireTypeLicence(client, code) {
   return rows[0] ?? null;
 }
 
-// Licence échue : le jour même de sa date de fin, sans tolérance (hypothèse
-// v0.5 assumée). Seuls les types dont la règle de dates prévoit une fin
-// (souscription, essai) en portent une, coherer() efface les autres : une
-// licence sans date de fin n'expire jamais.
-const EXPIREE = `(l.date_fin_souscription IS NOT NULL AND l.date_fin_souscription < CURRENT_DATE)`;
+// Licence échue : règle partagée de server/utils/conformite.js (LICENCE_EXPIREE,
+// forme SQL de TYPES_A_ECHEANCE : souscription et version d'essai, date de fin
+// strictement passée), importée et non recopiée depuis l'harmonisation du
+// 16/09 (#209) pour que licences, conformité, qualité et tableaux de bord
+// expirent les mêmes licences. Une licence sans date de fin n'expire jamais.
 
 // Statut d'échéance : même vocabulaire que contrats et commandes, pour que
 // StatutEcheanceBadge serve les trois écrans. Source unique, jamais recalculé
@@ -99,7 +100,7 @@ const SELECT_LICENCE = `
      GROUP BY a.id_licence
   ), balance AS (
     SELECT l.id_produit,
-           coalesce(sum(l.quantite) FILTER (WHERE NOT ${EXPIREE}), 0)::int AS droits,
+           coalesce(sum(l.quantite) FILTER (WHERE NOT ${LICENCE_EXPIREE}), 0)::int AS droits,
            coalesce(sum(u.quantite), 0)::int AS usage_declare
       FROM licence l
       LEFT JOIN usage_licence u ON u.id_licence = l.id
@@ -109,6 +110,7 @@ const SELECT_LICENCE = `
          l.id_produit, l.id_edition, l.id_version, l.version_figee_id,
          l.id_commande,     c.label          AS commande_label,
          c.id_contrat,      ct.label         AS contrat_label,
+         sct.raison_sociale AS contrat_societe_label,
          c.id_societe,      s.raison_sociale AS societe_label,
          l.id_revendeur,    r.raison_sociale AS revendeur_label,
          l.id_unite_mesure, um.code AS unite_code, um.label AS unite_label,
@@ -127,7 +129,7 @@ const SELECT_LICENCE = `
          ${STATUT_ECHEANCE},
          CASE WHEN l.date_fin_souscription IS NULL THEN NULL
               ELSE (l.date_fin_souscription - CURRENT_DATE) END AS jours_restants,
-         NOT ${EXPIREE} AS droits_actifs,
+         NOT ${LICENCE_EXPIREE} AS droits_actifs,
          ${STATUT_MAINTENANCE},
          coalesce(ul.quantite, 0)::int AS usage_declare,
          b.droits        AS produit_droits,
@@ -140,6 +142,7 @@ const SELECT_LICENCE = `
   FROM licence l
   LEFT JOIN commande     c  ON c.id  = l.id_commande
   LEFT JOIN contrat      ct ON ct.id = c.id_contrat
+  LEFT JOIN societe      sct ON sct.id = ct.id_societe
   LEFT JOIN societe      s  ON s.id  = c.id_societe
   LEFT JOIN revendeur    r  ON r.id  = l.id_revendeur
   LEFT JOIN unite_mesure um ON um.id = l.id_unite_mesure
@@ -349,13 +352,13 @@ async function validerLicence(client, corps, { typeInitial = null, idLicence = n
     return { status: 400, code: 4018, error: "Type de licence inconnu." };
   coherer(c, regle);
   if (!c.id_produit)
-    return { status: 400, code: 4011, error: "Le produit est obligatoire." };
+    return { status: 400, code: 4011, error: "Le logiciel est obligatoire." };
   if (!uuidValide(c.id_produit) || !(await produitExiste(c.id_produit)))
-    return { status: 400, code: 4012, error: "Produit introuvable au catalogue." };
+    return { status: 400, code: 4012, error: "Logiciel introuvable au catalogue." };
   if (!uuidValide(c.id_edition) || !(await declinaisonDuProduit("edition", c.id_edition, c.id_produit)))
-    return { status: 400, code: 4013, error: "Edition introuvable ou etrangere au produit." };
+    return { status: 400, code: 4013, error: "Édition introuvable ou étrangère au logiciel." };
   if (!uuidValide(c.id_version) || !(await declinaisonDuProduit("version", c.id_version, c.id_produit)))
-    return { status: 400, code: 4014, error: "Version introuvable ou etrangere au produit." };
+    return { status: 400, code: 4014, error: "Version introuvable ou étrangère au logiciel." };
   if (!uuidValide(c.id_commande) || !(await existe(client, "commande", c.id_commande)))
     return { status: 400, code: 4015, error: "Commande introuvable." };
   if (!uuidValide(c.id_revendeur) || !(await existe(client, "revendeur", c.id_revendeur)))
@@ -452,7 +455,7 @@ async function validerMaintenance(client, m, licence) {
     return { status: 400, code: 4016, error: "Revendeur introuvable." };
   if (m.id_version && (!uuidValide(m.id_version) || !licence?.id_produit
       || !(await declinaisonDuProduit("version", m.id_version, licence.id_produit))))
-    return { status: 400, code: 4014, error: "Version introuvable ou etrangere au produit." };
+    return { status: 400, code: 4014, error: "Version introuvable ou étrangère au logiciel." };
   return null;
 }
 
@@ -637,15 +640,20 @@ router.delete("/licences/:id", async (req, res) => {
     // Une licence renouvelée par un successeur (id_licence_predecesseur, 056,
     // sans cascade) est également protégée : le lien de succession se retire
     // d'abord sur le successeur.
+    // Une preuve rattachée à la licence (preuve.id_licence, 053, FK RESTRICT
+    // volontaire : une pièce d'audit ne se détache pas en silence) bloque de
+    // même, en 4023 lisible plutôt qu'en 23503 brute remontée en 4099.
     const { rows: [liens] } = await client.query(
       `SELECT (SELECT count(*) FROM affectation WHERE id_licence = $1) AS affectations,
               (SELECT count(*) FROM budget      WHERE id_licence = $1) AS budgets,
-              (SELECT count(*) FROM licence     WHERE id_licence_predecesseur = $1) AS successeurs`,
+              (SELECT count(*) FROM licence     WHERE id_licence_predecesseur = $1) AS successeurs,
+              (SELECT count(*) FROM preuve      WHERE id_licence = $1) AS preuves`,
       [id]);
     const bloquants = [];
     if (+liens.affectations) bloquants.push(`${liens.affectations} affectation(s)`);
     if (+liens.budgets)      bloquants.push(`${liens.budgets} ligne(s) budgetaire(s)`);
     if (+liens.successeurs)  bloquants.push(`${liens.successeurs} licence(s) qui la renouvelle(nt)`);
+    if (+liens.preuves)      bloquants.push(`${liens.preuves} preuve(s)`);
     if (bloquants.length) {
       await client.query("ROLLBACK");
       return erreur(res, 4023, {
@@ -884,7 +892,7 @@ router.post("/licences/:id/arret-maintenance", async (req, res) => {
       ? (req.body.version_figee_id || null) : avant.id_version;
     if (versionFigee && (!UUID_RE.test(versionFigee) || !(await declinaisonDuProduit("version", versionFigee, avant.id_produit)))) {
       await client.query("ROLLBACK");
-      return erreur(res, 4042, { status: 400, message: "Version a figer introuvable ou etrangere au produit." });
+      return erreur(res, 4042, { status: 400, message: "Version à figer introuvable ou étrangère au logiciel." });
     }
 
     // La version figée devient la version courante (D59 : la version se fige

@@ -84,7 +84,7 @@ export default function DroitsViewer({ isOpen, onClose, user, societes, userSoci
       <div className="flex flex-col gap-5">
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Organisation</label>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Société</label>
             <select
               value={societeId}
               onChange={(e) => setSocieteId(e.target.value)}

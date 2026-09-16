@@ -8,12 +8,24 @@
 // licence, et les types proposés dépendent de l'objet choisi (liste ferme du
 // client). L'API reste tolérante au cumul pour les preuves antérieures ; le
 // formulaire, lui, n'envoie qu'un seul rattachement.
+// Dépôt unifié (#204, décision du chef de projet du 12/09, revue en réunion
+// client du 16/09) : cette modale est la seule porte d'entrée des pièces,
+// facture comprise. Elle s'adapte au type choisi d'après la définition des
+// champs servie par GET /types-preuve/champs (défauts Commune, surcharge
+// Tenant, migrations 060 et 061) : aucun champ additionnel n'est connu en dur.
+// Un champ défini que le formulaire commun porte déjà (label, id_contrat,
+// id_commande, id_licence) n'est pas rendu deux fois : la définition n'apporte
+// alors que son caractère obligatoire, et un rattachement obligatoire impose
+// l'objet de rattachement. Les autres champs sont rendus d'après type_champ.
+// Le type facture emprunte le circuit facture existant, POST /factures/depot
+// (objet unique facture-preuve, validation unique, budget engagé et détection
+// des manques inchangés) ; les autres types gardent le circuit preuve simple.
 import { useState, useEffect, useMemo } from 'react';
 import SlideOver from '../ui/SlideOver';
 import Button from '../ui/Button';
 import FormField from '../ui/FormField';
 import DocumentUploadField from './DocumentUploadField';
-import { preuvesService } from '../../services/documentsService';
+import { preuvesService, facturesService, typesPreuveService } from '../../services/documentsService';
 import { libelleContrat } from './libelleContrat';
 
 const INPUT_CLS = 'w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white';
@@ -28,17 +40,30 @@ export const TYPES_PAR_RATTACHEMENT = {
   licence:  ['certificat', 'clefs_licence', 'autre'],
 };
 
+// Seule connaissance en dur du circuit facture : le code du type, celui que
+// le serveur résout lui-même (factures.js, typePreuveFacture). Les champs du
+// type, eux, viennent de la définition en base.
+const CODE_TYPE_FACTURE = 'facture';
+
 const RATTACHEMENTS = [
   { code: 'contrat',  label: 'Contrat',  champ: 'id_contrat' },
   { code: 'commande', label: 'Commande', champ: 'id_commande' },
   { code: 'licence',  label: 'Licence',  champ: 'id_licence' },
 ];
 
-// Une licence n'a pas toujours de libellé propre : le produit fait alors foi,
+// Champs que le formulaire commun porte déjà : la définition ne les rend pas
+// une seconde fois.
+const CHAMPS_COMMUNS = ['label', ...RATTACHEMENTS.map(r => r.champ)];
+
+// Rendu HTML d'un champ additionnel d'après son type de champ (060). Une
+// référence hors rattachement est saisie comme un identifiant.
+const TYPE_INPUT = { texte: 'text', nombre: 'number', date: 'date', reference: 'text' };
+
+// Une licence n'a pas toujours de libellé propre : le logiciel fait alors foi,
 // comme dans la liste des licences.
 const libelleLicence = (l) => l.label ?? l.produit_label ?? l.id;
 
-const EMPTY = { label: '', id_type_preuve: '', rattachement: 'contrat', id_contrat: '', id_commande: '', id_licence: '' };
+const EMPTY = { label: '', id_type_preuve: '', rattachement: 'contrat', id_contrat: '', id_commande: '', id_licence: '', champs: {} };
 
 export default function PreuveFormModal({
   isOpen, onClose, onDone, typesPreuve = [],
@@ -49,6 +74,22 @@ export default function PreuveFormModal({
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [erreur, setErreur] = useState(null);
+  // Définition des champs par type, lue à la première ouverture. Son absence
+  // (droit refusé, API non migrée) ne bloque pas le dépôt : le formulaire
+  // commun suffit, seuls les champs additionnels manquent.
+  const [definitions, setDefinitions] = useState(null);
+
+  useEffect(() => {
+    if (!isOpen || definitions !== null) return;
+    let actif = true;
+    typesPreuveService.champs()
+      .then(d => { if (actif) setDefinitions(Array.isArray(d) ? d : []); })
+      .catch(err => {
+        console.info('[preuves] définition des champs indisponible, formulaire commun seul :', err.message);
+        if (actif) setDefinitions([]);
+      });
+    return () => { actif = false; };
+  }, [isOpen, definitions]);
 
   // Types proposés pour le rattachement courant, dans l'ordre de la décision.
   // Repli sur la liste complète tant que la migration 053 n'a pas été jouée :
@@ -78,6 +119,25 @@ export default function PreuveFormModal({
     setErreur(null);
   }, [isOpen, typesPreuve, contratParDefaut, commandeParDefaut, licenceParDefaut]);
 
+  const typeChoisi = typesPreuve.find(t => t.id === form.id_type_preuve) ?? null;
+  const circuitFacture = typeChoisi?.code === CODE_TYPE_FACTURE;
+
+  // Définition du type choisi : champs communs (obligation, rattachement
+  // imposé) et champs additionnels à rendre.
+  const champsDuType = useMemo(
+    () => (definitions ?? []).filter(c => typeChoisi && c.code_type_preuve === typeChoisi.code),
+    [definitions, typeChoisi]);
+  const champsAdditionnels = champsDuType.filter(c => !CHAMPS_COMMUNS.includes(c.nom));
+  const rattachementImpose = RATTACHEMENTS.find(r => champsDuType.some(c => c.nom === r.champ && c.obligatoire))?.code ?? null;
+
+  // Un rattachement obligatoire dans la définition impose l'objet de
+  // rattachement : le formulaire y bascule dès que la définition est connue.
+  useEffect(() => {
+    if (rattachementImpose && form.rattachement !== rattachementImpose) {
+      setForm(v => ({ ...v, rattachement: rattachementImpose }));
+    }
+  }, [rattachementImpose, form.rattachement]);
+
   // Changer d'objet de rattachement change la liste des types : le type courant
   // est conservé s'il reste proposé, sinon le premier de la nouvelle liste.
   function choisirRattachement(code) {
@@ -86,8 +146,14 @@ export default function PreuveFormModal({
       const proposes = codes.map(c => typesPreuve.find(t => t.code === c)).filter(Boolean);
       const liste = proposes.length ? proposes : typesPreuve;
       const conserve = liste.some(t => t.id === v.id_type_preuve);
-      return { ...v, rattachement: code, id_type_preuve: conserve ? v.id_type_preuve : (liste[0]?.id ?? '') };
+      return { ...v, rattachement: code, id_type_preuve: conserve ? v.id_type_preuve : (liste[0]?.id ?? ''), champs: {} };
     });
+  }
+
+  // Les valeurs des champs additionnels repartent de zéro à chaque changement
+  // de type : elles n'ont de sens que pour le type qui les définit.
+  function choisirType(id) {
+    setForm(v => ({ ...v, id_type_preuve: id, champs: {} }));
   }
 
   const rattachement = RATTACHEMENTS.find(r => r.code === form.rattachement) ?? RATTACHEMENTS[0];
@@ -103,11 +169,36 @@ export default function PreuveFormModal({
   // Le formulaire ne rejoue pas les règles du serveur, il empêche seulement
   // d'envoyer une requête vouée au refus. Les messages affichés en cas d'échec
   // restent ceux de l'API, mot pour mot.
-  const complet = !!(file && form.label.trim() && form.id_type_preuve && idRattache);
+  const champsComplets = champsAdditionnels.every(c => !c.obligatoire || String(form.champs[c.nom] ?? '').trim() !== '');
+  const rattachementConforme = !rattachementImpose || form.rattachement === rattachementImpose;
+  const complet = !!(file && form.label.trim() && form.id_type_preuve && idRattache && champsComplets && rattachementConforme);
 
-  async function handleSave() {
-    setLoading(true);
-    setErreur(null);
+  // Valeurs des champs additionnels, sous leur nom technique, vides omises.
+  function valeursChamps() {
+    const valeurs = {};
+    for (const c of champsAdditionnels) {
+      const v = String(form.champs[c.nom] ?? '').trim();
+      if (v !== '') valeurs[c.nom] = v;
+    }
+    return valeurs;
+  }
+
+  // Circuit facture (#204) : un seul appel, le fichier, la preuve support et la
+  // facture naissent ensemble ou pas du tout, rien à rattraper en cas d'échec.
+  async function deposerFacture() {
+    await facturesService.deposer({
+      file,
+      label: form.label.trim(),
+      idCommande: form.id_commande,
+      idTypePreuve: form.id_type_preuve,
+      champs: valeursChamps(),
+    });
+    onDone({ type: 'success', message: 'Facture enregistrée avec son justificatif.' });
+    onClose();
+  }
+
+  // Circuit preuve simple : création puis dépôt du fichier.
+  async function deposerPreuve() {
     let creee = null;
     try {
       creee = await preuvesService.create({
@@ -121,6 +212,7 @@ export default function PreuveFormModal({
         // par le nom physique réel. Cette valeur ne survit jamais à un dépôt
         // réussi.
         url_fichier: 'en-attente-de-depot',
+        ...valeursChamps(),
       });
       await preuvesService.deposerFichier(creee.id, file);
       onDone({ type: 'success', message: 'Preuve déposée.' });
@@ -130,6 +222,17 @@ export default function PreuveFormModal({
         ? `La preuve a été créée mais le fichier n'a pas pu être déposé : ${err.message} Reprenez le dépôt depuis sa fiche.`
         : err.message);
       if (creee) onDone(null);
+    }
+  }
+
+  async function handleSave() {
+    setLoading(true);
+    setErreur(null);
+    try {
+      if (circuitFacture) await deposerFacture();
+      else await deposerPreuve();
+    } catch (err) {
+      setErreur(err.message);
     } finally {
       setLoading(false);
     }
@@ -165,8 +268,8 @@ export default function PreuveFormModal({
             onChange={e => setForm(v => ({ ...v, label: e.target.value }))} />
         </FormField>
         <div className="grid grid-cols-2 gap-4">
-          <FormField label="Rattachée à" required>
-            <select className={INPUT_CLS} value={form.rattachement}
+          <FormField label="Rattachée à" required hint={rattachementImpose ? `Imposé par le type ${typeChoisi?.label ?? ''}` : undefined}>
+            <select className={INPUT_CLS} value={form.rattachement} disabled={!!rattachementImpose}
               onChange={e => choisirRattachement(e.target.value)}>
               {rattachementsProposes.map(r => <option key={r.code} value={r.code}>{r.label}</option>)}
             </select>
@@ -206,13 +309,22 @@ export default function PreuveFormModal({
         )}
         <FormField label="Type de preuve" required hint="Les types proposés dépendent de l'objet de rattachement">
           <select className={INPUT_CLS} value={form.id_type_preuve}
-            onChange={e => setForm(v => ({ ...v, id_type_preuve: e.target.value }))}>
+            onChange={e => choisirType(e.target.value)}>
             {typesProposes.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
           </select>
         </FormField>
+        {champsAdditionnels.map(c => (
+          <FormField key={c.nom} label={c.libelle} required={c.obligatoire}>
+            <input className={INPUT_CLS} type={TYPE_INPUT[c.type_champ] ?? 'text'}
+              step={c.type_champ === 'nombre' ? 'any' : undefined}
+              value={form.champs[c.nom] ?? ''}
+              onChange={e => setForm(v => ({ ...v, champs: { ...v.champs, [c.nom]: e.target.value } }))} />
+          </FormField>
+        ))}
         <p className="text-xs text-gray-500 dark:text-gray-400 -mt-2">
-          Une preuve se rattache à un contrat, à une commande ou à une licence.
-          Seul un rattachement direct à la commande la fait sortir de la détection des manques.
+          {circuitFacture
+            ? 'Le fichier déposé est enregistré comme preuve de type Facture, rattachée à cette commande. La facture apparaît une seule fois dans Preuves et se valide une seule fois.'
+            : 'Une preuve se rattache à un contrat, à une commande ou à une licence. Seul un rattachement direct à la commande la fait sortir de la détection des manques.'}
         </p>
       </div>
     </SlideOver>

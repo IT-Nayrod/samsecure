@@ -35,7 +35,7 @@ const MENU = [
       { label: 'Licences', icon: Shield, path: '/conformite/licences' },
       { label: 'Contrat', icon: FileText, path: '/contrats/liste' },
       { label: 'Commandes', icon: ShoppingCart, path: '/contrats/commandes' },
-      { label: 'Factures & Preuves', icon: Receipt, path: '/contrats/factures' },
+      { label: 'Preuves', icon: Receipt, path: '/contrats/factures' },
     ],
   },
   {

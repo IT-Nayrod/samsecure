@@ -28,7 +28,7 @@ export function PrevisionBudgetaireWidget() {
     const cle = ligne.id_produit ?? ligne.licence_label ?? ligne.id_licence;
     if (!parProduit.has(cle)) {
       parProduit.set(cle, {
-        produit: ligne.produit_label ?? ligne.licence_label ?? 'Produit local',
+        produit: ligne.produit_label ?? ligne.licence_label ?? 'Logiciel local',
         coutN: 0, coutN1: 0, prevN1: 0,
       });
     }
@@ -81,7 +81,7 @@ export function PrevisionBudgetaireWidget() {
     <CadreWidget
       widgetId="prevision-budgetaire"
       titre="Prévision budgétaire N+1"
-      info={`Lignes budgétaires groupées par produit : budget alloué de l'exercice ${exerciceN} (N) et de l'exercice précédent, budget prévisionnel de l'exercice ${exerciceN + 1}. L'exercice de chaque ligne suit l'ancrage fiscal de la société payeuse. Le clic ouvre le module budget.`}
+      info={`Lignes budgétaires groupées par logiciel : budget alloué de l'exercice ${exerciceN} (N) et de l'exercice précédent, budget prévisionnel de l'exercice ${exerciceN + 1}. L'exercice de chaque ligne suit l'ancrage fiscal de la société payeuse. Le clic ouvre le module budget.`}
       chargement={chargement} erreur={erreur} onRelancer={relancer}
       vide={!chargement && !erreur && lignes.length === 0}
       videMessage="Aucune ligne budgétaire saisie sur les exercices affichés."
@@ -91,7 +91,7 @@ export function PrevisionBudgetaireWidget() {
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
           <thead>
             <tr style={{ borderBottom: '2px solid #EAECF0' }}>
-              <TH k="produit" label="Produit" />
+              <TH k="produit" label="Logiciel" />
               <TH k="coutN" label={`Alloué ${exerciceN} (€)`} />
               <TH k="coutN1" label={`Alloué ${exerciceN - 1} (€)`} />
               <TH k="prevN1" label={`Prévi ${exerciceN + 1} (€)`} />

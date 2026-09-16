@@ -27,14 +27,14 @@ export default function BudgetOrgBreakdown({ lignes = [], onSelectSociete }) {
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
       <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
-        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Répartition par organisation</h2>
-        <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Cliquez sur une ligne pour filtrer sur cette organisation</p>
+        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Répartition par société</h2>
+        <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Cliquez sur une ligne pour filtrer sur cette société</p>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600">
-              <th className={`${TH_CLS} text-left`}>Organisation</th>
+              <th className={`${TH_CLS} text-left`}>Société</th>
               <th className={`${TH_CLS} text-right`}>Prévisionnel CAPEX</th>
               <th className={`${TH_CLS} text-right`}>Prévisionnel OPEX</th>
               <th className={`${TH_CLS} text-right`}>Alloué CAPEX</th>

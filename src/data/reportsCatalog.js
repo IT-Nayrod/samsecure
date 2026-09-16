@@ -32,17 +32,17 @@ export const reportsCatalog = [
     id: 'r-c01',
     categorie: 'conformite',
     titre: 'État de conformité global',
-    description: 'Balance droits acquis vs usages déclarés pour chaque produit du parc.',
+    description: 'Balance droits acquis vs usages déclarés pour chaque logiciel du parc.',
     icone: 'ShieldCheck',
     extraParams: [],
     kpis: [
-      { key: 'conformes',    label: 'Produits conformes',   format: 'nombre', couleur: 'vert' },
+      { key: 'conformes',    label: 'Logiciels conformes',   format: 'nombre', couleur: 'vert' },
       { key: 'attention',    label: 'En attention',          format: 'nombre', couleur: 'orange' },
       { key: 'non_conformes', label: 'Non conformes',        format: 'nombre', couleur: 'rouge' },
       { key: 'ecart_total',  label: 'Écart total (unités)', format: 'nombre_signe', couleur: null },
     ],
     colonnes: [
-      { key: 'produit',    label: 'Produit',          sortable: true },
+      { key: 'produit',    label: 'Logiciel',          sortable: true },
       { key: 'editeur',    label: 'Éditeur',          sortable: true },
       { key: 'droits',     label: 'Droits acquis',    sortable: true, format: 'nombre' },
       { key: 'usages',     label: 'Usages déclarés',  sortable: true, format: 'nombre' },
@@ -66,7 +66,7 @@ export const reportsCatalog = [
     ],
     colonnes: [
       { key: 'editeur',       label: 'Éditeur',        sortable: true },
-      { key: 'nb_produits',   label: 'Nb produits',    sortable: true, format: 'nombre' },
+      { key: 'nb_produits',   label: 'Nb logiciels',    sortable: true, format: 'nombre' },
       { key: 'droits_totaux', label: 'Droits totaux',  sortable: true, format: 'nombre' },
       { key: 'usages_totaux', label: 'Usages totaux',  sortable: true, format: 'nombre' },
       { key: 'ecart',         label: 'Écart',          sortable: true, format: 'nombre_signe' },
@@ -85,11 +85,11 @@ export const reportsCatalog = [
     kpis: [
       { key: 'nb_usages_non_couverts', label: 'Usages non couverts',  format: 'nombre', couleur: 'rouge' },
       { key: 'quantite_manquante',     label: 'Quantité manquante',   format: 'nombre', couleur: 'rouge' },
-      { key: 'nb_produits',            label: 'Produits concernés',   format: 'nombre', couleur: null },
+      { key: 'nb_produits',            label: 'Logiciels concernés',   format: 'nombre', couleur: null },
     ],
     colonnes: [
       { key: 'reference_client',  label: 'Référence client',   sortable: true },
-      { key: 'produit',           label: 'Produit',             sortable: true },
+      { key: 'produit',           label: 'Logiciel',             sortable: true },
       { key: 'editeur',           label: 'Éditeur',             sortable: true },
       { key: 'societe',           label: 'Société',             sortable: true },
       { key: 'quantite_affectee', label: 'Quantité affectée',  sortable: true, format: 'nombre' },
@@ -112,7 +112,7 @@ export const reportsCatalog = [
     ],
     colonnes: [
       { key: 'reference_client',       label: 'Référence client',    sortable: true },
-      { key: 'produit',                label: 'Produit',              sortable: true },
+      { key: 'produit',                label: 'Logiciel',              sortable: true },
       { key: 'societe',                label: 'Société',              sortable: true },
       { key: 'derniere_validation',    label: 'Dernière validation',  sortable: true, format: 'date' },
       { key: 'prochaine_echeance',     label: 'Prochaine échéance',   sortable: true, format: 'date' },
@@ -171,9 +171,9 @@ export const reportsCatalog = [
     ],
     sections: [
       {
-        titre: 'Conformité par produit',
+        titre: 'Conformité par logiciel',
         colonnes: [
-          { key: 'produit',   label: 'Produit',          sortable: true },
+          { key: 'produit',   label: 'Logiciel',          sortable: true },
           { key: 'droits',    label: 'Droits acquis',    sortable: true, format: 'nombre' },
           { key: 'usages',    label: 'Usages déclarés',  sortable: true, format: 'nombre' },
           { key: 'ecart',     label: 'Écart',            sortable: true, format: 'nombre_signe' },
@@ -193,7 +193,7 @@ export const reportsCatalog = [
       {
         titre: 'Licences',
         colonnes: [
-          { key: 'produit',  label: 'Produit',   sortable: true },
+          { key: 'produit',  label: 'Logiciel',   sortable: true },
           { key: 'type',     label: 'Type',      sortable: true },
           { key: 'quantite', label: 'Quantité',  sortable: true, format: 'nombre' },
           { key: 'cout',     label: 'Coût',      sortable: true, format: 'montant' },
@@ -218,7 +218,7 @@ export const reportsCatalog = [
       { key: 'economie_potentielle', label: 'Économie potentielle',   format: 'montant', couleur: null },
     ],
     colonnes: [
-      { key: 'produit',             label: 'Produit',              sortable: true },
+      { key: 'produit',             label: 'Logiciel',              sortable: true },
       { key: 'editeur',             label: 'Éditeur',              sortable: true },
       { key: 'droits',              label: 'Droits',               sortable: true, format: 'nombre' },
       { key: 'usages',              label: 'Usages',               sortable: true, format: 'nombre' },
@@ -240,7 +240,7 @@ export const reportsCatalog = [
       { key: 'nb_licences',        label: 'Licences concernées',          format: 'nombre', couleur: null },
     ],
     colonnes: [
-      { key: 'produit',    label: 'Produit',            sortable: true },
+      { key: 'produit',    label: 'Logiciel',            sortable: true },
       { key: 'editeur',    label: 'Éditeur',            sortable: true },
       { key: 'prestataire', label: 'Mainteneur',        sortable: true },
       { key: 'date_debut', label: 'Début maintenance',  sortable: true, format: 'date' },
@@ -297,7 +297,7 @@ export const reportsCatalog = [
     id: 'r-o05',
     categorie: 'optimisation',
     titre: 'Doublons et chevauchements',
-    description: 'Produits redondants avec licences actives simultanées sur la période.',
+    description: 'Logiciels redondants avec licences actives simultanées sur la période.',
     icone: 'Copy',
     extraParams: [],
     kpis: [
@@ -306,7 +306,7 @@ export const reportsCatalog = [
     ],
     colonnes: [
       { key: 'groupe',           label: 'Groupe',          sortable: true },
-      { key: 'produits',         label: 'Produits',        sortable: false },
+      { key: 'produits',         label: 'Logiciels',        sortable: false },
       { key: 'droits_cumules',   label: 'Droits cumulés',  sortable: true, format: 'nombre' },
       { key: 'usages_cumules',   label: 'Usages cumulés',  sortable: true, format: 'nombre' },
       { key: 'recommandation',   label: 'Recommandation',  sortable: false },

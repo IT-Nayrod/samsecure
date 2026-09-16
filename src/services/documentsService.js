@@ -53,19 +53,31 @@ export const facturesService = {
   // Il n'existe pas de création de facture sans justificatif dans l'interface,
   // c'est l'arbitrage de flux rendu le 11/08. Le type de la preuve est
   // facultatif depuis la #204 : le serveur applique le type Facture.
-  deposer: ({ file, label, idCommande, idTypePreuve, labelPreuve }) => {
+  // Depuis le dépôt unifié (#204, 12/09), c'est la modale de preuve qui
+  // l'appelle quand le type facture est choisi ; le type est alors transmis.
+  // champs : valeurs des champs additionnels définis pour le type
+  // (GET /types-preuve/champs), transmises sous leur nom technique, vides
+  // omises. Le libellé et la commande passent par leurs paramètres propres.
+  deposer: ({ file, label, idCommande, idTypePreuve, labelPreuve, champs }) => {
     const fd = new FormData();
     fd.append('fichier', file);
     fd.append('label', label);
     fd.append('id_commande', idCommande);
     if (idTypePreuve) fd.append('id_type_preuve', idTypePreuve);
     if (labelPreuve) fd.append('label_preuve', labelPreuve);
+    for (const [nom, valeur] of Object.entries(champs ?? {})) {
+      if (valeur !== '' && valeur !== null && valeur !== undefined && !fd.has(nom)) fd.append(nom, valeur);
+    }
     return http.postForm('/factures/depot', fd);
   },
 };
 
 export const typesPreuveService = {
   list: () => http.get('/types-preuve'),
+  // Définition fusionnée des champs additionnels par type de preuve (#204,
+  // migrations 060 et 061) : lignes { code_type_preuve, nom, libelle,
+  // type_champ, obligatoire, ordre, origine }, actives seulement, triées.
+  champs: () => http.get('/types-preuve/champs'),
 };
 
 // Détection des manques : vue temps réel servie par le module commandes, mais

@@ -17,6 +17,7 @@ import Skeleton from '../ui/Skeleton';
 import StatutEcheanceBadge from './StatutEcheanceBadge';
 import CommandeFormModal from './CommandeFormModal';
 import PreuveFormModal from './PreuveFormModal';
+import { libelleContrat, societeParContrat } from './libelleContrat';
 import useRbac from '../../hooks/useRbac';
 import { useToast } from '../../hooks/useToast';
 import { formatDate } from '../../utils/dateUtils';
@@ -32,7 +33,7 @@ export default function CommandeDetailPage() {
   const navigate = useNavigate();
   const { addToast } = useToast();
   const { canWrite, canDelete, canValidate } = useRbac({ write: 'saisir_commande', validate: 'valider_saisie' });
-  // Le dépôt d'une preuve suit le droit de l'écran Factures & Preuves, pas celui de la commande.
+  // Le dépôt d'une preuve suit le droit de l'écran Preuves, pas celui de la commande.
   const { canWrite: canDeposer } = useRbac({ write: 'deposer_facture_preuve' });
 
   const [commande, setCommande] = useState(null);
@@ -89,6 +90,8 @@ export default function CommandeDetailPage() {
 
   const appliquer = useCallback(reponse => setCommande(k => appliquerStatut(k, reponse)), []);
   const { valider, refuser } = useValidation(appliquer);
+  // Société signataire du contrat d'origine, lue dans la liste des contrats.
+  const societeContrat = societeParContrat(contrats);
 
   // Le fichier est protégé par le jeton : on le télécharge puis on ouvre l'objet
   // URL local, comme le fait la fiche document.
@@ -198,7 +201,7 @@ export default function CommandeDetailPage() {
           <div>
             <p className="text-xs text-gray-500 mb-1">Contrat</p>
             {commande.id_contrat
-              ? <Link to={`/contrats/liste/${commande.id_contrat}`} className="text-sm text-blue-800 hover:underline">{commande.contrat_label}</Link>
+              ? <Link to={`/contrats/liste/${commande.id_contrat}`} className="text-sm text-blue-800 hover:underline">{libelleContrat(commande.contrat_label, societeContrat.get(commande.id_contrat))}</Link>
               : <p className="text-sm text-gray-500">-</p>}
           </div>
           <div>

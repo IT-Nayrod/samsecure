@@ -96,7 +96,7 @@ export default function GroupesPage() {
 
   function diffusionLabel(groupId) {
     const rows = diffusions[groupId] || [];
-    if (rows.some((r) => r.id_societe === null)) return 'Toutes organisations (tenant)';
+    if (rows.some((r) => r.id_societe === null)) return 'Toutes sociétés (tenant)';
     if (!rows.length) return 'Aucune diffusion';
     return rows.map((r) => r.raison_sociale).join(', ');
   }
@@ -125,7 +125,7 @@ export default function GroupesPage() {
       const impact = await groupsService.impact(group.id);
       const parts = [];
       if (impact.utilisateurs.length) parts.push(`${impact.utilisateurs.length} utilisateur(s) : ${impact.utilisateurs.map(u => `${u.prenom} ${u.nom}`).join(', ')}`);
-      if (impact.societes.length) parts.push(`${impact.societes.length} organisation(s) en diffusion spécifique : ${impact.societes.map(s => s.raison_sociale).join(', ')}`);
+      if (impact.societes.length) parts.push(`${impact.societes.length} société(s) en diffusion spécifique : ${impact.societes.map(s => s.raison_sociale).join(', ')}`);
       const message = parts.length
         ? `Ce groupe est encore utilisé. ${parts.join(' — ')}. Le supprimer retirera ces attributions. Continuer ?`
         : `Supprimer le groupe "${group.label}" ?`;
@@ -335,7 +335,7 @@ export default function GroupesPage() {
                   Échelle tenant
                 </button>
                 <button type="button" onClick={() => toggleDiffusionTenant(false)} className={`flex-1 px-3 py-2 rounded-lg text-sm border ${!isTenantDiffusion ? 'bg-blue-50 border-blue-400 text-blue-700 font-medium' : 'border-gray-200 text-gray-600'}`}>
-                  Organisations spécifiques
+                  Sociétés spécifiques
                 </button>
               </div>
               {!isTenantDiffusion && (

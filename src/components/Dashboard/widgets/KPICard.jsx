@@ -385,7 +385,7 @@ export function BalanceUsagesDroitsWidget() {
     <CadreWidget
       widgetId="balance-usages-droits"
       titre="Balance usages vs droits"
-      info={"Produits répartis selon la marge entre droits acquis (licences) et usage déclaré (affectations validées) : dépassement, saturation, marge faible ou marge suffisante. La borne de marge est le seuil configuré."}
+      info={"Logiciels répartis selon la marge entre droits acquis (licences) et usage déclaré (affectations validées) : dépassement, saturation, marge faible ou marge suffisante. La borne de marge est le seuil configuré."}
       chargement={chargement} erreur={erreur} onRelancer={relancer}
       vide={!chargement && !erreur && !(data?.par_produit ?? []).length}
       videMessage="Aucune affectation validée pour le moment."

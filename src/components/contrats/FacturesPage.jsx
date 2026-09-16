@@ -1,4 +1,7 @@
-// FacturesPage - écran unifié Factures et Preuves, orienté audit.
+// FacturesPage - écran Preuves (factures comprises), orienté audit.
+// Titre « Preuves » depuis le 12/09 (décision du chef de projet, le ticket
+// #200 conservait « Factures & Preuves ») : la facture est un type de preuve
+// parmi les sept, le sous-titre et les filtres ne changent pas.
 // Branche sur deux ressources API distinctes, /api/preuves et /api/factures,
 // fidèlement au schéma : la page les assemble pour l'affichage mais ne fusionne
 // pas les modèles. Chaque ligne conserve sa ressource d'origine, qui détermine
@@ -6,6 +9,9 @@
 // Objet unique (#204) : une facture et sa preuve support ne font qu'une ligne,
 // celle de type Facture. GET /preuves ne sert que les preuves libres, la ligne
 // facture porte le fichier de sa preuve : aucun doublon d'affichage.
+// Dépôt unifié (#204, 12/09) : un seul bouton, « Déposer une preuve » ; la
+// modale de preuve emprunte le circuit facture quand le type facture est
+// choisi. Il n'y a plus de modale facture.
 // La détection des manques vient de /api/commandes/manques : une vue temps
 // réel, jamais un stock d'anomalies, d'où le rechargement après chaque dépôt.
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
@@ -25,8 +31,7 @@ import DocumentIcon from './DocumentIcon';
 import ManqueBadge from './ManqueBadge';
 import DeploiementKpiCard from '../deploiement/DeploiementKpiCard';
 import PreuveFormModal from './PreuveFormModal';
-import FactureFormModal from './FactureFormModal';
-import { libelleContrat } from './libelleContrat';
+import { libelleContrat, societeParContrat } from './libelleContrat';
 import useRbac from '../../hooks/useRbac';
 import { useToast } from '../../hooks/useToast';
 import { formatDate } from '../../utils/dateUtils';
@@ -59,7 +64,6 @@ export default function FacturesPage() {
   const contratParam = searchParams.get('contrat');
   const commandeParam = searchParams.get('commande');
   const [preuveModal, setPreuveModal] = useState(false);
-  const [factureModal, setFactureModal] = useState(false);
   const manquesRef = useRef(null);
 
   // Les filtres partent à l'API plutôt que d'être appliqués en mémoire : c'est
@@ -133,7 +137,7 @@ export default function FacturesPage() {
       label: p.label,
       nom_fichier: p.nom_origine || p.url_fichier,
       type_preuve_label: p.type_label,
-      contrat_label: p.contrat_label,
+      contrat_label: libelleContrat(p.contrat_label, p.contrat_societe_label),
       commande_label: p.commande_label,
       // Une preuve rattachée à une licence sans libellé propre reste
       // identifiable : la fiche document porte le lien vers la licence.
@@ -149,7 +153,7 @@ export default function FacturesPage() {
       label: f.label,
       nom_fichier: f.preuve_nom_origine || f.preuve_url_fichier,
       type_preuve_label: f.preuve_type_label,
-      contrat_label: f.contrat_label,
+      contrat_label: libelleContrat(f.contrat_label, f.contrat_societe_label),
       commande_label: f.commande_label,
       licence_label: null,
       created_at: f.created_at,
@@ -161,6 +165,10 @@ export default function FacturesPage() {
     const visibles = filterType ? tout.filter(l => l.ressource === filterType) : tout;
     return visibles.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
   }, [preuves, factures, filterType]);
+
+  // Société signataire des contrats, pour les commandes en manque qui ne
+  // portent que contrat_label.
+  const societeContrat = useMemo(() => societeParContrat(contrats), [contrats]);
 
   const columns = [
     { key: 'label', label: 'Document', render: r => (
@@ -189,7 +197,7 @@ export default function FacturesPage() {
   if (isLoading) {
     return (
       <div className="flex flex-col gap-6">
-        <Breadcrumb items={[{ label: 'Droits d\'usage' }, { label: 'Factures & Preuves' }]} />
+        <Breadcrumb items={[{ label: 'Droits d\'usage' }, { label: 'Preuves' }]} />
         <Skeleton lines={3} height="h-20" />
         <Skeleton lines={6} />
       </div>
@@ -199,7 +207,7 @@ export default function FacturesPage() {
   if (error) {
     return (
       <div className="flex flex-col gap-6">
-        <Breadcrumb items={[{ label: 'Droits d\'usage' }, { label: 'Factures & Preuves' }]} />
+        <Breadcrumb items={[{ label: 'Droits d\'usage' }, { label: 'Preuves' }]} />
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
           <ErrorState message={error} status={errorStatus} onRetry={load} />
         </div>
@@ -209,21 +217,16 @@ export default function FacturesPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <Breadcrumb items={[{ label: 'Droits d\'usage' }, { label: 'Factures & Preuves' }]} />
+      <Breadcrumb items={[{ label: 'Droits d\'usage' }, { label: 'Preuves' }]} />
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Factures & Preuves</h1>
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Preuves</h1>
           <p className="text-sm text-gray-500 mt-0.5">Pièces justificatives et aptitude à l&apos;audit</p>
         </div>
         {canWrite && (
-          <div className="flex gap-2">
-            <Button variant="secondary" onClick={() => setPreuveModal(true)}>
-              <Plus size={15} /> Déposer une preuve
-            </Button>
-            <Button variant="primary" onClick={() => setFactureModal(true)}>
-              <Plus size={15} /> Déposer une facture
-            </Button>
-          </div>
+          <Button variant="primary" onClick={() => setPreuveModal(true)}>
+            <Plus size={15} /> Déposer une preuve
+          </Button>
         )}
       </div>
 
@@ -253,7 +256,7 @@ export default function FacturesPage() {
               <div key={c.id} className="flex items-center justify-between gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-900/40" style={{ borderLeft: '3px solid #EF4444' }}>
                 <button onClick={() => navigate(`/contrats/commandes/${c.id}`)} className="text-sm font-medium text-gray-900 dark:text-white hover:underline text-left">
                   {c.label}
-                  <span className="ml-2 text-xs font-normal text-gray-500">{[c.contrat_label, c.societe_label].filter(Boolean).join(' - ')}</span>
+                  <span className="ml-2 text-xs font-normal text-gray-500">{[libelleContrat(c.contrat_label, societeContrat.get(c.id_contrat)), c.societe_label].filter(Boolean).join(' - ')}</span>
                 </button>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   {c.facture_manquante && <ManqueBadge label="Sans facture" />}
@@ -308,13 +311,6 @@ export default function FacturesPage() {
         commandes={commandes}
         licences={licences}
         contratParDefaut={contratActif || null}
-        commandeParDefaut={commandeActive || null}
-      />
-      <FactureFormModal
-        isOpen={factureModal}
-        onClose={() => setFactureModal(false)}
-        onDone={apresDepot}
-        commandes={commandes}
         commandeParDefaut={commandeActive || null}
       />
     </div>

@@ -22,9 +22,9 @@ export default function BudgetOrgSelector({ societes = [], societeId, consolider
         value={societeId}
         onChange={e => handleSocieteChange(e.target.value)}
         className={SELECT_CLS}
-        aria-label="Organisation"
+        aria-label="Société"
       >
-        <option value="">Toutes les organisations</option>
+        <option value="">Toutes les sociétés</option>
         {/* Indentation par espaces insécables, sans glyphe : le texte de
             l'option est aussi la valeur affichée par le sélecteur fermé. */}
         {options.map(opt => (

@@ -8,7 +8,7 @@ import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Layers, List, AlertTriangle, Wallet, Hash, CalendarClock, X } from 'lucide-react';
 import { licencesService, referentielsLicencesService, formatMontant, editeurPourLogo, TYPES_LICENCE, libelleType as libelleTypeCode } from '../../services/licencesService';
-import { referentielsContratsService } from '../../services/contratsService';
+import { contratsService, referentielsContratsService } from '../../services/contratsService';
 import { commandesService } from '../../services/commandesService';
 import { optionnel } from '../../services/http';
 import DataTable from '../ui/DataTable';
@@ -47,6 +47,7 @@ export default function LicencesPage() {
   const [revendeurs, setRevendeurs] = useState([]);
   const [unites, setUnites] = useState([]);
   const [mainteneurs, setMainteneurs] = useState([]);
+  const [contrats, setContrats] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [errorStatus, setErrorStatus] = useState(null);
@@ -70,15 +71,18 @@ export default function LicencesPage() {
       // Seules les licences sont indispensables. Les référentiels alimentent
       // les logos, les filtres et le formulaire : un droit manquant sur eux
       // prive de ces commodités, pas de la liste.
-      const [l, p, k, r, u, m] = await Promise.all([
+      const [l, p, k, r, u, m, ct] = await Promise.all([
         licencesService.list(),
         optionnel(referentielsLicencesService.produits()),
         optionnel(commandesService.list()),
         optionnel(referentielsContratsService.revendeurs()),
         optionnel(referentielsLicencesService.unitesMesure()),
         optionnel(referentielsLicencesService.mainteneurs()),
+        // Société signataire des contrats, pour le sélecteur de commande du
+        // formulaire (format « Commande (Contrat (Société)) »).
+        optionnel(contratsService.list({ inclureArchives: true })),
       ]);
-      setLicences(l); setProduits(p); setCommandes(k); setRevendeurs(r); setUnites(u); setMainteneurs(m);
+      setLicences(l); setProduits(p); setCommandes(k); setRevendeurs(r); setUnites(u); setMainteneurs(m); setContrats(ct);
     } catch (err) {
       setError(err.message);
       setErrorStatus(err.status);
@@ -157,7 +161,7 @@ export default function LicencesPage() {
     { key: 'label', label: 'Licence', sortable: true, getValue: r => r.label ?? r.produit_label ?? '', render: r => (
       <button onClick={() => navigate(`/conformite/licences/${r.id}`)} className="font-medium text-blue-800 hover:underline text-left">{r.label ?? r.produit_label ?? r.id}</button>
     ) },
-    { key: 'produit_label', label: 'Produit', sortable: true, render: r => r.produit_label ?? '-' },
+    { key: 'produit_label', label: 'Logiciel', sortable: true, render: r => r.produit_label ?? '-' },
     { key: 'editeur_label', label: 'Éditeur', sortable: true, render: r => r.editeur_label ?? '-' },
     { key: 'type', label: 'Type', sortable: true, render: r => libelleType(r.type, r) },
     { key: 'quantite', label: 'Quantité', sortable: true, render: r => `${r.quantite} ${r.unite_label ?? ''}` },
@@ -165,7 +169,7 @@ export default function LicencesPage() {
     { key: 'statut_echeance', label: 'Échéance', sortable: true, render: r => (
       <span className="inline-flex items-center gap-1.5"><StatutEcheanceBadge statut={r.statut_echeance} />{r.date_fin_souscription && <span className="text-xs text-gray-500">{r.date_fin_souscription}</span>}</span>
     ) },
-    { key: 'conformite', label: 'Balance produit', csvValue: r => `${r.produit_usage_declare}/${r.produit_droits} ${r.produit_niveau}`, render: r => (
+    { key: 'conformite', label: 'Balance logiciel', csvValue: r => `${r.produit_usage_declare}/${r.produit_droits} ${r.produit_niveau}`, render: r => (
       <ConformiteGaugeBar droits={r.produit_droits} usage={r.produit_usage_declare} niveau={r.produit_niveau} unite={r.unite_label ?? ''} label="" />
     ) },
     { key: 'statut_maintenance', label: 'Maintenance', sortable: true, render: r => <StatutMaintenanceBadge licence={r} /> },
@@ -217,7 +221,7 @@ export default function LicencesPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <DeploiementKpiCard label="Droits acquis actifs" value={kpis.droitsActifs.toLocaleString('fr-FR')} icon={Hash} color="#1F4E79" />
         <DeploiementKpiCard label={montantsVisibles ? 'Valeur du parc' : 'Valeur du parc (masquée)'} value={montantsVisibles ? formatMontant(kpis.valeurParc) : 'Masqué'} icon={Wallet} color="#7C6FCD" />
-        <DeploiementKpiCard label="Produits en dépassement" value={kpis.produitsDepassement} icon={AlertTriangle} color="#EF4444" onClick={() => toggleKpi('depassement')} active={activeKpi === 'depassement'} />
+        <DeploiementKpiCard label="Logiciels en dépassement" value={kpis.produitsDepassement} icon={AlertTriangle} color="#EF4444" onClick={() => toggleKpi('depassement')} active={activeKpi === 'depassement'} />
         <DeploiementKpiCard label="Échéances à traiter" value={kpis.echeances} icon={CalendarClock} color="#F59E0B" onClick={() => toggleKpi('echeances')} active={activeKpi === 'echeances'} />
       </div>
 
@@ -333,7 +337,7 @@ export default function LicencesPage() {
         onSaved={handleSaved}
         licence={formModal.licence}
         produits={produits} commandes={commandes} revendeurs={revendeurs} unites={unites} mainteneurs={mainteneurs}
-        licences={licences}
+        licences={licences} contrats={contrats}
         montantsVisibles={montantsVisibles}
       />
     </div>

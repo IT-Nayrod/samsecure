@@ -19,6 +19,7 @@ import { contratsService, referentielsContratsService } from '../../../services/
 import { commandesService } from '../../../services/commandesService';
 import { optionnel } from '../../../services/http';
 import { toIsoDate } from '../../../utils/fiscalPeriod';
+import { libelleContrat } from '../../contrats/libelleContrat';
 
 const JOURS_PAR_MOIS = 30.4375;
 const MOIS_COURTS = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
@@ -116,8 +117,8 @@ export function EcheancesWidget({ variante }) {
     const niveau = niveauDe(ligne.jours_restants);
     parMois.get(cle)[`n${niveau}`] += 1;
     const label = variante === 'commandes'
-      ? (ligne.contrat_label ?? ligne.label)
-      : (ligne.editeur_label ?? ligne.label);
+      ? (libelleContrat(ligne.contrat_label, ligne.contrat_societe_label) ?? ligne.label)
+      : (ligne.editeur_label ?? libelleContrat(ligne.label, ligne.societe_label));
     const detail = details.get(cle);
     const existant = detail.find((d) => d.label === label && d.niveau === niveau);
     if (existant) existant.nb += 1;
@@ -173,7 +174,7 @@ export function EcheancesWidget({ variante }) {
 const AXES = [
   { valeur: 'editeur', label: 'Par éditeur' },
   { valeur: 'societe', label: 'Par société' },
-  { valeur: 'produit', label: 'Par produit' },
+  { valeur: 'produit', label: 'Par logiciel' },
 ];
 const PERIODES = [
   { valeur: 1, label: '1 an' },
@@ -210,7 +211,7 @@ export function MontantsTotauxWidget() {
     <CadreWidget
       widgetId="montants-totaux"
       titre="Montants totaux"
-      info={"Par éditeur ou par société : somme des montants de commandes sur la période choisie. Par produit : somme des coûts des licences non expirées du parc (le montant d'une commande ne se ventile pas par produit). Le clic sur une barre ouvre la liste filtrée."}
+      info={"Par éditeur ou par société : somme des montants de commandes sur la période choisie. Par logiciel : somme des coûts des licences non expirées du parc (le montant d'une commande ne se ventile pas par logiciel). Le clic sur une barre ouvre la liste filtrée."}
       chargement={chargement} erreur={erreur} onRelancer={relancer}
       vide={!chargement && !erreur && !lignes.length}
       videMessage="Aucun montant sur la période."

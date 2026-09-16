@@ -4,7 +4,9 @@
 // GET /budget/engage (BudgetPage fait un appel par licence distincte) ; la
 // barre de progression rapporte cet engagé au montant de la ligne, avec le
 // code couleur de BudgetProgressBar. Filtres type, contrat, éditeur et produit
-// construits à partir des lignes elles-mêmes.
+// construits à partir des lignes elles-mêmes. Le contrat s'affiche au format
+// « Libellé (Société) » (libelleContrat) : la société signataire vient de la
+// liste des contrats passée par la page, les lignes ne portant que contrat_label.
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Pencil, Trash2 } from 'lucide-react';
@@ -12,6 +14,7 @@ import DataTable from '../ui/DataTable';
 import Badge from '../ui/Badge';
 import BudgetProgressBar from './BudgetProgressBar';
 import { formatEuros, formatDateIso, libelleType } from './budgetCalculs';
+import { libelleContrat, societeParContrat } from '../contrats/libelleContrat';
 
 const SELECT_CLS = 'text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500';
 
@@ -27,7 +30,7 @@ function quantite(q) {
 }
 
 export default function BudgetTable({
-  lignes = [], engageParLicence = new Map(), isLoading = false,
+  lignes = [], engageParLicence = new Map(), isLoading = false, contrats = [],
   onEdit, onDelete, canEdit = false, canDelete = false, emptyState,
 }) {
   const navigate = useNavigate();
@@ -36,7 +39,10 @@ export default function BudgetTable({
   const [filtreEditeur, setFiltreEditeur] = useState('');
   const [filtreProduit, setFiltreProduit] = useState('');
 
-  const contratsUniques = useMemo(() => optionsDepuisLignes(lignes, 'id_contrat', 'contrat_label'), [lignes]);
+  const societeContrat = useMemo(() => societeParContrat(contrats), [contrats]);
+  const contratsUniques = useMemo(() => optionsDepuisLignes(lignes, 'id_contrat', 'contrat_label')
+    .map(c => ({ ...c, label: libelleContrat(c.label, societeContrat.get(c.id)) ?? '-' }))
+    .sort((a, b) => a.label.localeCompare(b.label, 'fr')), [lignes, societeContrat]);
   const editeursUniques = useMemo(() => optionsDepuisLignes(lignes, 'id_editeur', 'editeur_label'), [lignes]);
   const produitsUniques = useMemo(() => optionsDepuisLignes(lignes, 'id_produit', 'produit_label'), [lignes]);
 
@@ -67,11 +73,11 @@ export default function BudgetTable({
   const columns = [
     {
       key: 'societe_label',
-      label: 'Organisation',
+      label: 'Société',
       sortable: true,
       render: row => row.id_societe
         ? row.societe_label
-        : <span className="text-gray-400 dark:text-gray-500" title="Licence sans commande : organisation payeuse non déterminée">Non déterminée</span>,
+        : <span className="text-gray-400 dark:text-gray-500" title="Licence sans commande : société payeuse non déterminée">Non déterminée</span>,
       csvValue: row => row.societe_label ?? '',
     },
     {
@@ -92,10 +98,10 @@ export default function BudgetTable({
           onClick={() => navigate(`/contrats/liste/${row.id_contrat}`)}
           className="text-blue-800 dark:text-blue-400 hover:underline text-left max-w-[200px] truncate block"
         >
-          {row.contrat_label ?? '-'}
+          {libelleContrat(row.contrat_label, societeContrat.get(row.id_contrat)) ?? '-'}
         </button>
       ) : <span className="text-gray-400">-</span>,
-      csvValue: row => row.contrat_label ?? '',
+      csvValue: row => libelleContrat(row.contrat_label, societeContrat.get(row.id_contrat)) ?? '',
     },
     {
       key: 'editeur_label',
@@ -106,7 +112,7 @@ export default function BudgetTable({
     },
     {
       key: 'produit_label',
-      label: 'Produit',
+      label: 'Logiciel',
       sortable: true,
       getValue: row => row.produit_label ?? row.licence_label ?? '',
       render: row => (
@@ -222,8 +228,8 @@ export default function BudgetTable({
           <option value="">Tous les éditeurs</option>
           {editeursUniques.map(e => <option key={e.id} value={e.id}>{e.label}</option>)}
         </select>
-        <select value={produitActif} onChange={e => setFiltreProduit(e.target.value)} className={SELECT_CLS} aria-label="Filtre produit">
-          <option value="">Tous les produits</option>
+        <select value={produitActif} onChange={e => setFiltreProduit(e.target.value)} className={SELECT_CLS} aria-label="Filtre logiciel">
+          <option value="">Tous les logiciels</option>
           {produitsUniques.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
         </select>
       </div>

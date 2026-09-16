@@ -36,7 +36,7 @@ export function CoutLicencesManquantesWidget() {
     <CadreWidget
       widgetId="cout-licences-manquantes"
       titre="Coût des licences manquantes"
-      info={"Valorisation des droits manquants : usage déclaré au-delà des droits acquis, multiplié par le prix unitaire de la dernière commande de chaque produit, et rapportée à la valorisation totale du parc observé (coût des licences actives du périmètre). Les seuils de couleur sont en euros. Le clic ouvre la liste des licences."}
+      info={"Valorisation des droits manquants : usage déclaré au-delà des droits acquis, multiplié par le prix unitaire de la dernière commande de chaque logiciel, et rapportée à la valorisation totale du parc observé (coût des licences actives du périmètre). Les seuils de couleur sont en euros. Le clic ouvre la liste des licences."}
       derniereMaj={ag?.derniere_maj}
       chargement={chargement} erreur={erreur} onRelancer={relancer}
       vide={!chargement && !erreur && !ag}
@@ -54,7 +54,7 @@ export function CoutLicencesManquantesWidget() {
         <span style={{ fontSize: 11, color: '#8B9099', lineHeight: 1.4 }}>
           {nbDepassement > 0
             ? `${nbDepassement} produit${nbDepassement > 1 ? 's' : ''} en dépassement de droits`
-            : 'Aucun produit en dépassement de droits'}
+            : 'Aucun logiciel en dépassement de droits'}
         </span>
         <div style={{ display: 'flex', gap: 10, fontSize: 10, color: '#8B9099', flexWrap: 'wrap' }}>
           <span>Seuil attention : {b2.toLocaleString('fr-FR')} €</span>

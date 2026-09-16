@@ -497,7 +497,7 @@ export function dossierAuditEditeur(_sources, periode, params) {
       nb_preuves:    lignesContrats.reduce((s, l) => s + l.nb_preuves, 0),
     },
     sections: [
-      { titre: `Conformité par produit - ${editeur.raison_sociale ?? idEditeur}`, lignes: lignesConformite },
+      { titre: `Conformité par logiciel - ${editeur.raison_sociale ?? idEditeur}`, lignes: lignesConformite },
       { titre: 'Contrats et preuves', lignes: lignesContrats },
       { titre: 'Licences', lignes: lignesLicences },
     ],
@@ -638,14 +638,14 @@ export function doublonsChevauche(_sources, periode, _params) {
     const enfantLabels = enfants.map(id => produitById[id]?.label ?? id).join(', ');
     const droitsCumules = enfants.reduce((s, id) => s + (droitsMap[id] ?? 0), 0);
     const usagesCumules = enfants.reduce((s, id) => s + (usagesMap[id] ?? 0), 0);
-    return { groupe: parentProduit.label ?? idParent, produits: enfantLabels, droits_cumules: droitsCumules, usages_cumules: usagesCumules, recommandation: 'Consolider les licences sur un seul produit' };
+    return { groupe: parentProduit.label ?? idParent, produits: enfantLabels, droits_cumules: droitsCumules, usages_cumules: usagesCumules, recommandation: 'Consolider les licences sur un seul logiciel' };
   });
 
   return {
     kpis: { nb_groupes: lignes.length, droits_redondants: lignes.reduce((s, l) => s + l.droits_cumules, 0) },
     lignes,
     // Note si aucun doublon détecte par hiérarchie produit (les licences sont sur les produits parents)
-    note: lignes.length === 0 ? 'Aucun doublon détecté par hiérarchie produit sur la période sélectionnée. Les licences sont associées aux produits parents, pas aux sous-produits.' : null,
+    note: lignes.length === 0 ? 'Aucun doublon détecté par hiérarchie logiciel sur la période sélectionnée. Les licences sont associées aux logiciels parents, pas aux sous-logiciels.' : null,
   };
 }
 

@@ -205,7 +205,7 @@ export default function ProduitDetailPage() {
 
       {isCatalogue && (
         <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl px-4 py-3 text-sm text-amber-800 dark:text-amber-300">
-          Catalogue commun, non modifiable. Ce produit est partagé par tous les clients SamSecure.
+          Catalogue commun, non modifiable. Ce logiciel est partagé par tous les clients SamSecure.
         </div>
       )}
 
@@ -214,16 +214,16 @@ export default function ProduitDetailPage() {
           <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Hiérarchie</h2>
           <div className="flex flex-col gap-3">
             <div>
-              <p className="text-xs text-gray-500 mb-1">Produit parent</p>
+              <p className="text-xs text-gray-500 mb-1">Logiciel parent</p>
               {produit.id_produit_parent
-                ? <Link to={`/referentiels/logiciels/${produit.id_produit_parent}`} className="text-sm text-blue-800 hover:underline">{produit.parent_label ?? 'Produit parent'}</Link>
-                : <p className="text-sm text-gray-500">Aucun (produit racine)</p>
+                ? <Link to={`/referentiels/logiciels/${produit.id_produit_parent}`} className="text-sm text-blue-800 hover:underline">{produit.parent_label ?? 'Logiciel parent'}</Link>
+                : <p className="text-sm text-gray-500">Aucun (logiciel racine)</p>
               }
             </div>
             <div>
-              <p className="text-xs text-gray-500 mb-1">Sous-produits ({enfants.length})</p>
+              <p className="text-xs text-gray-500 mb-1">Sous-logiciels ({enfants.length})</p>
               {enfants.length === 0
-                ? <p className="text-sm text-gray-500">Aucun sous-produit.</p>
+                ? <p className="text-sm text-gray-500">Aucun sous-logiciel.</p>
                 : (
                   <ul className="flex flex-col gap-1">
                     {enfants.map(e => (

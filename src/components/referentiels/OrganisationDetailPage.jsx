@@ -66,7 +66,7 @@ export default function OrganisationDetailPage() {
     return (
       <div className="flex flex-col gap-6">
         <Breadcrumb items={[{ label: 'Administration', to: '/referentiels/organisation' }, { label: 'Organisation', to: '/referentiels/organisation' }, { label: 'Introuvable' }]} />
-        <EmptyState title="Organisation introuvable" description="Cette organisation n'existe pas ou a été supprimée." ctaLabel="Retour à la liste" onCta={() => navigate('/referentiels/organisation')} />
+        <EmptyState title="Société introuvable" description="Cette société n'existe pas ou a été supprimée." ctaLabel="Retour à la liste" onCta={() => navigate('/referentiels/organisation')} />
       </div>
     );
   }
@@ -81,7 +81,7 @@ export default function OrganisationDetailPage() {
 
   async function handleSubmit(data, existing) {
     await societesService.update(existing.id, data);
-    addToast({ type: 'success', message: 'Organisation mise à jour.' });
+    addToast({ type: 'success', message: 'Société mise à jour.' });
     await load();
   }
 
@@ -160,7 +160,7 @@ export default function OrganisationDetailPage() {
           // déjà supprimée par la cascade serveur
         }
       }
-      addToast({ type: 'success', message: `${retraitInfo.user.prenom} ${retraitInfo.user.nom} retiré(e) de l'organisation.` });
+      addToast({ type: 'success', message: `${retraitInfo.user.prenom} ${retraitInfo.user.nom} retiré(e) de la société.` });
       await load();
     } catch (err) {
       addToast({ type: 'error', message: err.message });
@@ -170,7 +170,7 @@ export default function OrganisationDetailPage() {
   async function handleDelete() {
     try {
       await societesService.remove(organisation.id);
-      addToast({ type: 'success', message: 'Organisation supprimée.' });
+      addToast({ type: 'success', message: 'Société supprimée.' });
       navigate('/referentiels/organisation');
     } catch (err) {
       addToast({ type: 'error', message: err.message });
@@ -211,10 +211,10 @@ export default function OrganisationDetailPage() {
               <p className="text-sm text-gray-800 dark:text-gray-200">{organisation.siret ?? '-'}</p>
             </div>
             <div>
-              <p className="text-xs text-gray-500 mb-1">Organisation parente</p>
+              <p className="text-xs text-gray-500 mb-1">Société parente</p>
               {parent
                 ? <Link to={`/referentiels/organisation/${parent.id}`} className="text-sm text-blue-800 hover:underline">{parent.raison_sociale}</Link>
-                : <p className="text-sm text-gray-500">Aucune (organisation mère)</p>
+                : <p className="text-sm text-gray-500">Aucune (société mère)</p>
               }
             </div>
             <div>
@@ -254,7 +254,7 @@ export default function OrganisationDetailPage() {
       <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
         <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Utilisateurs rattachés ({rattaches.length})</h2>
         {rattaches.length === 0 ? (
-          <p className="text-sm text-gray-500">Aucun utilisateur rattaché explicitement à cette organisation.</p>
+          <p className="text-sm text-gray-500">Aucun utilisateur rattaché explicitement à cette société.</p>
         ) : (
           <div className="flex flex-col divide-y divide-gray-100 dark:divide-gray-700">
             {rattaches.map((u) => (
@@ -282,7 +282,7 @@ export default function OrganisationDetailPage() {
         isOpen={deleteInfo?.mode === 'simple'}
         onClose={() => setDeleteInfo(null)}
         onConfirm={handleDelete}
-        title="Supprimer l'organisation"
+        title="Supprimer la société"
         isDestructive
         confirmLabel="Supprimer"
         message={deleteInfo?.message}
@@ -314,7 +314,7 @@ export default function OrganisationDetailPage() {
           ))}
         </ul>
         <p className="text-sm text-gray-500">
-          Vous pouvez d'abord réassigner la diffusion de ces groupes sur une autre organisation, ou supprimer quand même.
+          Vous pouvez d'abord réassigner la diffusion de ces groupes sur une autre société, ou supprimer quand même.
         </p>
       </Modal>
 
@@ -322,7 +322,7 @@ export default function OrganisationDetailPage() {
         isOpen={!!retraitInfo}
         onClose={() => setRetraitInfo(null)}
         onConfirm={handleRetirerRattachement}
-        title="Retirer l'utilisateur de l'organisation"
+        title="Retirer l'utilisateur de la société"
         isDestructive
         confirmLabel="Retirer"
         message={retraitInfo?.message}
