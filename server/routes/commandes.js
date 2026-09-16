@@ -47,6 +47,7 @@ const STATUT_ECHEANCE = `
 const SELECT_COMMANDE = `
   SELECT c.id, c.label, c.numero_devis, c.reference_interne,
          c.id_contrat,       ct.label         AS contrat_label,
+         sct.raison_sociale  AS contrat_societe_label,
          c.id_societe,       s.raison_sociale AS societe_label,
          c.id_revendeur,     r.raison_sociale AS revendeur_label,
          c.id_mode_commande, mc.code AS mode_code, mc.label AS mode_label,
@@ -61,6 +62,7 @@ const SELECT_COMMANDE = `
          ${COLONNES_STATUT}
   FROM commande c
   LEFT JOIN contrat       ct ON ct.id = c.id_contrat
+  LEFT JOIN societe       sct ON sct.id = ct.id_societe
   LEFT JOIN societe       s  ON s.id  = c.id_societe
   LEFT JOIN revendeur     r  ON r.id  = c.id_revendeur
   LEFT JOIN mode_commande mc ON mc.id = c.id_mode_commande
@@ -296,6 +298,7 @@ router.get("/commandes/manques", async (req, res) => {
       `WITH etat AS MATERIALIZED (
          SELECT c.id, c.label,
                 c.id_contrat, ct.label         AS contrat_label,
+                sct.raison_sociale AS contrat_societe_label,
                 c.id_societe, s.raison_sociale AS societe_label,
                 c.montant::float8     AS montant,
                 c.date_commande::text AS date_commande,
@@ -303,6 +306,7 @@ router.get("/commandes/manques", async (req, res) => {
                 NOT EXISTS (SELECT 1 FROM preuve  p WHERE p.id_commande = c.id) AS preuve_manquante
            FROM commande c
            LEFT JOIN contrat ct ON ct.id = c.id_contrat
+           LEFT JOIN societe sct ON sct.id = ct.id_societe
            LEFT JOIN societe s  ON s.id  = c.id_societe
           WHERE ($1::uuid IS NULL OR c.id_societe = $1::uuid)
             AND ($2::uuid IS NULL OR c.id_contrat = $2::uuid)

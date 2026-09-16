@@ -20,7 +20,7 @@ import StatutEcheanceBadge from './StatutEcheanceBadge';
 import DeploiementKpiCard from '../deploiement/DeploiementKpiCard';
 import PeriodeFiscaleSelector from '../ui/PeriodeFiscaleSelector';
 import CommandeFormModal from './CommandeFormModal';
-import { libelleContrat, societeParContrat } from './libelleContrat';
+import { libelleContrat } from './libelleContrat';
 import useRbac from '../../hooks/useRbac';
 import { useToast } from '../../hooks/useToast';
 import { formatDate } from '../../utils/dateUtils';
@@ -209,10 +209,6 @@ export default function CommandesPage() {
 
   const hasActiveFiltres = !!(filterContrat || filterSociete || filterRevendeur || filterRenouvellement || activeKpi);
 
-  // Société signataire des contrats, pour le libellé « Libellé (Société) » des
-  // lignes qui ne portent que contrat_label.
-  const societeContrat = useMemo(() => societeParContrat(contrats), [contrats]);
-
   const columns = [
     { key: 'label', label: 'Libellé', sortable: true, render: r => (
       <button onClick={() => navigate(`/contrats/commandes/${r.id}`)} className="font-medium text-blue-800 hover:underline text-left">{r.label}</button>
@@ -220,8 +216,8 @@ export default function CommandesPage() {
     { key: 'numero_devis', label: 'Devis', sortable: true, render: r => r.numero_devis ?? '-' },
     { key: 'reference_interne', label: 'Référence', sortable: true, render: r => r.reference_interne ?? '-' },
     { key: 'contrat_label', label: 'Contrat', sortable: true,
-      render: r => libelleContrat(r.contrat_label, societeContrat.get(r.id_contrat)) ?? '-',
-      csvValue: r => libelleContrat(r.contrat_label, societeContrat.get(r.id_contrat)) ?? '' },
+      render: r => libelleContrat(r.contrat_label, r.contrat_societe_label) ?? '-',
+      csvValue: r => libelleContrat(r.contrat_label, r.contrat_societe_label) ?? '' },
     { key: 'societe_label', label: 'Société acheteuse', sortable: true, render: r => r.societe_label ?? '-' },
     { key: 'revendeur_label', label: 'Revendeur', sortable: true, render: r => r.revendeur_label ?? '-' },
     { key: 'mode_label', label: 'Mode', sortable: true, render: r => r.mode_label ?? '-' },
