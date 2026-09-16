@@ -149,7 +149,7 @@ router.get("/affectations", async (req, res) => {
       return erreur(res, 4117, { status: 400, message: "Identifiant de societe invalide." });
     const produit = req.query.id_produit || null;
     if (produit && !UUID_RE.test(produit))
-      return erreur(res, 4118, { status: 400, message: "Identifiant de produit invalide." });
+      return erreur(res, 4118, { status: 400, message: "Identifiant de logiciel invalide." });
     const licence = req.query.id_licence || null;
     if (licence && !UUID_RE.test(licence))
       return erreur(res, 4119, { status: 400, message: "Identifiant de licence invalide." });
@@ -189,7 +189,7 @@ router.get("/affectations/decompte", async (req, res) => {
       return erreur(res, 4117, { status: 400, message: "Identifiant de societe invalide." });
     const produit = req.query.id_produit || null;
     if (produit && !UUID_RE.test(produit))
-      return erreur(res, 4118, { status: 400, message: "Identifiant de produit invalide." });
+      return erreur(res, 4118, { status: 400, message: "Identifiant de logiciel invalide." });
 
     const { rows } = await tenantPool.query(
       `SELECT l.id_produit, a.id_societe, s.raison_sociale AS societe_label,

@@ -1196,7 +1196,7 @@ function ajouterComplement(type) {
       await client.query("BEGIN");
       if (!UUID_RE.test(id) || !(await produitExiste(id))) {
         await client.query("ROLLBACK");
-        return erreur(res, 4012, { status: 404, message: "Produit introuvable au catalogue." });
+        return erreur(res, 4012, { status: 404, message: "Logiciel introuvable au catalogue." });
       }
       if (!normalise) {
         await client.query("ROLLBACK");
@@ -1218,7 +1218,7 @@ function ajouterComplement(type) {
         const deja = existante ?? complement;
         return erreur(res, 4037, {
           status: 409,
-          message: `Cette ${d.table} existe deja pour ce produit sous le libelle "${deja.label}".`,
+          message: `Cette ${d.table} existe déjà pour ce logiciel sous le libellé "${deja.label}".`,
           details: { id: deja.id, label: deja.label, source: existante ? "catalogue" : "complement" },
         });
       }
