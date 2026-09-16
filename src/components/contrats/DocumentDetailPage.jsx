@@ -19,6 +19,7 @@ import ErrorState from '../ui/ErrorState';
 import Skeleton from '../ui/Skeleton';
 import DocumentIcon from './DocumentIcon';
 import DocumentUploadField from './DocumentUploadField';
+import { libelleContrat } from './libelleContrat';
 import useRbac from '../../hooks/useRbac';
 import { useToast } from '../../hooks/useToast';
 import { formatDate } from '../../utils/dateUtils';
@@ -232,7 +233,7 @@ export default function DocumentDetailPage() {
             <Champ label="Nom du fichier d'origine">{doc.nom_origine}</Champ>
             <Champ label="Contrat rattaché">
               {doc.id_contrat
-                ? <Link to={`/contrats/liste/${doc.id_contrat}`} className="text-blue-800 hover:underline">{doc.contrat_label}</Link>
+                ? <Link to={`/contrats/liste/${doc.id_contrat}`} className="text-blue-800 hover:underline">{libelleContrat(doc.contrat_label, doc.contrat_societe_label)}</Link>
                 : null}
             </Champ>
             <Champ label="Commande rattachée">
@@ -256,7 +257,7 @@ export default function DocumentDetailPage() {
             </Champ>
             <Champ label="Contrat">
               {doc.id_contrat
-                ? <Link to={`/contrats/liste/${doc.id_contrat}`} className="text-blue-800 hover:underline">{doc.contrat_label}</Link>
+                ? <Link to={`/contrats/liste/${doc.id_contrat}`} className="text-blue-800 hover:underline">{libelleContrat(doc.contrat_label, doc.contrat_societe_label)}</Link>
                 : null}
             </Champ>
             <Champ label="Type de preuve">{doc.preuve_type_label}</Champ>

@@ -8,7 +8,7 @@ import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Layers, List, AlertTriangle, Wallet, Hash, CalendarClock, X } from 'lucide-react';
 import { licencesService, referentielsLicencesService, formatMontant, editeurPourLogo, TYPES_LICENCE, libelleType as libelleTypeCode } from '../../services/licencesService';
-import { referentielsContratsService } from '../../services/contratsService';
+import { contratsService, referentielsContratsService } from '../../services/contratsService';
 import { commandesService } from '../../services/commandesService';
 import { optionnel } from '../../services/http';
 import DataTable from '../ui/DataTable';
@@ -47,6 +47,7 @@ export default function LicencesPage() {
   const [revendeurs, setRevendeurs] = useState([]);
   const [unites, setUnites] = useState([]);
   const [mainteneurs, setMainteneurs] = useState([]);
+  const [contrats, setContrats] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [errorStatus, setErrorStatus] = useState(null);
@@ -70,15 +71,18 @@ export default function LicencesPage() {
       // Seules les licences sont indispensables. Les référentiels alimentent
       // les logos, les filtres et le formulaire : un droit manquant sur eux
       // prive de ces commodités, pas de la liste.
-      const [l, p, k, r, u, m] = await Promise.all([
+      const [l, p, k, r, u, m, ct] = await Promise.all([
         licencesService.list(),
         optionnel(referentielsLicencesService.produits()),
         optionnel(commandesService.list()),
         optionnel(referentielsContratsService.revendeurs()),
         optionnel(referentielsLicencesService.unitesMesure()),
         optionnel(referentielsLicencesService.mainteneurs()),
+        // Société signataire des contrats, pour le sélecteur de commande du
+        // formulaire (format « Commande (Contrat (Société)) »).
+        optionnel(contratsService.list({ inclureArchives: true })),
       ]);
-      setLicences(l); setProduits(p); setCommandes(k); setRevendeurs(r); setUnites(u); setMainteneurs(m);
+      setLicences(l); setProduits(p); setCommandes(k); setRevendeurs(r); setUnites(u); setMainteneurs(m); setContrats(ct);
     } catch (err) {
       setError(err.message);
       setErrorStatus(err.status);
@@ -333,7 +337,7 @@ export default function LicencesPage() {
         onSaved={handleSaved}
         licence={formModal.licence}
         produits={produits} commandes={commandes} revendeurs={revendeurs} unites={unites} mainteneurs={mainteneurs}
-        licences={licences}
+        licences={licences} contrats={contrats}
         montantsVisibles={montantsVisibles}
       />
     </div>

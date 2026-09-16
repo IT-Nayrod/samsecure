@@ -25,6 +25,8 @@ import BudgetTable from '../../components/budget/BudgetTable';
 import BudgetFormModal from '../../components/budget/BudgetFormModal';
 import { budgetService } from '../../services/budgetService';
 import { licencesService } from '../../services/licencesService';
+import { contratsService } from '../../services/contratsService';
+import { libelleContrat, societeParContrat } from '../../components/contrats/libelleContrat';
 import { societesService } from '../../services/adminService';
 import { optionnel } from '../../services/http';
 import { sortByHierarchy } from '../../utils/societeHierarchy';
@@ -49,6 +51,9 @@ export default function BudgetPage() {
   // pas de la page.
   const [societes, setSocietes] = useState([]);
   const [licences, setLicences] = useState([]);
+  // Contrats (société signataire) pour le libellé « Libellé (Société) » du
+  // filtre et de la colonne contrat.
+  const [contrats, setContrats] = useState([]);
 
   // Organisation : périmètre contrôlé depuis la page
   const [societeId, setSocieteId] = useState('');
@@ -78,12 +83,14 @@ export default function BudgetPage() {
 
   const loadReferentiels = useCallback(async () => {
     try {
-      const [s, l] = await Promise.all([
+      const [s, l, c] = await Promise.all([
         optionnel(societesService.list()),
         optionnel(licencesService.list()),
+        optionnel(contratsService.list({ inclureArchives: true })),
       ]);
       setSocietes(s);
       setLicences(l);
+      setContrats(c);
     } catch (err) {
       addToast({ type: 'error', message: err.message });
     }
@@ -237,10 +244,10 @@ export default function BudgetPage() {
 
   const contratFilterLabel = useMemo(() => {
     if (!contratFilter) return null;
-    return lignes.find(l => l.id_contrat === contratFilter)?.contrat_label
-      ?? licences.find(l => l.id_contrat === contratFilter)?.contrat_label
-      ?? 'contrat sélectionné';
-  }, [contratFilter, lignes, licences]);
+    const label = lignes.find(l => l.id_contrat === contratFilter)?.contrat_label
+      ?? licences.find(l => l.id_contrat === contratFilter)?.contrat_label;
+    return libelleContrat(label, societeParContrat(contrats).get(contratFilter)) ?? 'contrat sélectionné';
+  }, [contratFilter, lignes, licences, contrats]);
 
   // Lignes sans société payeuse (licence sans commande) : dans les indicateurs
   // de la vue "Toutes les organisations", hors répartition.
@@ -412,6 +419,7 @@ export default function BudgetPage() {
       ) : (
         <BudgetTable
           lignes={lignes}
+          contrats={contrats}
           engageParLicence={engageParLicence}
           isLoading={isLoading}
           onEdit={handleEdit}

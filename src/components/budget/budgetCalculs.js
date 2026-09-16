@@ -6,6 +6,8 @@
 // Les montants, engagés, écarts et taux viennent de l'API : rien n'est
 // recalculé à partir des lignes ici.
 
+import { libelleContrat } from '../contrats/libelleContrat';
+
 export const TOTAUX_VIDES = Object.freeze({
   previsionnel_capex: 0, previsionnel_opex: 0, previsionnel: 0,
   alloue_capex: 0, alloue_opex: 0, alloue: 0,
@@ -48,7 +50,7 @@ export function libelleLicence(l) {
   const lot = l.label ?? l.licence_label ?? null;
   const produit = l.produit_label ?? null;
   const nom = produit && lot && lot !== produit ? `${produit} (${lot})` : (produit ?? lot ?? l.id ?? '');
-  return [nom, l.editeur_label, l.contrat_label].filter(Boolean).join(' - ');
+  return [nom, l.editeur_label, libelleContrat(l.contrat_label, l.contrat_societe_label)].filter(Boolean).join(' - ');
 }
 
 /** Paramètres de plage attendus par l'API à partir d'une période résolue par PeriodeSelector. */

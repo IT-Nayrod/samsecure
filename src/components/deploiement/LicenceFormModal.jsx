@@ -16,6 +16,7 @@ import Button from '../ui/Button';
 import FormField from '../ui/FormField';
 import { licencesService, TYPES_LICENCE, regleType, unitesProposees } from '../../services/licencesService';
 import { loadDraft, saveDraft, clearDraft } from '../../utils/formDraft';
+import { libelleContrat, societeParContrat } from '../contrats/libelleContrat';
 import { useToast } from '../../hooks/useToast';
 
 const INPUT_CLS = 'w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white';
@@ -28,12 +29,15 @@ const EMPTY_FORM = {
 
 export default function LicenceFormModal({
   isOpen, onClose, onSaved, licence,
-  produits = [], commandes = [], revendeurs = [], unites = [], mainteneurs = [], licences = [],
+  produits = [], commandes = [], revendeurs = [], unites = [], mainteneurs = [], licences = [], contrats = [],
   montantsVisibles = true,
 }) {
   const isEdit = !!licence;
   const { addToast } = useToast();
   const draftKey = `licence:${licence?.id ?? 'new'}`;
+  // Société signataire des contrats (GET /contrats), la liste des commandes ne
+  // portant que contrat_label : libellé « Libellé (Société) » du contrat.
+  const societeContrat = useMemo(() => societeParContrat(contrats), [contrats]);
   const [form, setForm] = useState(EMPTY_FORM);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
@@ -223,11 +227,11 @@ export default function LicenceFormModal({
           <FormField label="Commande" hint="Optionnel">
             <select className={INPUT_CLS} value={form.id_commande} onChange={champ('id_commande')}>
               <option value="">Aucune</option>
-              {commandes.map(c => <option key={c.id} value={c.id}>{c.label}{c.contrat_label ? ` (${c.contrat_label})` : ''}</option>)}
+              {commandes.map(c => <option key={c.id} value={c.id}>{c.label}{c.contrat_label ? ` (${libelleContrat(c.contrat_label, societeContrat.get(c.id_contrat))})` : ''}</option>)}
             </select>
           </FormField>
           <FormField label="Contrat" hint="Déduit de la commande">
-            <input type="text" className={`${INPUT_CLS} bg-gray-50 dark:bg-gray-800`} value={commande?.contrat_label ?? ''} readOnly placeholder="-" />
+            <input type="text" className={`${INPUT_CLS} bg-gray-50 dark:bg-gray-800`} value={commande?.contrat_label ? libelleContrat(commande.contrat_label, societeContrat.get(commande.id_contrat)) : ''} readOnly placeholder="-" />
           </FormField>
         </div>
         <FormField label="Revendeur" hint="Optionnel">

@@ -109,6 +109,7 @@ const SELECT_LICENCE = `
          l.id_produit, l.id_edition, l.id_version, l.version_figee_id,
          l.id_commande,     c.label          AS commande_label,
          c.id_contrat,      ct.label         AS contrat_label,
+         sct.raison_sociale AS contrat_societe_label,
          c.id_societe,      s.raison_sociale AS societe_label,
          l.id_revendeur,    r.raison_sociale AS revendeur_label,
          l.id_unite_mesure, um.code AS unite_code, um.label AS unite_label,
@@ -140,6 +141,7 @@ const SELECT_LICENCE = `
   FROM licence l
   LEFT JOIN commande     c  ON c.id  = l.id_commande
   LEFT JOIN contrat      ct ON ct.id = c.id_contrat
+  LEFT JOIN societe      sct ON sct.id = ct.id_societe
   LEFT JOIN societe      s  ON s.id  = c.id_societe
   LEFT JOIN revendeur    r  ON r.id  = l.id_revendeur
   LEFT JOIN unite_mesure um ON um.id = l.id_unite_mesure

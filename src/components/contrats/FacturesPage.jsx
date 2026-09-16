@@ -31,7 +31,7 @@ import DocumentIcon from './DocumentIcon';
 import ManqueBadge from './ManqueBadge';
 import DeploiementKpiCard from '../deploiement/DeploiementKpiCard';
 import PreuveFormModal from './PreuveFormModal';
-import { libelleContrat } from './libelleContrat';
+import { libelleContrat, societeParContrat } from './libelleContrat';
 import useRbac from '../../hooks/useRbac';
 import { useToast } from '../../hooks/useToast';
 import { formatDate } from '../../utils/dateUtils';
@@ -137,7 +137,7 @@ export default function FacturesPage() {
       label: p.label,
       nom_fichier: p.nom_origine || p.url_fichier,
       type_preuve_label: p.type_label,
-      contrat_label: p.contrat_label,
+      contrat_label: libelleContrat(p.contrat_label, p.contrat_societe_label),
       commande_label: p.commande_label,
       // Une preuve rattachée à une licence sans libellé propre reste
       // identifiable : la fiche document porte le lien vers la licence.
@@ -153,7 +153,7 @@ export default function FacturesPage() {
       label: f.label,
       nom_fichier: f.preuve_nom_origine || f.preuve_url_fichier,
       type_preuve_label: f.preuve_type_label,
-      contrat_label: f.contrat_label,
+      contrat_label: libelleContrat(f.contrat_label, f.contrat_societe_label),
       commande_label: f.commande_label,
       licence_label: null,
       created_at: f.created_at,
@@ -165,6 +165,10 @@ export default function FacturesPage() {
     const visibles = filterType ? tout.filter(l => l.ressource === filterType) : tout;
     return visibles.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
   }, [preuves, factures, filterType]);
+
+  // Société signataire des contrats, pour les commandes en manque qui ne
+  // portent que contrat_label.
+  const societeContrat = useMemo(() => societeParContrat(contrats), [contrats]);
 
   const columns = [
     { key: 'label', label: 'Document', render: r => (
@@ -252,7 +256,7 @@ export default function FacturesPage() {
               <div key={c.id} className="flex items-center justify-between gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-900/40" style={{ borderLeft: '3px solid #EF4444' }}>
                 <button onClick={() => navigate(`/contrats/commandes/${c.id}`)} className="text-sm font-medium text-gray-900 dark:text-white hover:underline text-left">
                   {c.label}
-                  <span className="ml-2 text-xs font-normal text-gray-500">{[c.contrat_label, c.societe_label].filter(Boolean).join(' - ')}</span>
+                  <span className="ml-2 text-xs font-normal text-gray-500">{[libelleContrat(c.contrat_label, societeContrat.get(c.id_contrat)), c.societe_label].filter(Boolean).join(' - ')}</span>
                 </button>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   {c.facture_manquante && <ManqueBadge label="Sans facture" />}

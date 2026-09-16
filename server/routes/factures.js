@@ -46,7 +46,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const SELECT_FACTURE = `
   SELECT f.id, f.label,
          f.id_commande, cm.label AS commande_label,
-         cm.id_contrat, ct.label AS contrat_label,
+         cm.id_contrat, ct.label AS contrat_label, sct.raison_sociale AS contrat_societe_label,
          f.id_preuve,   pr.label AS preuve_label, pr.url_fichier AS preuve_url_fichier,
          pr.nom_origine AS preuve_nom_origine, pr.hash_sha256 AS preuve_hash_sha256,
          pr.id_type_preuve AS preuve_id_type_preuve, tp.code AS preuve_type_code, tp.label AS preuve_type_label,
@@ -55,6 +55,7 @@ const SELECT_FACTURE = `
   FROM facture f
   LEFT JOIN commande    cm ON cm.id = f.id_commande
   LEFT JOIN contrat     ct ON ct.id = cm.id_contrat
+  LEFT JOIN societe     sct ON sct.id = ct.id_societe
   LEFT JOIN preuve      pr ON pr.id = f.id_preuve
   LEFT JOIN type_preuve tp ON tp.id = pr.id_type_preuve
   ${jointureStatut("facture", "f")}`;

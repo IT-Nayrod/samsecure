@@ -9,7 +9,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Pencil, Trash2, ChevronDown, ShieldOff, ShieldCheck, Plus, EyeOff, History } from 'lucide-react';
 import BudgetEmbeddedSection from '../budget/BudgetEmbeddedSection';
 import { licencesService, referentielsLicencesService, formatMontant, editeurPourLogo, regleType, libelleType, EVENEMENTS_VERSION } from '../../services/licencesService';
-import { referentielsContratsService } from '../../services/contratsService';
+import { contratsService, referentielsContratsService } from '../../services/contratsService';
 import { commandesService } from '../../services/commandesService';
 import { optionnel } from '../../services/http';
 import Breadcrumb from '../ui/Breadcrumb';
@@ -21,6 +21,7 @@ import ErrorState from '../ui/ErrorState';
 import Skeleton from '../ui/Skeleton';
 import LogoEditeur from '../referentiels/LogoEditeur';
 import StatutEcheanceBadge from '../contrats/StatutEcheanceBadge';
+import { libelleContrat } from '../contrats/libelleContrat';
 import ConformiteGaugeBar from './ConformiteGaugeBar';
 import LicenceFormModal from './LicenceFormModal';
 import StatutMaintenanceBadge from './StatutMaintenanceBadge';
@@ -56,6 +57,7 @@ export default function LicenceDetailPage() {
   const [unites, setUnites] = useState([]);
   const [mainteneurs, setMainteneurs] = useState([]);
   const [licences, setLicences] = useState([]);
+  const [contrats, setContrats] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [errorStatus, setErrorStatus] = useState(null);
@@ -77,7 +79,7 @@ export default function LicenceDetailPage() {
     try {
       // Seule la fiche est indispensable. L'historique de maintenance suit le
       // même droit (consulter_licences) ; les référentiels servent aux formulaires.
-      const [l, h, p, k, r, u, m, ls] = await Promise.all([
+      const [l, h, p, k, r, u, m, ls, ct] = await Promise.all([
         licencesService.get(id),
         optionnel(licencesService.maintenance.list(id)),
         optionnel(referentielsLicencesService.produits()),
@@ -86,8 +88,11 @@ export default function LicenceDetailPage() {
         optionnel(referentielsLicencesService.unitesMesure()),
         optionnel(referentielsLicencesService.mainteneurs()),
         optionnel(licencesService.list()),
+        // Société signataire des contrats, pour le sélecteur de commande du
+        // formulaire (format « Commande (Contrat (Société)) »).
+        optionnel(contratsService.list({ inclureArchives: true })),
       ]);
-      setLicence(l); setPeriodes(h); setProduits(p); setCommandes(k); setRevendeurs(r); setUnites(u); setMainteneurs(m); setLicences(ls);
+      setLicence(l); setPeriodes(h); setProduits(p); setCommandes(k); setRevendeurs(r); setUnites(u); setMainteneurs(m); setLicences(ls); setContrats(ct);
     } catch (err) {
       if (err.status === 404) setIntrouvable(true);
       else { setError(err.message); setErrorStatus(err.status); addToast({ type: 'error', message: err.message }); }
@@ -245,7 +250,7 @@ export default function LicenceDetailPage() {
             </Champ>
             <Champ label="Contrat (déduit de la commande)">
               {licence.id_contrat
-                ? <Link to={`/contrats/liste/${licence.id_contrat}`} className="text-blue-800 hover:underline">{licence.contrat_label}</Link>
+                ? <Link to={`/contrats/liste/${licence.id_contrat}`} className="text-blue-800 hover:underline">{libelleContrat(licence.contrat_label, licence.contrat_societe_label)}</Link>
                 : <span className="text-gray-500">-</span>}
             </Champ>
             <Champ label="Usage déclaré sur ce lot">{licence.usage_declare} {licence.unite_label ?? ''} ({licence.nb_affectations ?? 0} affectation(s))</Champ>
@@ -351,7 +356,7 @@ export default function LicenceDetailPage() {
       <LicenceFormModal
         isOpen={formOpen} onClose={() => setFormOpen(false)} onSaved={appliquer} licence={licence}
         produits={produits} commandes={commandes} revendeurs={revendeurs} unites={unites} mainteneurs={mainteneurs}
-        licences={licences}
+        licences={licences} contrats={contrats}
         montantsVisibles={montantsVisibles}
       />
       <MaintenanceFormModal

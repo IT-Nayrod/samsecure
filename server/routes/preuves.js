@@ -51,7 +51,7 @@ const SHA256_RE = /^[0-9a-f]{64}$/i;
 const SELECT_PREUVE = `
   SELECT p.id, p.label,
          p.id_type_preuve, tp.code AS type_code, tp.label AS type_label,
-         p.id_contrat,     ct.label AS contrat_label,
+         p.id_contrat,     ct.label AS contrat_label, sct.raison_sociale AS contrat_societe_label,
          p.id_commande,    cm.label AS commande_label,
          p.id_licence,     li.label AS licence_label,
          p.url_fichier, p.hash_sha256, p.nom_origine, p.created_at,
@@ -60,6 +60,7 @@ const SELECT_PREUVE = `
   FROM preuve p
   LEFT JOIN type_preuve tp ON tp.id = p.id_type_preuve
   LEFT JOIN contrat     ct ON ct.id = p.id_contrat
+  LEFT JOIN societe     sct ON sct.id = ct.id_societe
   LEFT JOIN commande    cm ON cm.id = p.id_commande
   LEFT JOIN licence     li ON li.id = p.id_licence
   ${jointureStatut("preuve", "p")}`;
