@@ -23,12 +23,28 @@
 // écrit dans licence_version_historique (D60), jamais reconstitué. Le lien de
 // succession (id_licence_predecesseur, D35) est saisi sur la licence qui
 // renouvelle : une licence qui a un successeur ne déclenche plus d'alerte.
+//
+// Décisions de la réunion client du 11/09/2026 (migrations 062 et 063) :
+// - prolongation (POST /licences/:id/prolonger) : la date de fin de la période
+//   en cours est étendue (souscription ou essai par date_fin_souscription,
+//   perpétuelle par sa maintenance), opération tracée ; la "nouvelle période"
+//   est une création ordinaire préremplie par le front avec
+//   id_licence_predecesseur ;
+// - le contrat suit les licences (server/utils/successionContrat.js) : chaque
+//   licence sert contrat_a_suivre, calculé par la règle pure sur des faits lus
+//   ici, jamais écrit en base ;
+// - une période de maintenance se rattache à une commande (id_commande) ; le
+//   revendeur se lit par la commande, id_revendeur reste en repli ;
+// - versions et éditions ajoutables à un produit du catalogue global depuis
+//   les formulaires : stockées en Tenant (version_complement,
+//   edition_complement, jamais en Commune), résolues avec le catalogue.
 import express from "express";
 import { tenantPool, commonPool } from "../db.js";
 import { succes, erreur, erreurPivot } from "../utils/reponse.js";
 import { auditer, diff } from "../utils/audit.js";
 import { permissionsEffectives } from "../utils/droitsUtilisateur.js";
 import { LICENCE_EXPIREE } from "../utils/conformite.js";
+import { contratDoitSuivre } from "../utils/successionContrat.js";
 
 const router = express.Router();
 
@@ -111,6 +127,11 @@ const SELECT_LICENCE = `
          l.id_commande,     c.label          AS commande_label,
          c.id_contrat,      ct.label         AS contrat_label,
          sct.raison_sociale AS contrat_societe_label,
+         ct.date_fin::text  AS contrat_date_fin, ct.a_renouveler AS contrat_a_renouveler, ct.archive AS contrat_archive,
+         (SELECT count(*) FROM contrat cx WHERE cx.id_contrat_predecesseur = ct.id)::int AS contrat_nb_successeurs,
+         pc.id_contrat      AS id_contrat_predecesseur,
+         (SELECT count(*) FROM licence sx JOIN commande sc ON sc.id = sx.id_commande
+           WHERE sx.id_licence_predecesseur = l.id AND sc.id_contrat = c.id_contrat)::int AS nb_successeurs_meme_contrat,
          c.id_societe,      s.raison_sociale AS societe_label,
          l.id_revendeur,    r.raison_sociale AS revendeur_label,
          l.id_unite_mesure, um.code AS unite_code, um.label AS unite_label,
@@ -149,12 +170,17 @@ const SELECT_LICENCE = `
   LEFT JOIN mainteneur   m  ON m.id  = l.id_mainteneur
   LEFT JOIN type_licence tl ON tl.code = l.type
   LEFT JOIN licence      pred ON pred.id = l.id_licence_predecesseur
+  LEFT JOIN commande     pc ON pc.id = pred.id_commande
   LEFT JOIN usage_licence ul ON ul.id_licence = l.id
   LEFT JOIN balance      b  ON b.id_produit = l.id_produit`;
 
+// Revendeur d'une période : celui de sa commande (062) ; id_revendeur, saisi
+// directement avant la 062, reste servi en repli pour les périodes anciennes.
 const SELECT_MAINTENANCE = `
   SELECT h.id, h.id_licence,
          h.id_mainteneur, m.raison_sociale AS mainteneur_label,
+         h.id_commande,   co.label AS commande_label, co.id_contrat AS commande_id_contrat,
+         co.id_revendeur  AS commande_id_revendeur, rc.raison_sociale AS commande_revendeur_label,
          h.id_revendeur,  r.raison_sociale AS revendeur_label,
          h.id_version,
          h.date_debut::text AS date_debut,
@@ -167,8 +193,10 @@ const SELECT_MAINTENANCE = `
          END AS statut,
          h.created_at
     FROM maintenance_historique h
-    LEFT JOIN mainteneur m ON m.id = h.id_mainteneur
-    LEFT JOIN revendeur  r ON r.id = h.id_revendeur`;
+    LEFT JOIN mainteneur m  ON m.id  = h.id_mainteneur
+    LEFT JOIN commande   co ON co.id = h.id_commande
+    LEFT JOIN revendeur  rc ON rc.id = co.id_revendeur
+    LEFT JOIN revendeur  r  ON r.id  = h.id_revendeur`;
 
 const CHAMPS = [
   "label", "id_produit", "id_edition", "id_version", "id_commande", "id_revendeur",
@@ -193,6 +221,12 @@ async function resoudreVersions(rows, cles) {
   if (ids.length) {
     const { rows: v } = await commonPool.query(`SELECT id, label FROM version WHERE id = ANY($1)`, [ids]);
     for (const x of v) labels.set(x.id, x.label);
+    // Versions ajoutées par le client (063), hors catalogue Commune.
+    const restants = ids.filter((id) => !labels.has(id));
+    if (restants.length) {
+      const { rows: c } = await tenantPool.query(`SELECT id, label FROM version_complement WHERE id = ANY($1)`, [restants]);
+      for (const x of c) labels.set(x.id, x.label);
+    }
   }
   return rows.map((r) => {
     const out = { ...r };
@@ -239,6 +273,16 @@ async function resoudreCatalogue(rows) {
        UNION ALL
        SELECT id, label FROM version WHERE id = ANY($1)`, [idsDeclinaisons]);
     for (const x of d) declinaisons.set(x.id, x.label);
+    // Déclinaisons ajoutées par le client (063) : mêmes identifiants
+    // logiques, stockées en Tenant. Une requête pour tout ce qui manque.
+    const restants = idsDeclinaisons.filter((id) => !declinaisons.has(id));
+    if (restants.length) {
+      const { rows: c } = await tenantPool.query(
+        `SELECT id, label FROM edition_complement WHERE id = ANY($1)
+         UNION ALL
+         SELECT id, label FROM version_complement WHERE id = ANY($1)`, [restants]);
+      for (const x of c) declinaisons.set(x.id, x.label);
+    }
   }
   const idsEditeurs = [...new Set([...produits.values()].map((p) => p.id_editeur).filter(Boolean))];
   const editeurs = new Map();
@@ -283,10 +327,25 @@ function masquerMaintenance(row, visibles) {
                   : { ...row, cout: null, montants_masques: true };
 }
 
+// Le contrat suit les licences (décision du 11/09/2026) : contrat_a_suivre
+// est vrai si la licence a été renouvelée sur son contrat (elle renouvelle
+// une licence du même contrat, ou une licence du même contrat la renouvelle)
+// et que ce contrat est échu ou à échéance sans successeur. Règle pure,
+// appliquée sur les faits de la projection, jamais stockée.
+function poserContratASuivre(rows) {
+  return rows.map((r) => ({
+    ...r,
+    contrat_a_suivre: contratDoitSuivre(r, {
+      date_fin: r.contrat_date_fin, a_renouveler: r.contrat_a_renouveler,
+      nb_successeurs: r.contrat_nb_successeurs, archive: r.contrat_archive,
+    }),
+  }));
+}
+
 async function lireLicence(id, req) {
   const { rows } = await tenantPool.query(`${SELECT_LICENCE} WHERE l.id = $1`, [id]);
   if (!rows.length) return null;
-  const [resolue] = await resoudreCatalogue(rows);
+  const [resolue] = await resoudreCatalogue(poserContratASuivre(rows));
   return masquerLicence(resolue, await montantsVisibles(req));
 }
 
@@ -305,11 +364,17 @@ async function produitExiste(id) {
   const { rowCount } = await commonPool.query(`SELECT 1 FROM produit_referentiel WHERE id = $1`, [id]);
   return rowCount > 0;
 }
+// La déclinaison peut venir du catalogue Commune ou des compléments ajoutés
+// par le client (063, table <table>_complement en Tenant) : les deux sources
+// sont acceptées, toujours rattachées au produit.
 async function declinaisonDuProduit(table, id, idProduit) {
   if (!id) return true;
   const { rowCount } = await commonPool.query(
     `SELECT 1 FROM ${table} WHERE id = $1 AND id_produit = $2`, [id, idProduit]);
-  return rowCount > 0;
+  if (rowCount > 0) return true;
+  const { rowCount: complement } = await tenantPool.query(
+    `SELECT 1 FROM ${table}_complement WHERE id = $1 AND id_produit = $2`, [id, idProduit]);
+  return complement > 0;
 }
 
 // Un <select> vide et un <input type="date"> vide envoient "" et non null.
@@ -428,6 +493,7 @@ function normaliserMaintenance(body = {}) {
   const cout = vide(body.cout);
   return {
     id_mainteneur: vide(body.id_mainteneur),
+    id_commande: vide(body.id_commande),
     id_revendeur: vide(body.id_revendeur),
     date_debut: vide(body.date_debut),
     date_fin: vide(body.date_fin),
@@ -451,6 +517,10 @@ async function validerMaintenance(client, m, licence) {
     return { status: 400, code: 4033, error: "Le cout de maintenance doit etre un montant positif ou nul." };
   if (!uuidValide(m.id_mainteneur) || !(await existe(client, "mainteneur", m.id_mainteneur)))
     return { status: 400, code: 4022, error: "Mainteneur introuvable." };
+  // Commande de la période (062) : n'importe quelle commande existante, le
+  // front propose celles du contrat de la licence en premier sans l'imposer.
+  if (!uuidValide(m.id_commande) || !(await existe(client, "commande", m.id_commande)))
+    return { status: 400, code: 4015, error: "Commande introuvable." };
   if (!uuidValide(m.id_revendeur) || !(await existe(client, "revendeur", m.id_revendeur)))
     return { status: 400, code: 4016, error: "Revendeur introuvable." };
   if (m.id_version && (!uuidValide(m.id_version) || !licence?.id_produit
@@ -459,7 +529,9 @@ async function validerMaintenance(client, m, licence) {
   return null;
 }
 
-const CHAMPS_MAINTENANCE = ["id_mainteneur", "id_revendeur", "date_debut", "date_fin", "cout", "id_version"];
+// id_revendeur conservé pour les périodes antérieures à la 062 (un PATCH
+// partiel ne l'efface pas) ; le formulaire ne l'envoie plus.
+const CHAMPS_MAINTENANCE = ["id_mainteneur", "id_commande", "id_revendeur", "date_debut", "date_fin", "cout", "id_version"];
 
 // État de la licence tel qu'il est audité : les colonnes brutes, pas la
 // projection (les libellés résolus ne sont pas des données de la licence).
@@ -506,7 +578,7 @@ router.get("/licences", async (req, res) => {
       [id_produit || null, id_commande || null, id_revendeur || null, id_contrat || null, type || null]);
 
     const visibles = await montantsVisibles(req);
-    const resolues = await resoudreCatalogue(rows);
+    const resolues = await resoudreCatalogue(poserContratASuivre(rows));
     succes(res, 4000, resolues.map((r) => masquerLicence(r, visibles)));
   } catch (err) {
     console.error("GET /licences error", err);
@@ -783,7 +855,7 @@ router.patch("/licences/:id/maintenance/:mid", async (req, res) => {
     if (!licence) { await client.query("ROLLBACK"); return introuvable(res); }
 
     const { rows: existant } = await client.query(
-      `SELECT id_mainteneur, id_revendeur, date_debut::text AS date_debut, date_fin::text AS date_fin,
+      `SELECT id_mainteneur, id_commande, id_revendeur, date_debut::text AS date_debut, date_fin::text AS date_fin,
               cout::float8 AS cout, id_version
          FROM maintenance_historique WHERE id = $1 AND id_licence = $2 FOR UPDATE`, [mid, id]);
     if (!existant.length) { await client.query("ROLLBACK"); return periodeIntrouvable(res); }
@@ -830,7 +902,7 @@ router.delete("/licences/:id/maintenance/:mid", async (req, res) => {
     if (!UUID_RE.test(mid)) { await client.query("ROLLBACK"); return periodeIntrouvable(res); }
 
     const { rows: existant } = await client.query(
-      `SELECT id_mainteneur, id_revendeur, date_debut::text AS date_debut, date_fin::text AS date_fin,
+      `SELECT id_mainteneur, id_commande, id_revendeur, date_debut::text AS date_debut, date_fin::text AS date_fin,
               cout::float8 AS cout, id_version
          FROM maintenance_historique WHERE id = $1 AND id_licence = $2 FOR UPDATE`, [mid, id]);
     if (!existant.length) { await client.query("ROLLBACK"); return periodeIntrouvable(res); }
@@ -973,5 +1045,203 @@ router.post("/licences/:id/reprise-maintenance", async (req, res) => {
     client.release();
   }
 });
+
+// ---------------------------------------------------------------------------
+// Prolongation (décision du 11/09/2026)
+// ---------------------------------------------------------------------------
+
+// Échéance prolongeable d'une licence : la date de fin de souscription quand
+// le type en porte une (souscription, essai), sinon la fin de la maintenance
+// en cours d'une licence sous maintenance non arrêtée (perpétuelle "via sa
+// maintenance"). Une licence sans échéance ne se prolonge pas : elle se
+// modifie ou reçoit une période de maintenance.
+function echeanceProlongeable(licence) {
+  if (licence.date_fin_souscription) {
+    return { mode: "souscription", date: licence.date_fin_souscription };
+  }
+  if (licence.a_maintenance && !licence.date_arret_maintenance && licence.date_fin_maintenance) {
+    return { mode: "maintenance", date: licence.date_fin_maintenance };
+  }
+  return null;
+}
+
+// Les alertes d'échéance de souscription sont dédoublonnées par la clé
+// d'événement (type:licence:palier, index unique de la 051) : sans
+// libération, une licence prolongée ne serait plus jamais notifiée à sa
+// nouvelle échéance. Les notifications déjà émises pour l'échéance qui vient
+// d'être étendue sont conservées (historique de l'utilisateur) mais leur clé
+// est suffixée de l'ancienne date : la clé courante redevient libre pour le
+// prochain passage du planificateur. Aucune alerte n'existe pour la fin de
+// maintenance : rien à libérer dans ce mode.
+async function libererAlertesEcheance(client, idLicence, ancienneDate) {
+  await client.query(
+    `UPDATE notification
+        SET cle_evenement = cle_evenement || ':' || $2::text
+      WHERE entite_type = 'licence' AND entite_id = $1::uuid
+        AND type = 'echeance_souscription'
+        AND cle_evenement LIKE 'echeance_souscription:' || $1::text || ':%'
+        AND cle_evenement NOT LIKE '%:' || $2::text`,
+    [idLicence, ancienneDate]);
+}
+
+// Prolonger étend la date de fin de la période en cours, sans créer de
+// licence : la nouvelle date doit être postérieure à l'échéance actuelle.
+// "Nouvelle période" est une création ordinaire (POST /licences) préremplie
+// par le front, liée par id_licence_predecesseur : l'ancienne conserve son
+// terme.
+router.post("/licences/:id/prolonger", async (req, res) => {
+  const { id } = req.params;
+  const client = await tenantPool.connect();
+  try {
+    await client.query("BEGIN");
+    if (!UUID_RE.test(id)) { await client.query("ROLLBACK"); return introuvable(res); }
+    const avant = await lireBrute(client, id, true);
+    if (!avant) { await client.query("ROLLBACK"); return introuvable(res); }
+
+    const echeance = echeanceProlongeable(avant);
+    if (!echeance) {
+      await client.query("ROLLBACK");
+      return erreur(res, 4026, { status: 409, message: "Cette licence ne porte aucune echeance a prolonger : ni date de fin, ni maintenance en cours." });
+    }
+    const nouvelleDate = req.body?.date_fin ?? null;
+    if (!nouvelleDate || !DATE_RE.test(nouvelleDate)) {
+      await client.query("ROLLBACK");
+      return erreur(res, 4024, { status: 400, message: "La nouvelle date de fin est invalide." });
+    }
+    if (nouvelleDate <= echeance.date) {
+      await client.query("ROLLBACK");
+      return erreur(res, 4027, { status: 400, message: `La nouvelle date de fin doit etre posterieure a l'echeance actuelle (${echeance.date}).` });
+    }
+
+    let periode = null;
+    if (echeance.mode === "souscription") {
+      await client.query(`UPDATE licence SET date_fin_souscription = $1 WHERE id = $2`, [nouvelleDate, id]);
+      await libererAlertesEcheance(client, id, echeance.date);
+    } else {
+      // Période de maintenance en cours : la plus récente de l'historique,
+      // étendue à la nouvelle date ; la fin de maintenance de la licence suit.
+      const { rows: [derniere] } = await client.query(
+        `SELECT id, date_fin::text AS date_fin FROM maintenance_historique
+          WHERE id_licence = $1 ORDER BY date_debut DESC, created_at DESC LIMIT 1`, [id]);
+      if (derniere) {
+        await client.query(`UPDATE maintenance_historique SET date_fin = $1 WHERE id = $2`, [nouvelleDate, derniere.id]);
+        periode = { id: derniere.id, date_fin_avant: derniere.date_fin };
+      }
+      await client.query(`UPDATE licence SET date_fin_maintenance = $1 WHERE id = $2`, [nouvelleDate, id]);
+    }
+
+    const apres = await lireBrute(client, id);
+    const d = diff(avant, apres);
+    await auditer(client, req, { action: "LICENCE_PROLONGEE", entiteType: "licence", entiteId: id, avant: d.avant, apres: d.apres });
+    await log(client, req, "UPDATE", "licence", id,
+      `Prolongation de la licence "${avant.label ?? id}" : ${echeance.mode === "souscription" ? "fin de souscription" : "fin de maintenance"} du ${echeance.date} au ${nouvelleDate}`,
+      { mode: echeance.mode, date_fin_avant: echeance.date, date_fin: nouvelleDate, periode });
+    await client.query("COMMIT");
+
+    succes(res, 4025, await lireLicence(id, req));
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("POST /licences/:id/prolonger error", err);
+    erreur(res, 4099, { status: 500, message: "Erreur serveur" });
+  } finally {
+    client.release();
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Compléments du catalogue : versions et éditions ajoutées par le client
+// (décision du 11/09/2026, migration 063)
+// ---------------------------------------------------------------------------
+
+// Le catalogue global (produit_referentiel, version, edition) est en lecture
+// seule depuis un espace client (doctrine 001/002/040) : une version ou une
+// édition qui manque au catalogue est ajoutée en Tenant, rattachée au produit
+// par un lien logique, et servie avec le catalogue (GET /produits/complements,
+// fusionné par le front). Doublons refusés à la casse et aux accents près,
+// contre le catalogue Commune et contre les compléments déjà saisis.
+const COMPLEMENTS = {
+  versions: { table: "version", accord: "la version", codeAjout: 4034 },
+  editions: { table: "edition", accord: "l'edition", codeAjout: 4035 },
+};
+
+// Forme de comparaison d'un libellé : minuscules, sans accents (décomposition
+// Unicode puis retrait des diacritiques), espaces réduits.
+export function normaliserLibelle(label) {
+  return String(label ?? "")
+    .normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+router.get("/produits/complements", async (req, res) => {
+  try {
+    const [{ rows: versions }, { rows: editions }] = await Promise.all([
+      tenantPool.query(`SELECT id, id_produit, label FROM version_complement ORDER BY label`),
+      tenantPool.query(`SELECT id, id_produit, label FROM edition_complement ORDER BY label`),
+    ]);
+    succes(res, 4038, { versions, editions });
+  } catch (err) {
+    console.error("GET /produits/complements error", err);
+    erreur(res, 4099, { status: 500, message: "Erreur serveur" });
+  }
+});
+
+function ajouterComplement(type) {
+  const d = COMPLEMENTS[type];
+  return async (req, res) => {
+    const { id } = req.params;
+    const label = typeof req.body?.label === "string" ? req.body.label.trim() : "";
+    const normalise = normaliserLibelle(label);
+    const client = await tenantPool.connect();
+    try {
+      await client.query("BEGIN");
+      if (!UUID_RE.test(id) || !(await produitExiste(id))) {
+        await client.query("ROLLBACK");
+        return erreur(res, 4012, { status: 404, message: "Produit introuvable au catalogue." });
+      }
+      if (!normalise) {
+        await client.query("ROLLBACK");
+        return erreur(res, 4036, { status: 400, message: `Le libelle de ${d.accord} est obligatoire.` });
+      }
+      if (label.length > 100) {
+        await client.query("ROLLBACK");
+        return erreur(res, 4036, { status: 400, message: `Le libelle de ${d.accord} ne peut pas depasser 100 caracteres.` });
+      }
+      // Doublon contre le catalogue Commune (comparaison faite ici, la Commune
+      // ne portant pas de forme normalisée) puis contre les compléments.
+      const { rows: catalogue } = await commonPool.query(
+        `SELECT id, label FROM ${d.table} WHERE id_produit = $1`, [id]);
+      const existante = catalogue.find((x) => normaliserLibelle(x.label) === normalise);
+      const { rows: [complement] } = await client.query(
+        `SELECT id, label FROM ${d.table}_complement WHERE id_produit = $1 AND label_normalise = $2`, [id, normalise]);
+      if (existante || complement) {
+        await client.query("ROLLBACK");
+        const deja = existante ?? complement;
+        return erreur(res, 4037, {
+          status: 409,
+          message: `Cette ${d.table} existe deja pour ce produit sous le libelle "${deja.label}".`,
+          details: { id: deja.id, label: deja.label, source: existante ? "catalogue" : "complement" },
+        });
+      }
+
+      const { rows: [creee] } = await client.query(
+        `INSERT INTO ${d.table}_complement (id_produit, label, label_normalise, id_auteur)
+         VALUES ($1, $2, $3, $4) RETURNING id, id_produit, label`,
+        [id, label, normalise, req?.user?.id || null]);
+      await log(client, req, "CREATE", `${d.table}_complement`, creee.id,
+        `Ajout de ${d.accord} "${label}" au produit ${id} (complement du catalogue)`, { id_produit: id, label });
+      await client.query("COMMIT");
+      succes(res, d.codeAjout, { ...creee, source: "complement" }, { status: 201 });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      console.error(`POST /produits/:id/${type} error`, err);
+      erreur(res, 4099, { status: 500, message: "Erreur serveur" });
+    } finally {
+      client.release();
+    }
+  };
+}
+
+router.post("/produits/:id/versions", ajouterComplement("versions"));
+router.post("/produits/:id/editions", ajouterComplement("editions"));
 
 export default router;

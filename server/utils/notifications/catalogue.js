@@ -96,6 +96,16 @@ export const TYPES = {
     courrier_defaut: "quotidien",
     gravite: "orange",
   },
+  // Decision du 11/09/2026 : le contrat suit les licences. Detection dans le
+  // traitement quotidien (server/utils/successionContrat.js), cle par contrat,
+  // Manager DSI et Admin SAM de la portee, courrier recapitulatif.
+  contrat_a_suivre: {
+    libelle: "Contrats à faire suivre",
+    description: "Des licences ont été renouvelées sur un contrat échu ou à échéance qui n'a été ni renouvelé ni prolongé.",
+    audience: [PROFILS.manager_dsi, PROFILS.admin_sam],
+    courrier_defaut: "quotidien",
+    gravite: "orange",
+  },
 };
 
 export const TYPES_CODES = Object.keys(TYPES);
@@ -279,6 +289,23 @@ const COMPOSITEURS = {
       message: `Votre saisie de ${quoi} a été validé${feminin ? "e" : ""}${par}.`,
       lien: lienEntite(d.entite_type, d.entite_id),
       gravite: "info",
+    };
+  },
+
+  contrat_a_suivre(d) {
+    const nb = Number(d.nb_licences_renouvelees) || 0;
+    const licences = nb > 1 ? `${nb} licences ont été renouvelées` : "une licence a été renouvelée";
+    const societe = d.societe_label ? ` (${d.societe_label})` : "";
+    const jours = d.jours_restants === null || d.jours_restants === undefined ? null : Number(d.jours_restants);
+    const etat = jours === null ? "arrive à échéance"
+      : jours < 0 ? `est échu depuis le ${formatDateFr(d.date_fin)}`
+      : jours === 0 ? "arrive à échéance aujourd'hui"
+      : `arrive à échéance le ${formatDateFr(d.date_fin)}, dans ${jours} ${pluriel(jours, "jour")}`;
+    return {
+      titre: `Contrat « ${d.label} » à renouveler ou prolonger`,
+      message: `Ce contrat doit être renouvelé ou prolongé : ${licences} dessus. Le contrat « ${d.label} »${societe} ${etat} et n'a ni successeur ni prolongation.`,
+      lien: `/contrats/liste/${d.id_contrat}`,
+      gravite: jours !== null && jours < 0 ? "rouge" : "orange",
     };
   },
 

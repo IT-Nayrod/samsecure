@@ -10,14 +10,21 @@
 // pas saisissable sur un type sans version (D58, souscription). L'unité de
 // mesure est une liste fermée de huit valeurs. La licence renouvelée
 // (id_licence_predecesseur, D35) se choisit parmi les autres licences.
+//
+// Décisions du 11/09/2026 : "Nouvelle période" ouvre ce formulaire en création
+// préremplie depuis la licence en cours (prop modele), liée par
+// id_licence_predecesseur, dates à saisir (début proposé au lendemain du terme
+// actuel). Une version ou une édition absente du catalogue s'ajoute à la
+// volée (LicenceDeclinaisonAjout, complément du client, migration 063).
 import { useState, useEffect, useMemo } from 'react';
 import SlideOver from '../ui/SlideOver';
 import Button from '../ui/Button';
 import FormField from '../ui/FormField';
-import { licencesService, TYPES_LICENCE, regleType, unitesProposees } from '../../services/licencesService';
+import { licencesService, TYPES_LICENCE, regleType, unitesProposees, lendemain } from '../../services/licencesService';
 import { loadDraft, saveDraft, clearDraft } from '../../utils/formDraft';
 import { libelleContrat, societeParContrat } from '../contrats/libelleContrat';
 import { useToast } from '../../hooks/useToast';
+import LicenceDeclinaisonAjout from './LicenceDeclinaisonAjout';
 
 const INPUT_CLS = 'w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white';
 
@@ -27,21 +34,43 @@ const EMPTY_FORM = {
   a_maintenance: false, id_mainteneur: '', date_fin_maintenance: '', id_licence_predecesseur: '',
 };
 
+// Préremplissage d'une nouvelle période depuis la licence en cours : tout est
+// repris sauf les dates (début proposé au lendemain du terme, fin à saisir),
+// et la licence en cours devient le prédécesseur.
+function formDepuisModele(modele) {
+  return {
+    ...EMPTY_FORM,
+    label: modele.label ?? '',
+    id_produit: modele.id_produit ?? '', id_edition: modele.id_edition ?? '', id_version: modele.id_version ?? '',
+    id_commande: modele.id_commande ?? '', id_revendeur: modele.id_revendeur ?? '',
+    id_unite_mesure: modele.id_unite_mesure ?? '', type: modele.type ?? 'souscription',
+    quantite: modele.quantite ?? 1, cout_licence: modele.cout_licence ?? '',
+    date_debut: lendemain(modele.date_fin_souscription ?? modele.date_fin_maintenance),
+    date_fin_souscription: '',
+    a_maintenance: !!modele.a_maintenance, id_mainteneur: modele.id_mainteneur ?? '',
+    date_fin_maintenance: '',
+    id_licence_predecesseur: modele.id,
+  };
+}
+
 export default function LicenceFormModal({
-  isOpen, onClose, onSaved, licence,
+  isOpen, onClose, onSaved, licence, modele = null,
   produits = [], commandes = [], revendeurs = [], unites = [], mainteneurs = [], licences = [], contrats = [],
   montantsVisibles = true,
 }) {
   const isEdit = !!licence;
   const { addToast } = useToast();
-  const draftKey = `licence:${licence?.id ?? 'new'}`;
   // Société signataire des contrats (GET /contrats), la liste des commandes ne
   // portant que contrat_label : libellé « Libellé (Société) » du contrat.
   const societeContrat = useMemo(() => societeParContrat(contrats), [contrats]);
+  const draftKey = `licence:${licence?.id ?? (modele ? `periode:${modele.id}` : 'new')}`;
   const [form, setForm] = useState(EMPTY_FORM);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [draftRestaure, setDraftRestaure] = useState(false);
+  // Versions et éditions ajoutées pendant la saisie, par produit : proposées
+  // aussitôt, avant que le catalogue fusionné ne soit rechargé.
+  const [ajouts, setAjouts] = useState({ versions: [], editions: [] });
 
   useEffect(() => {
     if (!isOpen) return;
@@ -52,7 +81,9 @@ export default function LicenceFormModal({
       setErrors({});
       return;
     }
-    if (licence) {
+    if (!licence && modele) {
+      setForm(formDepuisModele(modele));
+    } else if (licence) {
       setForm({
         label: licence.label ?? '',
         id_produit: licence.id_produit ?? '', id_edition: licence.id_edition ?? '', id_version: licence.id_version ?? '',
@@ -70,7 +101,7 @@ export default function LicenceFormModal({
     }
     setDraftRestaure(false);
     setErrors({});
-  }, [licence, isOpen, draftKey]);
+  }, [licence, modele, isOpen, draftKey]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -78,8 +109,16 @@ export default function LicenceFormModal({
   }, [form, isOpen, draftKey]);
 
   const produit = useMemo(() => produits.find(p => p.id === form.id_produit) ?? null, [produits, form.id_produit]);
-  const versions = produit?.versions ?? [];
-  const editions = produit?.editions ?? [];
+  const avecAjouts = (liste, cle) => {
+    const connus = new Set(liste.map(x => x.id));
+    return [...liste, ...ajouts[cle].filter(x => x.id_produit === form.id_produit && !connus.has(x.id))];
+  };
+  const versions = avecAjouts(produit?.versions ?? [], 'versions');
+  const editions = avecAjouts(produit?.editions ?? [], 'editions');
+  const ajouterDeclinaison = (cle, champCle) => (creee) => {
+    setAjouts(v => ({ ...v, [cle]: [...v[cle], creee] }));
+    setForm(v => ({ ...v, [champCle]: creee.id }));
+  };
   const commande = useMemo(() => commandes.find(c => c.id === form.id_commande) ?? null, [commandes, form.id_commande]);
 
   // Règle du type courant : celle servie par l'API quand la licence éditée
@@ -165,12 +204,12 @@ export default function LicenceFormModal({
     <SlideOver
       isOpen={isOpen}
       onClose={onClose}
-      title={isEdit ? 'Modifier la licence' : 'Nouvelle licence'}
+      title={isEdit ? 'Modifier la licence' : modele ? 'Nouvelle période' : 'Nouvelle licence'}
       size="md"
       banner={draftRestaure && (
         <p className="text-xs text-blue-700 dark:text-blue-300 flex items-center justify-between gap-2">
           Brouillon restauré depuis votre dernière saisie.
-          <button onClick={() => { clearDraft(draftKey); setForm(EMPTY_FORM); setDraftRestaure(false); }} className="underline hover:no-underline flex-shrink-0">Vider le brouillon</button>
+          <button onClick={() => { clearDraft(draftKey); setForm(!licence && modele ? formDepuisModele(modele) : EMPTY_FORM); setDraftRestaure(false); }} className="underline hover:no-underline flex-shrink-0">Vider le brouillon</button>
         </p>
       )}
       footer={
@@ -181,6 +220,12 @@ export default function LicenceFormModal({
       }
     >
       <div className="flex flex-col gap-4">
+        {!isEdit && modele && (
+          <p className="text-xs text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg px-3 py-2">
+            Nouvelle période de « {modele.label ?? modele.produit_label ?? modele.id} » : préremplie depuis la licence en cours, qui conserve son terme
+            {modele.date_fin_souscription ? ` (${modele.date_fin_souscription})` : ''}. Saisissez les dates de la nouvelle période.
+          </p>
+        )}
         <FormField label="Libellé du lot" hint="Optionnel, le logiciel sert de libellé par défaut">
           <input type="text" className={INPUT_CLS} value={form.label} onChange={champ('label')} placeholder="Ex. M365, siège" />
         </FormField>
@@ -204,18 +249,20 @@ export default function LicenceFormModal({
           </FormField>
         </div>
         <div className="grid grid-cols-2 gap-4">
-          <FormField label="Édition" hint="Optionnel">
+          <FormField label="Édition" hint={editions.length ? 'Optionnel' : 'Aucune édition au catalogue pour ce produit'}>
             <select className={INPUT_CLS} value={form.id_edition} onChange={champ('id_edition')} disabled={!editions.length}>
               <option value="">Aucune</option>
               {editions.map(ed => <option key={ed.id} value={ed.id}>{ed.label}</option>)}
             </select>
+            <LicenceDeclinaisonAjout type="editions" idProduit={form.id_produit} onAjout={ajouterDeclinaison('editions', 'id_edition')} />
           </FormField>
           {versionVisible ? (
-            <FormField label="Version" hint="Optionnel, suivie par la maintenance">
+            <FormField label="Version" hint={versions.length ? 'Optionnel, suivie par la maintenance' : 'Aucune version au catalogue pour ce produit'}>
               <select className={INPUT_CLS} value={form.id_version} onChange={champ('id_version')} disabled={!versions.length}>
                 <option value="">Aucune</option>
                 {versions.map(ve => <option key={ve.id} value={ve.id}>{ve.label}</option>)}
               </select>
+              <LicenceDeclinaisonAjout type="versions" idProduit={form.id_produit} onAjout={ajouterDeclinaison('versions', 'id_version')} />
             </FormField>
           ) : (
             <FormField label="Version" hint="Sans objet pour ce type de licence">
@@ -266,10 +313,13 @@ export default function LicenceFormModal({
         ) : (
           <p className="text-xs text-gray-500">Une licence de type {regle.label} ne porte ni date de début ni date de fin.</p>
         )}
-        <FormField label="Renouvelle la licence" hint="Optionnel : la licence renouvelée ne déclenche plus d'alerte d'échéance">
-          <select className={INPUT_CLS} value={form.id_licence_predecesseur} onChange={champ('id_licence_predecesseur')} disabled={!predecesseurs.length}>
+        <FormField label="Renouvelle la licence" hint="Optionnel : la licence renouvelée ne déclenche plus d'alerte d'échéance ; si elle est sur le même contrat, celui-ci devra suivre">
+          <select className={INPUT_CLS} value={form.id_licence_predecesseur} onChange={champ('id_licence_predecesseur')} disabled={!predecesseurs.length && !form.id_licence_predecesseur}>
             <option value="">Aucune</option>
             {predecesseurs.map(l => <option key={l.id} value={l.id}>{libellePredecesseur(l)}</option>)}
+            {form.id_licence_predecesseur && !predecesseurs.some(l => l.id === form.id_licence_predecesseur) && modele?.id === form.id_licence_predecesseur && (
+              <option value={modele.id}>{libellePredecesseur(modele)}</option>
+            )}
           </select>
         </FormField>
         <div className="border-t border-gray-100 dark:border-gray-700 pt-4 flex flex-col gap-4">

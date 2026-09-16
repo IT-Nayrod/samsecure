@@ -4,12 +4,17 @@
 // succession (D35). Données API ; la suppression s'appuie sur le refus du
 // serveur (4023), pas sur un garde-fou local. Les dates affichées suivent la
 // règle du type servie par l'API (#209).
+// Décisions du 11/09/2026 : "Prolonger" étend la période en cours
+// (LicenceProlongationModal), "Nouvelle période" crée la licence suivante
+// préremplie et liée (LicenceFormModal, prop modele) ; bandeau "le contrat doit
+// suivre" quand l'API sert contrat_a_suivre ; la maintenance se rattache à une
+// commande.
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Pencil, Trash2, ChevronDown, ShieldOff, ShieldCheck, Plus, EyeOff, History } from 'lucide-react';
+import { Pencil, Trash2, ChevronDown, ShieldOff, ShieldCheck, Plus, EyeOff, History, CalendarPlus, CalendarClock, AlertTriangle } from 'lucide-react';
 import BudgetEmbeddedSection from '../budget/BudgetEmbeddedSection';
-import { licencesService, referentielsLicencesService, formatMontant, editeurPourLogo, regleType, libelleType, EVENEMENTS_VERSION } from '../../services/licencesService';
-import { contratsService, referentielsContratsService } from '../../services/contratsService';
+import { licencesService, referentielsLicencesService, formatMontant, editeurPourLogo, regleType, libelleType, EVENEMENTS_VERSION, echeanceProlongeable } from '../../services/licencesService';
+import { referentielsContratsService } from '../../services/contratsService';
 import { commandesService } from '../../services/commandesService';
 import { optionnel } from '../../services/http';
 import Breadcrumb from '../ui/Breadcrumb';
@@ -29,6 +34,7 @@ import MaintenanceTimeline from './MaintenanceTimeline';
 import MaintenanceFormModal from './MaintenanceFormModal';
 import ArretMaintenanceModal from './ArretMaintenanceModal';
 import PreuvesLicenceSection from '../contrats/PreuvesLicenceSection';
+import LicenceProlongationModal from './LicenceProlongationModal';
 import useRbac from '../../hooks/useRbac';
 import useAuth from '../../hooks/useAuth';
 import { useToast } from '../../hooks/useToast';
@@ -65,6 +71,8 @@ export default function LicenceDetailPage() {
   const [introuvable, setIntrouvable] = useState(false);
 
   const [formOpen, setFormOpen] = useState(false);
+  const [periodeSuivanteOpen, setPeriodeSuivanteOpen] = useState(false);
+  const [prolongerOpen, setProlongerOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [budgetOpen, setBudgetOpen] = useState(false);
   const [periodeModal, setPeriodeModal] = useState({ open: false, periode: null });
@@ -186,6 +194,7 @@ export default function LicenceDetailPage() {
   const versionLabel = (idv, label) => (idv ? (label ?? 'Version inconnue') : 'Aucune');
   const auteur = (h) => [h.auteur_prenom, h.auteur_nom].filter(Boolean).join(' ') || 'Auteur inconnu';
   const peutArreter = canWrite && !arretee && (licence.a_maintenance || periodes.length > 0);
+  const echeance = echeanceProlongeable(licence);
 
   return (
     <div className="flex flex-col gap-6">
@@ -207,12 +216,27 @@ export default function LicenceDetailPage() {
           </div>
         </div>
         {canWrite && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {echeance && <Button variant="secondary" size="sm" onClick={() => setProlongerOpen(true)}><CalendarClock size={14} /> Prolonger</Button>}
+            {echeance && <Button variant="secondary" size="sm" onClick={() => setPeriodeSuivanteOpen(true)}><CalendarPlus size={14} /> Nouvelle période</Button>}
             <Button variant="secondary" size="sm" onClick={() => setFormOpen(true)}><Pencil size={14} /> Éditer</Button>
             {canDelete && <Button variant="secondary" size="sm" onClick={() => setDeleteOpen(true)}><Trash2 size={14} /> Supprimer</Button>}
           </div>
         )}
       </div>
+
+      {licence.contrat_a_suivre && (
+        <div className="flex items-start gap-2 text-sm text-amber-800 bg-amber-50 dark:bg-amber-900/20 dark:text-amber-200 border border-amber-200 dark:border-amber-800 rounded-xl px-4 py-3">
+          <AlertTriangle size={16} className="flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="font-medium">Ce contrat doit être renouvelé ou prolongé : des licences ont été renouvelées dessus.</p>
+            <p className="text-xs mt-0.5">
+              Le contrat <Link to={`/contrats/liste/${licence.id_contrat}`} className="underline">{licence.contrat_label ?? 'rattaché'}</Link>
+              {licence.contrat_date_fin ? ` (fin le ${licence.contrat_date_fin})` : ''} est échu ou arrive à échéance et n&apos;a ni successeur ni prolongation. Rien n&apos;est modifié automatiquement.
+            </p>
+          </div>
+        </div>
+      )}
 
       {licence.statut_echeance === 'expire' && (
         <div className="flex items-center gap-2 text-sm text-red-700 bg-red-50 dark:bg-red-900/20 dark:text-red-300 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3">
@@ -366,10 +390,23 @@ export default function LicenceDetailPage() {
         licences={licences} contrats={contrats}
         montantsVisibles={montantsVisibles}
       />
+      <LicenceFormModal
+        isOpen={periodeSuivanteOpen} onClose={() => setPeriodeSuivanteOpen(false)}
+        onSaved={(creee) => { addToast({ type: 'success', message: 'Nouvelle période créée, l\'ancienne licence conserve son terme.' }); navigate(`/conformite/licences/${creee.id}`); }}
+        licence={null} modele={licence}
+        produits={produits} commandes={commandes} revendeurs={revendeurs} unites={unites} mainteneurs={mainteneurs}
+        licences={licences}
+        montantsVisibles={montantsVisibles}
+      />
+      <LicenceProlongationModal
+        isOpen={prolongerOpen} onClose={() => setProlongerOpen(false)} licence={licence}
+        onSaved={(saved) => { appliquer(saved); rechargerPeriodes(); }}
+      />
       <MaintenanceFormModal
         isOpen={periodeModal.open} onClose={() => setPeriodeModal({ open: false, periode: null })}
         onSaved={rechargerPeriodes} licenceId={licence.id} periode={periodeModal.periode}
-        mainteneurs={mainteneurs} revendeurs={revendeurs} montantsVisibles={montantsVisibles}
+        mainteneurs={mainteneurs} commandes={commandes} idContrat={licence.id_contrat ?? null} idProduit={licence.id_produit ?? null}
+        montantsVisibles={montantsVisibles}
         versions={regle.version_geree && !arretee ? versions : []}
         versionGeree={regle.version_geree}
       />

@@ -176,9 +176,9 @@ motif technique d'un echec est dans log_serveur, jamais dans audit_log.
 | 3015 | erreur | Éditeur introuvable | POST, PATCH /api/contrats |
 | 3016 | erreur | Société signataire introuvable | POST, PATCH /api/contrats |
 | 3017 | erreur | Revendeur signataire introuvable | POST, PATCH /api/contrats |
-| 3018 | erreur | Contrat parent introuvable | POST, PATCH /api/contrats |
-| 3019 | erreur | Ce rattachement créerait un cycle | POST, PATCH /api/contrats |
-| 3020 | erreur | Suppression impossible : éléments liés | DELETE /api/contrats/:id |
+| 3018 | erreur | Contrat parent introuvable | POST, PATCH /api/contrats (aussi "Contrat renouvele introuvable" sur id_contrat_predecesseur, D35, decision du 11/09/2026) |
+| 3019 | erreur | Ce rattachement créerait un cycle | POST, PATCH /api/contrats (409, aussi sur une boucle de succession par id_contrat_predecesseur) |
+| 3020 | erreur | Suppression impossible : éléments liés | DELETE /api/contrats/:id (409, details = commandes, preuves, sous-contrats, successeurs) |
 | 3021 | avertissement | Parent non cadré, anomalie qualité enregistrée | POST, PATCH /api/contrats |
 | 3022 | erreur | L'éditeur est obligatoire | POST, PATCH /api/contrats (#95) |
 | 3023 | erreur | La société signataire est obligatoire | POST, PATCH /api/contrats (#95) |
@@ -720,6 +720,12 @@ cout de maintenance) servis a null avec `montants_masques: true` sans
 | 4014 | erreur | Version introuvable ou étrangère au logiciel | POST, PATCH /api/licences ; POST, PATCH .../maintenance (id_version de la periode, #209) |
 | 4015 | erreur | Commande introuvable | POST, PATCH /api/licences |
 | 4016 | erreur | Revendeur introuvable | POST, PATCH /api/licences et maintenance |
+| 4011 | erreur | Le produit est obligatoire | POST, PATCH /api/licences |
+| 4012 | erreur | Produit introuvable au catalogue | POST, PATCH /api/licences |
+| 4013 | erreur | Edition introuvable ou etrangere au produit | POST, PATCH /api/licences |
+| 4014 | erreur | Version introuvable ou etrangere au produit | POST, PATCH /api/licences ; POST, PATCH .../maintenance (id_version de la periode, #209) |
+| 4015 | erreur | Commande introuvable | POST, PATCH /api/licences ; POST, PATCH .../maintenance (id_commande de la periode, migration 062, decision du 11/09/2026) |
+| 4016 | erreur | Revendeur introuvable | POST, PATCH /api/licences et maintenance (sur une periode, id_revendeur n'est plus envoye par le formulaire : le revendeur se lit par la commande) |
 | 4017 | erreur | Unite de mesure introuvable | POST, PATCH /api/licences |
 | 4018 | erreur | Le type de licence doit etre perpetuelle ou souscription | POST, PATCH /api/licences, GET /api/licences?type= (message rendu depuis #209 : "Type de licence inconnu.", le type est valide contre type_licence) |
 | 4019 | erreur | La quantite doit etre un entier positif ou nul | POST, PATCH /api/licences |
@@ -739,6 +745,15 @@ cout de maintenance) servis a null avec `montants_masques: true` sans
 | 4044 | succes | Maintenance reprise, version liberee | POST .../reprise-maintenance |
 | 4045 | erreur | La maintenance de cette licence n'est pas arretee | POST .../reprise-maintenance (409) |
 | 4050 | succes | Catalogue des logiciels (versions et éditions incluses) | GET /api/produits |
+| 4025 | succes | Licence prolongée | POST /api/licences/:id/prolonger (decision du 11/09/2026 : date de fin de la periode en cours etendue, souscription ou essai par date_fin_souscription, perpetuelle par la fin de sa maintenance en cours ; alerte d'echeance liberee pour la nouvelle date) |
+| 4026 | erreur | Cette licence ne porte aucune échéance à prolonger | POST /api/licences/:id/prolonger (409 : ni date de fin, ni maintenance en cours non arretee) |
+| 4027 | erreur | La nouvelle date de fin doit être postérieure à l'échéance actuelle | POST /api/licences/:id/prolonger (400, message rendu avec l'echeance actuelle ; 4024 sur un format invalide) |
+| 4034 | succes | Version ajoutée au produit | POST /api/produits/:id/versions (201, complement Tenant du catalogue, migration 063 ; 4012 en 404 sur un produit inconnu du catalogue) |
+| 4035 | succes | Édition ajoutée au produit | POST /api/produits/:id/editions (201, idem) |
+| 4036 | erreur | Le libellé de la version ou de l'édition est obligatoire | POST /api/produits/:id/versions et editions (400, aussi au-dela de 100 caracteres) |
+| 4037 | erreur | Cette version ou édition existe déjà pour ce produit | POST /api/produits/:id/versions et editions (409, doublon a la casse et aux accents pres, contre le catalogue Commune et les complements ; details = id, label, source) |
+| 4038 | succes | Compléments du catalogue (versions et éditions ajoutées par le client) | GET /api/produits/complements |
+| 4050 | succes | Catalogue des produits (versions et editions incluses) | GET /api/produits |
 | 4051 | succes | Liste des unites de mesure | GET /api/unites-mesure |
 | 4006 | succes | Période de maintenance ajoutée | POST /api/licences/:id/maintenance |
 | 4007 | succes | Période de maintenance modifiée | PATCH /api/licences/:id/maintenance/:mid |
@@ -780,6 +795,24 @@ essai) est `expire` le jour meme de cette date, sans tolerance, et sort de la
 balance droits/usage ; l'arret de maintenance fige `version_figee_id` (par
 defaut la version courante) et `date_arret_maintenance` sans retirer de droit
 quantitatif ; les licences ne passent pas par le workflow de validation (#53).
+
+Decisions de la reunion client du 11/09/2026 (migrations 062 et 063, chantier
+successions et maintenance) : huit codes nouveaux dans les plages libres du
+module (4025 a 4027, 4034 a 4038), consignes ci-dessus. Le catalogue
+code_retour vit en BDD Commune et les deux numeros reserves au chantier sont
+Tenant : ces codes ne sont pas encore seedes. L'enveloppe les sert avec
+`libelle` a null et `error` porte le message rendu par la route (aucune
+reponse cassee, ecart signale en console au premier usage, reponse.js). Le
+seed Commune est a prevoir dans la prochaine migration Commune libre, avec
+les libelles de ce tableau. Autres projections sans code nouveau : chaque
+licence et chaque contrat servent `contrat_a_suivre` (regle pure
+server/utils/successionContrat.js : le contrat suit les licences) ; une
+periode de maintenance sert `id_commande`, `commande_label`,
+`commande_revendeur_label` ; GET /api/contrats accepte et sert
+`id_contrat_predecesseur` (3018 renouvele introuvable, 3019 boucle, 3020
+successeurs bloquants a la suppression) ; nouveau type de notification
+`contrat_a_suivre` dans le pre-catalogue applicatif (aucun code : le type
+est un texte controle par catalogue.js, regle 8).
 
 Stories #209 et #210 (migrations 055 et 056, 10/09/2026) : aucun nouveau
 code. Les regles de dates par type (type_licence), la version portee par la

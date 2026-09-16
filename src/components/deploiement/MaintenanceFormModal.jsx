@@ -5,33 +5,50 @@
 // version courante de la licence suit alors la période la plus récente, tant
 // que la maintenance n'est pas arrêtée. Le champ n'est proposé que sur un type
 // à version (versionGeree) et hors arrêt (versions vide sinon).
-import { useState, useEffect } from 'react';
+//
+// Décisions du 11/09/2026 : la période se rattache à une commande (migration
+// 062, celles du contrat de la licence proposées en premier) ; le revendeur
+// n'est plus saisi, il se lit par la commande. Une version absente du
+// catalogue s'ajoute à la volée (complément du client, migration 063).
+import { useState, useEffect, useMemo } from 'react';
 import SlideOver from '../ui/SlideOver';
 import Button from '../ui/Button';
 import FormField from '../ui/FormField';
-import { licencesService } from '../../services/licencesService';
+import { licencesService, commandesPourMaintenance } from '../../services/licencesService';
 import { useToast } from '../../hooks/useToast';
+import LicenceDeclinaisonAjout from './LicenceDeclinaisonAjout';
 
 const INPUT_CLS = 'w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white';
 
-const EMPTY_FORM = { date_debut: '', date_fin: '', cout: '', id_mainteneur: '', id_revendeur: '', id_version: '' };
+const EMPTY_FORM = { date_debut: '', date_fin: '', cout: '', id_mainteneur: '', id_commande: '', id_version: '' };
 
-export default function MaintenanceFormModal({ isOpen, onClose, onSaved, licenceId, periode, mainteneurs = [], revendeurs = [], montantsVisibles = true, versions = [], versionGeree = true }) {
+export default function MaintenanceFormModal({
+  isOpen, onClose, onSaved, licenceId, periode, mainteneurs = [], commandes = [], idContrat = null, idProduit = null,
+  montantsVisibles = true, versions = [], versionGeree = true,
+}) {
   const isEdit = !!periode;
   const { addToast } = useToast();
   const [form, setForm] = useState(EMPTY_FORM);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
+  const [versionsAjoutees, setVersionsAjoutees] = useState([]);
 
   useEffect(() => {
     if (!isOpen) return;
     setForm(periode ? {
       date_debut: periode.date_debut ?? '', date_fin: periode.date_fin ?? '',
-      cout: periode.cout ?? '', id_mainteneur: periode.id_mainteneur ?? '', id_revendeur: periode.id_revendeur ?? '',
+      cout: periode.cout ?? '', id_mainteneur: periode.id_mainteneur ?? '', id_commande: periode.id_commande ?? '',
       id_version: periode.id_version ?? '',
     } : EMPTY_FORM);
     setErrors({});
   }, [periode, isOpen]);
+
+  const commandesProposees = useMemo(() => commandesPourMaintenance(commandes, idContrat), [commandes, idContrat]);
+  const commande = commandesProposees.find(c => c.id === form.id_commande) ?? null;
+  const versionsListe = useMemo(() => {
+    const connus = new Set(versions.map(v => v.id));
+    return [...versions, ...versionsAjoutees.filter(v => !connus.has(v.id))];
+  }, [versions, versionsAjoutees]);
 
   function validate() {
     const e = {};
@@ -93,21 +110,35 @@ export default function MaintenanceFormModal({ isOpen, onClose, onSaved, licence
             {mainteneurs.map(m => <option key={m.id} value={m.id}>{m.raison_sociale}</option>)}
           </select>
         </FormField>
-        <FormField label="Revendeur">
-          <select className={INPUT_CLS} value={form.id_revendeur} onChange={e => setForm(v => ({ ...v, id_revendeur: e.target.value }))}>
-            <option value="">Non renseigné</option>
-            {revendeurs.map(r => <option key={r.id} value={r.id}>{r.raison_sociale}</option>)}
+        <FormField label="Commande" hint={commande?.revendeur_label ? `Revendeur : ${commande.revendeur_label}` : 'Optionnel : le revendeur de la période se lit par sa commande'}>
+          <select className={INPUT_CLS} value={form.id_commande} onChange={e => setForm(v => ({ ...v, id_commande: e.target.value }))} disabled={!commandesProposees.length && !form.id_commande}>
+            <option value="">Aucune</option>
+            {commandesProposees.map(c => (
+              <option key={c.id} value={c.id}>
+                {c.label}{c.contrat_label ? ` (${c.contrat_label})` : ''}{idContrat && c.id_contrat === idContrat ? ' - contrat de la licence' : ''}
+              </option>
+            ))}
+            {form.id_commande && !commandesProposees.some(c => c.id === form.id_commande) && (
+              <option value={form.id_commande}>{periode?.commande_label ?? 'Commande actuelle'}</option>
+            )}
           </select>
         </FormField>
+        {isEdit && periode?.revendeur_label && !periode?.id_commande && (
+          <p className="text-xs text-gray-500">Revendeur saisi avant le rattachement aux commandes : {periode.revendeur_label}. Il est conservé tant qu&apos;aucune commande n&apos;est choisie.</p>
+        )}
         {versionGeree && (
-          <FormField label="Version apportée" hint={versions.length ? 'Optionnel : devient la version courante de la licence' : 'Aucune version sélectionnable (logiciel sans version ou maintenance arrêtée)'}>
-            <select className={INPUT_CLS} value={form.id_version} onChange={e => setForm(v => ({ ...v, id_version: e.target.value }))} disabled={!versions.length && !form.id_version}>
+          <FormField label="Version apportée" hint={versionsListe.length ? 'Optionnel : devient la version courante de la licence' : 'Aucune version sélectionnable (logiciel sans version ou maintenance arrêtée)'}>
+            <select className={INPUT_CLS} value={form.id_version} onChange={e => setForm(v => ({ ...v, id_version: e.target.value }))} disabled={!versionsListe.length && !form.id_version}>
               <option value="">Aucune</option>
-              {versions.map(ve => <option key={ve.id} value={ve.id}>{ve.label}</option>)}
-              {form.id_version && !versions.some(ve => ve.id === form.id_version) && (
+              {versionsListe.map(ve => <option key={ve.id} value={ve.id}>{ve.label}</option>)}
+              {form.id_version && !versionsListe.some(ve => ve.id === form.id_version) && (
                 <option value={form.id_version}>{periode?.version_label ?? 'Version actuelle'}</option>
               )}
             </select>
+            <LicenceDeclinaisonAjout
+              type="versions" idProduit={idProduit}
+              onAjout={creee => { setVersionsAjoutees(v => [...v, creee]); setForm(v => ({ ...v, id_version: creee.id })); }}
+            />
           </FormField>
         )}
         {montantsVisibles && (
