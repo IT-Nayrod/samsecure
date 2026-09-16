@@ -1,8 +1,11 @@
 // ContratDetailPage - fiche détail d'un contrat : identité, échéance, hiérarchie, rattachements.
 // Données API. La suppression s'appuie sur le refus du serveur, pas sur un garde-fou local.
+// Décision du 11/09/2026 : bandeau "le contrat doit suivre" quand l'API sert
+// contrat_a_suivre (des licences renouvelées sur un contrat échu ou à échéance
+// sans successeur). Signal seulement, rien n'est modifié automatiquement.
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Pencil, Trash2, ChevronDown, XCircle, Archive, ArchiveRestore } from 'lucide-react';
+import { Pencil, Trash2, ChevronDown, XCircle, Archive, ArchiveRestore, AlertTriangle } from 'lucide-react';
 import BudgetEmbeddedSection from '../budget/BudgetEmbeddedSection';
 import { contratsService, referentielsContratsService } from '../../services/contratsService';
 import { optionnel } from '../../services/http';
@@ -227,6 +230,20 @@ export default function ContratDetailPage() {
               <ArchiveRestore size={14} /> Restaurer
             </Button>
           )}
+        </div>
+      )}
+
+      {contrat.contrat_a_suivre && (
+        <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+          <AlertTriangle size={16} className="text-amber-700 dark:text-amber-300 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-amber-800 dark:text-amber-200">Ce contrat doit être renouvelé ou prolongé : des licences ont été renouvelées dessus.</p>
+            <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
+              {contrat.nb_licences_renouvelees > 1 ? `${contrat.nb_licences_renouvelees} licences ont été renouvelées` : 'Une licence a été renouvelée'} sur ce contrat,
+              {contrat.statut_echeance === 'expire' ? ' échu' : ' à échéance'}{contrat.date_fin ? ` le ${formatDate(contrat.date_fin)}` : ''} et sans successeur.
+              Prolongez sa date de fin ou créez le contrat qui le renouvelle. Rien n&apos;est modifié automatiquement.
+            </p>
+          </div>
         </div>
       )}
 

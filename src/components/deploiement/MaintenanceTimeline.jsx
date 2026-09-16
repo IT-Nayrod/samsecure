@@ -1,8 +1,11 @@
 // MaintenanceTimeline - historique de maintenance d'une licence (périodes de
 // maintenance_historique) sous forme de frise verticale, avec le repère de
 // l'arrêt de maintenance quand il existe. Le statut de chaque période (echue,
-// en_cours, a_venir) vient de l'API.
+// en_cours, a_venir) vient de l'API. Depuis la 062 la période affiche sa
+// commande et le revendeur de cette commande ; le revendeur saisi directement
+// sur les périodes antérieures reste affiché en repli.
 import { Pencil, Trash2, ShieldOff } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { formatMontant } from '../../services/licencesService';
 
 const POINT = {
@@ -49,7 +52,9 @@ export default function MaintenanceTimeline({ periodes, licence, canWrite, onEdi
               </p>
               <p className="text-xs text-gray-500">
                 Du {p.date_debut} au {p.date_fin ?? 'en cours'} - {formatMontant(p.cout, p.montants_masques)}
-                {p.revendeur_label ? ` - via ${p.revendeur_label}` : ''}
+                {p.id_commande
+                  ? <> - commande <Link to={`/contrats/commandes/${p.id_commande}`} className="text-blue-800 hover:underline">{p.commande_label ?? 'sans libellé'}</Link>{p.commande_revendeur_label ? ` (via ${p.commande_revendeur_label})` : ''}</>
+                  : (p.revendeur_label ? ` - via ${p.revendeur_label}` : ' - sans commande')}
                 {p.id_version ? ` - version ${p.version_label ?? 'inconnue'}` : ''}
               </p>
             </div>
