@@ -32,7 +32,7 @@ export default function CommandeDetailPage() {
   const navigate = useNavigate();
   const { addToast } = useToast();
   const { canWrite, canDelete, canValidate } = useRbac({ write: 'saisir_commande', validate: 'valider_saisie' });
-  // Le dépôt d'une preuve suit le droit de l'écran Factures & Preuves, pas celui de la commande.
+  // Le dépôt d'une preuve suit le droit de l'écran Preuves, pas celui de la commande.
   const { canWrite: canDeposer } = useRbac({ write: 'deposer_facture_preuve' });
 
   const [commande, setCommande] = useState(null);

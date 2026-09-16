@@ -1,4 +1,7 @@
-// FacturesPage - écran unifié Factures et Preuves, orienté audit.
+// FacturesPage - écran Preuves (factures comprises), orienté audit.
+// Titre « Preuves » depuis le 12/09 (décision du chef de projet, le ticket
+// #200 conservait « Factures & Preuves ») : la facture est un type de preuve
+// parmi les sept, le sous-titre et les filtres ne changent pas.
 // Branche sur deux ressources API distinctes, /api/preuves et /api/factures,
 // fidèlement au schéma : la page les assemble pour l'affichage mais ne fusionne
 // pas les modèles. Chaque ligne conserve sa ressource d'origine, qui détermine
@@ -190,7 +193,7 @@ export default function FacturesPage() {
   if (isLoading) {
     return (
       <div className="flex flex-col gap-6">
-        <Breadcrumb items={[{ label: 'Droits d\'usage' }, { label: 'Factures & Preuves' }]} />
+        <Breadcrumb items={[{ label: 'Droits d\'usage' }, { label: 'Preuves' }]} />
         <Skeleton lines={3} height="h-20" />
         <Skeleton lines={6} />
       </div>
@@ -200,7 +203,7 @@ export default function FacturesPage() {
   if (error) {
     return (
       <div className="flex flex-col gap-6">
-        <Breadcrumb items={[{ label: 'Droits d\'usage' }, { label: 'Factures & Preuves' }]} />
+        <Breadcrumb items={[{ label: 'Droits d\'usage' }, { label: 'Preuves' }]} />
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
           <ErrorState message={error} status={errorStatus} onRetry={load} />
         </div>
@@ -210,10 +213,10 @@ export default function FacturesPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <Breadcrumb items={[{ label: 'Droits d\'usage' }, { label: 'Factures & Preuves' }]} />
+      <Breadcrumb items={[{ label: 'Droits d\'usage' }, { label: 'Preuves' }]} />
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Factures & Preuves</h1>
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Preuves</h1>
           <p className="text-sm text-gray-500 mt-0.5">Pièces justificatives et aptitude à l&apos;audit</p>
         </div>
         {canWrite && (

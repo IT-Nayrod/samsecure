@@ -29,7 +29,7 @@ import { appliquerStatut } from '../../services/validationService';
 
 const FIL = [
   { label: 'Droits d\'usage', to: '/contrats/factures' },
-  { label: 'Factures & Preuves', to: '/contrats/factures' },
+  { label: 'Preuves', to: '/contrats/factures' },
 ];
 
 function Champ({ label, children }) {

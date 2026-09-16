@@ -84,7 +84,7 @@ export const SEARCH_REGISTRY = [
   },
   {
     key: 'documents',
-    label: 'Factures & Preuves',
+    label: 'Preuves',
     icon: Receipt,
     getData: () => mockDocuments,
     fields: item => [item.label, item.nom_fichier],
