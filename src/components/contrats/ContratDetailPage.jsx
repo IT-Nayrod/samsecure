@@ -241,7 +241,7 @@ export default function ContratDetailPage() {
             <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
               {contrat.nb_licences_renouvelees > 1 ? `${contrat.nb_licences_renouvelees} licences ont été renouvelées` : 'Une licence a été renouvelée'} sur ce contrat,
               {contrat.statut_echeance === 'expire' ? ' échu' : ' à échéance'}{contrat.date_fin ? ` le ${formatDate(contrat.date_fin)}` : ''} et sans successeur.
-              Prolongez sa date de fin ou créez le contrat qui le renouvelle. Rien n&apos;est modifié automatiquement.
+              Prolongez sa date de fin ou créez le contrat qui le renouvelle (champ « Renouvelle le contrat » du formulaire). Rien n&apos;est modifié automatiquement.
             </p>
           </div>
         </div>
@@ -302,6 +302,36 @@ export default function ContratDetailPage() {
               : `Échéance dans ${contrat.jours_restants} jours`}
           </p>
         )}
+        {/* Succession (D35) : prédécesseur et successeurs servis par l'API
+            (predecesseur_label, predecesseur_societe_label, successeurs). */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+          <div>
+            <p className="text-xs text-gray-500 mb-1">Renouvelle le contrat</p>
+            {contrat.id_contrat_predecesseur
+              ? (
+                <Link to={`/contrats/liste/${contrat.id_contrat_predecesseur}`} className="text-sm text-blue-800 hover:underline">
+                  {libelleContrat(contrat.predecesseur_label, contrat.predecesseur_societe_label)}
+                </Link>
+              )
+              : <p className="text-sm text-gray-500">Aucun</p>}
+          </div>
+          <div>
+            <p className="text-xs text-gray-500 mb-1">Renouvelé par ({(contrat.successeurs ?? []).length})</p>
+            {(contrat.successeurs ?? []).length === 0
+              ? <p className="text-sm text-gray-500">Aucun successeur.</p>
+              : (
+                <ul className="flex flex-col gap-1">
+                  {contrat.successeurs.map(s => (
+                    <li key={s.id}>
+                      <Link to={`/contrats/liste/${s.id}`} className="text-sm text-blue-800 hover:underline">
+                        {libelleContrat(s.label, s.societe_label)}{s.archive ? ' (Archivé)' : ''}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+          </div>
+        </div>
       </section>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
