@@ -2,8 +2,11 @@
 // commande et à une preuve, dépôt combiné d'une facture et de son justificatif.
 // Depuis la #204, la facture et sa preuve forment un seul objet aux yeux de
 // l'utilisateur : le lien facture.id_preuve reste en base, mais la preuve née
-// d'un dépôt de facture ne porte plus de demande de validation propre, n'est
-// plus servie par la liste des preuves, et disparaît avec sa facture.
+// d'un dépôt de facture ne porte plus de demande de validation propre et
+// disparaît avec sa facture. Depuis la #215 (unification de l'affichage), la
+// liste des preuves (preuves.js) sert aussi la preuve support, avec id_facture
+// et le statut de sa facture : les écrans ne lisent plus GET /factures, qui
+// reste servi tel quel pour les clients de l'API.
 
 import express from "express";
 import { tenantPool } from "../db.js";

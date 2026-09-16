@@ -472,6 +472,34 @@ Le 3234 n'est pas encore seedé dans `code_retour` : seule la migration 066
 libellé null et le signale en console ; à seeder par la prochaine migration
 Commune, comme la 064 l'a fait pour les codes orphelins.
 
+### Unification de l'affichage preuves et factures (#215, ticket client du 16/09)
+
+La distinction preuve / facture disparaît de tous les écrans ; aucun code
+nouveau, la table facture et le circuit de dépôt combiné sont inchangés :
+- GET /api/preuves (3200) sert toutes les preuves, support de facture compris.
+  Chaque ligne porte id_facture et facture_label quand une facture la
+  référence, et son statut de validation est alors celui de la facture (la
+  preuve support n'a pas de demande propre depuis la #204) ; une preuve libre
+  garde le sien. Le front valide l'entité désignée par id_facture (3300 à
+  3399, inchangés). La projection ajoute id_contrat_commande et ses libellés
+  (contrat de la commande rattachée) ;
+- filtre id_contrat (3219 en cas de valeur invalide) : preuve rattachée au
+  contrat directement ou par l'une de ses commandes, une seule règle pour
+  toutes les lignes ;
+- GET /api/commandes/manques (3280) : « sans facture » se lit sur le type
+  documentaire, absence d'une preuve de type_preuve.code = 'facture' rattachée
+  à la commande, et non plus sur la table facture ; GET /api/commandes/:id
+  (3101) sert nb_factures sur la même lecture. Sur les données nées du dépôt
+  combiné, les chiffres sont identiques avant et après (une facture, une
+  preuve support de type facture sur la même commande) ; requêtes de contrôle
+  dans le journal du chantier ;
+- DELETE /api/commandes/:id (3130) : le message compte des « preuve(s) »
+  (preuves de la commande plus factures sans preuve sur la commande), details
+  garde les compteurs bruts factures et preuves ;
+- GET /api/factures (3240) et GET /api/factures/:id (3241) restent servis pour
+  les clients de l'API et pour la résolution d'un ancien lien portant un
+  identifiant de facture (la fiche bascule sur la preuve support).
+
 ## Validation des saisies (#53)
 
 Plage validation 3300-3399. Le statut n'est pas une colonne des tables metier :

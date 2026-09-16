@@ -3,11 +3,17 @@
 // Décision du 11/09/2026 : bandeau "le contrat doit suivre" quand l'API sert
 // contrat_a_suivre (des licences renouvelées sur un contrat échu ou à échéance
 // sans successeur). Signal seulement, rien n'est modifié automatiquement.
+// Unification de l'affichage (#215) : une section « Preuves » liste toutes les
+// pièces du contrat, rattachées directement ou par l'une de ses commandes
+// (règle de GET /preuves?id_contrat), type facture compris, avec le dépôt
+// depuis la fiche. Le compteur nb_preuves de l'API (rattachement direct, celui
+// du garde-fou de suppression) n'est plus affiché : la liste fait foi.
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Pencil, Trash2, ChevronDown, XCircle, Archive, ArchiveRestore, AlertTriangle } from 'lucide-react';
+import { Pencil, Trash2, ChevronDown, XCircle, Archive, ArchiveRestore, AlertTriangle, ExternalLink, Plus } from 'lucide-react';
 import BudgetEmbeddedSection from '../budget/BudgetEmbeddedSection';
 import { contratsService, referentielsContratsService } from '../../services/contratsService';
+import { preuvesService, typesPreuveService } from '../../services/documentsService';
 import { optionnel } from '../../services/http';
 import { societesService } from '../../services/adminService';
 import Breadcrumb from '../ui/Breadcrumb';
@@ -18,7 +24,9 @@ import ErrorState from '../ui/ErrorState';
 import Skeleton from '../ui/Skeleton';
 import StatutEcheanceBadge from './StatutEcheanceBadge';
 import ContratFormModal from './ContratFormModal';
+import PreuveFormModal from './PreuveFormModal';
 import { libelleContrat } from './libelleContrat';
+import { fichierDepose } from './preuveAffichage';
 import useRbac from '../../hooks/useRbac';
 import { useToast } from '../../hooks/useToast';
 import { formatDate } from '../../utils/dateUtils';
@@ -32,8 +40,14 @@ export default function ContratDetailPage() {
   const navigate = useNavigate();
   const { addToast } = useToast();
   const { canWrite, canDelete, canValidate } = useRbac({ write: 'saisir_contrat', validate: 'valider_saisie' });
+  // Le dépôt d'une preuve suit le droit de l'écran Preuves, pas celui du contrat.
+  const { canWrite: canDeposer } = useRbac({ write: 'deposer_facture_preuve' });
 
   const [contrat, setContrat] = useState(null);
+  const [preuves, setPreuves] = useState([]);
+  const [typesPreuve, setTypesPreuve] = useState([]);
+  const [preuveModal, setPreuveModal] = useState(false);
+  const [ouverture, setOuverture] = useState(null);
   const [contrats, setContrats] = useState([]);
   const [typesContrat, setTypesContrat] = useState([]);
   const [editeurs, setEditeurs] = useState([]);
@@ -58,7 +72,9 @@ export default function ContratDetailPage() {
     try {
       // Seule la fiche est indispensable. La liste sert aux sous-contrats, les
       // référentiels au formulaire d'édition.
-      const [c, tous, t, e, s, r] = await Promise.all([
+      // Les preuves du contrat (#215) sont accessoires au même titre : un refus
+      // de droit sur les documents laisse la fiche lisible, sans sa liste.
+      const [c, tous, t, e, s, r, p, tp] = await Promise.all([
         contratsService.get(id),
         // Archives inclus : la hiérarchie doit rester complète, un sous-contrat
         // archivé existe toujours. Le formulaire écarte lui-même les archives.
@@ -67,6 +83,8 @@ export default function ContratDetailPage() {
         optionnel(referentielsContratsService.editeurs()),
         optionnel(societesService.list()),
         optionnel(referentielsContratsService.revendeurs()),
+        optionnel(preuvesService.list({ idContrat: id })),
+        optionnel(typesPreuveService.list()),
       ]);
       setContrat(c);
       setContrats(tous);
@@ -74,6 +92,8 @@ export default function ContratDetailPage() {
       setEditeurs(e);
       setSocietes(s);
       setRevendeurs(r);
+      setPreuves(p);
+      setTypesPreuve(tp);
     } catch (err) {
       // 404 : le contrat n'existe pas ou vient d'être supprimé, ce n'est pas une panne.
       if (err.status === 404) setIntrouvable(true);
@@ -92,6 +112,21 @@ export default function ContratDetailPage() {
   const sousContrats = useMemo(
     () => contrats.filter(c => c.id_contrat_parent === id),
     [contrats, id]);
+
+  // Le fichier est protégé par le jeton : on le télécharge puis on ouvre l'objet
+  // URL local, comme le font la fiche document et la fiche commande.
+  async function ouvrirFichier(idPreuve) {
+    setOuverture(idPreuve);
+    try {
+      const url = await preuvesService.fichierUrl(idPreuve);
+      window.open(url, '_blank', 'noopener');
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (err) {
+      addToast({ type: 'error', message: err.message });
+    } finally {
+      setOuverture(null);
+    }
+  }
 
   async function handleDelete() {
     try {
@@ -376,13 +411,44 @@ export default function ContratDetailPage() {
             <div>
               <p className="text-xs text-gray-500 mb-1">Commandes rattachées</p>
               <p className="text-sm text-gray-800 dark:text-gray-200">{contrat.nb_commandes ?? 0}</p>
+              <Link to={`/contrats/commandes?contrat=${contrat.id}`} className="text-xs text-blue-800 hover:underline">Voir les commandes</Link>
             </div>
-            <div>
-              <p className="text-xs text-gray-500 mb-1">Preuves rattachées</p>
-              <p className="text-sm text-gray-800 dark:text-gray-200">{contrat.nb_preuves ?? 0}</p>
+          </div>
+        </section>
+
+        <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 md:col-span-2">
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Preuves ({preuves.length})</h2>
+            <div className="flex items-center gap-3">
+              <Link to={`/contrats/factures?contrat=${contrat.id}`} className="text-xs text-blue-800 hover:underline">Voir dans Preuves</Link>
+              {canDeposer && !contrat.archive && (
+                <Button variant="secondary" size="sm" onClick={() => setPreuveModal(true)}><Plus size={14} /> Ajouter une preuve</Button>
+              )}
             </div>
-            <p className="text-xs text-gray-400">Le détail des commandes et des preuves sera listé au branchement de ces modules.</p>
-            </div>
+          </div>
+          {preuves.length === 0 ? (
+            <p className="text-sm text-gray-500">Aucune preuve rattachée à ce contrat ni à ses commandes.</p>
+          ) : (
+            <ul className="divide-y divide-gray-100 dark:divide-gray-700">
+              {preuves.map(p => (
+                <li key={p.id} className="flex items-center justify-between gap-3 py-2">
+                  <div className="min-w-0">
+                    <Link to={`/contrats/factures/${p.id}`} className="text-sm font-medium text-blue-800 hover:underline">{p.label}</Link>
+                    <p className="text-xs text-gray-500">
+                      {p.type_label ?? '-'}
+                      {p.id_commande ? ` · commande ${p.commande_label ?? ''}` : ''}
+                      {' · déposée le '}{formatDate(p.created_at)}
+                    </p>
+                  </div>
+                  {fichierDepose(p) && (
+                    <Button variant="secondary" size="sm" onClick={() => ouvrirFichier(p.id)} isLoading={ouverture === p.id}>
+                      <ExternalLink size={14} /> Ouvrir le fichier
+                    </Button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       </div>
 
@@ -412,6 +478,14 @@ export default function ContratDetailPage() {
         editeurs={editeurs}
         societes={societes}
         revendeurs={revendeurs}
+      />
+      <PreuveFormModal
+        isOpen={preuveModal}
+        onClose={() => setPreuveModal(false)}
+        onDone={toast => { if (toast) addToast(toast); load(); }}
+        typesPreuve={typesPreuve}
+        contrats={[contrat]}
+        contratParDefaut={contrat.id}
       />
 
       <ConfirmModal

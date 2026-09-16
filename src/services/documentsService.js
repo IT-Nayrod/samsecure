@@ -1,18 +1,19 @@
 // documentsService - accès API du module documents.
-// Deux ressources distinctes, fidèlement au schéma : /api/preuves et
-// /api/factures. Le front les assemble pour l'écran unifié, il ne fusionne pas
-// les modèles. Même convention que commandesService : aucun fetch direct,
+// Unification de l'affichage (#215) : les écrans lisent une seule ressource,
+// GET /api/preuves, qui sert toutes les preuves, support de facture compris
+// (id_facture et statut de la facture sur la ligne). /api/factures ne sert
+// plus qu'au dépôt combiné (POST /factures/depot), à la suppression d'une
+// facture avec sa preuve support et à la résolution d'un ancien lien portant
+// un identifiant de facture. Même convention que commandesService : aucun fetch direct,
 // http.js porte le Bearer, le refresh sur 401 et la normalisation des erreurs
 // en ApiError (message = champ "error" affiché tel quel, code = code_retour,
 // #68) et le déballage de l'enveloppe { code, type, libelle, data }. Le
 // téléchargement de fichier (3206) reste un blob, code en en-tête X-Code-Retour.
 import { http } from './http';
 
-// Les filtres sont communs aux deux ressources, pour que l'écran unifié
-// applique un seul jeu de filtres à ses deux sources. Côté factures, contrat et
-// type de preuve passent par les jointures : l'API s'en charge. Le filtre par
-// licence (#208) n'a de sens que côté preuves, une facture ne se rattache
-// jamais à une licence : l'API factures l'ignore.
+// Filtres de GET /preuves : type documentaire, contrat (rattachement direct ou
+// par la commande, règle du serveur), commande, licence (#208). Les mêmes
+// paramètres restent acceptés par GET /factures pour les clients de l'API.
 function query({ idTypePreuve, idContrat, idCommande, idLicence } = {}) {
   const p = new URLSearchParams();
   if (idTypePreuve) p.set('id_type_preuve', idTypePreuve);

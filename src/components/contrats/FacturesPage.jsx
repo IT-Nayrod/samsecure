@@ -1,23 +1,25 @@
-// FacturesPage - écran Preuves (factures comprises), orienté audit.
+// FacturesPage - écran Preuves, orienté audit.
 // Titre « Preuves » depuis le 12/09 (décision du chef de projet, le ticket
 // #200 conservait « Factures & Preuves ») : la facture est un type de preuve
-// parmi les sept, le sous-titre et les filtres ne changent pas.
-// Branche sur deux ressources API distinctes, /api/preuves et /api/factures,
-// fidèlement au schéma : la page les assemble pour l'affichage mais ne fusionne
-// pas les modèles. Chaque ligne conserve sa ressource d'origine, qui détermine
-// l'API à interroger pour sa fiche.
-// Objet unique (#204) : une facture et sa preuve support ne font qu'une ligne,
-// celle de type Facture. GET /preuves ne sert que les preuves libres, la ligne
-// facture porte le fichier de sa preuve : aucun doublon d'affichage.
-// Dépôt unifié (#204, 12/09) : un seul bouton, « Déposer une preuve » ; la
-// modale de preuve emprunte le circuit facture quand le type facture est
-// choisi. Il n'y a plus de modale facture.
+// parmi les sept.
+// Unification totale de l'affichage (#215, ticket client du 16/09/2026) : une
+// seule source, GET /preuves, qui sert toutes les preuves, support de facture
+// compris (id_facture et statut de la facture portés par la ligne). Plus de
+// nature Preuve / Facture à l'écran : une seule colonne de type, celle du type
+// documentaire, une seule tuile Preuves (total, répartition par type en
+// sous-texte), un seul jeu de filtres et un export CSV alignés. Le circuit de
+// dépôt reste celui de la modale unifiée (#204), inchangé.
+// La validation vise l'entité qui porte la demande : la facture quand la ligne
+// en est le support (id_facture), la preuve sinon. C'est la seule trace de la
+// table facture dans cet écran, et elle est invisible.
 // La détection des manques vient de /api/commandes/manques : une vue temps
 // réel, jamais un stock d'anomalies, d'où le rechargement après chaque dépôt.
+// « Sans facture » y désigne l'absence d'une preuve de type documentaire
+// facture sur la commande (#215), même lecture que la colonne Type.
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Plus, Receipt, FileCheck, AlertTriangle, X } from 'lucide-react';
-import { preuvesService, facturesService, typesPreuveService, manquesService } from '../../services/documentsService';
+import { Plus, FileCheck, AlertTriangle, X } from 'lucide-react';
+import { preuvesService, typesPreuveService, manquesService } from '../../services/documentsService';
 import { contratsService } from '../../services/contratsService';
 import { optionnel } from '../../services/http';
 import { commandesService } from '../../services/commandesService';
@@ -29,9 +31,9 @@ import ErrorState from '../ui/ErrorState';
 import Skeleton from '../ui/Skeleton';
 import DocumentIcon from './DocumentIcon';
 import ManqueBadge from './ManqueBadge';
-import DeploiementKpiCard from '../deploiement/DeploiementKpiCard';
 import PreuveFormModal from './PreuveFormModal';
 import { libelleContrat } from './libelleContrat';
+import { contratDeLaPreuve, cibleValidation } from './preuveAffichage';
 import useRbac from '../../hooks/useRbac';
 import { useToast } from '../../hooks/useToast';
 import { formatDate } from '../../utils/dateUtils';
@@ -40,13 +42,14 @@ import ValidationActions from '../referentiels/ValidationActions';
 import useValidation from '../../hooks/useValidation';
 import { appliquerStatut } from '../../services/validationService';
 
+const SELECT_CLS = 'text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500';
+
 export default function FacturesPage() {
   const navigate = useNavigate();
   const { addToast } = useToast();
   const { canWrite, canValidate } = useRbac({ write: 'deposer_facture_preuve', validate: 'valider_saisie' });
 
   const [preuves, setPreuves] = useState([]);
-  const [factures, setFactures] = useState([]);
   const [manques, setManques] = useState(null);
   const [typesPreuve, setTypesPreuve] = useState([]);
   const [contrats, setContrats] = useState([]);
@@ -56,7 +59,6 @@ export default function FacturesPage() {
   const [error, setError] = useState(null);
   const [errorStatus, setErrorStatus] = useState(null);
 
-  const [filterType, setFilterType] = useState('');
   const [filterTypePreuve, setFilterTypePreuve] = useState('');
   const [filterContrat, setFilterContrat] = useState('');
   const [filterCommande, setFilterCommande] = useState('');
@@ -66,9 +68,9 @@ export default function FacturesPage() {
   const [preuveModal, setPreuveModal] = useState(false);
   const manquesRef = useRef(null);
 
-  // Les filtres partent à l'API plutôt que d'être appliqués en mémoire : c'est
-  // la même règle de filtrage pour les deux ressources, et elle ne peut pas
-  // dériver de ce que le serveur considère comme rattache.
+  // Les filtres partent à l'API plutôt que d'être appliqués en mémoire : la
+  // règle de filtrage est celle du serveur (contrat direct ou par la
+  // commande, #215), elle ne peut pas dériver de ce que l'écran suppose.
   const contratActif = filterContrat || contratParam || '';
   const commandeActive = filterCommande || commandeParam || '';
 
@@ -82,21 +84,20 @@ export default function FacturesPage() {
       idCommande: commandeActive || undefined,
     };
     try {
-      // Preuves et factures sont les deux ressources de l'écran. La détection
-      // des manques, les types et les listes de rattachement sont accessoires :
-      // leur refus retire une section où un filtre, pas la page.
+      // La liste des preuves est la ressource de l'écran. La détection des
+      // manques, les types et les listes de rattachement sont accessoires :
+      // leur refus retire une section ou un filtre, pas la page.
       // Les licences (#208) ne servent qu'au rattachement dans la modale de
       // dépôt : un refus de droit sur le module 3 laisse l'écran complet.
-      const [p, f, m, t, c, k, l] = await Promise.all([
+      const [p, m, t, c, k, l] = await Promise.all([
         preuvesService.list(filtres),
-        facturesService.list(filtres),
         optionnel(manquesService.list({ idContrat: contratActif || undefined }), null),
         optionnel(typesPreuveService.list()),
         optionnel(contratsService.list()),
         optionnel(commandesService.list()),
         optionnel(licencesService.list()),
       ]);
-      setPreuves(p); setFactures(f); setManques(m);
+      setPreuves(p); setManques(m);
       setTypesPreuve(t); setContrats(c); setCommandes(k); setLicences(l);
     } catch (err) {
       setError(err.message);
@@ -113,81 +114,73 @@ export default function FacturesPage() {
     load();
   }
 
-  // Les deux ressources restent séparées, comme le veut l'en-tête de ce
-  // fichier : la réponse dit laquelle mettre à jour.
+  // La réponse de traitement désigne l'entité traitée : la facture pour une
+  // ligne support (id_facture), la preuve sinon. Une seule liste à mettre à jour.
   const appliquer = useCallback(reponse => {
-    const maj = liste => liste.map(x => x.id === reponse.entite_id ? appliquerStatut(x, reponse) : x);
-    if (reponse.entite_type === 'preuve') setPreuves(maj);
-    else setFactures(maj);
+    setPreuves(liste => liste.map(x => (
+      (reponse.entite_type === 'facture' && x.id_facture === reponse.entite_id)
+      || (reponse.entite_type === 'preuve' && x.id === reponse.entite_id)
+        ? appliquerStatut(x, reponse) : x)));
   }, []);
   const { valider, refuser } = useValidation(appliquer);
 
   function resetFiltres() {
-    setFilterType(''); setFilterTypePreuve(''); setFilterContrat(''); setFilterCommande('');
+    setFilterTypePreuve(''); setFilterContrat(''); setFilterCommande('');
   }
 
-  const hasActiveFiltres = !!(filterType || filterTypePreuve || filterContrat || filterCommande);
+  const hasActiveFiltres = !!(filterTypePreuve || filterContrat || filterCommande);
 
-  // Assemblage et non fusion : chaque ligne porte sa ressource d'origine, qui
-  // dit quelle API sert sa fiche et quels champs elle possède réellement.
-  const lignes = useMemo(() => {
-    const dePreuves = preuves.map(p => ({
-      ressource: 'preuve',
-      id: p.id,
-      label: p.label,
-      nom_fichier: p.nom_origine || p.url_fichier,
-      type_preuve_label: p.type_label,
-      contrat_label: libelleContrat(p.contrat_label, p.contrat_societe_label),
-      commande_label: p.commande_label,
-      // Une preuve rattachée à une licence sans libellé propre reste
-      // identifiable : la fiche document porte le lien vers la licence.
-      licence_label: p.id_licence ? (p.licence_label ?? 'Licence') : null,
-      created_at: p.created_at,
-      statut_validation: p.statut_validation,
-      statut_validation_label: p.statut_validation_label,
-      message_refus: p.message_refus,
-    }));
-    const deFactures = factures.map(f => ({
-      ressource: 'facture',
-      id: f.id,
-      label: f.label,
-      nom_fichier: f.preuve_nom_origine || f.preuve_url_fichier,
-      type_preuve_label: f.preuve_type_label,
-      contrat_label: libelleContrat(f.contrat_label, f.contrat_societe_label),
-      commande_label: f.commande_label,
-      licence_label: null,
-      created_at: f.created_at,
-      statut_validation: f.statut_validation,
-      statut_validation_label: f.statut_validation_label,
-      message_refus: f.message_refus,
-    }));
-    const tout = [...deFactures, ...dePreuves];
-    const visibles = filterType ? tout.filter(l => l.ressource === filterType) : tout;
-    return visibles.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
-  }, [preuves, factures, filterType]);
+  // Lignes de l'écran : une par preuve, telle que servie par l'API. Le contrat
+  // affiché est le rattachement direct, sinon celui de la commande rattachée.
+  const lignes = useMemo(() => preuves.map(p => ({
+    ...p,
+    nom_fichier: p.nom_origine || p.url_fichier,
+    contrat_affiche: contratDeLaPreuve(p),
+    // Une preuve rattachée à une licence sans libellé propre reste
+    // identifiable : la fiche document porte le lien vers la licence.
+    licence_affichee: p.id_licence ? (p.licence_label ?? 'Licence') : null,
+  })), [preuves]);
+
+  // Répartition par type documentaire, sous-texte de la tuile Preuves : les
+  // types présents dans la liste courante, du plus fréquent au moins fréquent.
+  const repartition = useMemo(() => {
+    const compte = new Map();
+    for (const p of preuves) {
+      const cle = p.type_label ?? 'Sans type';
+      compte.set(cle, (compte.get(cle) ?? 0) + 1);
+    }
+    return [...compte.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'fr'))
+      .map(([type, n]) => `${n} ${type.toLowerCase()}`)
+      .join(', ');
+  }, [preuves]);
 
   const columns = [
     { key: 'label', label: 'Document', render: r => (
-      <button onClick={() => navigate(`/contrats/factures/${r.id}?ressource=${r.ressource}`)} className="flex items-center gap-2.5 font-medium text-blue-800 hover:underline text-left">
+      <button onClick={() => navigate(`/contrats/factures/${r.id}`)} className="flex items-center gap-2.5 font-medium text-blue-800 hover:underline text-left">
         <DocumentIcon nomFichier={r.nom_fichier} size={28} />
         {r.label}
       </button>
     ), csvValue: r => r.label },
-    { key: 'ressource', label: 'Type', sortable: true, render: r => r.ressource === 'facture' ? 'Facture' : 'Preuve' },
-    { key: 'type_preuve_label', label: 'Type de preuve', render: r => r.type_preuve_label ?? '-' },
-    { key: 'liaison', label: 'Rattachement', render: r => [r.contrat_label, r.commande_label, r.licence_label].filter(Boolean).join(' - ') || '-' },
-    { key: 'created_at', label: 'Déposé le', sortable: true, render: r => formatDate(r.created_at) },
+    { key: 'type_label', label: 'Type', sortable: true, render: r => r.type_label ?? '-', csvValue: r => r.type_label ?? '' },
+    { key: 'liaison', label: 'Rattachement',
+      csvValue: r => [r.contrat_affiche, r.commande_label, r.licence_affichee].filter(Boolean).join(' - '),
+      render: r => [r.contrat_affiche, r.commande_label, r.licence_affichee].filter(Boolean).join(' - ') || '-' },
+    { key: 'created_at', label: 'Déposé le', sortable: true, render: r => formatDate(r.created_at), csvValue: r => formatDate(r.created_at) },
     { key: 'statut_validation', label: 'Validation', sortable: true,
       csvValue: r => [r.statut_validation_label, r.message_refus].filter(Boolean).join(' - '),
       render: r => <ValidationCell statut={r.statut_validation} motif={r.message_refus} /> },
     { key: 'actions_validation', label: '', csvValue: () => '',
-      render: r => canValidate && (
-        <ValidationActions
-          statut={r.statut_validation}
-          onValidate={() => valider(r.ressource, r.id)}
-          onRefuse={motif => refuser(r.ressource, r.id, motif)}
-        />
-      ) },
+      render: r => {
+        const cible = cibleValidation(r);
+        return canValidate && (
+          <ValidationActions
+            statut={r.statut_validation}
+            onValidate={() => valider(cible.entite, cible.id)}
+            onRefuse={motif => refuser(cible.entite, cible.id, motif)}
+          />
+        );
+      } },
   ];
 
   if (isLoading) {
@@ -226,13 +219,29 @@ export default function FacturesPage() {
         )}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <DeploiementKpiCard label="Factures" value={factures.length} icon={Receipt} color="#1F4E79"
-          onClick={() => setFilterType(v => v === 'facture' ? '' : 'facture')} active={filterType === 'facture'} />
-        <DeploiementKpiCard label="Preuves" value={preuves.length} icon={FileCheck} color="#22C55E"
-          onClick={() => setFilterType(v => v === 'preuve' ? '' : 'preuve')} active={filterType === 'preuve'} />
-        <DeploiementKpiCard label="Manques détectés" value={manques?.total ?? 0} icon={AlertTriangle} color="#EF4444"
-          onClick={() => manquesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })} />
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="flex items-center gap-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
+          <span className="flex items-center justify-center w-9 h-9 rounded-lg flex-shrink-0" style={{ backgroundColor: '#1F4E7918' }}>
+            <FileCheck size={17} style={{ color: '#1F4E79' }} />
+          </span>
+          <div className="min-w-0">
+            <p className="text-xl font-semibold" style={{ color: '#1F4E79' }}>{preuves.length}</p>
+            <p className="text-xs text-gray-500 mt-0.5">Preuves</p>
+            {repartition && <p className="text-xs text-gray-400 mt-0.5 truncate" title={repartition}>{repartition}</p>}
+          </div>
+        </div>
+        <button
+          onClick={() => manquesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+          className="flex items-center gap-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 text-left hover:border-blue-300 transition-colors"
+        >
+          <span className="flex items-center justify-center w-9 h-9 rounded-lg flex-shrink-0" style={{ backgroundColor: '#EF444418' }}>
+            <AlertTriangle size={17} style={{ color: '#EF4444' }} />
+          </span>
+          <div>
+            <p className="text-xl font-semibold" style={{ color: '#EF4444' }}>{manques?.total ?? 0}</p>
+            <p className="text-xs text-gray-500 mt-0.5">Manques détectés</p>
+          </div>
+        </button>
       </div>
 
       <section ref={manquesRef} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
@@ -245,7 +254,7 @@ export default function FacturesPage() {
           )}
         </div>
         {!manques || manques.total === 0 ? (
-          <p className="text-sm text-gray-500">Aucun manque détecté : toutes les commandes ont facture et preuve.</p>
+          <p className="text-sm text-gray-500">Aucun manque détecté : toutes les commandes ont une facture et une preuve.</p>
         ) : (
           <div className="flex flex-col gap-2">
             {manques.commandes.map(c => (
@@ -265,20 +274,15 @@ export default function FacturesPage() {
       </section>
 
       <div className="flex flex-wrap gap-3 bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
-        <select value={filterType} onChange={e => setFilterType(e.target.value)} className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-          <option value="">Tout</option>
-          <option value="facture">Factures</option>
-          <option value="preuve">Preuves</option>
-        </select>
-        <select value={filterTypePreuve} onChange={e => setFilterTypePreuve(e.target.value)} className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-          <option value="">Tous les types de preuve</option>
+        <select value={filterTypePreuve} onChange={e => setFilterTypePreuve(e.target.value)} className={SELECT_CLS}>
+          <option value="">Tous les types</option>
           {typesPreuve.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
         </select>
-        <select value={filterContrat} onChange={e => setFilterContrat(e.target.value)} className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+        <select value={filterContrat} onChange={e => setFilterContrat(e.target.value)} className={SELECT_CLS}>
           <option value="">Tous les contrats</option>
           {contrats.map(c => <option key={c.id} value={c.id}>{libelleContrat(c.label, c.societe_label)}</option>)}
         </select>
-        <select value={filterCommande} onChange={e => setFilterCommande(e.target.value)} className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+        <select value={filterCommande} onChange={e => setFilterCommande(e.target.value)} className={SELECT_CLS}>
           <option value="">Toutes les commandes</option>
           {commandes.map(k => <option key={k.id} value={k.id}>{k.label}</option>)}
         </select>
@@ -293,8 +297,8 @@ export default function FacturesPage() {
         <DataTable
           columns={columns}
           data={lignes}
-          filename="documents"
-          emptyState={{ message: hasActiveFiltres ? 'Aucun document ne correspond aux filtres.' : 'Aucun document déposé à ce jour.' }}
+          filename="preuves"
+          emptyState={{ message: hasActiveFiltres ? 'Aucune preuve ne correspond aux filtres.' : 'Aucune preuve déposée à ce jour.' }}
         />
       </div>
 
