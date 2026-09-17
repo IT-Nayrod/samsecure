@@ -16,6 +16,9 @@
 // réel, jamais un stock d'anomalies, d'où le rechargement après chaque dépôt.
 // « Sans facture » y désigne l'absence d'une preuve de type documentaire
 // facture sur la commande (#215), même lecture que la colonne Type.
+// Date de la preuve (#214) : colonne « Date de la preuve » (date métier du
+// document, distincte de « Déposé le »), triable, et filtre par période (Du /
+// Au) appliqué par l'API ; les preuves antérieures restent sans date.
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, FileCheck, AlertTriangle, X } from 'lucide-react';
@@ -62,6 +65,8 @@ export default function FacturesPage() {
   const [filterTypePreuve, setFilterTypePreuve] = useState('');
   const [filterContrat, setFilterContrat] = useState('');
   const [filterCommande, setFilterCommande] = useState('');
+  const [filterDateMin, setFilterDateMin] = useState('');
+  const [filterDateMax, setFilterDateMax] = useState('');
   const [searchParams] = useSearchParams();
   const contratParam = searchParams.get('contrat');
   const commandeParam = searchParams.get('commande');
@@ -82,6 +87,8 @@ export default function FacturesPage() {
       idTypePreuve: filterTypePreuve || undefined,
       idContrat: contratActif || undefined,
       idCommande: commandeActive || undefined,
+      datePreuveMin: filterDateMin || undefined,
+      datePreuveMax: filterDateMax || undefined,
     };
     try {
       // La liste des preuves est la ressource de l'écran. La détection des
@@ -105,7 +112,7 @@ export default function FacturesPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [filterTypePreuve, contratActif, commandeActive]);
+  }, [filterTypePreuve, contratActif, commandeActive, filterDateMin, filterDateMax]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -126,9 +133,10 @@ export default function FacturesPage() {
 
   function resetFiltres() {
     setFilterTypePreuve(''); setFilterContrat(''); setFilterCommande('');
+    setFilterDateMin(''); setFilterDateMax('');
   }
 
-  const hasActiveFiltres = !!(filterTypePreuve || filterContrat || filterCommande);
+  const hasActiveFiltres = !!(filterTypePreuve || filterContrat || filterCommande || filterDateMin || filterDateMax);
 
   // Lignes de l'écran : une par preuve, telle que servie par l'API. Le contrat
   // affiché est le rattachement direct, sinon celui de la commande rattachée.
@@ -166,6 +174,7 @@ export default function FacturesPage() {
     { key: 'liaison', label: 'Rattachement',
       csvValue: r => [r.contrat_affiche, r.commande_label, r.licence_affichee].filter(Boolean).join(' - '),
       render: r => [r.contrat_affiche, r.commande_label, r.licence_affichee].filter(Boolean).join(' - ') || '-' },
+    { key: 'date_preuve', label: 'Date de la preuve', sortable: true, render: r => formatDate(r.date_preuve), csvValue: r => r.date_preuve ? formatDate(r.date_preuve) : '' },
     { key: 'created_at', label: 'Déposé le', sortable: true, render: r => formatDate(r.created_at), csvValue: r => formatDate(r.created_at) },
     { key: 'statut_validation', label: 'Validation', sortable: true,
       csvValue: r => [r.statut_validation_label, r.message_refus].filter(Boolean).join(' - '),
@@ -286,6 +295,12 @@ export default function FacturesPage() {
           <option value="">Toutes les commandes</option>
           {commandes.map(k => <option key={k.id} value={k.id}>{k.label}</option>)}
         </select>
+        <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+          Date de la preuve du
+          <input type="date" value={filterDateMin} max={filterDateMax || undefined} onChange={e => setFilterDateMin(e.target.value)} className={SELECT_CLS} aria-label="Date de la preuve, début de période" />
+          au
+          <input type="date" value={filterDateMax} min={filterDateMin || undefined} onChange={e => setFilterDateMax(e.target.value)} className={SELECT_CLS} aria-label="Date de la preuve, fin de période" />
+        </label>
         {hasActiveFiltres && (
           <button onClick={resetFiltres} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 px-3 py-2">
             <X size={14} /> Réinitialiser les filtres

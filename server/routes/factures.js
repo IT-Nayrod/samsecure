@@ -17,6 +17,7 @@ import {
 import {
   jointureStatut, COLONNES_STATUT, soumettre, purgerValidations,
 } from "../utils/validationWorkflow.js";
+import { dateIsoValide } from "../utils/dateIso.js";
 
 const router = express.Router();
 
@@ -52,6 +53,7 @@ const SELECT_FACTURE = `
          cm.id_contrat, ct.label AS contrat_label, sct.raison_sociale AS contrat_societe_label,
          f.id_preuve,   pr.label AS preuve_label, pr.url_fichier AS preuve_url_fichier,
          pr.nom_origine AS preuve_nom_origine, pr.hash_sha256 AS preuve_hash_sha256,
+         pr.date_preuve::text AS preuve_date_preuve,
          pr.id_type_preuve AS preuve_id_type_preuve, tp.code AS preuve_type_code, tp.label AS preuve_type_label,
          f.created_at,
          ${COLONNES_STATUT}
@@ -201,6 +203,9 @@ async function deposerFacture(req, res) {
   // Le libellé de la preuve retombe sur celui de la facture quand le formulaire
   // ne le distingue pas : un seul champ à saisir pour un seul geste métier.
   const labelPreuve = (vide(req.body?.label_preuve) ?? label).trim();
+  // Date de la preuve (#214) : date de la facture, portée par la preuve
+  // support comme pour tout autre type, facultative.
+  const datePreuve = vide(req.body?.date_preuve);
 
   const client = await tenantPool.connect();
   let ecrit = null;
@@ -223,14 +228,18 @@ async function deposerFacture(req, res) {
       await client.query("ROLLBACK");
       return erreur(res, 3213, { status: 400, message: "Type de preuve introuvable." });
     }
+    if (datePreuve !== null && !dateIsoValide(datePreuve)) {
+      await client.query("ROLLBACK");
+      return erreur(res, 3233, { status: 400, message: "La date de la preuve est invalide (format attendu AAAA-MM-JJ)." });
+    }
     const idTypePreuve = idTypePreuveDemande ?? await typePreuveFacture(client);
 
     ecrit = await ecrireFichier(req.file);
 
     const { rows: [preuve] } = await client.query(
-      `INSERT INTO preuve (label, id_type_preuve, id_commande, url_fichier, hash_sha256, nom_origine)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-      [labelPreuve, idTypePreuve, idCommande, ecrit.nomPhysique, ecrit.hash, ecrit.nomOrigine]);
+      `INSERT INTO preuve (label, id_type_preuve, id_commande, url_fichier, hash_sha256, nom_origine, date_preuve)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+      [labelPreuve, idTypePreuve, idCommande, ecrit.nomPhysique, ecrit.hash, ecrit.nomOrigine, datePreuve]);
 
     const { rows: [facture] } = await client.query(
       `INSERT INTO facture (label, id_commande, id_preuve) VALUES ($1, $2, $3) RETURNING id`,
@@ -244,7 +253,7 @@ async function deposerFacture(req, res) {
 
     await audit(client, req, "DEPOT_FICHIER", "preuve", preuve.id,
       { url_fichier: ecrit.nomPhysique, hash_sha256: ecrit.hash, nom_origine: ecrit.nomOrigine,
-        taille: req.file.size, id_facture: facture.id });
+        taille: req.file.size, id_facture: facture.id, date_preuve: datePreuve });
     await audit(client, req, "CREATE", "facture", facture.id,
       { label, id_commande: idCommande, id_preuve: preuve.id, hash_sha256: ecrit.hash });
 

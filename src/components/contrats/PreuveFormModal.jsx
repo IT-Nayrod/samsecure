@@ -28,6 +28,11 @@
 // (preuve créée, fichier refusé) reste affiché dans la modale : la page n'est
 // rechargée qu'à sa fermeture, sinon le rechargement démontait la modale et le
 // message avec elle, laissant une preuve sans pièce et sans explication.
+// Date de la preuve (#214, migration 066) : date métier du document (date de
+// la facture, du bon, du certificat), distincte de la date de dépôt, commune à
+// tous les types et facultative. Champ fixe du formulaire et non ligne de la
+// définition par type : la 060 rattache chaque champ à un code de type, il
+// n'existe pas de champ commun à tous les types dans cette mécanique.
 import { useState, useEffect, useMemo } from 'react';
 import SlideOver from '../ui/SlideOver';
 import Button from '../ui/Button';
@@ -71,7 +76,7 @@ const TYPE_INPUT = { texte: 'text', nombre: 'number', date: 'date', reference: '
 // comme dans la liste des licences.
 const libelleLicence = (l) => l.label ?? l.produit_label ?? l.id;
 
-const EMPTY = { label: '', id_type_preuve: '', rattachement: 'contrat', id_contrat: '', id_commande: '', id_licence: '', champs: {} };
+const EMPTY = { label: '', date_preuve: '', id_type_preuve: '', rattachement: 'contrat', id_contrat: '', id_commande: '', id_licence: '', champs: {} };
 
 export default function PreuveFormModal({
   isOpen, onClose, onDone, typesPreuve = [],
@@ -204,6 +209,7 @@ export default function PreuveFormModal({
       label: form.label.trim(),
       idCommande: form.id_commande,
       idTypePreuve: form.id_type_preuve,
+      datePreuve: form.date_preuve || null,
       champs: valeursChamps(),
     });
     onDone({ type: 'success', message: 'Facture enregistrée avec son justificatif.' });
@@ -216,6 +222,7 @@ export default function PreuveFormModal({
     try {
       creee = await preuvesService.create({
         label: form.label.trim(),
+        date_preuve: form.date_preuve || null,
         id_type_preuve: form.id_type_preuve,
         // Un seul rattachement part au serveur, les deux autres sont nuls.
         id_contrat: form.rattachement === 'contrat' ? form.id_contrat : null,
@@ -294,10 +301,16 @@ export default function PreuveFormModal({
         <FormField label="Fichier" required>
           <DocumentUploadField file={file} onChange={setFile} disabled={loading} />
         </FormField>
-        <FormField label="Libellé" required>
-          <input className={INPUT_CLS} value={form.label} autoFocus
-            onChange={e => setForm(v => ({ ...v, label: e.target.value }))} />
-        </FormField>
+        <div className="grid grid-cols-2 gap-4">
+          <FormField label="Libellé" required>
+            <input className={INPUT_CLS} value={form.label} autoFocus
+              onChange={e => setForm(v => ({ ...v, label: e.target.value }))} />
+          </FormField>
+          <FormField label="Date de la preuve" hint="Date du document, distincte du dépôt">
+            <input type="date" className={INPUT_CLS} value={form.date_preuve}
+              onChange={e => setForm(v => ({ ...v, date_preuve: e.target.value }))} />
+          </FormField>
+        </div>
         <div className="grid grid-cols-2 gap-4">
           <FormField label="Rattachée à" required hint={rattachementImpose ? `Imposé par le type ${typeChoisi?.label ?? ''}` : undefined}>
             <select className={INPUT_CLS} value={form.rattachement} disabled={!!rattachementImpose}

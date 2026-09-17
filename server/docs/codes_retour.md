@@ -262,11 +262,12 @@ commun 3280-3299.
 | 3216 | erreur | Commande introuvable | POST, PATCH /api/preuves |
 | 3217 | erreur | Le chemin du fichier est obligatoire | POST, PATCH /api/preuves |
 | 3218 | erreur | L'empreinte SHA-256 doit comporter 64 caracteres hexadecimaux | POST, PATCH /api/preuves |
-| 3219 | erreur | Valeur de filtre invalide (id_type_preuve, id_contrat, id_commande, id_licence depuis la #208) | GET /api/preuves |
+| 3219 | erreur | Valeur de filtre invalide (id_type_preuve, id_contrat, id_commande, id_licence depuis la #208, date_preuve_min et date_preuve_max depuis la #214) | GET /api/preuves |
 | 3228 | erreur | Licence introuvable (#208, migration 054) | POST, PATCH /api/preuves |
 | 3229 | succes | Définition des champs par type de preuve (#204, migration 060) | GET /api/types-preuve/champs |
 | 3230 | erreur | Suppression impossible : preuve rattachee a une facture | DELETE /api/preuves/:id |
 | 3231 | reserve | [ARBITRAGE D27] lien externe GED refuse. Non emis a ce jour | POST, PATCH /api/preuves |
+| 3233 | erreur | La date de la preuve est invalide, format attendu AAAA-MM-JJ (#214, migration 066, non seedé : voir plus bas) | POST, PATCH /api/preuves ; POST /api/factures/depot |
 | 3234 | erreur | Le type Facture n'est pas accepté ici : une facture se dépose avec son fichier par le dépôt de facture (#99, retour de recette du 16/09, non seedé : voir plus bas) | POST, PATCH /api/preuves |
 | 3214 | erreur | Une preuve doit être rattachée à un contrat, à une commande, ou aux deux | POST, PATCH /api/preuves |
 | 3215 | erreur | Contrat introuvable | POST, PATCH /api/preuves |
@@ -471,6 +472,25 @@ Le 3234 n'est pas encore seedé dans `code_retour` : seule la migration 066
 `server/utils/reponse.js` sert alors le message rendu par la route avec un
 libellé null et le signale en console ; à seeder par la prochaine migration
 Commune, comme la 064 l'a fait pour les codes orphelins.
+
+### Date de la preuve (#214, ticket client du 16/09, migration 066)
+
+preuve.date_preuve (DATE, nullable, 066 Tenant) : date métier du document,
+distincte de la date de dépôt created_at, commune à tous les types, saisie
+facultative dans la modale de dépôt (champ fixe du formulaire, la définition
+par type de la 060 ne connaissant pas de champ commun à tous les types). Les
+preuves existantes restent sans date, rien n'est rétro-daté.
+- POST et PATCH /api/preuves (3202, 3203) acceptent date_preuve ; POST
+  /api/factures/depot (3245) l'accepte pour la preuve support ;
+- 3233 : date invalide (format ou calendrier), sur les trois routes ;
+- GET /api/preuves (3200) sert date_preuve et accepte date_preuve_min et
+  date_preuve_max (bornes incluses, AAAA-MM-JJ, 3219 si invalides) ; une
+  preuve sans date ne répond à aucune borne ;
+- GET /api/factures sert preuve_date_preuve dans sa projection.
+
+Le 3233 n'est pas encore seedé dans `code_retour` (même situation que le
+3234 : seule la 066 Tenant était réservée, la table vit en Commune) ; à
+seeder par la prochaine migration Commune.
 
 ### Unification de l'affichage preuves et factures (#215, ticket client du 16/09)
 

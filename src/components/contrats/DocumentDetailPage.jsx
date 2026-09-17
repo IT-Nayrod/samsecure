@@ -226,6 +226,7 @@ export default function DocumentDetailPage() {
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 grid grid-cols-2 md:grid-cols-3 gap-5">
         <Champ label="Libellé">{doc.label}</Champ>
         <Champ label="Type">{doc.type_label}</Champ>
+        <Champ label="Date de la preuve">{doc.date_preuve ? formatDate(doc.date_preuve) : null}</Champ>
         <Champ label="Déposé le">{formatDate(doc.created_at)}</Champ>
         <Champ label="Nom du fichier d'origine">{doc.nom_origine}</Champ>
         <Champ label="Contrat">

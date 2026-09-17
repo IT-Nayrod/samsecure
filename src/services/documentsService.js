@@ -12,14 +12,18 @@
 import { http } from './http';
 
 // Filtres de GET /preuves : type documentaire, contrat (rattachement direct ou
-// par la commande, règle du serveur), commande, licence (#208). Les mêmes
-// paramètres restent acceptés par GET /factures pour les clients de l'API.
-function query({ idTypePreuve, idContrat, idCommande, idLicence } = {}) {
+// par la commande, règle du serveur), commande, licence (#208), période de la
+// date de la preuve (#214 : datePreuveMin et datePreuveMax, AAAA-MM-JJ, bornes
+// incluses). Les paramètres d'identifiant restent acceptés par GET /factures
+// pour les clients de l'API.
+function query({ idTypePreuve, idContrat, idCommande, idLicence, datePreuveMin, datePreuveMax } = {}) {
   const p = new URLSearchParams();
   if (idTypePreuve) p.set('id_type_preuve', idTypePreuve);
   if (idContrat) p.set('id_contrat', idContrat);
   if (idCommande) p.set('id_commande', idCommande);
   if (idLicence) p.set('id_licence', idLicence);
+  if (datePreuveMin) p.set('date_preuve_min', datePreuveMin);
+  if (datePreuveMax) p.set('date_preuve_max', datePreuveMax);
   const s = p.toString();
   return s ? `?${s}` : '';
 }
@@ -58,14 +62,16 @@ export const facturesService = {
   // l'appelle quand le type facture est choisi ; le type est alors transmis.
   // champs : valeurs des champs additionnels définis pour le type
   // (GET /types-preuve/champs), transmises sous leur nom technique, vides
-  // omises. Le libellé et la commande passent par leurs paramètres propres.
-  deposer: ({ file, label, idCommande, idTypePreuve, labelPreuve, champs }) => {
+  // omises. Le libellé, la commande et la date de la preuve (#214, champ
+  // commun à tous les types) passent par leurs paramètres propres.
+  deposer: ({ file, label, idCommande, idTypePreuve, labelPreuve, datePreuve, champs }) => {
     const fd = new FormData();
     fd.append('fichier', file);
     fd.append('label', label);
     fd.append('id_commande', idCommande);
     if (idTypePreuve) fd.append('id_type_preuve', idTypePreuve);
     if (labelPreuve) fd.append('label_preuve', labelPreuve);
+    if (datePreuve) fd.append('date_preuve', datePreuve);
     for (const [nom, valeur] of Object.entries(champs ?? {})) {
       if (valeur !== '' && valeur !== null && valeur !== undefined && !fd.has(nom)) fd.append(nom, valeur);
     }

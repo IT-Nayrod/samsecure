@@ -18,6 +18,7 @@ import {
   recevoirUnFichier, erreurReception, validerFichier, ecrireFichier, supprimerFichier,
 } from "../utils/stockagePreuves.js";
 import { COLONNES_STATUT, soumettre, purgerValidations } from "../utils/validationWorkflow.js";
+import { dateIsoValide } from "../utils/dateIso.js";
 
 const router = express.Router();
 
@@ -47,6 +48,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 // la colonne VARCHAR(64). Sans ce contrôle, une saisie plus longue produirait
 // une 22001 brute remontée en 500.
 const SHA256_RE = /^[0-9a-f]{64}$/i;
+
 
 // Statut de validation d'une preuve (#215) : celui de sa facture quand elle en
 // est le support (objet unique, #204 : la facture porte la demande), sinon le
@@ -81,6 +83,7 @@ const JOINTURE_STATUT_PREUVE = `
 // modifiable.
 const SELECT_PREUVE = `
   SELECT p.id, p.label,
+         p.date_preuve::text AS date_preuve,
          p.id_type_preuve, tp.code AS type_code, tp.label AS type_label,
          p.id_contrat,     ct.label AS contrat_label, sct.raison_sociale AS contrat_societe_label,
          p.id_commande,    cm.label AS commande_label,
@@ -107,9 +110,12 @@ const SELECT_PREUVE = `
 
 // nom_origine en est volontairement absent : il n'est pas saisissable, seul
 // le dépôt de la #49 le renseigne, en même temps que url_fichier et le hash.
+// date_preuve (#214) : date métier du document, distincte de created_at (date
+// de dépôt, posée par la base), facultative, commune à tous les types.
 // Ordre identique aux $n de l'INSERT et de l'UPDATE.
 const CHAMPS = [
   "label", "id_type_preuve", "id_contrat", "id_commande", "id_licence", "url_fichier", "hash_sha256",
+  "date_preuve",
 ];
 
 // Filtres de liste : premier usage de query params dans les CRUD du projet.
@@ -122,20 +128,27 @@ const CHAMPS = [
 // contrat (rattachement direct) et les factures de ses commandes : la règle
 // dépendait de la nature de la ligne, ce que le client a demandé de faire
 // disparaître. Une seule règle pour toutes les lignes, quel que soit le type.
+// Période de la date de la preuve (#214) : date_preuve_min et date_preuve_max,
+// bornes incluses, indépendantes l'une de l'autre. Une preuve sans date ne
+// répond à aucune borne : filtrer par période, c'est chercher des documents
+// datés.
 const FILTRES = {
-  id_type_preuve: (n) => `p.id_type_preuve = $${n}::uuid`,
-  id_contrat: (n) => `(p.id_contrat = $${n}::uuid OR cm.id_contrat = $${n}::uuid)`,
-  id_commande: (n) => `p.id_commande = $${n}::uuid`,
-  id_licence: (n) => `p.id_licence = $${n}::uuid`,
+  id_type_preuve: { type: "uuid", clause: (n) => `p.id_type_preuve = $${n}::uuid` },
+  id_contrat: { type: "uuid", clause: (n) => `(p.id_contrat = $${n}::uuid OR cm.id_contrat = $${n}::uuid)` },
+  id_commande: { type: "uuid", clause: (n) => `p.id_commande = $${n}::uuid` },
+  id_licence: { type: "uuid", clause: (n) => `p.id_licence = $${n}::uuid` },
+  date_preuve_min: { type: "date", clause: (n) => `p.date_preuve >= $${n}::date` },
+  date_preuve_max: { type: "date", clause: (n) => `p.date_preuve <= $${n}::date` },
 };
 
 function construireFiltres(query) {
   const clauses = [];
   const params = [];
-  for (const [param, clause] of Object.entries(FILTRES)) {
+  for (const [param, { type, clause }] of Object.entries(FILTRES)) {
     const valeur = query[param];
     if (valeur === undefined || valeur === "") continue;
-    if (!UUID_RE.test(valeur)) return { erreur: `Valeur de filtre invalide pour ${param}.` };
+    const valide = type === "date" ? dateIsoValide(valeur) : UUID_RE.test(valeur);
+    if (!valide) return { erreur: `Valeur de filtre invalide pour ${param}.` };
     params.push(valeur);
     clauses.push(clause(params.length));
   }
@@ -198,13 +211,14 @@ function normaliserCorps(body = {}) {
     id_licence: vide(body.id_licence),
     url_fichier: vide(body.url_fichier),
     hash_sha256: vide(body.hash_sha256),
+    date_preuve: vide(body.date_preuve),
   };
 }
 
 // idPreuve : preuve existante (PATCH), pour tolérer le type Facture sur une
 // preuve déjà portée par sa facture.
 async function validerPreuve(client, body, { idPreuve = null } = {}) {
-  const { label, id_type_preuve, id_contrat, id_commande, id_licence, url_fichier, hash_sha256 } = body;
+  const { label, id_type_preuve, id_contrat, id_commande, id_licence, url_fichier, hash_sha256, date_preuve } = body;
 
   if (!label || !label.trim())
     return { status: 400, code: 3211, error: "Le libelle est obligatoire." };
@@ -243,6 +257,11 @@ async function validerPreuve(client, body, { idPreuve = null } = {}) {
   // vérifié quand il est fourni.
   if (hash_sha256 && !SHA256_RE.test(hash_sha256))
     return { status: 400, code: 3218, error: "L'empreinte SHA-256 doit comporter 64 caracteres hexadecimaux." };
+  // Date de la preuve (#214) : facultative pour tous les types, les preuves
+  // antérieures restent sans date. Format et calendrier contrôlés ici, sinon
+  // 22007 ou 22008 brute remontée en 500.
+  if (date_preuve !== null && date_preuve !== undefined && !dateIsoValide(date_preuve))
+    return { status: 400, code: 3233, error: "La date de la preuve est invalide (format attendu AAAA-MM-JJ)." };
   return null;
 }
 
@@ -335,10 +354,10 @@ router.post("/preuves", async (req, res) => {
     const label = corps.label.trim();
     const { rows: [creee] } = await client.query(
       `INSERT INTO preuve (${CHAMPS.join(", ")})
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING id`,
       [label, corps.id_type_preuve, corps.id_contrat, corps.id_commande, corps.id_licence,
-       corps.url_fichier, corps.hash_sha256]
+       corps.url_fichier, corps.hash_sha256, corps.date_preuve]
     );
 
     // Toute saisie part en attente de validation, dans la même transaction que
@@ -371,7 +390,8 @@ router.patch("/preuves/:id", async (req, res) => {
     }
 
     const { rows: existant } = await client.query(
-      `SELECT label, id_type_preuve, id_contrat, id_commande, id_licence, url_fichier, hash_sha256
+      `SELECT label, id_type_preuve, id_contrat, id_commande, id_licence, url_fichier, hash_sha256,
+              date_preuve::text AS date_preuve
        FROM preuve WHERE id = $1`, [id]);
     if (!existant.length) {
       await client.query("ROLLBACK");
@@ -398,10 +418,10 @@ router.patch("/preuves/:id", async (req, res) => {
     await client.query(
       `UPDATE preuve
           SET label = $1, id_type_preuve = $2, id_contrat = $3, id_commande = $4,
-              id_licence = $5, url_fichier = $6, hash_sha256 = $7
-        WHERE id = $8`,
+              id_licence = $5, url_fichier = $6, hash_sha256 = $7, date_preuve = $8
+        WHERE id = $9`,
       [label, corps.id_type_preuve, corps.id_contrat, corps.id_commande, corps.id_licence,
-       corps.url_fichier, corps.hash_sha256, id]
+       corps.url_fichier, corps.hash_sha256, corps.date_preuve, id]
     );
 
     // Une modification est une saisie : retour en attente, motif de refus effacé.

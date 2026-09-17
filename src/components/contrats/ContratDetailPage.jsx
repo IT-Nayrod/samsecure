@@ -435,7 +435,7 @@ export default function ContratDetailPage() {
                   <div className="min-w-0">
                     <Link to={`/contrats/factures/${p.id}`} className="text-sm font-medium text-blue-800 hover:underline">{p.label}</Link>
                     <p className="text-xs text-gray-500">
-                      {p.type_label ?? '-'}
+                      {p.type_label ?? '-'}{p.date_preuve ? ` du ${formatDate(p.date_preuve)}` : ''}
                       {p.id_commande ? ` · commande ${p.commande_label ?? ''}` : ''}
                       {' · déposée le '}{formatDate(p.created_at)}
                     </p>
