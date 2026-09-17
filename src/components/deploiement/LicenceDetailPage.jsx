@@ -189,7 +189,8 @@ export default function LicenceDetailPage() {
   const historiqueVersions = licence.historique_versions ?? [];
   const versionLabel = (idv, label) => (idv ? (label ?? 'Version inconnue') : 'Aucune');
   const auteur = (h) => [h.auteur_prenom, h.auteur_nom].filter(Boolean).join(' ') || 'Auteur inconnu';
-  const peutArreter = canWrite && !arretee && (licence.a_maintenance || periodes.length > 0);
+  // La maintenance n'existe que par ses périodes (#201) : rien à arrêter sans période.
+  const peutArreter = canWrite && !arretee && periodes.length > 0;
   const echeance = echeanceProlongeable(licence);
 
   return (
@@ -382,7 +383,7 @@ export default function LicenceDetailPage() {
 
       <LicenceFormModal
         isOpen={formOpen} onClose={() => setFormOpen(false)} onSaved={appliquer} licence={licence}
-        produits={produits} commandes={commandes} revendeurs={revendeurs} unites={unites} mainteneurs={mainteneurs}
+        produits={produits} commandes={commandes} revendeurs={revendeurs} unites={unites}
         licences={licences}
         montantsVisibles={montantsVisibles}
       />
@@ -390,7 +391,7 @@ export default function LicenceDetailPage() {
         isOpen={periodeSuivanteOpen} onClose={() => setPeriodeSuivanteOpen(false)}
         onSaved={(creee) => { addToast({ type: 'success', message: 'Nouvelle période créée, l\'ancienne licence conserve son terme.' }); navigate(`/conformite/licences/${creee.id}`); }}
         licence={null} modele={licence}
-        produits={produits} commandes={commandes} revendeurs={revendeurs} unites={unites} mainteneurs={mainteneurs}
+        produits={produits} commandes={commandes} revendeurs={revendeurs} unites={unites}
         licences={licences}
         montantsVisibles={montantsVisibles}
       />

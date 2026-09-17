@@ -1,6 +1,6 @@
 // LicencesPage - vue patrimoniale du parc de licences (droits acquis), groupée
 // par éditeur puis produit. Données API : /licences, /produits, /commandes,
-// /revendeurs, /unites-mesure, /mainteneurs. Statuts d'échéance et de
+// /revendeurs, /unites-mesure. Statuts d'échéance et de
 // maintenance, balance droits/usage et niveau de conformité viennent de l'API,
 // jamais recalculés ici. Les montants sont servis à null (montants_masques)
 // sans consulter_kpi_financiers.
@@ -46,7 +46,6 @@ export default function LicencesPage() {
   const [commandes, setCommandes] = useState([]);
   const [revendeurs, setRevendeurs] = useState([]);
   const [unites, setUnites] = useState([]);
-  const [mainteneurs, setMainteneurs] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [errorStatus, setErrorStatus] = useState(null);
@@ -70,15 +69,14 @@ export default function LicencesPage() {
       // Seules les licences sont indispensables. Les référentiels alimentent
       // les logos, les filtres et le formulaire : un droit manquant sur eux
       // prive de ces commodités, pas de la liste.
-      const [l, p, k, r, u, m] = await Promise.all([
+      const [l, p, k, r, u] = await Promise.all([
         licencesService.list(),
         optionnel(referentielsLicencesService.produits()),
         optionnel(commandesService.list()),
         optionnel(referentielsContratsService.revendeurs()),
         optionnel(referentielsLicencesService.unitesMesure()),
-        optionnel(referentielsLicencesService.mainteneurs()),
       ]);
-      setLicences(l); setProduits(p); setCommandes(k); setRevendeurs(r); setUnites(u); setMainteneurs(m);
+      setLicences(l); setProduits(p); setCommandes(k); setRevendeurs(r); setUnites(u);
     } catch (err) {
       setError(err.message);
       setErrorStatus(err.status);
@@ -251,6 +249,7 @@ export default function LicencesPage() {
         <select value={filterMaintenance} onChange={e => setFilterMaintenance(e.target.value)} className={SELECT_CLS}>
           <option value="">Maintenance : toutes</option>
           <option value="active">Active</option>
+          <option value="a_venir">À venir</option>
           <option value="echue">Échue</option>
           <option value="arretee">Arrêtée</option>
           <option value="aucune">Sans maintenance</option>
@@ -332,7 +331,7 @@ export default function LicencesPage() {
         onClose={() => setFormModal({ open: false, licence: null })}
         onSaved={handleSaved}
         licence={formModal.licence}
-        produits={produits} commandes={commandes} revendeurs={revendeurs} unites={unites} mainteneurs={mainteneurs}
+        produits={produits} commandes={commandes} revendeurs={revendeurs} unites={unites}
         licences={licences}
         montantsVisibles={montantsVisibles}
       />

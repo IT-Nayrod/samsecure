@@ -38,6 +38,16 @@
 // - versions et éditions ajoutables à un produit du catalogue global depuis
 //   les formulaires : stockées en Tenant (version_complement,
 //   edition_complement, jamais en Commune), résolues avec le catalogue.
+//
+// Retour client du 16/09/2026 (#201) : « sous maintenance » n'est jamais un
+// attribut direct de la licence, seulement un état dérivé de ses périodes
+// (maintenance_historique). Les colonnes licence.a_maintenance,
+// date_fin_maintenance et id_mainteneur (002) restent en base mais ne sont
+// plus ni écrites ni lues : statut_maintenance, mainteneur_label,
+// date_debut_maintenance et date_fin_maintenance sont calculés par
+// server/utils/maintenanceLicence.js (règle pure testée) depuis les périodes,
+// une requête pour toutes les licences lues. Seul l'arrêt (date d'arrêt,
+// version figée, D59) reste porté par la licence.
 import express from "express";
 import { tenantPool, commonPool } from "../db.js";
 import { succes, erreur, erreurPivot } from "../utils/reponse.js";
@@ -45,6 +55,7 @@ import { auditer, diff } from "../utils/audit.js";
 import { permissionsEffectives } from "../utils/droitsUtilisateur.js";
 import { LICENCE_EXPIREE } from "../utils/conformite.js";
 import { contratDoitSuivre } from "../utils/successionContrat.js";
+import { etatMaintenance, echeanceMaintenance } from "../utils/maintenanceLicence.js";
 
 const router = express.Router();
 
@@ -95,15 +106,9 @@ const STATUT_ECHEANCE = `
     ELSE 'actif'
   END AS statut_echeance`;
 
-// Statut de maintenance : arrêtée (version figée) prime sur tout, puis échue
-// si la date de fin est dépassée, active, ou aucune.
-const STATUT_MAINTENANCE = `
-  CASE
-    WHEN l.date_arret_maintenance IS NOT NULL                                  THEN 'arretee'
-    WHEN NOT l.a_maintenance                                                   THEN 'aucune'
-    WHEN l.date_fin_maintenance IS NOT NULL AND l.date_fin_maintenance < CURRENT_DATE THEN 'echue'
-    ELSE 'active'
-  END AS statut_maintenance`;
+// Le statut de maintenance n'est plus un CASE SQL sur des colonnes de la
+// licence (#201) : voir poserMaintenance(), qui lit les périodes et applique
+// la règle pure de server/utils/maintenanceLicence.js.
 
 // Balance de conformité par produit : droits = quantités des licences non
 // expirées, usage déclaré = affectations de toutes les licences du produit
@@ -135,15 +140,12 @@ const SELECT_LICENCE = `
          c.id_societe,      s.raison_sociale AS societe_label,
          l.id_revendeur,    r.raison_sociale AS revendeur_label,
          l.id_unite_mesure, um.code AS unite_code, um.label AS unite_label,
-         l.id_mainteneur,   m.raison_sociale AS mainteneur_label,
          l.quantite, l.type,
          tl.label AS type_label, tl.regle_date_debut, tl.regle_date_fin, tl.version_geree,
          l.cout_licence::float8 AS cout_licence,
          l.date_debut::text             AS date_debut,
          l.date_fin_souscription::text  AS date_fin_souscription,
-         l.a_maintenance,
          l.date_arret_maintenance::text AS date_arret_maintenance,
-         l.date_fin_maintenance::text   AS date_fin_maintenance,
          l.id_licence_predecesseur, pred.label AS predecesseur_label, pred.id_produit AS predecesseur_id_produit,
          (SELECT count(*) FROM licence sx WHERE sx.id_licence_predecesseur = l.id)::int AS nb_successeurs,
          l.created_at,
@@ -151,7 +153,6 @@ const SELECT_LICENCE = `
          CASE WHEN l.date_fin_souscription IS NULL THEN NULL
               ELSE (l.date_fin_souscription - CURRENT_DATE) END AS jours_restants,
          NOT ${LICENCE_EXPIREE} AS droits_actifs,
-         ${STATUT_MAINTENANCE},
          coalesce(ul.quantite, 0)::int AS usage_declare,
          b.droits        AS produit_droits,
          b.usage_declare AS produit_usage_declare,
@@ -167,7 +168,6 @@ const SELECT_LICENCE = `
   LEFT JOIN societe      s  ON s.id  = c.id_societe
   LEFT JOIN revendeur    r  ON r.id  = l.id_revendeur
   LEFT JOIN unite_mesure um ON um.id = l.id_unite_mesure
-  LEFT JOIN mainteneur   m  ON m.id  = l.id_mainteneur
   LEFT JOIN type_licence tl ON tl.code = l.type
   LEFT JOIN licence      pred ON pred.id = l.id_licence_predecesseur
   LEFT JOIN commande     pc ON pc.id = pred.id_commande
@@ -198,10 +198,12 @@ const SELECT_MAINTENANCE = `
     LEFT JOIN revendeur  rc ON rc.id = co.id_revendeur
     LEFT JOIN revendeur  r  ON r.id  = h.id_revendeur`;
 
+// a_maintenance, id_mainteneur et date_fin_maintenance n'en font plus partie
+// (#201) : la maintenance se saisit par ses périodes, jamais sur la licence.
 const CHAMPS = [
   "label", "id_produit", "id_edition", "id_version", "id_commande", "id_revendeur",
   "id_unite_mesure", "quantite", "type", "cout_licence", "date_debut", "date_fin_souscription",
-  "a_maintenance", "id_mainteneur", "date_fin_maintenance", "id_licence_predecesseur",
+  "id_licence_predecesseur",
 ];
 
 // Historique des versions (D60) : libellés des versions résolus depuis la
@@ -342,10 +344,34 @@ function poserContratASuivre(rows) {
   }));
 }
 
+// État de maintenance dérivé des périodes (#201) : une requête pour toutes
+// les licences lues, puis la règle pure. Pose statut_maintenance,
+// id_maintenance_reference, id_mainteneur, mainteneur_label,
+// date_debut_maintenance, date_fin_maintenance et nb_periodes_maintenance sur
+// chaque ligne ; les écrans qui lisaient ces clés depuis les colonnes de la
+// licence les trouvent inchangées.
+async function poserMaintenance(rows) {
+  if (!rows.length) return rows;
+  const { rows: periodes } = await tenantPool.query(
+    `SELECT h.id, h.id_licence, h.id_mainteneur, m.raison_sociale AS mainteneur_label,
+            h.date_debut::text AS date_debut, h.date_fin::text AS date_fin, h.created_at
+       FROM maintenance_historique h
+       LEFT JOIN mainteneur m ON m.id = h.id_mainteneur
+      WHERE h.id_licence = ANY($1)
+      ORDER BY h.date_debut, h.created_at`,
+    [rows.map((r) => r.id)]);
+  const parLicence = new Map();
+  for (const p of periodes) {
+    if (!parLicence.has(p.id_licence)) parLicence.set(p.id_licence, []);
+    parLicence.get(p.id_licence).push(p);
+  }
+  return rows.map((r) => ({ ...r, ...etatMaintenance(r, parLicence.get(r.id) ?? []) }));
+}
+
 async function lireLicence(id, req) {
   const { rows } = await tenantPool.query(`${SELECT_LICENCE} WHERE l.id = $1`, [id]);
   if (!rows.length) return null;
-  const [resolue] = await resoudreCatalogue(poserContratASuivre(rows));
+  const [resolue] = await resoudreCatalogue(await poserMaintenance(poserContratASuivre(rows)));
   return masquerLicence(resolue, await montantsVisibles(req));
 }
 
@@ -395,9 +421,6 @@ function normaliserCorps(body = {}) {
     cout_licence: nombre(body.cout_licence),
     date_debut: vide(body.date_debut),
     date_fin_souscription: vide(body.date_fin_souscription),
-    a_maintenance: body.a_maintenance === true,
-    id_mainteneur: vide(body.id_mainteneur),
-    date_fin_maintenance: vide(body.date_fin_maintenance),
     id_licence_predecesseur: vide(body.id_licence_predecesseur),
   };
 }
@@ -450,10 +473,6 @@ async function validerLicence(client, corps, { typeInitial = null, idLicence = n
   // une 23514 en 500, on veut un 400 lisible.
   if (c.date_debut && c.date_fin_souscription && c.date_fin_souscription < c.date_debut)
     return { status: 400, code: 4032, error: "La date de fin doit etre posterieure a la date de debut." };
-  if (c.date_fin_maintenance && !DATE_RE.test(c.date_fin_maintenance))
-    return { status: 400, code: 4024, error: "La date de fin de maintenance est invalide." };
-  if (!uuidValide(c.id_mainteneur) || !(await existe(client, "mainteneur", c.id_mainteneur)))
-    return { status: 400, code: 4022, error: "Mainteneur introuvable." };
   // Succession (D35) : la licence renouvelée doit exister et n'être ni la
   // licence elle-même ni l'un de ses propres successeurs (pas de boucle).
   if (c.id_licence_predecesseur) {
@@ -535,12 +554,13 @@ const CHAMPS_MAINTENANCE = ["id_mainteneur", "id_commande", "id_revendeur", "dat
 
 // État de la licence tel qu'il est audité : les colonnes brutes, pas la
 // projection (les libellés résolus ne sont pas des données de la licence).
+// Les colonnes a_maintenance, id_mainteneur et date_fin_maintenance ne sont
+// plus lues (#201) : elles ne figurent donc plus dans l'état audité.
 const COLONNES_BRUTES = `label, id_produit, id_edition, id_version, id_commande, id_revendeur,
     id_unite_mesure, quantite, type, cout_licence::float8 AS cout_licence,
     date_debut::text AS date_debut,
-    date_fin_souscription::text AS date_fin_souscription, a_maintenance,
+    date_fin_souscription::text AS date_fin_souscription,
     version_figee_id, date_arret_maintenance::text AS date_arret_maintenance,
-    id_mainteneur, date_fin_maintenance::text AS date_fin_maintenance,
     id_licence_predecesseur`;
 
 async function lireBrute(client, id, verrou = false) {
@@ -578,7 +598,7 @@ router.get("/licences", async (req, res) => {
       [id_produit || null, id_commande || null, id_revendeur || null, id_contrat || null, type || null]);
 
     const visibles = await montantsVisibles(req);
-    const resolues = await resoudreCatalogue(poserContratASuivre(rows));
+    const resolues = await resoudreCatalogue(await poserMaintenance(poserContratASuivre(rows)));
     succes(res, 4000, resolues.map((r) => masquerLicence(r, visibles)));
   } catch (err) {
     console.error("GET /licences error", err);
@@ -772,23 +792,13 @@ router.get("/licences/:id/maintenance", async (req, res) => {
   }
 });
 
-// Ajouter une période signifie que la licence est sous maintenance : le
-// drapeau passe à true (sauf maintenance arrêtée, que seule la reprise lève)
-// et la date de fin de maintenance de la licence s'aligne sur la fin la plus
-// lointaine connue.
+// Ajouter, modifier ou retirer une période ne pose plus rien sur la licence
+// au titre de la maintenance (#201) : son état se lit sur les périodes.
 // Version portée par la maintenance (D59) : sur un type à version et tant que
 // la maintenance n'est pas arrêtée, la version courante de la licence suit la
 // période la plus récente qui en porte une. Une licence arrêtée garde sa
 // version figée ; une période sans version ne change rien.
 async function repercuterSurLicence(client, req, idLicence) {
-  await client.query(
-    `UPDATE licence l
-        SET a_maintenance = CASE WHEN l.date_arret_maintenance IS NULL THEN true ELSE l.a_maintenance END,
-            date_fin_maintenance = CASE WHEN l.date_arret_maintenance IS NULL
-              THEN (SELECT max(h.date_fin) FROM maintenance_historique h WHERE h.id_licence = l.id)
-              ELSE l.date_fin_maintenance END
-      WHERE l.id = $1`, [idLicence]);
-
   const { rows: [l] } = await client.query(
     `SELECT l.id_version, l.date_arret_maintenance, COALESCE(tl.version_geree, true) AS version_geree
        FROM licence l LEFT JOIN type_licence tl ON tl.code = l.type WHERE l.id = $1`, [idLicence]);
@@ -931,7 +941,8 @@ router.delete("/licences/:id/maintenance/:mid", async (req, res) => {
 // L'arrêt fige la version (version_figee_id, par défaut la version courante de
 // la licence) et la date d'arrêt. Il ne retire aucun droit quantitatif : la
 // quantité et le type ne bougent pas. Les périodes d'historique ouvertes ou
-// courant au-delà sont closes à la date d'arrêt, et a_maintenance passe à false.
+// courant au-delà sont closes à la date d'arrêt ; l'état « arrêtée » se lit
+// sur date_arret_maintenance, plus aucun drapeau n'est posé (#201).
 router.post("/licences/:id/arret-maintenance", async (req, res) => {
   const { id } = req.params;
   const client = await tenantPool.connect();
@@ -945,9 +956,11 @@ router.post("/licences/:id/arret-maintenance", async (req, res) => {
       await client.query("ROLLBACK");
       return erreur(res, 4040, { status: 409, message: "La maintenance de cette licence est deja arretee." });
     }
+    // Sans période, rien à arrêter : la maintenance n'existe que par ses
+    // périodes (#201).
     const { rowCount: nbPeriodes } = await client.query(
       `SELECT 1 FROM maintenance_historique WHERE id_licence = $1`, [id]);
-    if (!avant.a_maintenance && !nbPeriodes) {
+    if (!nbPeriodes) {
       await client.query("ROLLBACK");
       return erreur(res, 4043, { status: 409, message: "Cette licence ne porte aucune maintenance a arreter." });
     }
@@ -971,8 +984,8 @@ router.post("/licences/:id/arret-maintenance", async (req, res) => {
     // à l'arrêt) ; "sans version" laisse la version courante telle quelle.
     await client.query(
       `UPDATE licence
-          SET a_maintenance = false, version_figee_id = $1, date_arret_maintenance = $2,
-              date_fin_maintenance = $2, id_version = COALESCE($1, id_version)
+          SET version_figee_id = $1, date_arret_maintenance = $2,
+              id_version = COALESCE($1, id_version)
         WHERE id = $3`, [versionFigee, dateArret, id]);
     await journaliserVersion(client, req, {
       idLicence: id, avant: avant.id_version, apres: versionFigee ?? avant.id_version,
@@ -1003,9 +1016,10 @@ router.post("/licences/:id/arret-maintenance", async (req, res) => {
   }
 });
 
-// Annule un arrêt : libère la version figée et remet la licence sous
-// maintenance. L'historique n'est pas retouché, la période close reste close ;
-// une nouvelle période se saisit ensuite.
+// Annule un arrêt : libère la version figée et efface la date d'arrêt ; l'état
+// de maintenance redevient celui que disent les périodes (#201). L'historique
+// n'est pas retouché, la période close reste close ; une nouvelle période se
+// saisit ensuite.
 router.post("/licences/:id/reprise-maintenance", async (req, res) => {
   const { id } = req.params;
   const client = await tenantPool.connect();
@@ -1020,10 +1034,7 @@ router.post("/licences/:id/reprise-maintenance", async (req, res) => {
     }
 
     await client.query(
-      `UPDATE licence
-          SET a_maintenance = true, version_figee_id = NULL, date_arret_maintenance = NULL,
-              date_fin_maintenance = (SELECT max(h.date_fin) FROM maintenance_historique h WHERE h.id_licence = $1)
-        WHERE id = $1`, [id]);
+      `UPDATE licence SET version_figee_id = NULL, date_arret_maintenance = NULL WHERE id = $1`, [id]);
     await journaliserVersion(client, req, {
       idLicence: id, avant: avant.version_figee_id, apres: avant.id_version,
       evenement: "reprise_maintenance", force: true,
@@ -1051,18 +1062,20 @@ router.post("/licences/:id/reprise-maintenance", async (req, res) => {
 // ---------------------------------------------------------------------------
 
 // Échéance prolongeable d'une licence : la date de fin de souscription quand
-// le type en porte une (souscription, essai), sinon la fin de la maintenance
-// en cours d'une licence sous maintenance non arrêtée (perpétuelle "via sa
-// maintenance"). Une licence sans échéance ne se prolonge pas : elle se
+// le type en porte une (souscription, essai), sinon la fin de la période de
+// maintenance de référence d'une licence non arrêtée (perpétuelle "via sa
+// maintenance"), lue sur les périodes et jamais sur la licence (#201,
+// echeanceMaintenance). Une licence sans échéance ne se prolonge pas : elle se
 // modifie ou reçoit une période de maintenance.
-function echeanceProlongeable(licence) {
+async function echeanceProlongeable(client, licence, idLicence) {
   if (licence.date_fin_souscription) {
     return { mode: "souscription", date: licence.date_fin_souscription };
   }
-  if (licence.a_maintenance && !licence.date_arret_maintenance && licence.date_fin_maintenance) {
-    return { mode: "maintenance", date: licence.date_fin_maintenance };
-  }
-  return null;
+  const { rows: periodes } = await client.query(
+    `SELECT id, date_debut::text AS date_debut, date_fin::text AS date_fin, created_at
+       FROM maintenance_historique WHERE id_licence = $1 ORDER BY date_debut, created_at`, [idLicence]);
+  const echeance = echeanceMaintenance(licence, periodes);
+  return echeance ? { mode: "maintenance", date: echeance.date, id_maintenance: echeance.id_maintenance } : null;
 }
 
 // Alertes d'échéance après prolongation : depuis le 16/09/2026 la clé
@@ -1086,7 +1099,7 @@ router.post("/licences/:id/prolonger", async (req, res) => {
     const avant = await lireBrute(client, id, true);
     if (!avant) { await client.query("ROLLBACK"); return introuvable(res); }
 
-    const echeance = echeanceProlongeable(avant);
+    const echeance = await echeanceProlongeable(client, avant, id);
     if (!echeance) {
       await client.query("ROLLBACK");
       return erreur(res, 4026, { status: 409, message: "Cette licence ne porte aucune echeance a prolonger : ni date de fin, ni maintenance en cours." });
@@ -1105,16 +1118,11 @@ router.post("/licences/:id/prolonger", async (req, res) => {
     if (echeance.mode === "souscription") {
       await client.query(`UPDATE licence SET date_fin_souscription = $1 WHERE id = $2`, [nouvelleDate, id]);
     } else {
-      // Période de maintenance en cours : la plus récente de l'historique,
-      // étendue à la nouvelle date ; la fin de maintenance de la licence suit.
-      const { rows: [derniere] } = await client.query(
-        `SELECT id, date_fin::text AS date_fin FROM maintenance_historique
-          WHERE id_licence = $1 ORDER BY date_debut DESC, created_at DESC LIMIT 1`, [id]);
-      if (derniere) {
-        await client.query(`UPDATE maintenance_historique SET date_fin = $1 WHERE id = $2`, [nouvelleDate, derniere.id]);
-        periode = { id: derniere.id, date_fin_avant: derniere.date_fin };
-      }
-      await client.query(`UPDATE licence SET date_fin_maintenance = $1 WHERE id = $2`, [nouvelleDate, id]);
+      // Période de maintenance de référence (en cours, sinon à venir, sinon
+      // la dernière échue), étendue à la nouvelle date. Rien n'est posé sur la
+      // licence : sa fin de maintenance se lit sur la période (#201).
+      await client.query(`UPDATE maintenance_historique SET date_fin = $1 WHERE id = $2`, [nouvelleDate, echeance.id_maintenance]);
+      periode = { id: echeance.id_maintenance, date_fin_avant: echeance.date };
     }
 
     const apres = await lireBrute(client, id);

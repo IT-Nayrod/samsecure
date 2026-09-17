@@ -393,9 +393,7 @@ router.get("/budget/preremplissage", async (req, res) => {
 
     const { rows: lic } = await tenantPool.query(
       `SELECT l.id, l.label, l.quantite, l.type, l.id_produit,
-              l.a_maintenance,
               l.date_arret_maintenance::text AS date_arret_maintenance,
-              l.date_fin_maintenance::text   AS date_fin_maintenance,
               l.id_commande,   c.label          AS commande_label,
               c.id_contrat,    ct.label         AS contrat_label,
               sct.raison_sociale AS contrat_societe_label,
@@ -425,13 +423,14 @@ router.get("/budget/preremplissage", async (req, res) => {
               exercice_fiscal_fin($1::int, $2::date)::text   AS date_fin`,
       [exerciceCible, licence.debut_exercice_fiscal]);
 
-    // Même règle de statut que licences.js (STATUT_MAINTENANCE) : une
-    // maintenance arrêtée (version figée) ou absente (a_maintenance false, y
-    // compris par PATCH /licences) ne se projette pas, la base est vide quel
-    // que soit l'historique.
+    // Même règle que licences.js (server/utils/maintenanceLicence.js, #201) :
+    // « sous maintenance » se lit sur les périodes, jamais sur un attribut de
+    // la licence (licence.a_maintenance n'est plus ni écrite ni lue). Une
+    // maintenance arrêtée (version figée) ne se projette pas, la base est vide
+    // quel que soit l'historique ; sinon la base est faite des périodes en
+    // cours à la date du jour, requête ci-dessous.
     const arretee = licence.date_arret_maintenance !== null;
-    const sansMaintenance = arretee || !licence.a_maintenance;
-    const { rows: base } = sansMaintenance ? { rows: [] } : await tenantPool.query(
+    const { rows: base } = arretee ? { rows: [] } : await tenantPool.query(
       `SELECT h.id, h.date_debut::text AS date_debut, h.date_fin::text AS date_fin,
               h.cout::float8 AS cout,
               h.id_mainteneur, m.raison_sociale AS mainteneur_label,
@@ -482,10 +481,11 @@ router.get("/budget/preremplissage", async (req, res) => {
       facteur_inflation: Math.round(facteur * 1e6) / 1e6,
       maintenance_arretee: arretee,
       // Raison d'une base vide, pour que le front affiche le bon message
-      // avec le 5130 : arrêtée, absente, ou aucune période en cours.
+      // avec le 5130 : arrêtée, ou aucune période en cours (une licence sans
+      // aucune période relève du même motif depuis la #201, l'attribut direct
+      // « sans maintenance » n'existant plus).
       motif_base_vide: base.length ? null
-        : (arretee ? "maintenance_arretee"
-          : (!licence.a_maintenance ? "maintenance_absente" : "aucune_periode_en_cours")),
+        : (arretee ? "maintenance_arretee" : "aucune_periode_en_cours"),
       base,
       base_montant: baseMontant,
       nb_couts_inconnus: nbCoutsInconnus,
