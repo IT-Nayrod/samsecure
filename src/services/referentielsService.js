@@ -41,6 +41,12 @@ export const logicielsService = {
   removeVersion: (id, idVersion)  => http.delete(`/logiciels/${id}/versions/${idVersion}`),
   addEdition:    (id, label)      => http.post(`/logiciels/${id}/editions`, { label }),
   removeEdition: (id, idEdition)  => http.delete(`/logiciels/${id}/editions/${idEdition}`),
+
+  // Composition d'un logiciel composé (#216) : s'écrit sur un logiciel du
+  // catalogue comme sur un logiciel client. Les refus (éditeur différent,
+  // doublon, composé déjà composant) viennent du serveur, affichés tels quels.
+  addComposant:    (id, idComposant) => http.post(`/logiciels/${id}/composants`, { id_produit_composant: idComposant }),
+  removeComposant: (id, idComposant) => http.delete(`/logiciels/${id}/composants/${idComposant}`),
 };
 
 export const revendeursService = {
