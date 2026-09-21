@@ -219,6 +219,10 @@ valide ni a revalider (sinon 3027), le garde-fou 3020 sur les rattachements rest
 Archiver et restaurer tracent CONTRAT_ARCHIVE et CONTRAT_RESTAURE dans
 audit_log et ARCHIVE / RESTAURE dans journal_ecriture.
 
+Simple devient Standard (#218, migrations 070 et 071) : seul le libellé du type
+de code `simple` change, le code et les contrats existants ne bougent pas. Aucun
+code retour ne porte ce libellé.
+
 Le 3021 n'est pas un refus : le rattachement est accepté. Il est réservé pour que la #68 puisse, si Dorian le décide, remonter l'avertissement au front. Signalez-lui ce cas, la consigne ne prévoit de code que pour les refus.
 
 ## Commandes (#44)
