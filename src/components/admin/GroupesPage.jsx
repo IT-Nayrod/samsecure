@@ -56,8 +56,14 @@ export default function GroupesPage() {
   const togglesEnCours = useRef(new Set());
   const relectureRequise = useRef(false);
 
-  const load = useCallback(async () => {
-    setIsLoading(true);
+  // silencieux (#169) : rechargement demandé depuis la fiche ouverte (coche
+  // d'un utilisateur, changement de diffusion). Sans lui, chaque coche basculait
+  // la liste d'arrière-plan en squelette : la page raccourcissait, son
+  // défilement retombait en haut et la liste clignotait derrière le panneau.
+  // Les données sont remplacées sur place, le squelette reste réservé au
+  // premier chargement et aux créations et suppressions de groupe.
+  const load = useCallback(async ({ silencieux = false } = {}) => {
+    if (!silencieux) setIsLoading(true);
     try {
       const [g, s, c, u, a] = await Promise.all([
         groupsService.list(), societesService.list(), permissionsService.list(),
@@ -272,7 +278,7 @@ export default function GroupesPage() {
         }
         const rows = await groupsService.listSocietes(detail.id);
         setDiffusions((prev) => ({ ...prev, [detail.id]: rows }));
-        await load();
+        await load({ silencieux: true });
       } catch (err) {
         addToast({ type: 'error', message: err.message });
       }
@@ -294,7 +300,7 @@ export default function GroupesPage() {
         }
         const rows = await groupsService.listSocietes(detail.id);
         setDiffusions((prev) => ({ ...prev, [detail.id]: rows }));
-        await load();
+        await load({ silencieux: true });
       } catch (err) {
         addToast({ type: 'error', message: err.message });
       }
@@ -422,7 +428,7 @@ export default function GroupesPage() {
               users={users}
               userSocietesMap={userSocietesMap}
               attributions={attributions}
-              onChange={load}
+              onChange={() => load({ silencieux: true })}
             />
           </div>
         )}

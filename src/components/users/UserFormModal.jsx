@@ -34,6 +34,14 @@ export default function UserFormModal({ isOpen, onClose, onSubmit, user, initial
   // réellement à l'enregistrement une fois le nouveau rattachement effectif.
   const [pendingGroupAdditions, setPendingGroupAdditions] = useState(new Set());
 
+  // #169 : la fiche ne se réinitialise que si le rattachement enregistré
+  // change réellement. La dépendance portait sur l'identité du tableau : chaque
+  // coche de groupe recharge la page, qui sert un nouveau tableau de même
+  // contenu, et la fiche repartait de l'état enregistré (saisies en cours et
+  // coches en attente perdues, sélecteur de sociétés replié, d'où un saut du
+  // panneau sous le curseur).
+  const cleRattachement = (initialSocieteIds || []).map((id) => id ?? 'tenant').join(',');
+
   useEffect(() => {
     if (!isOpen) return;
     if (user) {
@@ -54,7 +62,8 @@ export default function UserFormModal({ isOpen, onClose, onSubmit, user, initial
     }
     setErrors({});
     setPendingGroupAdditions(new Set());
-  }, [user, isOpen, initialSocieteIds]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, isOpen, cleRattachement]);
 
   // Rattachement en cours d'édition (non enregistré), pour la prévisualisation
   // temps réel de la section Groupes.

@@ -71,8 +71,12 @@ export default function UsersPage() {
   const [confirmDesactivation, setConfirmDesactivation] = useState(false);
   const [desactivationEnCours, setDesactivationEnCours] = useState(false);
 
-  const load = useCallback(async () => {
-    setIsLoading(true);
+  // silencieux (#169) : rechargement demandé par une coche de groupe dans la
+  // fiche ouverte. La liste d'arrière-plan ne repasse pas en squelette (page
+  // raccourcie, défilement ramené en haut, clignotement derrière le panneau) :
+  // les données sont remplacées sur place.
+  const load = useCallback(async ({ silencieux = false } = {}) => {
+    if (!silencieux) setIsLoading(true);
     try {
       const [u, s, g, a] = await Promise.all([
         usersService.list(),
@@ -365,7 +369,7 @@ export default function UsersPage() {
         userAttributions={formModal.user ? attributions.filter((a) => a.id_utilisateur === formModal.user.id) : []}
         groups={groups}
         groupDiffusions={groupDiffusions}
-        onGroupsChanged={() => load()}
+        onGroupsChanged={() => load({ silencieux: true })}
       />
 
       {droitsModal && (
