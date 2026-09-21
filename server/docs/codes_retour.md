@@ -207,6 +207,11 @@ motif technique d'un echec est dans log_serveur, jamais dans audit_log.
 | 3027 | erreur | Suppression impossible : contrat déjà validé, archivez-le | DELETE /api/contrats/:id (#96) |
 | 3028 | erreur | Contrat déjà archivé | POST /api/contrats/:id/archiver (#96) |
 | 3029 | erreur | Contrat non archivé | POST /api/contrats/:id/restaurer (#96) |
+| 3030 | erreur | La société prêteuse est obligatoire pour un contrat de type Interne | POST, PATCH /api/contrats (#219) |
+| 3031 | erreur | La société prêteuse doit être différente de la société signataire | POST, PATCH /api/contrats (#219) |
+| 3032 | erreur | Un contrat de type Interne ne porte pas de revendeur : le signataire côté vendeur est la société prêteuse | POST, PATCH /api/contrats (#219) |
+| 3033 | erreur | La société prêteuse est réservée aux contrats de type Interne | POST, PATCH /api/contrats (#219) |
+| 3034 | erreur | Société prêteuse introuvable | POST, PATCH /api/contrats (#219) |
 | 3099 | erreur | Erreur serveur inattendue (module contrats) | toutes |
 
 Archivage (#96, migrations 037 et 038) : GET /api/contrats exclut les
@@ -218,6 +223,24 @@ la suppression physique n'est possible que pour un contrat jamais entre en
 valide ni a revalider (sinon 3027), le garde-fou 3020 sur les rattachements reste.
 Archiver et restaurer tracent CONTRAT_ARCHIVE et CONTRAT_RESTAURE dans
 audit_log et ARCHIVE / RESTAURE dans journal_ecriture.
+
+Type Interne (#219, règle client du 17/09/2026, migrations 070 et 071) : prêt de
+licences entre entités d'une même organisation. Le type se reconnaît à son code
+`interne`, jamais à son libellé (personnalisable). Sur un contrat Interne, le
+signataire côté vendeur est une société du tenant, `id_societe_preteuse`
+(projection : `id_societe_preteuse`, `societe_preteuse_label`), obligatoire (3030),
+existante (3034) et différente de la société signataire (3031) ; `id_revendeur`
+y est interdit (3032) et le 3024 ne s'applique pas. Sur tout autre type, le
+revendeur reste obligatoire (3024) et une société prêteuse est refusée (3033).
+Le PATCH valide l'enregistrement fusionné : changer le type d'un contrat impose
+de transmettre dans le même appel le signataire vendeur attendu et de vider
+l'autre (`""` ou `null`). La projection sert aussi `signataire_vendeur_label`
+(société prêteuse, à défaut revendeur) pour les listes. Succession, échéance et
+validation : droit commun, aucun code propre.
+
+Simple devient Standard (#218, migrations 070 et 071) : seul le libellé du type
+de code `simple` change, le code et les contrats existants ne bougent pas. Aucun
+code retour ne porte ce libellé.
 
 Le 3021 n'est pas un refus : le rattachement est accepté. Il est réservé pour que la #68 puisse, si Dorian le décide, remonter l'avertissement au front. Signalez-lui ce cas, la consigne ne prévoit de code que pour les refus.
 

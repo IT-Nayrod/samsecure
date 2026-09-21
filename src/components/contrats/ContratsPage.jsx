@@ -1,6 +1,9 @@
 // ContratsPage - échéancier et hiérarchie des contrats (Droits d'usage)
 // Données API : /contrats, /editeurs, /types-contrat, /revendeurs, /societes.
 // Le statut d'échéance et les jours restants viennent de l'API, jamais recalculés ici.
+// Type Interne (#219) : le signataire côté vendeur est la société prêteuse. La
+// colonne de la liste lit signataire_vendeur_label, servi par l'API (société
+// prêteuse, à défaut revendeur), pour que le tri et l'export suivent l'affichage.
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Layers, List, FileText, AlertTriangle, RefreshCw, FolderTree, ChevronRight, ChevronDown, X } from 'lucide-react';
@@ -48,6 +51,11 @@ function TreeNode({ contrat, depth, enfantsParParent, navigate, onValider, onRef
         <span className="text-xs text-gray-400">{contrat.editeur_label ?? '-'}</span>
         {parentHorsFiltre && <span className="text-[10px] text-gray-500 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-full">Rattaché à : {libelleContrat(contrat.parent_label, contrat.parent_societe_label) ?? '-'}</span>}
         {contrat.type_code === 'cadre' && <span className="text-[10px] font-semibold text-blue-700 bg-blue-100 dark:bg-blue-900/30 px-2 py-0.5 rounded-full">Cadre</span>}
+        {contrat.type_code === 'interne' && (
+          <span className="text-[10px] font-semibold text-purple-700 bg-purple-100 dark:bg-purple-900/30 px-2 py-0.5 rounded-full">
+            {contrat.type_label ?? 'Interne'}{contrat.societe_preteuse_label ? ` · prêté par ${contrat.societe_preteuse_label}` : ''}
+          </span>
+        )}
         {contrat.archive && <span className="text-[10px] font-semibold text-gray-600 bg-gray-200 dark:bg-gray-700 dark:text-gray-300 px-2 py-0.5 rounded-full">Archivé</span>}
         <StatutEcheanceBadge statut={contrat.statut_echeance} />
         <ValidationCell statut={contrat.statut_validation} motif={contrat.message_refus} />
@@ -215,10 +223,13 @@ export default function ContratsPage() {
     ), csvValue: r => libelleContrat(r.label, r.societe_label) },
     { key: 'type_label', label: 'Type', sortable: true, render: r => r.type_code === 'cadre'
       ? <span className="text-xs font-semibold text-blue-700 bg-blue-100 dark:bg-blue-900/30 px-2 py-0.5 rounded-full">Cadre</span>
-      : (r.type_label ?? '-') },
+      : r.type_code === 'interne'
+        ? <span className="text-xs font-semibold text-purple-700 bg-purple-100 dark:bg-purple-900/30 px-2 py-0.5 rounded-full">{r.type_label ?? 'Interne'}</span>
+        : (r.type_label ?? '-') },
     { key: 'editeur_label', label: 'Éditeur', sortable: true, render: r => r.editeur_label ?? '-' },
     { key: 'societe_label', label: 'Société signataire', sortable: true, render: r => r.societe_label ?? '-' },
-    { key: 'revendeur_label', label: 'Revendeur', sortable: true, render: r => r.revendeur_label ?? '-' },
+    // Signataire côté vendeur : le revendeur, ou la société prêteuse d'un contrat Interne (#219).
+    { key: 'signataire_vendeur_label', label: 'Revendeur ou société prêteuse', sortable: true, render: r => r.signataire_vendeur_label ?? '-' },
     { key: 'date_debut', label: 'Date début', sortable: true, render: r => r.date_debut ?? '-' },
     { key: 'date_fin', label: 'Date fin', sortable: true, render: r => r.date_fin ?? 'Perpétuel' },
     { key: 'statut_echeance', label: 'Statut', sortable: true, render: r => <StatutEcheanceBadge statut={r.statut_echeance} /> },

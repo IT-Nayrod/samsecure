@@ -8,6 +8,9 @@
 // (règle de GET /preuves?id_contrat), type facture compris, avec le dépôt
 // depuis la fiche. Le compteur nb_preuves de l'API (rattachement direct, celui
 // du garde-fou de suppression) n'est plus affiché : la liste fait foi.
+// Type Interne (#219, règle client du 17/09/2026) : le bloc Signataires montre
+// la société prêteuse à la place du revendeur, le signataire côté vendeur
+// étant une société du tenant.
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Pencil, Trash2, ChevronDown, XCircle, Archive, ArchiveRestore, AlertTriangle, ExternalLink, Plus } from 'lucide-react';
@@ -212,6 +215,7 @@ export default function ContratDetailPage() {
           <div className="flex items-center gap-2 flex-wrap">
             <h1 className="text-xl font-semibold text-gray-900 dark:text-white">{libelleContrat(contrat.label, contrat.societe_label)}</h1>
             {contrat.type_code === 'cadre' && <span className="text-xs font-semibold text-blue-700 bg-blue-100 dark:bg-blue-900/30 px-2.5 py-1 rounded-full">Cadre</span>}
+            {contrat.type_code === 'interne' && <span className="text-xs font-semibold text-purple-700 bg-purple-100 dark:bg-purple-900/30 px-2.5 py-1 rounded-full">{contrat.type_label ?? 'Interne'}</span>}
             <StatutEcheanceBadge statut={contrat.statut_echeance} />
             <StatutValidationBadge statut={contrat.statut_validation} />
             {contrat.archive && <span className="text-xs font-semibold text-gray-600 bg-gray-200 dark:bg-gray-700 dark:text-gray-300 px-2.5 py-1 rounded-full">Archivé</span>}
@@ -299,10 +303,18 @@ export default function ContratDetailPage() {
             <p className="text-xs text-gray-500 mb-1">Société signataire</p>
             <p className="text-sm text-gray-800 dark:text-gray-200">{contrat.societe_label ?? '-'}</p>
           </div>
-          <div>
-            <p className="text-xs text-gray-500 mb-1">Revendeur signataire</p>
-            <p className="text-sm text-gray-800 dark:text-gray-200">{contrat.revendeur_label ?? '-'}</p>
-          </div>
+          {contrat.type_code === 'interne' ? (
+            <div>
+              <p className="text-xs text-gray-500 mb-1">Société prêteuse</p>
+              <p className="text-sm text-gray-800 dark:text-gray-200">{contrat.societe_preteuse_label ?? '-'}</p>
+              <p className="text-xs text-gray-500 mt-0.5">Signataire côté vendeur (prêt de licences entre sociétés)</p>
+            </div>
+          ) : (
+            <div>
+              <p className="text-xs text-gray-500 mb-1">Revendeur signataire</p>
+              <p className="text-sm text-gray-800 dark:text-gray-200">{contrat.revendeur_label ?? '-'}</p>
+            </div>
+          )}
           <div>
             <p className="text-xs text-gray-500 mb-1">Éditeur</p>
             <p className="text-sm text-gray-800 dark:text-gray-200">{contrat.editeur_label ?? '-'}</p>
