@@ -284,6 +284,11 @@ commun 3280-3299.
 | 3231 | reserve | [ARBITRAGE D27] lien externe GED refuse. Non emis a ce jour | POST, PATCH /api/preuves |
 | 3233 | erreur | La date de la preuve est invalide, format attendu AAAA-MM-JJ (#214, migration 066) | POST, PATCH /api/preuves ; POST /api/factures/depot |
 | 3234 | erreur | Le type Facture n'est pas accepté ici : une facture se dépose avec son fichier par le dépôt de facture (#99, retour de recette du 16/09) | POST, PATCH /api/preuves |
+| 3235 | erreur | Le mode de la preuve est invalide, valeurs admises : fichier, url, reference (#220, migration 073) | POST, PATCH /api/preuves |
+| 3236 | erreur | L'URL externe est obligatoire et doit être une adresse http ou https valide (#220, migration 073) | POST, PATCH /api/preuves |
+| 3237 | erreur | La référence externe est obligatoire, 500 caractères au plus (#220, migration 073) | POST, PATCH /api/preuves |
+| 3238 | erreur | Le type Facture est réservé au mode fichier : une facture se dépose avec son document (#220, migration 073) | POST, PATCH /api/preuves |
+| 3239 | erreur | Dépôt de fichier impossible : cette preuve est externe (#220, migration 073, 409) | POST /api/preuves/:id/fichier |
 | 3214 | erreur | Une preuve doit être rattachée à un contrat, à une commande, ou aux deux | POST, PATCH /api/preuves |
 | 3215 | erreur | Contrat introuvable | POST, PATCH /api/preuves |
 | 3216 | erreur | Commande introuvable | POST, PATCH /api/preuves |
@@ -534,6 +539,63 @@ nouveau, la table facture et le circuit de dépôt combiné sont inchangés :
 - GET /api/factures (3240) et GET /api/factures/:id (3241) restent servis pour
   les clients de l'API et pour la résolution d'un ancien lien portant un
   identifiant de facture (la fiche bascule sur la preuve support).
+
+### Preuve externe (#220, règle client du 17/09, migrations 072 et 073)
+
+Une preuve peut être déclarée externe : le document vit dans un autre système,
+désigné soit par une URL, soit par une référence libre. preuve.mode (072
+Tenant, DEFAULT 'fichier', NULL lu comme fichier) vaut `fichier` (comportement
+d'origine), `url` ou `reference` ; preuve.url_externe et
+preuve.reference_externe portent le support externe ; preuve.url_fichier
+devient nullable, son obligation étant reprise pour le seul mode fichier par
+la contrainte ck_preuve_mode_coherence (un seul support par preuve). Règle
+pure et tests : server/utils/modePreuve.js, miroir de la contrainte. Cinq codes
+nouveaux, seedés par la 073 :
+- 3235, POST et PATCH /api/preuves : mode hors des trois valeurs admises. Un
+  mode absent vaut `fichier` : les clients antérieurs de l'API ne changent
+  rien ;
+- 3236 : mode `url` sans URL, ou URL qui n'est pas une adresse http ou https
+  avec un hôte (2000 caractères au plus, sans espace). Le schéma est fermé
+  parce que l'écran rend la valeur en lien cliquable ; le message rendu
+  distingue l'absence du format ;
+- 3237 : mode `reference` sans référence, ou référence de plus de 500
+  caractères (message rendu distinct) ;
+- 3238 : mode externe tenté avec le type de code `facture`, ou sur la preuve
+  support d'une facture (message rendu distinct). Le circuit facture exige le
+  document : POST /api/factures/depot (3245) reste la seule naissance d'une
+  facture, toujours en mode fichier. Contrôlé avant le 3234, qui orienterait
+  vers le dépôt de facture sans dire que le mode est en cause ;
+- 3239, POST /api/preuves/:id/fichier, 409 : dépôt de fichier sur une preuve
+  externe. Le mode se change d'abord par PATCH (mode `fichier` et url_fichier,
+  comme à la création de la #48), le dépôt redevient alors possible.
+
+Sans nouveau code :
+- le mode décide du support : les champs des deux autres modes transmis dans
+  le corps sont remis à null et non refusés (url_fichier compris pour une
+  preuve externe). Le 3217 ne vaut plus que pour le mode fichier ;
+- l'empreinte réutilise hash_sha256 : calculée au dépôt pour un fichier,
+  saisie à la main et facultative pour une preuve externe, format contrôlé
+  par le 3218 inchangé ; elle est débarrassée de ses blancs et passée en
+  minuscules avant contrôle ;
+- une preuve externe est complète dès POST /api/preuves (3202) : aucun dépôt
+  ne suit, elle part en validation (3300 à 3399 inchangés) comme une preuve
+  déposée. GET /api/commandes/manques (3280), les compteurs nb_preuves des
+  fiches et les blocages de suppression lisent la table preuve sans regarder
+  le support : une preuve externe y compte comme une preuve déposée ;
+- GET /api/preuves (3200) et GET /api/preuves/:id (3201) servent mode,
+  url_externe et reference_externe ; GET /api/preuves/:id/fichier répond 3224
+  pour une preuve externe (aucune redirection vers l'URL, l'écran ouvre le
+  lien lui-même) ;
+- PATCH /api/preuves/:id (3203) accepte un changement de mode. L'empreinte ne
+  survit au changement que si elle est transmise ; nom_origine est effacé
+  pour une preuve externe ; le fichier physique d'une preuve passée en externe
+  est supprimé après le commit et le retrait est tracé dans audit_log (action
+  RETRAIT_FICHIER, empreinte du fichier retiré en valeur_avant).
+
+L'arbitrage D27 (lien de GED à la place d'un fichier) est clos par cette
+règle : le lien se déclare en mode `url`, url_fichier n'en porte plus. Les
+codes 3231 et 3232 restent réservés et non émis. La sous-plage preuves
+3200-3239 est pleine à l'exception de 3207 à 3209.
 
 ## Validation des saisies (#53)
 
