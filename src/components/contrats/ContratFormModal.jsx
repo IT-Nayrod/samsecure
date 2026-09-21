@@ -8,6 +8,15 @@
 // serveur refait le contrôle de boucle, 3019). Modifiable tant que le contrat
 // n'est pas validé. C'est la sortie naturelle de l'alerte « contrat à
 // suivre » : un contrat qui a un successeur n'est plus signalé.
+// Type Interne (#219, règle client du 17/09/2026) : prêt de licences entre
+// entités d'une même organisation. Quand ce type est choisi, le champ
+// « Revendeur signataire » laisse place à « Société prêteuse », une société du
+// tenant obligatoire et distincte de la signataire ; en repassant sur un autre
+// type, le revendeur revient. Les deux saisies sont gardées en mémoire le temps
+// du formulaire, seule celle du type choisi est envoyée (l'autre part vide) : le
+// serveur refuse un revendeur sur un contrat Interne (3032) et une société
+// prêteuse sur tout autre type (3033). Le type se reconnaît à son code
+// 'interne', jamais à son libellé, personnalisable.
 import { useState, useEffect } from 'react';
 import SlideOver from '../ui/SlideOver';
 import Button from '../ui/Button';
@@ -47,7 +56,7 @@ function getSuccesseurIds(contrats, rootId) {
 }
 
 const EMPTY_FORM = {
-  label: '', id_type_contrat: '', id_editeur: '', id_societe: '', id_revendeur: '',
+  label: '', id_type_contrat: '', id_editeur: '', id_societe: '', id_revendeur: '', id_societe_preteuse: '',
   id_contrat_parent: '', id_contrat_predecesseur: '', date_debut: '', date_fin: '', a_renouveler: false, duree_resiliation: '',
 };
 
@@ -69,7 +78,9 @@ export default function ContratFormModal({
     setErreurApi(null);
     const draft = loadDraft(draftKey);
     if (draft) {
-      setForm(draft);
+      // Fusion sur EMPTY_FORM : un brouillon enregistré avant l'arrivée d'un
+      // champ (id_societe_preteuse, #219) n'en porte pas la clé.
+      setForm({ ...EMPTY_FORM, ...draft });
       setDraftRestaure(true);
       return;
     }
@@ -80,6 +91,7 @@ export default function ContratFormModal({
         id_editeur: contrat.id_editeur ?? '',
         id_societe: contrat.id_societe ?? '',
         id_revendeur: contrat.id_revendeur ?? '',
+        id_societe_preteuse: contrat.id_societe_preteuse ?? '',
         id_contrat_parent: contrat.id_contrat_parent ?? '',
         id_contrat_predecesseur: contrat.id_contrat_predecesseur ?? '',
         date_debut: contrat.date_debut ?? '',
@@ -101,6 +113,14 @@ export default function ContratFormModal({
     saveDraft(draftKey, form);
   }, [form, isOpen, draftKey]);
 
+  // Type Interne (#219) : lu sur le code du type choisi. Si le référentiel des
+  // types n'a pas pu être chargé (droit manquant), le type servi sur le contrat
+  // édité fait foi tant qu'il n'a pas été changé.
+  const typeChoisi = typesContrat.find(t => t.id === form.id_type_contrat);
+  const typeInterne = typeChoisi
+    ? typeChoisi.code === 'interne'
+    : (!!contrat && contrat.id_type_contrat === form.id_type_contrat && contrat.type_code === 'interne');
+
   // Champs obligatoires (#95) : le formulaire refuse d'envoyer une saisie
   // incomplète et nomme le champ manquant ; le serveur applique la même règle.
   function validate() {
@@ -109,7 +129,10 @@ export default function ContratFormModal({
     if (!form.id_type_contrat) e.id_type_contrat = 'Le type de contrat est obligatoire';
     if (!form.id_editeur) e.id_editeur = "L'éditeur est obligatoire";
     if (!form.id_societe) e.id_societe = 'La société signataire est obligatoire';
-    if (!form.id_revendeur) e.id_revendeur = 'Le revendeur signataire est obligatoire';
+    if (typeInterne) {
+      if (!form.id_societe_preteuse) e.id_societe_preteuse = 'La société prêteuse est obligatoire';
+      else if (form.id_societe_preteuse === form.id_societe) e.id_societe_preteuse = 'La société prêteuse doit être différente de la société signataire';
+    } else if (!form.id_revendeur) e.id_revendeur = 'Le revendeur signataire est obligatoire';
     if (!form.date_debut) e.date_debut = 'La date de début est obligatoire';
     return e;
   }
@@ -125,7 +148,9 @@ export default function ContratFormModal({
       id_type_contrat: form.id_type_contrat,
       id_editeur: form.id_editeur,
       id_societe: form.id_societe,
-      id_revendeur: form.id_revendeur,
+      // Un seul signataire côté vendeur part au serveur, celui du type choisi.
+      id_revendeur: typeInterne ? '' : form.id_revendeur,
+      id_societe_preteuse: typeInterne ? form.id_societe_preteuse : '',
       id_contrat_parent: form.id_contrat_parent,
       id_contrat_predecesseur: form.id_contrat_predecesseur,
       date_debut: form.date_debut,
@@ -176,13 +201,22 @@ export default function ContratFormModal({
   const predecesseurOptions = contrats.filter(c => c.id !== contrat?.id && c.id_societe === form.id_societe
     && !successeurIds.has(c.id) && (!c.archive || c.id === form.id_contrat_predecesseur));
 
-  // Changer de société signataire retire un prédécesseur d'une autre société.
+  // Changer de société signataire retire un prédécesseur d'une autre société,
+  // et une société prêteuse devenue identique à la signataire (#219).
   function choisirSociete(idSociete) {
     setForm(v => {
       const pred = contrats.find(c => c.id === v.id_contrat_predecesseur);
-      return { ...v, id_societe: idSociete, id_contrat_predecesseur: pred && pred.id_societe === idSociete ? v.id_contrat_predecesseur : '' };
+      return {
+        ...v,
+        id_societe: idSociete,
+        id_contrat_predecesseur: pred && pred.id_societe === idSociete ? v.id_contrat_predecesseur : '',
+        id_societe_preteuse: v.id_societe_preteuse === idSociete ? '' : v.id_societe_preteuse,
+      };
     });
   }
+
+  // La société prêteuse est une autre société du tenant que la signataire.
+  const preteuseOptions = societes.filter(s => s.id !== form.id_societe);
 
   return (
     <SlideOver
@@ -212,7 +246,8 @@ export default function ContratFormModal({
         <FormField label="Libellé" required error={erreurs.label}>
           <input className={INPUT_CLS} value={form.label} onChange={e => setForm(v => ({ ...v, label: e.target.value }))} />
         </FormField>
-        <FormField label="Type de contrat" required error={erreurs.id_type_contrat}>
+        <FormField label="Type de contrat" required error={erreurs.id_type_contrat}
+          hint={typeInterne ? 'Prêt de licences entre sociétés : la société prêteuse remplace le revendeur' : undefined}>
           <select className={INPUT_CLS} value={form.id_type_contrat} onChange={e => setForm(v => ({ ...v, id_type_contrat: e.target.value }))}>
             <option value="">Choisir...</option>
             {typesContrat.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
@@ -231,12 +266,21 @@ export default function ContratFormModal({
               {societes.map(s => <option key={s.id} value={s.id}>{s.raison_sociale}</option>)}
             </select>
           </FormField>
-          <FormField label="Revendeur signataire" required error={erreurs.id_revendeur}>
-            <select className={INPUT_CLS} value={form.id_revendeur} onChange={e => setForm(v => ({ ...v, id_revendeur: e.target.value }))}>
-              <option value="">Choisir...</option>
-              {revendeurs.map(r => <option key={r.id} value={r.id}>{r.raison_sociale}</option>)}
-            </select>
-          </FormField>
+          {typeInterne ? (
+            <FormField label="Société prêteuse" required hint="Signataire côté vendeur, distincte de la société signataire" error={erreurs.id_societe_preteuse}>
+              <select className={INPUT_CLS} value={form.id_societe_preteuse} onChange={e => setForm(v => ({ ...v, id_societe_preteuse: e.target.value }))}>
+                <option value="">Choisir...</option>
+                {preteuseOptions.map(s => <option key={s.id} value={s.id}>{s.raison_sociale}</option>)}
+              </select>
+            </FormField>
+          ) : (
+            <FormField label="Revendeur signataire" required error={erreurs.id_revendeur}>
+              <select className={INPUT_CLS} value={form.id_revendeur} onChange={e => setForm(v => ({ ...v, id_revendeur: e.target.value }))}>
+                <option value="">Choisir...</option>
+                {revendeurs.map(r => <option key={r.id} value={r.id}>{r.raison_sociale}</option>)}
+              </select>
+            </FormField>
+          )}
         </div>
         <FormField label="Contrat cadre parent" hint="Optionnel, seuls les contrats de type cadre sont proposés ; ses dates sont reprises, modifiables ensuite">
           <select className={INPUT_CLS} value={form.id_contrat_parent} onChange={e => choisirParent(e.target.value)}>
