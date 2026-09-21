@@ -723,6 +723,16 @@ router.post("/logiciels/:id/composants", async (req, res) => {
     succes(res, 4060, { id: composant.id, label: composant.label, source: composant.source }, { status: 201 });
   } catch (err) {
     await client.query("ROLLBACK");
+    // Écriture concurrente passée entre le contrôle et l'insertion : la 068
+    // tient l'unicité du couple (23505) et le niveau unique (23514, trigger),
+    // rendus comme les refus qu'ils doublent plutôt qu'en erreur serveur.
+    if (err.code === "23505") {
+      return erreur(res, 4065, { status: 409, message: "Ce logiciel fait déjà partie de la composition." });
+    }
+    if (err.code === "23514") {
+      return erreur(res, 4066, { status: 409,
+        message: "Un logiciel composé ne peut pas être composant d'un autre logiciel composé." });
+    }
     console.error("POST /logiciels/:id/composants error", err);
     erreur(res, 5399, { status: 500, message: "Erreur serveur" });
   } finally {
