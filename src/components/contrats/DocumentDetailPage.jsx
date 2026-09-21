@@ -9,6 +9,11 @@
 // fiche bascule sur sa preuve support, les identifiants étant des UUID sans
 // collision possible entre les deux tables.
 // Badge et actions de validation sont branchés sur l'API depuis la #54.
+// Preuve externe (#220, règle client du 17/09/2026) : la fiche affiche le
+// support de la preuve. Pour une preuve externe, le lien (ouvert dans un nouvel
+// onglet) ou la référence copiable remplacent l'ouverture et le dépôt du
+// fichier, qui n'ont pas lieu d'être ; l'empreinte, saisie à la main, s'affiche
+// quand elle existe. Validation et suppression sont celles de toute preuve.
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Trash2, ExternalLink, Copy, Check, FileWarning, XCircle } from 'lucide-react';
@@ -20,7 +25,11 @@ import ErrorState from '../ui/ErrorState';
 import Skeleton from '../ui/Skeleton';
 import DocumentIcon from './DocumentIcon';
 import DocumentUploadField from './DocumentUploadField';
-import { contratDeLaPreuve, idContratDeLaPreuve, cibleValidation, fichierDepose } from './preuveAffichage';
+import PreuveSupportExterne from './PreuveSupportExterne';
+import {
+  contratDeLaPreuve, idContratDeLaPreuve, cibleValidation, fichierDepose,
+  modeDeLaPreuve, preuveExterne, libelleMode, urlExterneSure,
+} from './preuveAffichage';
 import useRbac from '../../hooks/useRbac';
 import { useToast } from '../../hooks/useToast';
 import { formatDate } from '../../utils/dateUtils';
@@ -178,6 +187,9 @@ export default function DocumentDetailPage() {
 
   const cible = cibleValidation(doc);
   const depose = fichierDepose(doc) && !!doc.hash_sha256;
+  // Preuve externe (#220) : ni fichier à ouvrir ni fichier à déposer.
+  const externe = preuveExterne(doc);
+  const lienExterne = modeDeLaPreuve(doc) === 'url' ? urlExterneSure(doc.url_externe) : null;
   const contratAffiche = contratDeLaPreuve(doc);
   const idContrat = idContratDeLaPreuve(doc);
 
@@ -205,6 +217,11 @@ export default function DocumentDetailPage() {
               <ExternalLink size={15} /> Ouvrir le fichier
             </Button>
           )}
+          {lienExterne && (
+            <Button variant="primary" onClick={() => window.open(lienExterne, '_blank', 'noopener,noreferrer')}>
+              <ExternalLink size={15} /> Ouvrir le lien
+            </Button>
+          )}
           {canDelete && (
             <Button variant="destructive" onClick={() => setDeleteOpen(true)}>
               <Trash2 size={15} /> Supprimer
@@ -227,8 +244,9 @@ export default function DocumentDetailPage() {
         <Champ label="Libellé">{doc.label}</Champ>
         <Champ label="Type">{doc.type_label}</Champ>
         <Champ label="Date de la preuve">{doc.date_preuve ? formatDate(doc.date_preuve) : null}</Champ>
-        <Champ label="Déposé le">{formatDate(doc.created_at)}</Champ>
-        <Champ label="Nom du fichier d'origine">{doc.nom_origine}</Champ>
+        <Champ label={externe ? 'Enregistrée le' : 'Déposé le'}>{formatDate(doc.created_at)}</Champ>
+        <Champ label="Support">{libelleMode(doc)}</Champ>
+        {!externe && <Champ label="Nom du fichier d'origine">{doc.nom_origine}</Champ>}
         <Champ label="Contrat">
           {idContrat
             ? <Link to={`/contrats/liste/${idContrat}`} className="text-blue-800 hover:underline">{contratAffiche}</Link>
@@ -246,9 +264,41 @@ export default function DocumentDetailPage() {
         </Champ>
       </div>
 
+      {externe && (
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+            {modeDeLaPreuve(doc) === 'url' ? 'Document externe : URL' : 'Document externe : référence'}
+          </h2>
+          <PreuveSupportExterne preuve={doc} />
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+            Le document vit dans un autre système : SamSecure n&apos;en conserve que
+            {modeDeLaPreuve(doc) === 'url' ? ' l\'adresse, ouverte dans un nouvel onglet.' : ' la référence, à retrouver dans son système d\'origine.'}
+          </p>
+        </div>
+      )}
+
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
-        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Empreinte du fichier</h2>
-        {depose ? (
+        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">{externe ? 'Empreinte du document' : 'Empreinte du fichier'}</h2>
+        {externe ? (
+          doc.hash_sha256 ? (
+            <>
+              <div className="flex items-center gap-2 flex-wrap">
+                <code className="text-xs font-mono bg-gray-50 dark:bg-gray-900/60 text-gray-800 dark:text-gray-200 px-3 py-2 rounded-lg break-all">
+                  {doc.hash_sha256}
+                </code>
+                <button onClick={copierHash} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 px-2 py-2" aria-label="Copier l'empreinte">
+                  {copie ? <><Check size={14} className="text-green-600" /> Copié</> : <><Copy size={14} /> Copier</>}
+                </button>
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                Empreinte SHA-256 saisie à la déclaration de la preuve. Elle permet de vérifier en audit que le
+                document présenté est exactement celui qui a été désigné.
+              </p>
+            </>
+          ) : (
+            <p className="text-sm text-gray-500">Aucune empreinte n&apos;a été saisie pour ce document externe.</p>
+          )
+        ) : depose ? (
           <>
             <div className="flex items-center gap-2 flex-wrap">
               <code className="text-xs font-mono bg-gray-50 dark:bg-gray-900/60 text-gray-800 dark:text-gray-200 px-3 py-2 rounded-lg break-all">
@@ -288,7 +338,9 @@ export default function DocumentDetailPage() {
         onClose={() => setDeleteOpen(false)}
         onConfirm={handleDelete}
         title="Supprimer cette preuve ?"
-        message="Le fichier associé sera également supprimé. Cette action est irréversible."
+        message={externe
+          ? 'Seule la preuve est supprimée : le document externe reste dans son système d\'origine. Cette action est irréversible.'
+          : 'Le fichier associé sera également supprimé. Cette action est irréversible.'}
         confirmLabel="Supprimer"
         isDestructive
       />
