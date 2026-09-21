@@ -1,5 +1,12 @@
 // Preuves documentaires : saisie sous workflow de validation, dépôt et
 // téléchargement du fichier justificatif stocké hors de l'arborescence servie.
+// Unification de l'affichage (#215, ticket client du 16/09/2026) : la liste
+// sert toutes les preuves, support de facture compris, chaque ligne portant son
+// type documentaire (sept valeurs de type_preuve) et, pour un support de
+// facture, id_facture et le statut de validation lu sur la facture (la preuve
+// support n'a pas de demande propre depuis la #204). La distinction preuve /
+// facture n'existe plus à l'écran ; la table facture et le circuit de dépôt
+// combiné (factures.js) sont inchangés.
 
 import express from "express";
 import { tenantPool, commonPool } from "../db.js";
@@ -10,9 +17,8 @@ import {
   PREUVES_DIR, TYPES_ADMIS, NOM_PHYSIQUE_RE,
   recevoirUnFichier, erreurReception, validerFichier, ecrireFichier, supprimerFichier,
 } from "../utils/stockagePreuves.js";
-import {
-  jointureStatut, COLONNES_STATUT, soumettre, purgerValidations,
-} from "../utils/validationWorkflow.js";
+import { COLONNES_STATUT, soumettre, purgerValidations } from "../utils/validationWorkflow.js";
+import { dateIsoValide } from "../utils/dateIso.js";
 
 const router = express.Router();
 
@@ -43,18 +49,49 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 // une 22001 brute remontée en 500.
 const SHA256_RE = /^[0-9a-f]{64}$/i;
 
+
+// Statut de validation d'une preuve (#215) : celui de sa facture quand elle en
+// est le support (objet unique, #204 : la facture porte la demande), sinon le
+// sien. Même forme que jointureStatut (validationWorkflow.js), dont le LATERAL
+// ne sait viser qu'un seul entite_type ; le type et l'identifiant visés se
+// déduisent ici de fx (facture portant la preuve, jointure précédente). Un seul
+// prédicat d'égalité sur (entite_type, entite_id) : idx_workflow_entite sert.
+const JOINTURE_STATUT_PREUVE = `
+  LEFT JOIN LATERAL (
+    SELECT vs.code  AS statut_validation,
+           vs.label AS statut_validation_label,
+           CASE WHEN vs.code = 'refuse' THEN w.message_refus END AS message_refus
+      FROM workflow_validation w
+      LEFT JOIN validation_status vs ON vs.id = w.id_statut
+     WHERE w.entite_type = CASE WHEN fx.id IS NULL THEN 'preuve' ELSE 'facture' END
+       AND w.entite_id   = COALESCE(fx.id, p.id)
+     ORDER BY w.created_at DESC, w.id DESC
+     LIMIT 1
+  ) wv ON true`;
+
 // Projection identique en liste et en détail : garantit qu'aucun champ
 // n'apparaisse dans un écran et pas dans l'autre.
 // nb_factures est servi dès la liste, et non seulement sur le détail : c'est le
 // compteur qui bloque la suppression, le front doit pouvoir griser l'action
 // sans une requête par ligne.
+// id_facture et facture_label (#215) : facture dont la preuve est le support,
+// la première créée si le DDL en laissait plusieurs (cas que l'interface ne
+// produit pas). Le front valide alors l'entité facture, jamais la preuve.
+// Contrat de la commande (id_contrat_commande et ses libellés) : une preuve
+// rattachée à une commande se situe aussi par le contrat de celle-ci, comme le
+// faisait la ligne facture ; id_contrat reste le rattachement direct, seul
+// modifiable.
 const SELECT_PREUVE = `
   SELECT p.id, p.label,
+         p.date_preuve::text AS date_preuve,
          p.id_type_preuve, tp.code AS type_code, tp.label AS type_label,
          p.id_contrat,     ct.label AS contrat_label, sct.raison_sociale AS contrat_societe_label,
          p.id_commande,    cm.label AS commande_label,
+         cm.id_contrat AS id_contrat_commande, ctc.label AS contrat_commande_label,
+         sctc.raison_sociale AS contrat_commande_societe_label,
          p.id_licence,     li.label AS licence_label,
          p.url_fichier, p.hash_sha256, p.nom_origine, p.created_at,
+         fx.id AS id_facture, fx.label AS facture_label,
          (SELECT count(*) FROM facture f WHERE f.id_preuve = p.id)::int AS nb_factures,
          ${COLONNES_STATUT}
   FROM preuve p
@@ -62,38 +99,81 @@ const SELECT_PREUVE = `
   LEFT JOIN contrat     ct ON ct.id = p.id_contrat
   LEFT JOIN societe     sct ON sct.id = ct.id_societe
   LEFT JOIN commande    cm ON cm.id = p.id_commande
+  LEFT JOIN contrat     ctc ON ctc.id = cm.id_contrat
+  LEFT JOIN societe     sctc ON sctc.id = ctc.id_societe
   LEFT JOIN licence     li ON li.id = p.id_licence
-  ${jointureStatut("preuve", "p")}`;
+  LEFT JOIN LATERAL (
+    SELECT f.id, f.label FROM facture f WHERE f.id_preuve = p.id
+     ORDER BY f.created_at, f.id LIMIT 1
+  ) fx ON true
+  ${JOINTURE_STATUT_PREUVE}`;
 
 // nom_origine en est volontairement absent : il n'est pas saisissable, seul
 // le dépôt de la #49 le renseigne, en même temps que url_fichier et le hash.
+// date_preuve (#214) : date métier du document, distincte de created_at (date
+// de dépôt, posée par la base), facultative, commune à tous les types.
 // Ordre identique aux $n de l'INSERT et de l'UPDATE.
 const CHAMPS = [
   "label", "id_type_preuve", "id_contrat", "id_commande", "id_licence", "url_fichier", "hash_sha256",
+  "date_preuve",
 ];
 
 // Filtres de liste : premier usage de query params dans les CRUD du projet.
 // Forme reprise de GET /commandes/agregats, validation UUID puis clause
 // construite, pour garder une requête unique quel que soit le nombre de
-// filtres actifs.
+// filtres actifs. Chaque filtre reçoit le numéro de son paramètre et rend sa
+// clause.
+// id_contrat (#215) : rattachée au contrat directement ou par l'une de ses
+// commandes. Avant l'unification, la page assemblait les preuves libres du
+// contrat (rattachement direct) et les factures de ses commandes : la règle
+// dépendait de la nature de la ligne, ce que le client a demandé de faire
+// disparaître. Une seule règle pour toutes les lignes, quel que soit le type.
+// Période de la date de la preuve (#214) : date_preuve_min et date_preuve_max,
+// bornes incluses, indépendantes l'une de l'autre. Une preuve sans date ne
+// répond à aucune borne : filtrer par période, c'est chercher des documents
+// datés.
 const FILTRES = {
-  id_type_preuve: "p.id_type_preuve",
-  id_contrat: "p.id_contrat",
-  id_commande: "p.id_commande",
-  id_licence: "p.id_licence",
+  id_type_preuve: { type: "uuid", clause: (n) => `p.id_type_preuve = $${n}::uuid` },
+  id_contrat: { type: "uuid", clause: (n) => `(p.id_contrat = $${n}::uuid OR cm.id_contrat = $${n}::uuid)` },
+  id_commande: { type: "uuid", clause: (n) => `p.id_commande = $${n}::uuid` },
+  id_licence: { type: "uuid", clause: (n) => `p.id_licence = $${n}::uuid` },
+  date_preuve_min: { type: "date", clause: (n) => `p.date_preuve >= $${n}::date` },
+  date_preuve_max: { type: "date", clause: (n) => `p.date_preuve <= $${n}::date` },
 };
 
 function construireFiltres(query) {
   const clauses = [];
   const params = [];
-  for (const [param, colonne] of Object.entries(FILTRES)) {
+  for (const [param, { type, clause }] of Object.entries(FILTRES)) {
     const valeur = query[param];
     if (valeur === undefined || valeur === "") continue;
-    if (!UUID_RE.test(valeur)) return { erreur: `Valeur de filtre invalide pour ${param}.` };
+    const valide = type === "date" ? dateIsoValide(valeur) : UUID_RE.test(valeur);
+    if (!valide) return { erreur: `Valeur de filtre invalide pour ${param}.` };
     params.push(valeur);
-    clauses.push(`${colonne} = $${params.length}::uuid`);
+    clauses.push(clause(params.length));
   }
   return { clause: clauses.length ? `WHERE ${clauses.join(" AND ")}` : "", params };
+}
+
+// Objet unique facture = preuve (#204), retour de recette du 16/09 (#99) : une
+// preuve de type Facture naît du dépôt de facture (POST /factures/depot), qui
+// crée le fichier, la preuve support et la facture en une transaction. Créée
+// ou requalifiée par ce routeur, elle n'aurait ni facture ni fichier garanti :
+// la détection des manques la verrait « sans facture » et la liste la
+// montrerait sans validation de facture. Le refus est lisible (3234) plutôt
+// qu'un objet à moitié né ; une preuve déjà portée par une facture reste
+// modifiable (PATCH du libellé, de la date).
+async function typeEstFacture(client, idTypePreuve) {
+  if (!idTypePreuve || !UUID_RE.test(idTypePreuve)) return false;
+  const { rowCount } = await client.query(
+    `SELECT 1 FROM type_preuve WHERE id = $1 AND code = 'facture'`, [idTypePreuve]);
+  return rowCount > 0;
+}
+
+async function porteeParFacture(client, idPreuve) {
+  if (!idPreuve) return false;
+  const { rowCount } = await client.query(`SELECT 1 FROM facture WHERE id_preuve = $1`, [idPreuve]);
+  return rowCount > 0;
 }
 
 // Vérifie l'existence d'une référence. Évite qu'un UUID inconnu remonte en
@@ -131,11 +211,14 @@ function normaliserCorps(body = {}) {
     id_licence: vide(body.id_licence),
     url_fichier: vide(body.url_fichier),
     hash_sha256: vide(body.hash_sha256),
+    date_preuve: vide(body.date_preuve),
   };
 }
 
-async function validerPreuve(client, body) {
-  const { label, id_type_preuve, id_contrat, id_commande, id_licence, url_fichier, hash_sha256 } = body;
+// idPreuve : preuve existante (PATCH), pour tolérer le type Facture sur une
+// preuve déjà portée par sa facture.
+async function validerPreuve(client, body, { idPreuve = null } = {}) {
+  const { label, id_type_preuve, id_contrat, id_commande, id_licence, url_fichier, hash_sha256, date_preuve } = body;
 
   if (!label || !label.trim())
     return { status: 400, code: 3211, error: "Le libelle est obligatoire." };
@@ -143,6 +226,8 @@ async function validerPreuve(client, body) {
     return { status: 400, code: 3212, error: "Le type de preuve est obligatoire." };
   if (!(await existe(client, "type_preuve", id_type_preuve)))
     return { status: 400, code: 3213, error: "Type de preuve introuvable." };
+  if (await typeEstFacture(client, id_type_preuve) && !(await porteeParFacture(client, idPreuve)))
+    return { status: 400, code: 3234, error: "Le type Facture n'est pas accepté ici : une facture se dépose avec son fichier par le dépôt de facture (POST /factures/depot)." };
   // Règle métier de la #48, étendue par la #208 : une preuve sans rattachement
   // est orpheline, elle ne serait atteignable ni par un contrat, ni par une
   // commande, ni par une licence. Le DDL laisse les trois colonnes nullables,
@@ -172,6 +257,11 @@ async function validerPreuve(client, body) {
   // vérifié quand il est fourni.
   if (hash_sha256 && !SHA256_RE.test(hash_sha256))
     return { status: 400, code: 3218, error: "L'empreinte SHA-256 doit comporter 64 caracteres hexadecimaux." };
+  // Date de la preuve (#214) : facultative pour tous les types, les preuves
+  // antérieures restent sans date. Format et calendrier contrôlés ici, sinon
+  // 22007 ou 22008 brute remontée en 500.
+  if (date_preuve !== null && date_preuve !== undefined && !dateIsoValide(date_preuve))
+    return { status: 400, code: 3233, error: "La date de la preuve est invalide (format attendu AAAA-MM-JJ)." };
   return null;
 }
 
@@ -180,13 +270,11 @@ router.get("/preuves", async (req, res) => {
     const filtres = construireFiltres(req.query);
     if (filtres.erreur) return erreur(res, 3219, { status: 400, message: filtres.erreur });
 
-    // Objet unique (#204) : une preuve support d'une facture est servie par
-    // la ligne de type facture de GET /factures, jamais par cette liste. Le
-    // détail GET /preuves/:id reste accessible, c'est l'affichage qui fusionne.
-    const libre = "NOT EXISTS (SELECT 1 FROM facture f WHERE f.id_preuve = p.id)";
-    const where = filtres.clause ? `${filtres.clause} AND ${libre}` : `WHERE ${libre}`;
+    // Toutes les preuves, support de facture compris (#215) : la ligne d'une
+    // preuve support porte id_facture et le statut de sa facture, l'écran ne
+    // distingue plus les deux natures. GET /factures reste servi tel quel.
     const { rows } = await tenantPool.query(
-      `${SELECT_PREUVE} ${where} ORDER BY p.created_at DESC, p.label`,
+      `${SELECT_PREUVE} ${filtres.clause} ORDER BY p.created_at DESC, p.label`,
       filtres.params
     );
     succes(res, 3200, rows);
@@ -266,10 +354,10 @@ router.post("/preuves", async (req, res) => {
     const label = corps.label.trim();
     const { rows: [creee] } = await client.query(
       `INSERT INTO preuve (${CHAMPS.join(", ")})
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING id`,
       [label, corps.id_type_preuve, corps.id_contrat, corps.id_commande, corps.id_licence,
-       corps.url_fichier, corps.hash_sha256]
+       corps.url_fichier, corps.hash_sha256, corps.date_preuve]
     );
 
     // Toute saisie part en attente de validation, dans la même transaction que
@@ -302,7 +390,8 @@ router.patch("/preuves/:id", async (req, res) => {
     }
 
     const { rows: existant } = await client.query(
-      `SELECT label, id_type_preuve, id_contrat, id_commande, id_licence, url_fichier, hash_sha256
+      `SELECT label, id_type_preuve, id_contrat, id_commande, id_licence, url_fichier, hash_sha256,
+              date_preuve::text AS date_preuve
        FROM preuve WHERE id = $1`, [id]);
     if (!existant.length) {
       await client.query("ROLLBACK");
@@ -318,7 +407,7 @@ router.patch("/preuves/:id", async (req, res) => {
       if (Object.prototype.hasOwnProperty.call(req.body, champ)) corps[champ] = patch[champ];
     }
 
-    const invalide = await validerPreuve(client, corps);
+    const invalide = await validerPreuve(client, corps, { idPreuve: id });
     if (invalide) {
       await client.query("ROLLBACK");
       return erreurPivot(res, invalide);
@@ -329,10 +418,10 @@ router.patch("/preuves/:id", async (req, res) => {
     await client.query(
       `UPDATE preuve
           SET label = $1, id_type_preuve = $2, id_contrat = $3, id_commande = $4,
-              id_licence = $5, url_fichier = $6, hash_sha256 = $7
-        WHERE id = $8`,
+              id_licence = $5, url_fichier = $6, hash_sha256 = $7, date_preuve = $8
+        WHERE id = $9`,
       [label, corps.id_type_preuve, corps.id_contrat, corps.id_commande, corps.id_licence,
-       corps.url_fichier, corps.hash_sha256, id]
+       corps.url_fichier, corps.hash_sha256, corps.date_preuve, id]
     );
 
     // Une modification est une saisie : retour en attente, motif de refus effacé.

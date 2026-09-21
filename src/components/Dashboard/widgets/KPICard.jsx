@@ -139,7 +139,7 @@ export function IndiceConfianceWidget() {
     <CadreWidget
       widgetId="indice-confiance"
       titre="Indice de confiance données"
-      info={"Indice sur 100 = 0,4 x exhaustivité + 0,3 x cohérence + 0,3 x fraîcheur. Chaque objet pèse sa valeur (coût des licences actives), avec une part plancher pour les objets non valorisés (1 % du parc valorisé, au moins une unité). Exhaustivité : 4 liens attendus par licence active (commande, facture ou preuve, contrat, société signataire). Cohérence : part des objets sans anomalie ouverte, toutes anomalies confondues (stock et détection à la volée), y compris sur des objets sans licence reliée ; une anomalie ouverte interdit le 100. Fraîcheur : part des affectations validées à revalidation non dépassée. Le clic ouvre l'inventaire."}
+      info={"Indice sur 100 = 0,4 x exhaustivité + 0,3 x cohérence + 0,3 x fraîcheur. Chaque objet pèse sa valeur (coût des licences actives), avec une part plancher pour les objets non valorisés (1 % du parc valorisé, au moins une unité). Exhaustivité : 4 liens attendus par licence active (commande, preuve, contrat, société signataire). Cohérence : part des objets sans anomalie ouverte, toutes anomalies confondues (stock et détection à la volée), y compris sur des objets sans licence reliée ; une anomalie ouverte interdit le 100. Fraîcheur : part des affectations validées à revalidation non dépassée. Le clic ouvre l'inventaire."}
       derniereMaj={data?.derniere_maj}
       chargement={chargement} erreur={erreur} onRelancer={relancer}
       vide={!chargement && !erreur && score == null}

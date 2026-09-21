@@ -1,10 +1,15 @@
 // CommandeDetailPage - fiche détail d'une commande : origine, financier, rattachements.
 // Données API. La suppression s'appuie sur le refus du serveur, pas sur un garde-fou local.
+// Unification de l'affichage (#215) : une seule section « Preuves », servie par
+// GET /preuves?id_commande, qui liste toutes les pièces de la commande, type
+// facture compris ; la section « Factures » séparée a disparu. La facture ne
+// porte pas de montant dans le modèle (table facture : libellé, commande,
+// preuve) : aucun montant n'est affiché sur la ligne de type facture.
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Pencil, Trash2, XCircle, ExternalLink, Plus } from 'lucide-react';
 import { commandesService, modesCommandeService } from '../../services/commandesService';
-import { preuvesService, facturesService, typesPreuveService } from '../../services/documentsService';
+import { preuvesService, typesPreuveService } from '../../services/documentsService';
 import { optionnel } from '../../services/http';
 import { contratsService, referentielsContratsService } from '../../services/contratsService';
 import { societesService } from '../../services/adminService';
@@ -18,6 +23,7 @@ import StatutEcheanceBadge from './StatutEcheanceBadge';
 import CommandeFormModal from './CommandeFormModal';
 import PreuveFormModal from './PreuveFormModal';
 import { libelleContrat } from './libelleContrat';
+import { fichierDepose } from './preuveAffichage';
 import useRbac from '../../hooks/useRbac';
 import { useToast } from '../../hooks/useToast';
 import { formatDate } from '../../utils/dateUtils';
@@ -42,7 +48,6 @@ export default function CommandeDetailPage() {
   const [revendeurs, setRevendeurs] = useState([]);
   const [modes, setModes] = useState([]);
   const [preuves, setPreuves] = useState([]);
-  const [factures, setFactures] = useState([]);
   const [typesPreuve, setTypesPreuve] = useState([]);
   const [preuveModal, setPreuveModal] = useState(false);
   const [ouverture, setOuverture] = useState(null);
@@ -60,9 +65,9 @@ export default function CommandeDetailPage() {
     setIntrouvable(false);
     try {
       // Seule la fiche est indispensable, le reste alimente le formulaire.
-      // Preuves et factures rattachées sont accessoires au même titre : un refus
-      // de droit sur les documents laisse la fiche lisible, sans sa liste.
-      const [k, c, s, r, m, p, f, t] = await Promise.all([
+      // Les preuves rattachées sont accessoires : un refus de droit sur les
+      // documents laisse la fiche lisible, sans sa liste.
+      const [k, c, s, r, m, p, t] = await Promise.all([
         commandesService.get(id),
         // Archives inclus : une commande existante peut pointer un contrat archivé,
         // le formulaire d'édition doit pouvoir l'afficher (#96).
@@ -71,11 +76,10 @@ export default function CommandeDetailPage() {
         optionnel(referentielsContratsService.revendeurs()),
         optionnel(modesCommandeService.list()),
         optionnel(preuvesService.list({ idCommande: id })),
-        optionnel(facturesService.list({ idCommande: id })),
         optionnel(typesPreuveService.list()),
       ]);
       setCommande(k); setContrats(c); setSocietes(s); setRevendeurs(r); setModes(m);
-      setPreuves(p); setFactures(f); setTypesPreuve(t);
+      setPreuves(p); setTypesPreuve(t);
     } catch (err) {
       // 404 : la commande n'existe pas ou vient d'être supprimée, pas une panne.
       if (err.status === 404) setIntrouvable(true);
@@ -261,34 +265,11 @@ export default function CommandeDetailPage() {
             {preuves.map(p => (
               <li key={p.id} className="flex items-center justify-between gap-3 py-2">
                 <div className="min-w-0">
-                  <Link to={`/contrats/factures/${p.id}?ressource=preuve`} className="text-sm font-medium text-blue-800 hover:underline">{p.label}</Link>
-                  <p className="text-xs text-gray-500">{p.type_label ?? '-'} · déposée le {formatDate(p.created_at)}</p>
+                  <Link to={`/contrats/factures/${p.id}`} className="text-sm font-medium text-blue-800 hover:underline">{p.label}</Link>
+                  <p className="text-xs text-gray-500">{p.type_label ?? '-'}{p.date_preuve ? ` du ${formatDate(p.date_preuve)}` : ''} · déposée le {formatDate(p.created_at)}</p>
                 </div>
-                {p.url_fichier && p.url_fichier !== 'en-attente-de-depot' && (
+                {fichierDepose(p) && (
                   <Button variant="secondary" size="sm" onClick={() => ouvrirFichier(p.id)} isLoading={ouverture === p.id}>
-                    <ExternalLink size={14} /> Ouvrir le fichier
-                  </Button>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Factures ({factures.length})</h2>
-        {factures.length === 0 ? (
-          <p className="text-sm text-gray-500">Aucune facture rattachée à cette commande.</p>
-        ) : (
-          <ul className="divide-y divide-gray-100 dark:divide-gray-700">
-            {factures.map(f => (
-              <li key={f.id} className="flex items-center justify-between gap-3 py-2">
-                <div className="min-w-0">
-                  <Link to={`/contrats/factures/${f.id}?ressource=facture`} className="text-sm font-medium text-blue-800 hover:underline">{f.label}</Link>
-                  <p className="text-xs text-gray-500">{f.preuve_label ? `Justificatif : ${f.preuve_label}` : 'Sans justificatif'} · déposée le {formatDate(f.created_at)}</p>
-                </div>
-                {f.id_preuve && (
-                  <Button variant="secondary" size="sm" onClick={() => ouvrirFichier(f.id_preuve)} isLoading={ouverture === f.id_preuve}>
                     <ExternalLink size={14} /> Ouvrir le fichier
                   </Button>
                 )}

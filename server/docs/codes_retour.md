@@ -277,11 +277,13 @@ commun 3280-3299.
 | 3216 | erreur | Commande introuvable | POST, PATCH /api/preuves |
 | 3217 | erreur | Le chemin du fichier est obligatoire | POST, PATCH /api/preuves |
 | 3218 | erreur | L'empreinte SHA-256 doit comporter 64 caracteres hexadecimaux | POST, PATCH /api/preuves |
-| 3219 | erreur | Valeur de filtre invalide (id_type_preuve, id_contrat, id_commande, id_licence depuis la #208) | GET /api/preuves |
+| 3219 | erreur | Valeur de filtre invalide (id_type_preuve, id_contrat, id_commande, id_licence depuis la #208, date_preuve_min et date_preuve_max depuis la #214) | GET /api/preuves |
 | 3228 | erreur | Licence introuvable (#208, migration 054) | POST, PATCH /api/preuves |
 | 3229 | succes | Définition des champs par type de preuve (#204, migration 060) | GET /api/types-preuve/champs |
 | 3230 | erreur | Suppression impossible : preuve rattachee a une facture | DELETE /api/preuves/:id |
 | 3231 | reserve | [ARBITRAGE D27] lien externe GED refuse. Non emis a ce jour | POST, PATCH /api/preuves |
+| 3233 | erreur | La date de la preuve est invalide, format attendu AAAA-MM-JJ (#214, migration 066, non seedé : voir plus bas) | POST, PATCH /api/preuves ; POST /api/factures/depot |
+| 3234 | erreur | Le type Facture n'est pas accepté ici : une facture se dépose avec son fichier par le dépôt de facture (#99, retour de recette du 16/09, non seedé : voir plus bas) | POST, PATCH /api/preuves |
 | 3214 | erreur | Une preuve doit être rattachée à un contrat, à une commande, ou aux deux | POST, PATCH /api/preuves |
 | 3215 | erreur | Contrat introuvable | POST, PATCH /api/preuves |
 | 3216 | erreur | Commande introuvable | POST, PATCH /api/preuves |
@@ -457,6 +459,81 @@ par la base, jamais par le front, servie par un nouveau code :
   autres types gardent POST /api/preuves puis POST /api/preuves/:id/fichier.
   Objet unique, validation unique, budget engagé et détection des manques
   (3280) inchangés : une facture naît toujours par le circuit facture.
+
+### Retour de recette du 16/09 : une facture emprunte toujours le circuit facture (#99)
+
+Symptôme constaté en recette : un dépôt en type facture depuis la modale
+unifiée produisait une preuve non reconnue comme facture (aucune ligne
+facture, commande toujours « sans facture », fichier absent). Ce résultat
+n'est atteignable que par le circuit preuve simple (POST /api/preuves puis
+POST /api/preuves/:id/fichier) avec un second appel refusé, refus que le
+rechargement de la page masquait. Corrections, un code nouveau :
+- 3234, POST et PATCH /api/preuves : le type de code `facture` est refusé
+  quand la preuve n'est pas déjà portée par une facture (facture.id_preuve).
+  Une facture naît du dépôt de facture, POST /api/factures/depot (3245), qui
+  crée le fichier, la preuve support et la facture en une transaction : plus
+  aucune preuve de type Facture ne peut exister sans sa facture ni sans son
+  fichier, quel que soit le client de l'API. Une preuve support existante
+  reste modifiable (libellé, date de la preuve) ;
+- la modale décide du circuit au moment du dépôt, sur le code du type choisi,
+  et envoie le fichier dans la même requête multipart que la facture (champ
+  `fichier`, attendu par multer) ;
+- un échec du second appel du circuit simple (preuve créée, fichier refusé :
+  3220 à 3227, 3299) reste affiché dans la modale, la liste n'est rechargée
+  qu'à sa fermeture.
+
+Le 3234 n'est pas encore seedé dans `code_retour` : seule la migration 066
+(Tenant) était réservée pour ce chantier, la table vit en Commune.
+`server/utils/reponse.js` sert alors le message rendu par la route avec un
+libellé null et le signale en console ; à seeder par la prochaine migration
+Commune, comme la 064 l'a fait pour les codes orphelins.
+
+### Date de la preuve (#214, ticket client du 16/09, migration 066)
+
+preuve.date_preuve (DATE, nullable, 066 Tenant) : date métier du document,
+distincte de la date de dépôt created_at, commune à tous les types, saisie
+facultative dans la modale de dépôt (champ fixe du formulaire, la définition
+par type de la 060 ne connaissant pas de champ commun à tous les types). Les
+preuves existantes restent sans date, rien n'est rétro-daté.
+- POST et PATCH /api/preuves (3202, 3203) acceptent date_preuve ; POST
+  /api/factures/depot (3245) l'accepte pour la preuve support ;
+- 3233 : date invalide (format ou calendrier), sur les trois routes ;
+- GET /api/preuves (3200) sert date_preuve et accepte date_preuve_min et
+  date_preuve_max (bornes incluses, AAAA-MM-JJ, 3219 si invalides) ; une
+  preuve sans date ne répond à aucune borne ;
+- GET /api/factures sert preuve_date_preuve dans sa projection.
+
+Le 3233 n'est pas encore seedé dans `code_retour` (même situation que le
+3234 : seule la 066 Tenant était réservée, la table vit en Commune) ; à
+seeder par la prochaine migration Commune.
+
+### Unification de l'affichage preuves et factures (#215, ticket client du 16/09)
+
+La distinction preuve / facture disparaît de tous les écrans ; aucun code
+nouveau, la table facture et le circuit de dépôt combiné sont inchangés :
+- GET /api/preuves (3200) sert toutes les preuves, support de facture compris.
+  Chaque ligne porte id_facture et facture_label quand une facture la
+  référence, et son statut de validation est alors celui de la facture (la
+  preuve support n'a pas de demande propre depuis la #204) ; une preuve libre
+  garde le sien. Le front valide l'entité désignée par id_facture (3300 à
+  3399, inchangés). La projection ajoute id_contrat_commande et ses libellés
+  (contrat de la commande rattachée) ;
+- filtre id_contrat (3219 en cas de valeur invalide) : preuve rattachée au
+  contrat directement ou par l'une de ses commandes, une seule règle pour
+  toutes les lignes ;
+- GET /api/commandes/manques (3280) : « sans facture » se lit sur le type
+  documentaire, absence d'une preuve de type_preuve.code = 'facture' rattachée
+  à la commande, et non plus sur la table facture ; GET /api/commandes/:id
+  (3101) sert nb_factures sur la même lecture. Sur les données nées du dépôt
+  combiné, les chiffres sont identiques avant et après (une facture, une
+  preuve support de type facture sur la même commande) ; requêtes de contrôle
+  dans le journal du chantier ;
+- DELETE /api/commandes/:id (3130) : le message compte des « preuve(s) »
+  (preuves de la commande plus factures sans preuve sur la commande), details
+  garde les compteurs bruts factures et preuves ;
+- GET /api/factures (3240) et GET /api/factures/:id (3241) restent servis pour
+  les clients de l'API et pour la résolution d'un ancien lien portant un
+  identifiant de facture (la fiche bascule sur la preuve support).
 
 ## Validation des saisies (#53)
 

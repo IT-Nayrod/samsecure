@@ -127,7 +127,9 @@ const STATUT_CONFIG = {
 };
 
 const TYPE_LABEL = {
-  contrat: 'Contrat', commande: 'Commande', facture: 'Facture', preuve: 'Preuve',
+  // facture : entité du workflow portée par une preuve de type documentaire
+  // facture (#204, #215) ; à l'écran elle est une preuve comme les autres.
+  contrat: 'Contrat', commande: 'Commande', facture: 'Preuve', preuve: 'Preuve',
   licence: 'Licence', affectation: 'Affectation', editeur: 'Éditeur',
   produit_client: 'Logiciel',
 };

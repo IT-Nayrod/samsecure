@@ -1,7 +1,7 @@
 // LicenceFormModal - création / édition d'une licence (droit acquis), par l'API.
 // Référentiels : catalogue des produits (versions et éditions imbriquées),
 // commandes (le contrat se déduit de la commande, jamais saisi ici),
-// revendeurs, unités de mesure, mainteneurs. Les règles de validation serveur
+// revendeurs, unités de mesure. Les règles de validation serveur
 // (4011 à 4024, 4031, 4032) sont rendues telles quelles en toast.
 //
 // Stories #209 et #210 : le type choisi (sept valeurs, TYPES_LICENCE) pilote
@@ -16,6 +16,12 @@
 // id_licence_predecesseur, dates à saisir (début proposé au lendemain du terme
 // actuel). Une version ou une édition absente du catalogue s'ajoute à la
 // volée (LicenceDeclinaisonAjout, complément du client, migration 063).
+//
+// Retour client du 16/09/2026 (#201) : « sous maintenance » n'est plus un
+// attribut de la licence. La case « Sous maintenance », le mainteneur et la
+// fin de maintenance ont quitté ce formulaire : la maintenance se saisit par
+// ses périodes (MaintenanceFormModal, section Maintenance de la fiche), et
+// l'état affiché en découle.
 import { useState, useEffect, useMemo } from 'react';
 import SlideOver from '../ui/SlideOver';
 import Button from '../ui/Button';
@@ -31,7 +37,7 @@ const INPUT_CLS = 'w-full px-3 py-2 border border-gray-300 dark:border-gray-600 
 const EMPTY_FORM = {
   label: '', id_produit: '', id_edition: '', id_version: '', id_commande: '', id_revendeur: '',
   id_unite_mesure: '', type: 'souscription', quantite: 1, cout_licence: '', date_debut: '', date_fin_souscription: '',
-  a_maintenance: false, id_mainteneur: '', date_fin_maintenance: '', id_licence_predecesseur: '',
+  id_licence_predecesseur: '',
 };
 
 // Préremplissage d'une nouvelle période depuis la licence en cours : tout est
@@ -45,17 +51,16 @@ function formDepuisModele(modele) {
     id_commande: modele.id_commande ?? '', id_revendeur: modele.id_revendeur ?? '',
     id_unite_mesure: modele.id_unite_mesure ?? '', type: modele.type ?? 'souscription',
     quantite: modele.quantite ?? 1, cout_licence: modele.cout_licence ?? '',
+    // date_fin_maintenance est servie par l'API depuis les périodes (#201).
     date_debut: lendemain(modele.date_fin_souscription ?? modele.date_fin_maintenance),
     date_fin_souscription: '',
-    a_maintenance: !!modele.a_maintenance, id_mainteneur: modele.id_mainteneur ?? '',
-    date_fin_maintenance: '',
     id_licence_predecesseur: modele.id,
   };
 }
 
 export default function LicenceFormModal({
   isOpen, onClose, onSaved, licence, modele = null,
-  produits = [], commandes = [], revendeurs = [], unites = [], mainteneurs = [], licences = [],
+  produits = [], commandes = [], revendeurs = [], unites = [], licences = [],
   montantsVisibles = true,
 }) {
   const isEdit = !!licence;
@@ -89,8 +94,6 @@ export default function LicenceFormModal({
         quantite: licence.quantite, cout_licence: licence.cout_licence ?? '',
         date_debut: licence.date_debut ?? '',
         date_fin_souscription: licence.date_fin_souscription ?? '',
-        a_maintenance: !!licence.a_maintenance, id_mainteneur: licence.id_mainteneur ?? '',
-        date_fin_maintenance: licence.date_fin_maintenance ?? '',
         id_licence_predecesseur: licence.id_licence_predecesseur ?? '',
       });
     } else {
@@ -319,25 +322,9 @@ export default function LicenceFormModal({
             )}
           </select>
         </FormField>
-        <div className="border-t border-gray-100 dark:border-gray-700 pt-4 flex flex-col gap-4">
-          <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-            <input type="checkbox" checked={form.a_maintenance} onChange={e => setForm(v => ({ ...v, a_maintenance: e.target.checked }))} />
-            Sous maintenance (droit aux montées de version)
-          </label>
-          {form.a_maintenance && (
-            <div className="grid grid-cols-2 gap-4">
-              <FormField label="Mainteneur">
-                <select className={INPUT_CLS} value={form.id_mainteneur} onChange={champ('id_mainteneur')}>
-                  <option value="">Non renseigné</option>
-                  {mainteneurs.map(m => <option key={m.id} value={m.id}>{m.raison_sociale}</option>)}
-                </select>
-              </FormField>
-              <FormField label="Fin de maintenance" hint="Optionnel">
-                <input type="date" className={INPUT_CLS} value={form.date_fin_maintenance} onChange={champ('date_fin_maintenance')} />
-              </FormField>
-            </div>
-          )}
-        </div>
+        <p className="text-xs text-gray-500 border-t border-gray-100 dark:border-gray-700 pt-4">
+          La maintenance (droit aux montées de version) se saisit par ses périodes, depuis la section Maintenance de la fiche : l&apos;état « sous maintenance » en découle, il ne se coche pas ici.
+        </p>
       </div>
     </SlideOver>
   );
