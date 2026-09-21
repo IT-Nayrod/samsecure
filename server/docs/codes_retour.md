@@ -282,8 +282,8 @@ commun 3280-3299.
 | 3229 | succes | Définition des champs par type de preuve (#204, migration 060) | GET /api/types-preuve/champs |
 | 3230 | erreur | Suppression impossible : preuve rattachee a une facture | DELETE /api/preuves/:id |
 | 3231 | reserve | [ARBITRAGE D27] lien externe GED refuse. Non emis a ce jour | POST, PATCH /api/preuves |
-| 3233 | erreur | La date de la preuve est invalide, format attendu AAAA-MM-JJ (#214, migration 066, non seedé : voir plus bas) | POST, PATCH /api/preuves ; POST /api/factures/depot |
-| 3234 | erreur | Le type Facture n'est pas accepté ici : une facture se dépose avec son fichier par le dépôt de facture (#99, retour de recette du 16/09, non seedé : voir plus bas) | POST, PATCH /api/preuves |
+| 3233 | erreur | La date de la preuve est invalide, format attendu AAAA-MM-JJ (#214, migration 066) | POST, PATCH /api/preuves ; POST /api/factures/depot |
+| 3234 | erreur | Le type Facture n'est pas accepté ici : une facture se dépose avec son fichier par le dépôt de facture (#99, retour de recette du 16/09) | POST, PATCH /api/preuves |
 | 3214 | erreur | Une preuve doit être rattachée à un contrat, à une commande, ou aux deux | POST, PATCH /api/preuves |
 | 3215 | erreur | Contrat introuvable | POST, PATCH /api/preuves |
 | 3216 | erreur | Commande introuvable | POST, PATCH /api/preuves |
