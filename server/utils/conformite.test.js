@@ -9,6 +9,7 @@ import {
   prixUnitaireDerniereCommande, tauxConformite, valoriserBalance,
   statutConformite, niveauConformite,
   licenceExpiree, LICENCE_EXPIREE, TYPES_A_ECHEANCE, TYPE_VERSION_ESSAI,
+  droitsHeritesParComposant, appliquerHeritageComposes,
 } from "./conformite.js";
 
 const seuils = { seuilTaux: 90, seuilMontant: 10000 };
@@ -190,5 +191,154 @@ describe("licenceExpiree (D44 etendu : versions d'essai)", () => {
     assert.deepEqual(TYPES_A_ECHEANCE, ["souscription", TYPE_VERSION_ESSAI]);
     for (const t of TYPES_A_ECHEANCE) assert.ok(LICENCE_EXPIREE.includes(`'${t}'`));
     assert.ok(LICENCE_EXPIREE.includes("l.date_fin_souscription < CURRENT_DATE"));
+  });
+});
+
+// Règle client du 17/09/2026 (#216). Exemple de référence : Office, composé
+// de Word et d'Excel, même éditeur. Les lignes d'entrée portent les droits
+// PROPRES (licences actives du logiciel) et les usages du logiciel lui-même.
+describe("logiciels composes : heritage des droits (#216)", () => {
+  const OFFICE = "office", WORD = "word", EXCEL = "excel";
+  const compositionOffice = [
+    { id_produit_compose: OFFICE, id_produit_composant: WORD },
+    { id_produit_compose: OFFICE, id_produit_composant: EXCEL },
+  ];
+  const ligne = (id, droits, usages) => ({ id_produit: id, droits_total: droits, usages_total: usages });
+  const parId = (lignes) => new Map(lignes.map((l) => [l.id_produit, l]));
+  const balance = (l, prix = null) => valoriserBalance({ ...l, prix_unitaire: prix }, seuils);
+
+  test("exemple Office : la licence du compose couvre Word et Excel", () => {
+    // 10 licences Office, aucune licence Word ou Excel active, 8 usages Word
+    // et 7 usages Excel : une licence Office seule suffit.
+    const r = parId(appliquerHeritageComposes(
+      [ligne(OFFICE, 10, 0), ligne(WORD, 0, 8), ligne(EXCEL, 0, 7)], compositionOffice));
+    assert.equal(r.get(WORD).droits_total, 10);
+    assert.equal(r.get(WORD).droits_herites, 10);
+    assert.equal(r.get(WORD).droits_propres, 0);
+    assert.equal(r.get(EXCEL).droits_total, 10);
+    const word = balance(r.get(WORD)), excel = balance(r.get(EXCEL));
+    assert.equal(word.statut_conformite, "conforme");
+    assert.equal(word.usage_sans_droit, false);
+    assert.equal(word.ecart, 2);
+    assert.equal(word.ecart_pct, 80);
+    assert.equal(excel.statut_conformite, "conforme");
+    // Sans la composition, les deux composants seraient en usage sans droit.
+    const sans = balance(ligne(WORD, 0, 8));
+    assert.equal(sans.statut_conformite, "depassement");
+    assert.equal(sans.usage_sans_droit, true);
+  });
+
+  test("exemple Office : une licence de composant ne couvre jamais le compose", () => {
+    // 50 licences Word, 10 licences Office, 12 usages Office : le compose
+    // reste en depassement, les droits de Word ne remontent pas.
+    const r = parId(appliquerHeritageComposes(
+      [ligne(OFFICE, 10, 12), ligne(WORD, 50, 0), ligne(EXCEL, 50, 0)], compositionOffice));
+    assert.equal(r.get(OFFICE).droits_total, 10);
+    assert.equal(r.get(OFFICE).droits_herites, 0);
+    assert.equal(balance(r.get(OFFICE)).statut_conformite, "depassement");
+    assert.equal(balance(r.get(OFFICE)).ecart, -2);
+  });
+
+  test("exemple Office : cumul des licences propres et de la licence du compose", () => {
+    // 5 licences Word + 10 licences Office = 15 droits effectifs sur Word.
+    const r = parId(appliquerHeritageComposes(
+      [ligne(OFFICE, 10, 0), ligne(WORD, 5, 12), ligne(EXCEL, 0, 0)], compositionOffice));
+    assert.equal(r.get(WORD).droits_propres, 5);
+    assert.equal(r.get(WORD).droits_herites, 10);
+    assert.equal(r.get(WORD).droits_total, 15);
+    assert.equal(balance(r.get(WORD)).statut_conformite, "conforme");
+    assert.equal(balance(ligne(WORD, 5, 12)).statut_conformite, "depassement");
+    // Au-dela du cumul, le depassement se mesure sur le droit effectif.
+    const depasse = balance({ ...r.get(WORD), usages_total: 18 });
+    assert.equal(depasse.statut_conformite, "depassement");
+    assert.equal(depasse.ecart, -3);
+  });
+
+  test("les usages de chacun restent les siens", () => {
+    const entree = [ligne(OFFICE, 10, 9), ligne(WORD, 5, 3), ligne(EXCEL, 0, 4)];
+    const r = parId(appliquerHeritageComposes(entree, compositionOffice));
+    assert.equal(r.get(OFFICE).usages_total, 9);
+    assert.equal(r.get(WORD).usages_total, 3);
+    assert.equal(r.get(EXCEL).usages_total, 4);
+    // Les lignes d'entree ne sont pas modifiees.
+    assert.equal(entree[1].droits_total, 5);
+    assert.equal(entree[1].droits_herites, undefined);
+  });
+
+  test("un composant de plusieurs composes cumule leurs droits", () => {
+    const compositions = [...compositionOffice, { id_produit_compose: "m365", id_produit_composant: WORD }];
+    const herites = droitsHeritesParComposant(new Map([[OFFICE, 10], ["m365", 4], [WORD, 5]]), compositions);
+    assert.equal(herites.get(WORD), 14);
+    assert.equal(herites.get(EXCEL), 10);
+    assert.equal(herites.has(OFFICE), false);
+    assert.equal(herites.has("m365"), false);
+  });
+
+  test("un compose sans droit actif (licence echue) ne transmet rien", () => {
+    // Les droits propres fournis sont deja nets des licences echues : un
+    // compose echu vaut 0 et le composant retombe en usage sans droit.
+    const r = parId(appliquerHeritageComposes([ligne(OFFICE, 0, 0), ligne(WORD, 0, 3)], compositionOffice));
+    assert.equal(r.get(WORD).droits_total, 0);
+    assert.equal(balance(r.get(WORD)).usage_sans_droit, true);
+    assert.equal(balance(r.get(WORD)).ecart_pct, null);
+  });
+
+  test("un seul niveau : seuls les droits propres du compose se transmettent", () => {
+    // Donnee fautive (interdite par la 068 et par l'API) : suite -> office -> word.
+    const compositions = [
+      { id_produit_compose: "suite", id_produit_composant: OFFICE },
+      { id_produit_compose: OFFICE, id_produit_composant: WORD },
+    ];
+    const r = parId(appliquerHeritageComposes(
+      [ligne("suite", 100, 0), ligne(OFFICE, 10, 0), ligne(WORD, 0, 0)], compositions));
+    assert.equal(r.get(OFFICE).droits_total, 110);
+    assert.equal(r.get(WORD).droits_total, 10);  // 10 et non 110
+  });
+
+  test("couple repete, reflexif ou incomplet : sans effet", () => {
+    const compositions = [
+      ...compositionOffice, compositionOffice[0],
+      { id_produit_compose: WORD, id_produit_composant: WORD },
+      { id_produit_compose: null, id_produit_composant: EXCEL },
+      null,
+    ];
+    const herites = droitsHeritesParComposant({ [OFFICE]: 10, [WORD]: 5 }, compositions);
+    assert.equal(herites.get(WORD), 10);
+    assert.equal(herites.get(EXCEL), 10);
+  });
+
+  test("liste filtree : les droits du compose viennent de la table fournie", () => {
+    // La ligne d'Office est absente (filtre sur Word) : ses droits propres
+    // sont lus dans droitsPropres, pas dans les lignes.
+    const [word] = appliquerHeritageComposes([ligne(WORD, 5, 12)], compositionOffice, new Map([[OFFICE, 10], [WORD, 5]]));
+    assert.equal(word.droits_total, 15);
+    // Sans table, l'heritage se limite aux lignes presentes.
+    const [seul] = appliquerHeritageComposes([ligne(WORD, 5, 12)], compositionOffice);
+    assert.equal(seul.droits_total, 5);
+  });
+
+  test("valorisation : un excedent herite n'est pas valorise sur le composant", () => {
+    // Word : 5 propres + 10 herites, prix 100.
+    const w = (usages) => valoriserBalance(
+      { droits_total: 15, droits_herites: 10, usages_total: usages, prix_unitaire: 100 }, seuils);
+    assert.equal(w(3).ecart, 12);
+    assert.equal(w(3).ecart_valorise, 200);   // excedent propre : 5 - 3
+    assert.equal(w(8).ecart, 7);
+    assert.equal(w(8).ecart_valorise, 0);     // couvert par l'heritage, aucun excedent propre
+    assert.equal(w(18).ecart, -3);
+    assert.equal(w(18).ecart_valorise, -300); // un manque reste valorise en entier
+    assert.equal(w(18).statut_conformite, "depassement");
+  });
+
+  test("sans composition, la balance est celle d'avant la 068", () => {
+    const entree = [ligne("a", 10, 4), ligne("b", 0, 2)];
+    const r = appliquerHeritageComposes(entree, []);
+    assert.deepEqual(r.map((l) => [l.droits_total, l.droits_herites, l.droits_propres]), [[10, 0, 10], [0, 0, 0]]);
+    const b = valoriserBalance({ droits_total: 10, usages_total: 4, prix_unitaire: 50 }, seuils);
+    assert.equal(b.ecart_valorise, 300);
+    assert.equal(b.droits_herites, 0);
+    assert.equal(b.droits_propres, 10);
+    const d = valoriserBalance({ droits_total: 10, usages_total: 14, prix_unitaire: 50 }, seuils);
+    assert.equal(d.ecart_valorise, -200);
   });
 });

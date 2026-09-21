@@ -19,6 +19,14 @@
 //       calculé (aucun pourcentage sans sens), le statut est dépassement et
 //       une anomalie qualité usage_sans_droit est ouverte par produit.
 //
+// Règle client du 17/09/2026 (#216), appliquée ici et par la migration 068 :
+//   logiciel composé : un composé regroupe au moins deux logiciels du même
+//       éditeur et porte sa propre licence. Chaque composant est couvert par
+//       héritage : ses droits effectifs sont ses droits propres plus les
+//       droits propres des composés qui le contiennent. L'inverse n'existe
+//       pas (une licence de composant ne couvre jamais le composé) et les
+//       usages de chacun restent les siens.
+//
 // Les fragments SQL attendent l'alias l sur licence. Ce sont des constantes du
 // code, jamais des valeurs de requête : leur interpolation est sûre.
 //
@@ -206,17 +214,31 @@ export function tauxConformite(droits, usages) {
 
 // Balance complète d'un produit à partir des droits, des usages et du prix
 // unitaire de la dernière commande : mêmes formules que
-// recalculer_precalcul_conformite (046, révisée par 058). Le prix vient
-// toujours de l'appelant (prixUnitaireDerniereCommande ou précalcul), jamais
-// d'un rapport coût / droits.
-export function valoriserBalance({ droits_total, usages_total, prix_unitaire }, seuils) {
+// recalculer_precalcul_conformite (046, révisée par 058 puis 068). Le prix
+// vient toujours de l'appelant (prixUnitaireDerniereCommande ou précalcul),
+// jamais d'un rapport coût / droits.
+//
+// #216 : droits_total est le droit effectif, héritage compris ;
+// droits_herites (0 par défaut) en est la part venue des composés. L'écart,
+// le taux et le statut se lisent sur le droit effectif. La valorisation d'un
+// excédent, elle, ne porte que sur les droits propres : les droits hérités
+// sont déjà valorisés sur la ligne du composé, au prix du composé, et les
+// compter une seconde fois au prix du composant gonflerait la
+// sous-utilisation. Un manque (écart négatif) reste valorisé en entier au
+// prix du composant. Sans héritage, la formule est celle d'avant la 068.
+export function valoriserBalance({ droits_total, droits_herites = 0, usages_total, prix_unitaire }, seuils) {
   const droits = Number(droits_total) || 0;
+  const herites = Math.min(Math.max(Number(droits_herites) || 0, 0), droits);
+  const propres = droits - herites;
   const usages = Number(usages_total) || 0;
   const prix = prix_unitaire == null ? null : Number(prix_unitaire);
   const ecart = droits - usages;
-  const val = prix == null ? null : arrondi2(ecart * prix);
+  const ecartValorisable = ecart < 0 ? ecart : Math.max(propres - usages, 0);
+  const val = prix == null ? null : arrondi2(ecartValorisable * prix);
   return {
     droits_total: droits,
+    droits_propres: propres,
+    droits_herites: herites,
     usages_total: usages,
     ecart,
     ecart_pct: tauxConformite(droits, usages),
@@ -225,4 +247,59 @@ export function valoriserBalance({ droits_total, usages_total, prix_unitaire }, 
     usage_sans_droit: droits === 0 && usages > 0,
     statut_conformite: statutConformite(droits, usages, val, seuils),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Logiciels composés : héritage des droits (#216, règle client du 17/09/2026)
+// ---------------------------------------------------------------------------
+
+// Droits hérités par composant : somme des droits PROPRES des composés qui le
+// contiennent. compositions : [{ id_produit_compose, id_produit_composant }]
+// (table produit_composition, 068). droitsPropres : Map ou objet
+// id_produit -> droits actifs propres, sur le périmètre observé.
+//
+// Trois garde-fous, tous déjà tenus par la base et par l'API, répétés ici
+// parce que la fonction est la définition de la règle :
+//   - sens unique : seul le couple (composé -> composant) transmet, jamais
+//     l'inverse ;
+//   - un seul niveau : ce sont les droits propres du composé qui se
+//     transmettent, jamais ce qu'il aurait lui-même hérité (un composé ne peut
+//     pas être composant en v0.5, la règle tient même sur une donnée fautive) ;
+//   - un couple répété ou réflexif ne compte pas.
+export function droitsHeritesParComposant(droitsPropres, compositions = []) {
+  const lire = droitsPropres instanceof Map
+    ? (id) => droitsPropres.get(id)
+    : (id) => (droitsPropres ?? {})[id];
+  const herites = new Map();
+  const vus = new Set();
+  for (const c of compositions ?? []) {
+    const compose = c?.id_produit_compose, composant = c?.id_produit_composant;
+    if (!compose || !composant || compose === composant) continue;
+    const cle = `${compose}>${composant}`;
+    if (vus.has(cle)) continue;
+    vus.add(cle);
+    const droits = Number(lire(compose)) || 0;
+    if (droits > 0) herites.set(composant, (herites.get(composant) ?? 0) + droits);
+  }
+  return herites;
+}
+
+// Pose l'héritage sur des lignes de balance dont droits_total vaut les droits
+// propres : chaque ligne ressort avec droits_propres, droits_herites et
+// droits_total = propres + hérités. Les usages ne bougent pas. Les droits
+// propres des composés sont lus dans droitsPropres quand il est fourni (cas
+// d'une liste filtrée, où la ligne du composé peut manquer), sinon dans les
+// lignes elles-mêmes. L'héritage complète une ligne qui existe ; il n'en crée
+// pas : un composant sans licence propre n'a aucun usage déclarable (une
+// affectation passe par une licence), une ligne faite de seuls droits hérités
+// compterait deux fois les mêmes droits comme excédent.
+export function appliquerHeritageComposes(lignes = [], compositions = [], droitsPropres = null) {
+  const propres = droitsPropres
+    ?? new Map(lignes.map((l) => [l.id_produit, Number(l.droits_total) || 0]));
+  const herites = droitsHeritesParComposant(propres, compositions);
+  return lignes.map((l) => {
+    const p = Number(l.droits_total) || 0;
+    const h = herites.get(l.id_produit) ?? 0;
+    return { ...l, droits_propres: p, droits_herites: h, droits_total: p + h };
+  });
 }
