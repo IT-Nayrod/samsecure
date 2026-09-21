@@ -26,12 +26,22 @@
 // filtré) et ecart_valorise_pct (écart valorisé rapporté à ce parc), jamais
 // un montant absolu seul. Les deux chemins (précalcul et calcul à la volée)
 // appliquent les mêmes règles.
+//
+// Logiciels composés (#216, règle client du 17/09/2026, migration 068) : les
+// droits effectifs d'un composant incluent les droits propres des composés
+// qui le contiennent, les usages de chacun restent les siens, et jamais une
+// licence de composant ne couvre le composé. Chaque ligne sert droits_total
+// (droit effectif), droits_propres et droits_herites. Le précalcul porte la
+// règle en SQL (068) ; le calcul à la volée par société l'applique par la
+// fonction pure appliquerHeritageComposes, sur le même périmètre que les
+// droits : les licences du composé payées par la société observée.
 import express from "express";
 import { tenantPool, commonPool } from "../db.js";
 import { succes, erreur } from "../utils/reponse.js";
 import { permissionsEffectives } from "../utils/droitsUtilisateur.js";
 import {
   LICENCE_EXPIREE, seuilsConformite, prixUnitaireDerniereCommande, valoriserBalance,
+  appliquerHeritageComposes,
 } from "../utils/conformite.js";
 
 const router = express.Router();
@@ -138,7 +148,9 @@ const LATERAL_COUT_ACTIF = (refProduit) => `
 async function lignesDepuisPrecalcul({ idProduit, idsProduits }) {
   const { rows } = await tenantPool.query(
     `SELECT pc.id_produit,
-            pc.droits_total, pc.usages_total, pc.ecart,
+            pc.droits_total, pc.droits_herites,
+            (pc.droits_total - pc.droits_herites) AS droits_propres,
+            pc.usages_total, pc.ecart,
             pc.ecart_pct::float8      AS ecart_pct,
             pc.prix_unitaire::float8  AS prix_unitaire,
             pc.ecart_valorise::float8 AS ecart_valorise,
@@ -160,10 +172,21 @@ async function lignesDepuisPrecalcul({ idProduit, idsProduits }) {
   return rows.map((r) => ({ ...r, usage_sans_droit: r.droits_total === 0 && r.usages_total > 0 }));
 }
 
+// Couples (composé, composant) du tenant (068). Une requête par réponse.
+async function compositionsDesLogiciels() {
+  const { rows } = await tenantPool.query(
+    `SELECT id_produit_compose, id_produit_composant FROM produit_composition`);
+  return rows;
+}
+
 // Calcul à la volée restreint à une société. Droits : licences payées par la
 // société (chaîne licence -> commande -> société, doctrine budget). Usages :
 // affectations déclarées par la société (affectation.id_societe), comme le
 // décompte 4106. Les deux axes diffèrent par construction, hypothèse v0.5.
+// #216 : la balance est lue pour tous les logiciels de la société, l'héritage
+// des composés est posé, puis seulement les filtres de logiciel s'appliquent.
+// Filtrer en SQL ferait disparaître la ligne du composé avant que ses droits
+// n'aient été transmis au composant demandé.
 async function lignesPourSociete(idSociete, { idProduit, idsProduits }, seuils) {
   const { rows } = await tenantPool.query(
     `WITH droits AS (
@@ -193,13 +216,13 @@ async function lignesPourSociete(idSociete, { idProduit, idsProduits }, seuils) 
             un.label AS unite
        FROM droits d
        FULL JOIN usages u ON u.id_produit = d.id_produit
-       ${LATERAL_UNITE("coalesce(d.id_produit, u.id_produit)")}
-      WHERE ($2::uuid IS NULL OR coalesce(d.id_produit, u.id_produit) = $2::uuid)
-        AND ($3::uuid[] IS NULL OR coalesce(d.id_produit, u.id_produit) = ANY($3::uuid[]))`,
-    [idSociete, idProduit || null, idsProduits || null]);
+       ${LATERAL_UNITE("coalesce(d.id_produit, u.id_produit)")}`,
+    [idSociete]);
 
+  const retenus = idsProduits ? new Set(idsProduits) : null;
   const maintenant = new Date().toISOString();
-  return rows
+  return appliquerHeritageComposes(rows, await compositionsDesLogiciels())
+    .filter((r) => (!idProduit || r.id_produit === idProduit) && (!retenus || retenus.has(r.id_produit)))
     .filter((r) => r.droits_total > 0 || r.usages_total > 0)
     .map((r) => valoriser(r, seuils, maintenant));
 }
@@ -209,13 +232,16 @@ async function lignesPourSociete(idSociete, { idProduit, idsProduits }, seuils) 
 // (046, révisée par 058). Le prix unitaire est celui de la dernière commande
 // parmi les lignes du périmètre observé (D52) ; un produit dont la société
 // n'a payé aucune licence n'a pas de prix, son écart valorisé est null.
+// r.droits_total est le droit effectif, r.droits_herites sa part héritée des
+// composés (#216), posés par appliquerHeritageComposes.
 function valoriser(r, seuils, derniereMaj) {
   const prix = prixUnitaireDerniereCommande(r.lignes_prix ?? []);
   return {
     id_produit: r.id_produit,
     unite: r.unite ?? null,
     ...valoriserBalance(
-      { droits_total: r.droits_total, usages_total: r.usages_total, prix_unitaire: prix }, seuils),
+      { droits_total: r.droits_total, droits_herites: r.droits_herites ?? 0,
+        usages_total: r.usages_total, prix_unitaire: prix }, seuils),
     cout_actif: arrondi2(Number(r.cout_actif) || 0),
     derniere_maj: derniereMaj,
   };
@@ -371,16 +397,25 @@ async function synthesesParSociete(seuils) {
        FULL JOIN usages u ON u.id_societe = d.id_societe AND u.id_produit = d.id_produit
        LEFT JOIN societe s ON s.id = coalesce(d.id_societe, u.id_societe)`);
 
+  // #216 : l'héritage se pose société par société, sur les droits que la
+  // société a payés, avant d'écarter les balances vides.
+  const compositions = await compositionsDesLogiciels();
   const maintenant = new Date().toISOString();
   const parSociete = new Map();
   for (const r of rows) {
-    if (!(r.droits_total > 0 || r.usages_total > 0)) continue;
     const groupe = parSociete.get(r.id_societe)
-      || { id_societe: r.id_societe, societe_label: r.societe_label, lignes: [] };
-    groupe.lignes.push(valoriser(r, seuils, maintenant));
+      || { id_societe: r.id_societe, societe_label: r.societe_label, brutes: [] };
+    groupe.brutes.push(r);
     parSociete.set(r.id_societe, groupe);
   }
   return [...parSociete.values()]
+    .map((g) => ({
+      ...g,
+      lignes: appliquerHeritageComposes(g.brutes, compositions)
+        .filter((r) => r.droits_total > 0 || r.usages_total > 0)
+        .map((r) => valoriser(r, seuils, maintenant)),
+    }))
+    .filter((g) => g.lignes.length > 0)
     .map((g) => ({ id_societe: g.id_societe, societe_label: g.societe_label, ...agregatsDe(g.lignes) }))
     .sort((a, b) => String(a.societe_label).localeCompare(String(b.societe_label), "fr"));
 }

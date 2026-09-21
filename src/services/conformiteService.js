@@ -21,8 +21,10 @@ function query(filtres = {}) {
 
 export const conformiteService = {
   // Lignes par produit { id_produit, produit_label, id_editeur, editeur_label,
-  // unite, droits_total, usages_total, ecart, ecart_pct, prix_unitaire,
-  // ecart_valorise, statut_conformite, derniere_maj } + agrégats
+  // unite, droits_total, droits_propres, droits_herites, usages_total, ecart,
+  // ecart_pct, prix_unitaire, ecart_valorise, statut_conformite, derniere_maj }
+  // (#216 : droits_total est le droit effectif, droits_herites la part venue
+  // des logiciels composés qui contiennent le logiciel) + agrégats
   // { nb_produits, nb_depassement, nb_attention, nb_conforme,
   // ecart_valorise_negatif, ecart_valorise_positif, derniere_maj }.
   // Filtres acceptés : id_societe, id_editeur, id_produit.

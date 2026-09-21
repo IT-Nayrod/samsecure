@@ -4,6 +4,12 @@
 // valeur est enregistrée comme complément du client (migration 063) par
 // l'API, qui refuse les doublons à la casse et aux accents près (4037). La
 // déclinaison créée est rendue au parent, qui la sélectionne.
+//
+// #217 : le même geste sert la fiche logiciel de Référentiels. ajouter
+// (facultatif) remplace l'appel par défaut : la fiche d'un logiciel créé
+// localement y branche ses propres routes (/logiciels/:id/versions et
+// /editions), celle d'un logiciel du catalogue garde les compléments. Dans
+// les deux cas le refus de doublon reste celui du serveur, affiché tel quel.
 import { useState } from 'react';
 import { Plus, Check, X } from 'lucide-react';
 import { licencesService } from '../../services/licencesService';
@@ -16,7 +22,7 @@ const LIBELLES = {
   editions: { bouton: 'Ajouter une édition', placeholder: 'Ex. Standard, Enterprise', succes: 'Édition ajoutée.' },
 };
 
-export default function LicenceDeclinaisonAjout({ type, idProduit, onAjout, disabled = false }) {
+export default function LicenceDeclinaisonAjout({ type, idProduit, onAjout, disabled = false, ajouter = null }) {
   const { addToast } = useToast();
   const [ouvert, setOuvert] = useState(false);
   const [label, setLabel] = useState('');
@@ -30,9 +36,10 @@ export default function LicenceDeclinaisonAjout({ type, idProduit, onAjout, disa
     if (!valeur || !idProduit) return;
     setLoading(true);
     try {
-      const creee = type === 'versions'
-        ? await licencesService.complements.ajouterVersion(idProduit, valeur)
-        : await licencesService.complements.ajouterEdition(idProduit, valeur);
+      const parDefaut = type === 'versions'
+        ? licencesService.complements.ajouterVersion
+        : licencesService.complements.ajouterEdition;
+      const creee = await (ajouter ?? parDefaut)(idProduit, valeur);
       addToast({ type: 'success', message: textes.succes });
       onAjout(creee);
       fermer();

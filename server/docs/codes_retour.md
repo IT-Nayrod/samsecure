@@ -1424,3 +1424,58 @@ local »). Hors du lot, trois routes émettent encore un message propre avec
 affectations.js (4118, deux occurrences), conformite.js (4312) et
 logiciels.js (5313, 5314). À réécrire dans leur chantier respectif ; le 4300
 (succès) est servi avec le libellé du catalogue, donc aligné par la 059.
+
+## Logiciels composés (#216, règle client du 17/09/2026, migrations 068 et 069)
+
+Un logiciel composé regroupe deux logiciels ou plus du même éditeur (Office,
+composé de Word et d'Excel). Il porte sa propre licence ; chaque composant est
+couvert par héritage par la licence du composé ; l'inverse n'existe pas. La
+composition vit en Tenant (`produit_composition`, 068), sur un logiciel du
+catalogue comme sur un logiciel créé localement, sans aucune écriture en
+Commune. Un seul niveau en v0.5 : un composé n'est jamais composant.
+
+Codes pris dans la plage licences (4000-4099), premiers libres en bloc après
+4059 : la composition n'existe que pour l'héritage des droits. Les routes
+vivent dans `logiciels.js` (fiche de Référentiels > Logiciels), permission
+`gerer_referentiels`.
+
+| Code | Type | Libellé | Émis par |
+|------|------|---------|----------|
+| 4060 | succes | Composant ajouté au logiciel composé | POST /api/logiciels/:id/composants (201, corps `{ id_produit_composant }`, data = `{ id, label, source }` du composant) |
+| 4061 | succes | Composant retiré du logiciel composé | DELETE /api/logiciels/:id/composants/:idComposant (data null) |
+| 4062 | erreur | Logiciel composant introuvable | POST (400 : identifiant absent, mal formé ou inconnu des deux bases ; 5310 en 404 quand c'est le composé qui est inconnu) |
+| 4063 | erreur | Un logiciel ne peut pas être son propre composant | POST (409) |
+| 4064 | erreur | Le composant doit appartenir au même éditeur que le logiciel composé | POST (409, message rendu avec les libellés ; aussi quand l'éditeur de l'un des deux n'est pas renseigné, la règle n'étant alors pas vérifiable) |
+| 4065 | erreur | Ce logiciel fait déjà partie de la composition | POST (409, unicité du couple) |
+| 4066 | erreur | Un logiciel composé ne peut pas être composant d'un autre logiciel composé | POST (409, deux cas rendus : le composant visé est lui-même composé, ou le composé visé est déjà composant ; garde SQL par trigger en 068) |
+| 4067 | erreur | Ce logiciel ne fait pas partie de la composition | DELETE (404, couple absent ou identifiant mal formé) |
+| 4068 | trace | Composant ajouté à un logiciel composé | audit_log, action PRODUIT_COMPOSITION_AJOUTEE (entite_type produit_composition) |
+| 4069 | trace | Composant retiré d'un logiciel composé | audit_log, action PRODUIT_COMPOSITION_RETIREE |
+
+Lectures, sans nouveau code :
+- GET /api/logiciels (5300) sert `nb_composants` et `nb_composes` sur chaque
+  ligne ; GET /api/logiciels/:id (5301) sert `composants` et `composes`
+  (`{ id, label, source, editeur_label }`, libellé null pour un identifiant
+  que plus aucune base ne connaît) et `composition_incomplete` (un seul
+  composant saisi, la règle en demande deux) ;
+- DELETE /api/logiciels/:id (5317) compte les liens de composition parmi les
+  rattachements bloquants (`details.compositions`), `supprimable` en tient
+  compte ;
+- GET /api/conformite (4300) sert `droits_total` (droit effectif),
+  `droits_propres` et `droits_herites` sur chaque ligne. Règle : droits
+  effectifs d'un composant = droits propres + droits propres des composés qui
+  le contiennent ; usages propres à chacun ; un manque est valorisé en
+  entier, un excédent seulement sur les droits propres (les droits hérités
+  sont déjà valorisés sur la ligne du composé). L'héritage complète la ligne
+  d'un logiciel porteur d'une licence, il n'en crée pas.
+
+### Compléments depuis la fiche logiciel (#217)
+
+Aucun nouveau code. La fiche de Référentiels > Logiciels réutilise les routes
+existantes : POST /api/produits/:id/versions et /editions (4034 à 4037,
+permission `saisir_licence`) pour un logiciel du catalogue, POST
+/api/logiciels/:id/versions et /editions (5305, 5307, 5318 à 5321, permission
+`gerer_referentiels`) pour un logiciel créé localement. GET /api/logiciels et
+GET /api/logiciels/:id fusionnent désormais les compléments de la 063 aux
+versions et éditions du catalogue ; chaque déclinaison porte `source`
+(`catalogue`, `complement` ou `client`).

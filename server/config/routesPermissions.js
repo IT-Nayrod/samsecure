@@ -233,6 +233,10 @@ export const ROUTES_PERMISSIONS = [
   ["DELETE", "/logiciels/:id/versions/:idDecl",    "gerer_referentiels"],
   ["POST",   "/logiciels/:id/editions",            "gerer_referentiels"],
   ["DELETE", "/logiciels/:id/editions/:idDecl",    "gerer_referentiels"],
+  // Composition d'un logiciel compose (#216, migration 068) : fait du
+  // referentiel, ecrit en Tenant y compris sur un logiciel du catalogue.
+  ["POST",   "/logiciels/:id/composants",              "gerer_referentiels"],
+  ["DELETE", "/logiciels/:id/composants/:idComposant", "gerer_referentiels"],
   ["GET",    "/logiciels",                   "consulter_referentiels"],
   ["GET",    "/logiciels/:id",               "consulter_referentiels"],
   ["POST",   "/logiciels",                   "gerer_referentiels"],
