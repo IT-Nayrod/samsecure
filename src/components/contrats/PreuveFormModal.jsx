@@ -20,6 +20,19 @@
 // Le type facture emprunte le circuit facture existant, POST /factures/depot
 // (objet unique facture-preuve, validation unique, budget engagé et détection
 // des manques inchangés) ; les autres types gardent le circuit preuve simple.
+// Retour de recette du 16/09 (#99) : le circuit se décide au moment du dépôt
+// sur le code du type choisi, le fichier part dans la même requête que la
+// facture, et le serveur refuse désormais (3234) une preuve de type Facture
+// qui n'emprunterait pas ce circuit : aucune facture ne peut plus naître sans
+// sa facture ni sans son fichier. Un échec du second appel du circuit simple
+// (preuve créée, fichier refusé) reste affiché dans la modale : la page n'est
+// rechargée qu'à sa fermeture, sinon le rechargement démontait la modale et le
+// message avec elle, laissant une preuve sans pièce et sans explication.
+// Date de la preuve (#214, migration 066) : date métier du document (date de
+// la facture, du bon, du certificat), distincte de la date de dépôt, commune à
+// tous les types et facultative. Champ fixe du formulaire et non ligne de la
+// définition par type : la 060 rattache chaque champ à un code de type, il
+// n'existe pas de champ commun à tous les types dans cette mécanique.
 import { useState, useEffect, useMemo } from 'react';
 import SlideOver from '../ui/SlideOver';
 import Button from '../ui/Button';
@@ -63,7 +76,7 @@ const TYPE_INPUT = { texte: 'text', nombre: 'number', date: 'date', reference: '
 // comme dans la liste des licences.
 const libelleLicence = (l) => l.label ?? l.produit_label ?? l.id;
 
-const EMPTY = { label: '', id_type_preuve: '', rattachement: 'contrat', id_contrat: '', id_commande: '', id_licence: '', champs: {} };
+const EMPTY = { label: '', date_preuve: '', id_type_preuve: '', rattachement: 'contrat', id_contrat: '', id_commande: '', id_licence: '', champs: {} };
 
 export default function PreuveFormModal({
   isOpen, onClose, onDone, typesPreuve = [],
@@ -74,6 +87,9 @@ export default function PreuveFormModal({
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [erreur, setErreur] = useState(null);
+  // Preuve créée mais fichier refusé (circuit simple) : la modale reste ouverte
+  // sur le message, la liste se recharge à la fermeture.
+  const [partiel, setPartiel] = useState(false);
   // Définition des champs par type, lue à la première ouverture. Son absence
   // (droit refusé, API non migrée) ne bloque pas le dépôt : le formulaire
   // commun suffit, seuls les champs additionnels manquent.
@@ -117,6 +133,7 @@ export default function PreuveFormModal({
     });
     setFile(null);
     setErreur(null);
+    setPartiel(false);
   }, [isOpen, typesPreuve, contratParDefaut, commandeParDefaut, licenceParDefaut]);
 
   const typeChoisi = typesPreuve.find(t => t.id === form.id_type_preuve) ?? null;
@@ -183,14 +200,16 @@ export default function PreuveFormModal({
     return valeurs;
   }
 
-  // Circuit facture (#204) : un seul appel, le fichier, la preuve support et la
+  // Circuit facture (#204) : un seul appel multipart (champ « fichier » attendu
+  // par multer côté POST /factures/depot), le fichier, la preuve support et la
   // facture naissent ensemble ou pas du tout, rien à rattraper en cas d'échec.
-  async function deposerFacture() {
+  async function deposerFacture(fichier) {
     await facturesService.deposer({
-      file,
+      file: fichier,
       label: form.label.trim(),
       idCommande: form.id_commande,
       idTypePreuve: form.id_type_preuve,
+      datePreuve: form.date_preuve || null,
       champs: valeursChamps(),
     });
     onDone({ type: 'success', message: 'Facture enregistrée avec son justificatif.' });
@@ -198,11 +217,12 @@ export default function PreuveFormModal({
   }
 
   // Circuit preuve simple : création puis dépôt du fichier.
-  async function deposerPreuve() {
+  async function deposerPreuve(fichier) {
     let creee = null;
     try {
       creee = await preuvesService.create({
         label: form.label.trim(),
+        date_preuve: form.date_preuve || null,
         id_type_preuve: form.id_type_preuve,
         // Un seul rattachement part au serveur, les deux autres sont nuls.
         id_contrat: form.rattachement === 'contrat' ? form.id_contrat : null,
@@ -214,28 +234,46 @@ export default function PreuveFormModal({
         url_fichier: 'en-attente-de-depot',
         ...valeursChamps(),
       });
-      await preuvesService.deposerFichier(creee.id, file);
+      await preuvesService.deposerFichier(creee.id, fichier);
       onDone({ type: 'success', message: 'Preuve déposée.' });
       onClose();
     } catch (err) {
       setErreur(creee
         ? `La preuve a été créée mais le fichier n'a pas pu être déposé : ${err.message} Reprenez le dépôt depuis sa fiche.`
         : err.message);
-      if (creee) onDone(null);
+      // La liste ne se recharge qu'à la fermeture : recharger ici démontait
+      // la modale avant que le message ne soit lu.
+      if (creee) setPartiel(true);
     }
   }
 
   async function handleSave() {
+    // Le circuit se décide ici, sur l'état du formulaire au moment du dépôt :
+    // code du type choisi (référentiel type_preuve, jamais le libellé) et
+    // fichier sélectionné, tous deux relus plutôt que capturés plus tôt.
+    const fichier = file;
+    const type = typesPreuve.find(t => t.id === form.id_type_preuve) ?? null;
+    if (!fichier || !type) {
+      setErreur(!fichier ? 'Sélectionnez le fichier à déposer.' : 'Sélectionnez le type de preuve.');
+      return;
+    }
     setLoading(true);
     setErreur(null);
     try {
-      if (circuitFacture) await deposerFacture();
-      else await deposerPreuve();
+      if (type.code === CODE_TYPE_FACTURE) await deposerFacture(fichier);
+      else await deposerPreuve(fichier);
     } catch (err) {
       setErreur(err.message);
     } finally {
       setLoading(false);
     }
+  }
+
+  // Fermeture : après un dépôt partiel, l'appelant recharge sa liste (la
+  // preuve existe, sans fichier) une fois le message lu.
+  function fermer() {
+    if (partiel) onDone(null);
+    onClose();
   }
 
   // Seuls les objets réellement proposables apparaissent dans le choix du
@@ -246,13 +284,13 @@ export default function PreuveFormModal({
   return (
     <SlideOver
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={fermer}
       title="Déposer une preuve"
       size="md"
       footer={
         <>
-          <Button variant="secondary" onClick={onClose} disabled={loading}>Annuler</Button>
-          <Button variant="primary" onClick={handleSave} isLoading={loading} disabled={!complet}>Déposer</Button>
+          <Button variant="secondary" onClick={fermer} disabled={loading}>{partiel ? 'Fermer' : 'Annuler'}</Button>
+          {!partiel && <Button variant="primary" onClick={handleSave} isLoading={loading} disabled={!complet}>Déposer</Button>}
         </>
       }
     >
@@ -263,10 +301,16 @@ export default function PreuveFormModal({
         <FormField label="Fichier" required>
           <DocumentUploadField file={file} onChange={setFile} disabled={loading} />
         </FormField>
-        <FormField label="Libellé" required>
-          <input className={INPUT_CLS} value={form.label} autoFocus
-            onChange={e => setForm(v => ({ ...v, label: e.target.value }))} />
-        </FormField>
+        <div className="grid grid-cols-2 gap-4">
+          <FormField label="Libellé" required>
+            <input className={INPUT_CLS} value={form.label} autoFocus
+              onChange={e => setForm(v => ({ ...v, label: e.target.value }))} />
+          </FormField>
+          <FormField label="Date de la preuve" hint="Date du document, distincte du dépôt">
+            <input type="date" className={INPUT_CLS} value={form.date_preuve}
+              onChange={e => setForm(v => ({ ...v, date_preuve: e.target.value }))} />
+          </FormField>
+        </div>
         <div className="grid grid-cols-2 gap-4">
           <FormField label="Rattachée à" required hint={rattachementImpose ? `Imposé par le type ${typeChoisi?.label ?? ''}` : undefined}>
             <select className={INPUT_CLS} value={form.rattachement} disabled={!!rattachementImpose}

@@ -208,6 +208,13 @@ export const ROUTES_PERMISSIONS = [
   ["GET",    "/editeurs",                    "consulter_referentiels"],
   ["GET",    "/revendeurs",                  "consulter_referentiels"],
   ["GET",    "/modes-commande",              "consulter_referentiels"],
+  // Definition des champs par type de preuve (#204, preuves.js, migrations 060
+  // et 061) : referentiel de formulaire, pas une donnee metier, lisible par
+  // tout profil authentifie comme les preferences et la configuration. Route
+  // absente de la table jusqu'ici, donc refusee (3400) en mode strict : la
+  // modale retombait sur le formulaire commun. Chemin litteral declare avant
+  // /types-preuve, comme les autres litteraux.
+  ["GET",    "/types-preuve/champs",         PUBLIC_AUTHENTIFIE],
   ["GET",    "/types-preuve",                "consulter_referentiels"],
 
   // ---- Referentiels du module 1 : editeurs et logiciels ---------------------
@@ -282,6 +289,8 @@ export const ROUTES_PERMISSIONS = [
   ["DELETE", "/utilisateurs/:id/societes/:societeId",           "gerer_utilisateurs"],
   ["DELETE", "/utilisateurs/:id/rattachement-tenant",           "gerer_utilisateurs"],
   ["GET",    "/attributions",                                   "gerer_utilisateurs"],
+  // Chemin litteral avant les chemins parametres (#212).
+  ["POST",   "/utilisateurs/desactivation",                     "gerer_utilisateurs"],
   ["GET",    "/utilisateurs",                                   "gerer_utilisateurs"],
   ["POST",   "/utilisateurs",                                   "gerer_utilisateurs"],
   ["PATCH",  "/utilisateurs/:id",                               "gerer_utilisateurs"],

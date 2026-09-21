@@ -96,11 +96,14 @@ export function commandesPourMaintenance(commandes = [], idContrat = null) {
 
 // Échéance prolongeable d'une licence, même règle que l'API (4026) : la date
 // de fin de souscription quand le type en porte une, sinon la fin de la
-// maintenance en cours d'une licence sous maintenance non arrêtée.
+// période de maintenance de référence d'une licence non arrêtée. Depuis la
+// #201, statut_maintenance et date_fin_maintenance sont dérivés des périodes
+// par l'API (server/utils/maintenanceLicence.js), plus aucun attribut direct
+// « sous maintenance » n'est lu.
 export function echeanceProlongeable(licence) {
   if (!licence) return null;
   if (licence.date_fin_souscription) return { mode: 'souscription', date: licence.date_fin_souscription };
-  if (licence.a_maintenance && licence.statut_maintenance !== 'arretee' && licence.date_fin_maintenance) {
+  if (licence.statut_maintenance && licence.statut_maintenance !== 'arretee' && licence.statut_maintenance !== 'aucune' && licence.date_fin_maintenance) {
     return { mode: 'maintenance', date: licence.date_fin_maintenance };
   }
   return null;

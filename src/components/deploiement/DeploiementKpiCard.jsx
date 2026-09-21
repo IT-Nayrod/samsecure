@@ -1,4 +1,4 @@
-// DeploiementKpiCard - carte KPI d'en-tête, réutilisée par Licences, Affectations, Inventaire, Contrats, Commandes et Factures
+// DeploiementKpiCard - carte KPI d'en-tête, réutilisée par Licences, Affectations, Inventaire, Contrats et Commandes
 export default function DeploiementKpiCard({ label, value, color = '#1A1D23', icon: Icon, onClick, active = false }) {
   const Tag = onClick ? 'button' : 'div';
   return (

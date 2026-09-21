@@ -255,15 +255,21 @@ router.get("/commandes/agregats", async (req, res) => {
 //
 // Règle actée en session spec module 2, v0.5 : la complétude se contrôle au
 // niveau de la commande. Une commande est complète si elle porte au moins une
-// facture (facture.id_commande) ET au moins une preuve rattachée directement à
-// elle (preuve.id_commande).
+// facture ET au moins une preuve rattachée directement à elle
+// (preuve.id_commande).
 //
-// Les deux conditions se testent indépendamment, sans raccourci par la facture.
-// Depuis la résolution E3, facture.id_preuve peut pointer une preuve qui n'est
-// rattachée qu'au contrat : cette preuve là ne complète pas la commande, et
-// passer par facture.id_preuve donnerait un faux complet. De même, une preuve
-// rattachée au seul contrat ne complète jamais la commande : choix v0.5 assumé,
-// à ne pas étendre sans nouvelle décision.
+// Unification de l'affichage (#215, ticket client du 16/09/2026) : « facture »
+// se lit sur le type documentaire, une preuve de type_preuve.code = 'facture'
+// rattachée à la commande, et non plus sur la table facture. Sur les données
+// nées du circuit de dépôt (POST /factures/depot, seul circuit depuis le
+// 11/08, type facture posé par défaut, refus 3234 d'une preuve de type facture
+// hors circuit), chaque ligne facture a sa preuve support de type facture sur
+// la même commande : les deux lectures rendent les mêmes chiffres. Elles
+// divergeraient sur une facture sans preuve (POST /factures nu, jamais produit
+// par l'interface) ou dont la preuve porterait un autre type (type explicite
+// transmis au dépôt) ; requêtes de contrôle dans le journal du chantier.
+// Une preuve rattachée au seul contrat ne complète jamais la commande : choix
+// v0.5 assumé, à ne pas étendre sans nouvelle décision.
 //
 // Codes retour dans la plage documents 3280-3289 et non dans celle des
 // commandes : la ressource est la commande mais la fonctionnalité appartient au
@@ -302,8 +308,9 @@ router.get("/commandes/manques", async (req, res) => {
                 c.id_societe, s.raison_sociale AS societe_label,
                 c.montant::float8     AS montant,
                 c.date_commande::text AS date_commande,
-                NOT EXISTS (SELECT 1 FROM facture f WHERE f.id_commande = c.id) AS facture_manquante,
-                NOT EXISTS (SELECT 1 FROM preuve  p WHERE p.id_commande = c.id) AS preuve_manquante
+                NOT EXISTS (SELECT 1 FROM preuve p JOIN type_preuve tp ON tp.id = p.id_type_preuve
+                             WHERE p.id_commande = c.id AND tp.code = 'facture') AS facture_manquante,
+                NOT EXISTS (SELECT 1 FROM preuve p WHERE p.id_commande = c.id) AS preuve_manquante
            FROM commande c
            LEFT JOIN contrat ct ON ct.id = c.id_contrat
            LEFT JOIN societe sct ON sct.id = ct.id_societe
@@ -344,10 +351,12 @@ router.get("/commandes/:id", async (req, res) => {
     const { rows } = await tenantPool.query(`${SELECT_COMMANDE} WHERE c.id = $1`, [id]);
     if (!rows.length) return erreur(res, 3110, { status: 404, message: "Commande introuvable." });
 
-    // Mêmes compteurs que le garde-fou de suppression : la fiche détail affiche
-    // le nombre réel de rattachements sans dépendre des modules non branchés.
+    // Compteurs de rattachements. nb_preuves compte toutes les preuves de la
+    // commande, support de facture compris ; nb_factures (#215) compte celles de
+    // type documentaire facture, même lecture que la détection des manques.
     const { rows: [liens] } = await tenantPool.query(
-      `SELECT (SELECT count(*) FROM facture WHERE id_commande = $1)::int AS nb_factures,
+      `SELECT (SELECT count(*) FROM preuve p JOIN type_preuve tp ON tp.id = p.id_type_preuve
+                WHERE p.id_commande = $1 AND tp.code = 'facture')::int AS nb_factures,
               (SELECT count(*) FROM preuve  WHERE id_commande = $1)::int AS nb_preuves,
               (SELECT count(*) FROM licence WHERE id_commande = $1)::int AS nb_licences`,
       [id]);
@@ -490,16 +499,23 @@ router.delete("/commandes/:id", async (req, res) => {
     // Quatrième FK depuis la 062 : maintenance_historique.id_commande, sans
     // cascade (une période de maintenance est portée par sa commande). Sans
     // ce compteur, la suppression échouait en 23503 brute remontée en 3199.
+    // Message rendu sans la nature facture (#215) : une facture et sa preuve
+    // support sont une seule pièce à l'écran, comptée une fois ; une facture
+    // sans preuve sur la commande (DDL permissif, jamais produit par
+    // l'interface) compte pour une pièce de plus. details garde les deux
+    // compteurs bruts, qui restent chacun une FK bloquante.
     const { rows: [liens] } = await client.query(
       `SELECT (SELECT count(*) FROM facture               WHERE id_commande = $1) AS factures,
               (SELECT count(*) FROM preuve                WHERE id_commande = $1) AS preuves,
+              (SELECT count(*) FROM facture f WHERE f.id_commande = $1
+                  AND NOT EXISTS (SELECT 1 FROM preuve p WHERE p.id = f.id_preuve AND p.id_commande = f.id_commande)) AS factures_sans_preuve,
               (SELECT count(*) FROM licence               WHERE id_commande = $1) AS licences,
               (SELECT count(*) FROM maintenance_historique WHERE id_commande = $1) AS maintenances`,
       [id]);
 
     const bloquants = [];
-    if (+liens.factures)     bloquants.push(`${liens.factures} facture(s)`);
-    if (+liens.preuves)      bloquants.push(`${liens.preuves} preuve(s)`);
+    const pieces = +liens.preuves + +liens.factures_sans_preuve;
+    if (pieces)              bloquants.push(`${pieces} preuve(s)`);
     if (+liens.licences)     bloquants.push(`${liens.licences} licence(s)`);
     if (+liens.maintenances) bloquants.push(`${liens.maintenances} période(s) de maintenance`);
 
