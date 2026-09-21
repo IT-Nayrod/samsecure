@@ -28,6 +28,12 @@ function query({ idTypePreuve, idContrat, idCommande, idLicence, datePreuveMin, 
   return s ? `?${s}` : '';
 }
 
+// Preuve externe (#220, migration 072) : create accepte mode ('fichier' par
+// défaut, 'url' ou 'reference'), url_externe ou reference_externe selon le
+// mode, et hash_sha256 saisi à la main, facultatif. Une preuve externe est
+// complète dès create : deposerFichier lui est refusé (3239) et fichierUrl
+// répond 3224, l'écran ouvre lui-même url_externe. Les lignes servies portent
+// mode, url_externe et reference_externe.
 export const preuvesService = {
   list:   (filtres)     => http.get(`/preuves${query(filtres)}`),
   get:    (id)          => http.get(`/preuves/${id}`),
