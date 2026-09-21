@@ -18,6 +18,13 @@
 // Distinct de GET /produits (referentielsLicences.js), qui sert le seul
 // catalogue global au sélecteur du formulaire licence et reste inchangé.
 //
+// Logiciels composés (#216, règle client du 17/09/2026, migration 068) : la
+// composition (produit_composition, Tenant) relie un composé à ses composants,
+// tous deux du catalogue ou créés localement. C'est un fait du client, comme
+// les compléments de la 063 : elle s'écrit aussi sur un logiciel du catalogue,
+// sans jamais toucher la Commune. Codes 4060-4069 (migration 069), plage
+// licences : la composition n'existe que pour l'héritage des droits.
+//
 // Enveloppe normalisée, codes 5300-5399 seedés par la migration 041.
 import express from "express";
 import { tenantPool, commonPool } from "../db.js";
@@ -138,6 +145,9 @@ function habiller(ligne, source, editeurs, versions, editions, licences) {
     versions: versions.get(ligne.id) ?? [],
     editions: editions.get(ligne.id) ?? [],
     nb_licences: licences.get(ligne.id) ?? 0,
+    // Composition (#216), posée par poserComposition sur les lectures.
+    nb_composants: 0,
+    nb_composes: 0,
     // Le catalogue global ne se modifie pas depuis un espace client : l'API
     // fait foi, le front n'affiche Éditer et Supprimer que sur sa réponse.
     modifiable: source === "client",
@@ -171,6 +181,42 @@ async function chargerProduitsClient(editeurs, licences, filtreSql = "", params 
     declinaisons(tenantPool, "edition_client", "client"),
   ]);
   return rows.map((r) => habiller({ ...r, sku: null }, "client", editeurs, versions, editions, licences));
+}
+
+// ---- Composition des logiciels composés (#216) ------------------------------
+
+// Les couples de la table, indexés dans les deux sens : composants d'un
+// composé, composés dont un logiciel fait partie. Une requête par réponse.
+async function lireComposition(client) {
+  const { rows } = await client.query(
+    `SELECT id_produit_compose, id_produit_composant FROM produit_composition ORDER BY created_at, id`);
+  const composantsDe = new Map(), composesDe = new Map();
+  const empiler = (index, cle, valeur) => index.set(cle, [...(index.get(cle) ?? []), valeur]);
+  for (const c of rows) {
+    empiler(composantsDe, c.id_produit_compose, c.id_produit_composant);
+    empiler(composesDe, c.id_produit_composant, c.id_produit_compose);
+  }
+  return { composantsDe, composesDe };
+}
+
+function poserComposition(produits, { composantsDe, composesDe }) {
+  return produits.map((p) => ({
+    ...p,
+    nb_composants: composantsDe.get(p.id)?.length ?? 0,
+    nb_composes: composesDe.get(p.id)?.length ?? 0,
+  }));
+}
+
+// Un logiciel par son identifiant, quelle que soit sa base. Sert la
+// composition, qui s'écrit sur les deux origines.
+async function chargerLogiciel(client, id) {
+  if (typeof id !== "string" || !UUID_RE.test(id)) return null;
+  const { rows } = await client.query(
+    `SELECT id, label, id_editeur FROM produit_client WHERE id = $1`, [id]);
+  if (rows.length) return { ...rows[0], source: "client" };
+  const { rows: catalogue } = await commonPool.query(
+    `SELECT id, label, id_editeur FROM produit_referentiel WHERE id = $1`, [id]);
+  return catalogue.length ? { ...catalogue[0], source: "catalogue" } : null;
 }
 
 // ---- Validation -------------------------------------------------------------
@@ -254,13 +300,14 @@ async function chargerProduitClientEcrivable(client, id) {
 router.get("/logiciels", async (req, res) => {
   try {
     const [editeurs, licences] = await Promise.all([editeursParId(), licencesParProduit(tenantPool)]);
-    const [catalogue, client] = await Promise.all([
+    const [catalogue, client, composition] = await Promise.all([
       chargerCatalogue(editeurs, licences),
       chargerProduitsClient(editeurs, licences),
+      lireComposition(tenantPool),
     ]);
     // Tri unique sur le libellé : les deux origines se mêlent dans la liste et
     // dans l'arborescence, la source n'est qu'une colonne.
-    const tous = [...catalogue, ...client].sort((a, b) =>
+    const tous = poserComposition([...catalogue, ...client], composition).sort((a, b) =>
       a.label.localeCompare(b.label, "fr", { numeric: true }));
     succes(res, 5300, tous);
   } catch (err) {
@@ -275,11 +322,12 @@ router.get("/logiciels/:id", async (req, res) => {
     if (!UUID_RE.test(id)) return erreur(res, 5310, { status: 404, message: "Logiciel introuvable." });
 
     const [editeurs, licences] = await Promise.all([editeursParId(), licencesParProduit(tenantPool)]);
-    const [catalogue, client] = await Promise.all([
+    const [catalogue, client, composition] = await Promise.all([
       chargerCatalogue(editeurs, licences),
       chargerProduitsClient(editeurs, licences),
+      lireComposition(tenantPool),
     ]);
-    const tous = [...catalogue, ...client];
+    const tous = poserComposition([...catalogue, ...client], composition);
     const produit = tous.find((p) => p.id === id);
     if (!produit) return erreur(res, 5310, { status: 404, message: "Logiciel introuvable." });
 
@@ -290,13 +338,30 @@ router.get("/logiciels/:id", async (req, res) => {
       ? tous.find((p) => p.id === produit.id_produit_parent) ?? null
       : null;
 
+    // Composition (#216) : un identifiant que plus aucune base ne connaît
+    // ressort avec un libellé null, il doit rester visible pour être retiré.
+    const parId = new Map(tous.map((p) => [p.id, p]));
+    const resume = (idLogiciel) => {
+      const p = parId.get(idLogiciel);
+      return { id: idLogiciel, label: p?.label ?? null, source: p?.source ?? null,
+               editeur_label: p?.editeur_label ?? null };
+    };
+    const composants = (composition.composantsDe.get(id) ?? []).map(resume);
+    const composes = (composition.composesDe.get(id) ?? []).map(resume);
+
     succes(res, 5301, {
       ...produit,
       enfants,
       parent_label: parent?.label ?? null,
+      composants,
+      composes,
+      // Un composé regroupe au moins deux logiciels (règle du 17/09/2026) :
+      // la saisie se fait un composant à la fois, l'écran signale l'entre-deux.
+      composition_incomplete: composants.length === 1,
       // Un produit du catalogue n'est jamais supprimable depuis un espace
       // client, quels que soient ses rattachements.
-      supprimable: produit.modifiable && produit.nb_licences === 0 && enfants.length === 0,
+      supprimable: produit.modifiable && produit.nb_licences === 0 && enfants.length === 0
+        && composants.length === 0 && composes.length === 0,
     });
   } catch (err) {
     console.error("GET /logiciels/:id error", err);
@@ -401,8 +466,10 @@ router.patch("/logiciels/:id", async (req, res) => {
       declinaisons(tenantPool, "version_client", "client"),
       declinaisons(tenantPool, "edition_client", "client"),
     ]);
-    succes(res, 5303,
-      habiller({ ...rows[0], sku: null }, "client", editeurs, versions, editions, licences));
+    const [modifie] = poserComposition(
+      [habiller({ ...rows[0], sku: null }, "client", editeurs, versions, editions, licences)],
+      await lireComposition(tenantPool));
+    succes(res, 5303, modifie);
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("PATCH /logiciels/:id error", err);
@@ -427,14 +494,20 @@ router.delete("/logiciels/:id", async (req, res) => {
     // Les déclinaisons partent en cascade avec le produit (FK ON DELETE
     // CASCADE, migration 040). Licences et sous-produits, eux, bloquent : rien
     // ne doit disparaître sous les pieds du module 3.
+    // La composition (#216) bloque aussi : produit_composition n'a pas de clé
+    // étrangère vers le logiciel (lien logique), une suppression y laisserait
+    // des couples orphelins.
     const { rows: [liens] } = await client.query(
       `SELECT (SELECT count(*) FROM licence        WHERE id_produit = $1)::int        AS licences,
-              (SELECT count(*) FROM produit_client WHERE id_produit_parent = $1)::int AS sous_produits`,
+              (SELECT count(*) FROM produit_client WHERE id_produit_parent = $1)::int AS sous_produits,
+              (SELECT count(*) FROM produit_composition
+                WHERE id_produit_compose = $1 OR id_produit_composant = $1)::int       AS compositions`,
       [id]);
 
     const bloquants = [];
     if (liens.licences) bloquants.push(`${liens.licences} licence(s)`);
     if (liens.sous_produits) bloquants.push(`${liens.sous_produits} sous-produit(s)`);
+    if (liens.compositions) bloquants.push(`${liens.compositions} lien(s) de composition`);
 
     if (bloquants.length) {
       await client.query("ROLLBACK");
@@ -576,6 +649,130 @@ function retirerDeclinaison(type) {
     }
   };
 }
+
+// ---- Composition d'un logiciel composé (#216) --------------------------------
+
+// Ajout d'un composant. Le composé comme le composant peuvent venir du
+// catalogue : la composition est un fait du client, écrit en Tenant. Tous les
+// refus sont rendus lisibles avant l'écriture ; la 068 tient l'unicité du
+// couple et le niveau unique face à une écriture concurrente.
+router.post("/logiciels/:id/composants", async (req, res) => {
+  const { id } = req.params;
+  const idComposant = req.body?.id_produit_composant;
+  const client = await tenantPool.connect();
+  try {
+    await client.query("BEGIN");
+    const refuser = async (code, status, message, details) => {
+      await client.query("ROLLBACK");
+      return erreur(res, code, { status, message, details });
+    };
+
+    const compose = await chargerLogiciel(client, id);
+    if (!compose) return await refuser(5310, 404, "Logiciel introuvable.");
+    const composant = await chargerLogiciel(client, idComposant);
+    if (!composant) return await refuser(4062, 400, "Logiciel composant introuvable.");
+    if (composant.id === compose.id) {
+      return await refuser(4063, 409, "Un logiciel ne peut pas être son propre composant.");
+    }
+
+    // Même éditeur, et éditeur connu des deux côtés : sans éditeur, la règle
+    // n'est pas vérifiable et la composition est refusée.
+    if (!compose.id_editeur || !composant.id_editeur) {
+      const sans = !compose.id_editeur ? compose : composant;
+      return await refuser(4064, 409,
+        `L'éditeur de « ${sans.label} » n'est pas renseigné : un logiciel composé regroupe des logiciels du même éditeur.`);
+    }
+    if (compose.id_editeur !== composant.id_editeur) {
+      return await refuser(4064, 409,
+        `« ${composant.label} » n'appartient pas au même éditeur que « ${compose.label} ».`);
+    }
+
+    const { rows: liens } = await client.query(
+      `SELECT id_produit_compose, id_produit_composant FROM produit_composition
+        WHERE id_produit_compose IN ($1, $2) OR id_produit_composant IN ($1, $2)`,
+      [compose.id, composant.id]);
+    if (liens.some((l) => l.id_produit_compose === compose.id && l.id_produit_composant === composant.id)) {
+      return await refuser(4065, 409, `« ${composant.label} » fait déjà partie de « ${compose.label} ».`);
+    }
+    // Un seul niveau en v0.5 : un composé n'est jamais composant.
+    if (liens.some((l) => l.id_produit_compose === composant.id)) {
+      return await refuser(4066, 409,
+        `« ${composant.label} » est lui-même un logiciel composé : un composé ne peut pas être composant d'un autre composé.`);
+    }
+    if (liens.some((l) => l.id_produit_composant === compose.id)) {
+      return await refuser(4066, 409,
+        `« ${compose.label} » est déjà composant d'un logiciel composé : il ne peut pas devenir composé à son tour.`);
+    }
+
+    const { rows: [cree] } = await client.query(
+      `INSERT INTO produit_composition (id_produit_compose, id_produit_composant, id_auteur)
+       VALUES ($1, $2, $3) RETURNING id`,
+      [compose.id, composant.id, req?.user?.id || null]);
+
+    await log(client, req, "CREATE", "produit_composition", cree.id,
+      `Ajout du composant "${composant.label}" au logiciel compose "${compose.label}"`,
+      { id_produit_compose: compose.id, id_produit_composant: composant.id });
+    // code_retour: 4068
+    await auditer(client, req, {
+      action: "PRODUIT_COMPOSITION_AJOUTEE", entiteType: "produit_composition", entiteId: cree.id,
+      apres: { id_produit_compose: compose.id, compose_label: compose.label,
+               id_produit_composant: composant.id, composant_label: composant.label },
+    });
+
+    await client.query("COMMIT");
+    succes(res, 4060, { id: composant.id, label: composant.label, source: composant.source }, { status: 201 });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("POST /logiciels/:id/composants error", err);
+    erreur(res, 5399, { status: 500, message: "Erreur serveur" });
+  } finally {
+    client.release();
+  }
+});
+
+// Retrait d'un composant. Le couple est dans la clause : seul un composant de
+// CE composé se retire par cette route. Un identifiant devenu orphelin (son
+// logiciel n'existe plus) reste retirable, d'où l'absence de contrôle
+// d'existence du composant.
+router.delete("/logiciels/:id/composants/:idComposant", async (req, res) => {
+  const { id, idComposant } = req.params;
+  const client = await tenantPool.connect();
+  try {
+    await client.query("BEGIN");
+    if (!UUID_RE.test(id) || !UUID_RE.test(idComposant)) {
+      await client.query("ROLLBACK");
+      return erreur(res, 4067, { status: 404, message: "Ce logiciel ne fait pas partie de la composition." });
+    }
+
+    const { rows } = await client.query(
+      `DELETE FROM produit_composition
+        WHERE id_produit_compose = $1 AND id_produit_composant = $2 RETURNING id`,
+      [id, idComposant]);
+    if (!rows.length) {
+      await client.query("ROLLBACK");
+      return erreur(res, 4067, { status: 404, message: "Ce logiciel ne fait pas partie de la composition." });
+    }
+
+    const [compose, composant] = [await chargerLogiciel(client, id), await chargerLogiciel(client, idComposant)];
+    await log(client, req, "DELETE", "produit_composition", rows[0].id,
+      `Retrait du composant "${composant?.label ?? idComposant}" du logiciel compose "${compose?.label ?? id}"`, null);
+    // code_retour: 4069
+    await auditer(client, req, {
+      action: "PRODUIT_COMPOSITION_RETIREE", entiteType: "produit_composition", entiteId: rows[0].id,
+      avant: { id_produit_compose: id, compose_label: compose?.label ?? null,
+               id_produit_composant: idComposant, composant_label: composant?.label ?? null },
+    });
+
+    await client.query("COMMIT");
+    succes(res, 4061, null);
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("DELETE /logiciels/:id/composants/:idComposant error", err);
+    erreur(res, 5399, { status: 500, message: "Erreur serveur" });
+  } finally {
+    client.release();
+  }
+});
 
 router.post("/logiciels/:id/versions", ajouterDeclinaison("versions"));
 router.delete("/logiciels/:id/versions/:idDeclinaison", retirerDeclinaison("versions"));
