@@ -33,6 +33,16 @@
 // tous les types et facultative. Champ fixe du formulaire et non ligne de la
 // définition par type : la 060 rattache chaque champ à un code de type, il
 // n'existe pas de champ commun à tous les types dans cette mécanique.
+// Preuve externe (#220, règle client du 17/09/2026, migration 072) : un choix de
+// mode en tête du formulaire. Fichier garde le dépôt décrit ci-dessus ; URL
+// externe et Référence remplacent la zone de fichier par leur champ, plus une
+// empreinte SHA-256 facultative saisie à la main (le document vit ailleurs,
+// SamSecure ne peut pas la calculer). Type, rattachement et champs par type
+// sont identiques dans les trois modes. Une preuve externe naît d'un seul
+// appel (POST /preuves), sans second temps à rattraper. Le type Facture reste
+// réservé au mode fichier, le circuit facture exigeant le document : il n'est
+// pas proposé en mode externe, et le serveur le refuse (3238) pour tout autre
+// client de l'API.
 import { useState, useEffect, useMemo } from 'react';
 import SlideOver from '../ui/SlideOver';
 import Button from '../ui/Button';
@@ -40,6 +50,7 @@ import FormField from '../ui/FormField';
 import DocumentUploadField from './DocumentUploadField';
 import { preuvesService, facturesService, typesPreuveService } from '../../services/documentsService';
 import { libelleContrat } from './libelleContrat';
+import { MODES_PREUVE, SHA256_RE, urlExterneSure } from './preuveAffichage';
 
 const INPUT_CLS = 'w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white';
 
@@ -72,11 +83,26 @@ const CHAMPS_COMMUNS = ['label', ...RATTACHEMENTS.map(r => r.champ)];
 // référence hors rattachement est saisie comme un identifiant.
 const TYPE_INPUT = { texte: 'text', nombre: 'number', date: 'date', reference: 'text' };
 
+// Types proposables pour un rattachement et un mode. Fonction pure, partagée
+// par la liste affichée et par les changements de rattachement et de mode, qui
+// doivent retomber sur la même liste pour décider du type conservé.
+function typesPour(typesPreuve, rattachement, mode) {
+  const codes = TYPES_PAR_RATTACHEMENT[rattachement] ?? [];
+  const filtres = codes.map(code => typesPreuve.find(t => t.code === code)).filter(Boolean);
+  const liste = filtres.length ? filtres : typesPreuve;
+  return mode === 'fichier' ? liste : liste.filter(t => t.code !== CODE_TYPE_FACTURE);
+}
+
 // Une licence n'a pas toujours de libellé propre : le logiciel fait alors foi,
 // comme dans la liste des licences.
 const libelleLicence = (l) => l.label ?? l.produit_label ?? l.id;
 
-const EMPTY = { label: '', date_preuve: '', id_type_preuve: '', rattachement: 'contrat', id_contrat: '', id_commande: '', id_licence: '', champs: {} };
+const EMPTY = {
+  label: '', date_preuve: '', id_type_preuve: '', rattachement: 'contrat', id_contrat: '', id_commande: '', id_licence: '', champs: {},
+  // Support de la preuve (#220) : le mode et, pour une preuve externe, son
+  // adresse ou sa référence et l'empreinte facultative.
+  mode: 'fichier', url_externe: '', reference_externe: '', hash_sha256: '',
+};
 
 export default function PreuveFormModal({
   isOpen, onClose, onDone, typesPreuve = [],
@@ -110,11 +136,11 @@ export default function PreuveFormModal({
   // Types proposés pour le rattachement courant, dans l'ordre de la décision.
   // Repli sur la liste complète tant que la migration 053 n'a pas été jouée :
   // un formulaire sans aucun type serait bloquant.
-  const typesProposes = useMemo(() => {
-    const codes = TYPES_PAR_RATTACHEMENT[form.rattachement] ?? [];
-    const filtres = codes.map(code => typesPreuve.find(t => t.code === code)).filter(Boolean);
-    return filtres.length ? filtres : typesPreuve;
-  }, [typesPreuve, form.rattachement]);
+  // Le type Facture n'est proposé qu'en mode fichier (#220) : le circuit
+  // facture exige le document.
+  const typesProposes = useMemo(
+    () => typesPour(typesPreuve, form.rattachement, form.mode),
+    [typesPreuve, form.rattachement, form.mode]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -159,11 +185,25 @@ export default function PreuveFormModal({
   // est conservé s'il reste proposé, sinon le premier de la nouvelle liste.
   function choisirRattachement(code) {
     setForm(v => {
-      const codes = TYPES_PAR_RATTACHEMENT[code] ?? [];
-      const proposes = codes.map(c => typesPreuve.find(t => t.code === c)).filter(Boolean);
-      const liste = proposes.length ? proposes : typesPreuve;
+      const liste = typesPour(typesPreuve, code, v.mode);
       const conserve = liste.some(t => t.id === v.id_type_preuve);
       return { ...v, rattachement: code, id_type_preuve: conserve ? v.id_type_preuve : (liste[0]?.id ?? ''), champs: {} };
+    });
+  }
+
+  // Changer de mode (#220) : même règle que pour le rattachement, le type
+  // courant est conservé s'il reste proposé. Seul le type Facture ne l'est pas
+  // en mode externe ; ses champs additionnels repartent alors avec lui. Ce qui
+  // a été saisi pour un autre mode (fichier choisi, adresse, référence) est
+  // gardé le temps de la saisie : revenir au mode précédent ne fait rien perdre,
+  // et seul le support du mode retenu part au serveur.
+  function choisirMode(code) {
+    setForm(v => {
+      const liste = typesPour(typesPreuve, v.rattachement, code);
+      const conserve = liste.some(t => t.id === v.id_type_preuve);
+      return conserve
+        ? { ...v, mode: code }
+        : { ...v, mode: code, id_type_preuve: liste[0]?.id ?? '', champs: {} };
     });
   }
 
@@ -188,7 +228,18 @@ export default function PreuveFormModal({
   // restent ceux de l'API, mot pour mot.
   const champsComplets = champsAdditionnels.every(c => !c.obligatoire || String(form.champs[c.nom] ?? '').trim() !== '');
   const rattachementConforme = !rattachementImpose || form.rattachement === rattachementImpose;
-  const complet = !!(file && form.label.trim() && form.id_type_preuve && idRattache && champsComplets && rattachementConforme);
+  // Support attendu selon le mode (#220) : le fichier, une adresse http ou
+  // https, ou une référence ; l'empreinte saisie est facultative mais doit
+  // avoir la forme d'un SHA-256.
+  const externe = form.mode !== 'fichier';
+  const urlSaisie = form.url_externe.trim();
+  const urlConforme = !!urlExterneSure(urlSaisie);
+  const hashSaisi = form.hash_sha256.trim();
+  const hashConforme = !hashSaisi || SHA256_RE.test(hashSaisi);
+  const supportComplet = form.mode === 'fichier' ? !!file
+    : form.mode === 'url' ? urlConforme && hashConforme
+    : !!form.reference_externe.trim() && hashConforme;
+  const complet = !!(supportComplet && form.label.trim() && form.id_type_preuve && idRattache && champsComplets && rattachementConforme);
 
   // Valeurs des champs additionnels, sous leur nom technique, vides omises.
   function valeursChamps() {
@@ -216,6 +267,34 @@ export default function PreuveFormModal({
     onClose();
   }
 
+  // Rattachement transmis au serveur : un seul, les deux autres sont nuls.
+  function rattachementChoisi() {
+    return {
+      id_contrat: form.rattachement === 'contrat' ? form.id_contrat : null,
+      id_commande: form.rattachement === 'commande' ? form.id_commande : null,
+      id_licence: form.rattachement === 'licence' ? form.id_licence : null,
+    };
+  }
+
+  // Preuve externe (#220) : un seul appel, la preuve est complète dès sa
+  // création et part en validation comme une preuve déposée. Seul le support
+  // du mode retenu est transmis ; l'empreinte vide part à null.
+  async function declarerExterne() {
+    await preuvesService.create({
+      label: form.label.trim(),
+      date_preuve: form.date_preuve || null,
+      id_type_preuve: form.id_type_preuve,
+      ...rattachementChoisi(),
+      mode: form.mode,
+      url_externe: form.mode === 'url' ? form.url_externe.trim() : null,
+      reference_externe: form.mode === 'reference' ? form.reference_externe.trim() : null,
+      hash_sha256: form.hash_sha256.trim() || null,
+      ...valeursChamps(),
+    });
+    onDone({ type: 'success', message: 'Preuve externe enregistrée.' });
+    onClose();
+  }
+
   // Circuit preuve simple : création puis dépôt du fichier.
   async function deposerPreuve(fichier) {
     let creee = null;
@@ -224,13 +303,11 @@ export default function PreuveFormModal({
         label: form.label.trim(),
         date_preuve: form.date_preuve || null,
         id_type_preuve: form.id_type_preuve,
-        // Un seul rattachement part au serveur, les deux autres sont nuls.
-        id_contrat: form.rattachement === 'contrat' ? form.id_contrat : null,
-        id_commande: form.rattachement === 'commande' ? form.id_commande : null,
-        id_licence: form.rattachement === 'licence' ? form.id_licence : null,
-        // url_fichier est obligatoire en base : le dépôt qui suit le remplace
-        // par le nom physique réel. Cette valeur ne survit jamais à un dépôt
-        // réussi.
+        ...rattachementChoisi(),
+        // url_fichier est obligatoire en mode fichier : le dépôt qui suit le
+        // remplace par le nom physique réel. Cette valeur ne survit jamais à
+        // un dépôt réussi.
+        mode: 'fichier',
         url_fichier: 'en-attente-de-depot',
         ...valeursChamps(),
       });
@@ -251,16 +328,19 @@ export default function PreuveFormModal({
     // Le circuit se décide ici, sur l'état du formulaire au moment du dépôt :
     // code du type choisi (référentiel type_preuve, jamais le libellé) et
     // fichier sélectionné, tous deux relus plutôt que capturés plus tôt.
-    const fichier = file;
+    // Le mode (#220) passe avant : une preuve externe n'a pas de fichier, et le
+    // type Facture ne lui est pas proposé.
+    const fichier = externe ? null : file;
     const type = typesPreuve.find(t => t.id === form.id_type_preuve) ?? null;
-    if (!fichier || !type) {
-      setErreur(!fichier ? 'Sélectionnez le fichier à déposer.' : 'Sélectionnez le type de preuve.');
+    if ((!externe && !fichier) || !type) {
+      setErreur(!type ? 'Sélectionnez le type de preuve.' : 'Sélectionnez le fichier à déposer.');
       return;
     }
     setLoading(true);
     setErreur(null);
     try {
-      if (type.code === CODE_TYPE_FACTURE) await deposerFacture(fichier);
+      if (externe) await declarerExterne();
+      else if (type.code === CODE_TYPE_FACTURE) await deposerFacture(fichier);
       else await deposerPreuve(fichier);
     } catch (err) {
       setErreur(err.message);
@@ -290,7 +370,7 @@ export default function PreuveFormModal({
       footer={
         <>
           <Button variant="secondary" onClick={fermer} disabled={loading}>{partiel ? 'Fermer' : 'Annuler'}</Button>
-          {!partiel && <Button variant="primary" onClick={handleSave} isLoading={loading} disabled={!complet}>Déposer</Button>}
+          {!partiel && <Button variant="primary" onClick={handleSave} isLoading={loading} disabled={!complet}>{externe ? 'Enregistrer' : 'Déposer'}</Button>}
         </>
       }
     >
@@ -298,9 +378,50 @@ export default function PreuveFormModal({
         {erreur && (
           <p className="text-sm text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg px-3 py-2">{erreur}</p>
         )}
-        <FormField label="Fichier" required>
-          <DocumentUploadField file={file} onChange={setFile} disabled={loading} />
+        <FormField label="Support de la preuve" required
+          hint={externe ? 'Le document reste dans son système d\'origine : seule son adresse ou sa référence est enregistrée.' : undefined}>
+          <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Support de la preuve">
+            {MODES_PREUVE.map(m => (
+              <button key={m.code} type="button" role="radio" aria-checked={form.mode === m.code}
+                disabled={loading} onClick={() => choisirMode(m.code)}
+                className={`px-3 py-2 rounded-lg text-sm border transition-colors disabled:opacity-50 ${form.mode === m.code
+                  ? 'border-blue-800 bg-blue-50 text-blue-900 font-medium dark:bg-blue-900/30 dark:text-blue-200'
+                  : 'border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700'}`}>
+                {m.label}
+              </button>
+            ))}
+          </div>
         </FormField>
+        {form.mode === 'fichier' && (
+          <FormField label="Fichier" required>
+            <DocumentUploadField file={file} onChange={setFile} disabled={loading} />
+          </FormField>
+        )}
+        {form.mode === 'url' && (
+          <FormField label="URL externe" required
+            error={urlSaisie && !urlConforme ? 'Adresse http ou https attendue, sans espace.' : undefined}
+            hint="Adresse du document dans son système d'origine, ouverte dans un nouvel onglet depuis la fiche">
+            <input type="url" className={INPUT_CLS} value={form.url_externe} placeholder="https://"
+              maxLength={2000} disabled={loading}
+              onChange={e => setForm(v => ({ ...v, url_externe: e.target.value }))} />
+          </FormField>
+        )}
+        {form.mode === 'reference' && (
+          <FormField label="Référence externe" required
+            hint="Texte qui identifie le document dans un autre système (numéro de GED, cote d'archive)">
+            <input className={INPUT_CLS} value={form.reference_externe} maxLength={500} disabled={loading}
+              onChange={e => setForm(v => ({ ...v, reference_externe: e.target.value }))} />
+          </FormField>
+        )}
+        {externe && (
+          <FormField label="Empreinte SHA-256"
+            error={!hashConforme ? '64 caractères hexadécimaux attendus.' : undefined}
+            hint="Facultative : elle garde une trace immuable du document désigné">
+            <input className={`${INPUT_CLS} font-mono text-xs`} value={form.hash_sha256} maxLength={80}
+              spellCheck={false} autoComplete="off" disabled={loading}
+              onChange={e => setForm(v => ({ ...v, hash_sha256: e.target.value }))} />
+          </FormField>
+        )}
         <div className="grid grid-cols-2 gap-4">
           <FormField label="Libellé" required>
             <input className={INPUT_CLS} value={form.label} autoFocus
@@ -351,7 +472,10 @@ export default function PreuveFormModal({
             <input className={`${INPUT_CLS} bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-300`} value={commandeChoisie.societe_label} readOnly />
           </FormField>
         )}
-        <FormField label="Type de preuve" required hint="Les types proposés dépendent de l'objet de rattachement">
+        <FormField label="Type de preuve" required
+          hint={externe
+            ? 'Les types proposés dépendent de l\'objet de rattachement. Le type Facture exige le fichier : il n\'est proposé qu\'en mode Fichier.'
+            : 'Les types proposés dépendent de l\'objet de rattachement'}>
           <select className={INPUT_CLS} value={form.id_type_preuve}
             onChange={e => choisirType(e.target.value)}>
             {typesProposes.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
@@ -366,7 +490,9 @@ export default function PreuveFormModal({
           </FormField>
         ))}
         <p className="text-xs text-gray-500 dark:text-gray-400 -mt-2">
-          {circuitFacture
+          {externe
+            ? 'Une preuve externe suit le même circuit qu\'une preuve déposée : validation, détection des manques et exports la comptent de la même façon. Seul un rattachement direct à la commande la fait sortir de la détection des manques.'
+            : circuitFacture
             ? 'Le fichier déposé est enregistré comme preuve de type Facture, rattachée à cette commande. La facture apparaît une seule fois dans Preuves et se valide une seule fois.'
             : 'Une preuve se rattache à un contrat, à une commande ou à une licence. Seul un rattachement direct à la commande la fait sortir de la détection des manques.'}
         </p>

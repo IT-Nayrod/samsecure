@@ -4,6 +4,8 @@
 // que le monter avec la licence courante :
 //   <PreuvesLicenceSection licence={licence} />
 // Le dépôt suit le droit de l'écran Preuves, pas celui des licences.
+// Preuve externe (#220) : la ligne porte son lien ou sa référence à la place du
+// bouton d'ouverture du fichier, qui n'apparaît jamais sans fichier.
 import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { ExternalLink, Plus } from 'lucide-react';
@@ -14,7 +16,8 @@ import PreuveFormModal from './PreuveFormModal';
 import useRbac from '../../hooks/useRbac';
 import { useToast } from '../../hooks/useToast';
 import { formatDate } from '../../utils/dateUtils';
-import { fichierDepose } from './preuveAffichage';
+import PreuveSupportExterne from './PreuveSupportExterne';
+import { fichierDepose, preuveExterne, libelleMode } from './preuveAffichage';
 
 export default function PreuvesLicenceSection({ licence }) {
   const { addToast } = useToast();
@@ -77,8 +80,12 @@ export default function PreuvesLicenceSection({ licence }) {
             <li key={p.id} className="flex items-center justify-between gap-3 py-2">
               <div className="min-w-0">
                 <Link to={`/contrats/factures/${p.id}`} className="text-sm font-medium text-blue-800 hover:underline">{p.label}</Link>
-                <p className="text-xs text-gray-500">{p.type_label ?? '-'}{p.date_preuve ? ` du ${formatDate(p.date_preuve)}` : ''} · déposée le {formatDate(p.created_at)}</p>
+                <p className="text-xs text-gray-500">
+                  {p.type_label ?? '-'}{p.date_preuve ? ` du ${formatDate(p.date_preuve)}` : ''}
+                  {preuveExterne(p) ? ` · ${libelleMode(p)} · enregistrée le ` : ' · déposée le '}{formatDate(p.created_at)}
+                </p>
               </div>
+              <PreuveSupportExterne preuve={p} compact avecEmpreinte />
               {fichierDepose(p) && (
                 <Button variant="secondary" size="sm" onClick={() => ouvrirFichier(p.id)} isLoading={ouverture === p.id}>
                   <ExternalLink size={14} /> Ouvrir le fichier

@@ -207,6 +207,11 @@ motif technique d'un echec est dans log_serveur, jamais dans audit_log.
 | 3027 | erreur | Suppression impossible : contrat déjà validé, archivez-le | DELETE /api/contrats/:id (#96) |
 | 3028 | erreur | Contrat déjà archivé | POST /api/contrats/:id/archiver (#96) |
 | 3029 | erreur | Contrat non archivé | POST /api/contrats/:id/restaurer (#96) |
+| 3030 | erreur | La société prêteuse est obligatoire pour un contrat de type Interne | POST, PATCH /api/contrats (#219) |
+| 3031 | erreur | La société prêteuse doit être différente de la société signataire | POST, PATCH /api/contrats (#219) |
+| 3032 | erreur | Un contrat de type Interne ne porte pas de revendeur : le signataire côté vendeur est la société prêteuse | POST, PATCH /api/contrats (#219) |
+| 3033 | erreur | La société prêteuse est réservée aux contrats de type Interne | POST, PATCH /api/contrats (#219) |
+| 3034 | erreur | Société prêteuse introuvable | POST, PATCH /api/contrats (#219) |
 | 3099 | erreur | Erreur serveur inattendue (module contrats) | toutes |
 
 Archivage (#96, migrations 037 et 038) : GET /api/contrats exclut les
@@ -218,6 +223,24 @@ la suppression physique n'est possible que pour un contrat jamais entre en
 valide ni a revalider (sinon 3027), le garde-fou 3020 sur les rattachements reste.
 Archiver et restaurer tracent CONTRAT_ARCHIVE et CONTRAT_RESTAURE dans
 audit_log et ARCHIVE / RESTAURE dans journal_ecriture.
+
+Type Interne (#219, règle client du 17/09/2026, migrations 070 et 071) : prêt de
+licences entre entités d'une même organisation. Le type se reconnaît à son code
+`interne`, jamais à son libellé (personnalisable). Sur un contrat Interne, le
+signataire côté vendeur est une société du tenant, `id_societe_preteuse`
+(projection : `id_societe_preteuse`, `societe_preteuse_label`), obligatoire (3030),
+existante (3034) et différente de la société signataire (3031) ; `id_revendeur`
+y est interdit (3032) et le 3024 ne s'applique pas. Sur tout autre type, le
+revendeur reste obligatoire (3024) et une société prêteuse est refusée (3033).
+Le PATCH valide l'enregistrement fusionné : changer le type d'un contrat impose
+de transmettre dans le même appel le signataire vendeur attendu et de vider
+l'autre (`""` ou `null`). La projection sert aussi `signataire_vendeur_label`
+(société prêteuse, à défaut revendeur) pour les listes. Succession, échéance et
+validation : droit commun, aucun code propre.
+
+Simple devient Standard (#218, migrations 070 et 071) : seul le libellé du type
+de code `simple` change, le code et les contrats existants ne bougent pas. Aucun
+code retour ne porte ce libellé.
 
 Le 3021 n'est pas un refus : le rattachement est accepté. Il est réservé pour que la #68 puisse, si Dorian le décide, remonter l'avertissement au front. Signalez-lui ce cas, la consigne ne prévoit de code que pour les refus.
 
@@ -284,6 +307,11 @@ commun 3280-3299.
 | 3231 | reserve | [ARBITRAGE D27] lien externe GED refuse. Non emis a ce jour | POST, PATCH /api/preuves |
 | 3233 | erreur | La date de la preuve est invalide, format attendu AAAA-MM-JJ (#214, migration 066) | POST, PATCH /api/preuves ; POST /api/factures/depot |
 | 3234 | erreur | Le type Facture n'est pas accepté ici : une facture se dépose avec son fichier par le dépôt de facture (#99, retour de recette du 16/09) | POST, PATCH /api/preuves |
+| 3235 | erreur | Le mode de la preuve est invalide, valeurs admises : fichier, url, reference (#220, migration 073) | POST, PATCH /api/preuves |
+| 3236 | erreur | L'URL externe est obligatoire et doit être une adresse http ou https valide (#220, migration 073) | POST, PATCH /api/preuves |
+| 3237 | erreur | La référence externe est obligatoire, 500 caractères au plus (#220, migration 073) | POST, PATCH /api/preuves |
+| 3238 | erreur | Le type Facture est réservé au mode fichier : une facture se dépose avec son document (#220, migration 073) | POST, PATCH /api/preuves |
+| 3239 | erreur | Dépôt de fichier impossible : cette preuve est externe (#220, migration 073, 409) | POST /api/preuves/:id/fichier |
 | 3214 | erreur | Une preuve doit être rattachée à un contrat, à une commande, ou aux deux | POST, PATCH /api/preuves |
 | 3215 | erreur | Contrat introuvable | POST, PATCH /api/preuves |
 | 3216 | erreur | Commande introuvable | POST, PATCH /api/preuves |
@@ -534,6 +562,63 @@ nouveau, la table facture et le circuit de dépôt combiné sont inchangés :
 - GET /api/factures (3240) et GET /api/factures/:id (3241) restent servis pour
   les clients de l'API et pour la résolution d'un ancien lien portant un
   identifiant de facture (la fiche bascule sur la preuve support).
+
+### Preuve externe (#220, règle client du 17/09, migrations 072 et 073)
+
+Une preuve peut être déclarée externe : le document vit dans un autre système,
+désigné soit par une URL, soit par une référence libre. preuve.mode (072
+Tenant, DEFAULT 'fichier', NULL lu comme fichier) vaut `fichier` (comportement
+d'origine), `url` ou `reference` ; preuve.url_externe et
+preuve.reference_externe portent le support externe ; preuve.url_fichier
+devient nullable, son obligation étant reprise pour le seul mode fichier par
+la contrainte ck_preuve_mode_coherence (un seul support par preuve). Règle
+pure et tests : server/utils/modePreuve.js, miroir de la contrainte. Cinq codes
+nouveaux, seedés par la 073 :
+- 3235, POST et PATCH /api/preuves : mode hors des trois valeurs admises. Un
+  mode absent vaut `fichier` : les clients antérieurs de l'API ne changent
+  rien ;
+- 3236 : mode `url` sans URL, ou URL qui n'est pas une adresse http ou https
+  avec un hôte (2000 caractères au plus, sans espace). Le schéma est fermé
+  parce que l'écran rend la valeur en lien cliquable ; le message rendu
+  distingue l'absence du format ;
+- 3237 : mode `reference` sans référence, ou référence de plus de 500
+  caractères (message rendu distinct) ;
+- 3238 : mode externe tenté avec le type de code `facture`, ou sur la preuve
+  support d'une facture (message rendu distinct). Le circuit facture exige le
+  document : POST /api/factures/depot (3245) reste la seule naissance d'une
+  facture, toujours en mode fichier. Contrôlé avant le 3234, qui orienterait
+  vers le dépôt de facture sans dire que le mode est en cause ;
+- 3239, POST /api/preuves/:id/fichier, 409 : dépôt de fichier sur une preuve
+  externe. Le mode se change d'abord par PATCH (mode `fichier` et url_fichier,
+  comme à la création de la #48), le dépôt redevient alors possible.
+
+Sans nouveau code :
+- le mode décide du support : les champs des deux autres modes transmis dans
+  le corps sont remis à null et non refusés (url_fichier compris pour une
+  preuve externe). Le 3217 ne vaut plus que pour le mode fichier ;
+- l'empreinte réutilise hash_sha256 : calculée au dépôt pour un fichier,
+  saisie à la main et facultative pour une preuve externe, format contrôlé
+  par le 3218 inchangé ; elle est débarrassée de ses blancs et passée en
+  minuscules avant contrôle ;
+- une preuve externe est complète dès POST /api/preuves (3202) : aucun dépôt
+  ne suit, elle part en validation (3300 à 3399 inchangés) comme une preuve
+  déposée. GET /api/commandes/manques (3280), les compteurs nb_preuves des
+  fiches et les blocages de suppression lisent la table preuve sans regarder
+  le support : une preuve externe y compte comme une preuve déposée ;
+- GET /api/preuves (3200) et GET /api/preuves/:id (3201) servent mode,
+  url_externe et reference_externe ; GET /api/preuves/:id/fichier répond 3224
+  pour une preuve externe (aucune redirection vers l'URL, l'écran ouvre le
+  lien lui-même) ;
+- PATCH /api/preuves/:id (3203) accepte un changement de mode. L'empreinte ne
+  survit au changement que si elle est transmise ; nom_origine est effacé
+  pour une preuve externe ; le fichier physique d'une preuve passée en externe
+  est supprimé après le commit et le retrait est tracé dans audit_log (action
+  RETRAIT_FICHIER, empreinte du fichier retiré en valeur_avant).
+
+L'arbitrage D27 (lien de GED à la place d'un fichier) est clos par cette
+règle : le lien se déclare en mode `url`, url_fichier n'en porte plus. Les
+codes 3231 et 3232 restent réservés et non émis. La sous-plage preuves
+3200-3239 est pleine à l'exception de 3207 à 3209.
 
 ## Validation des saisies (#53)
 
@@ -1424,3 +1509,58 @@ local »). Hors du lot, trois routes émettent encore un message propre avec
 affectations.js (4118, deux occurrences), conformite.js (4312) et
 logiciels.js (5313, 5314). À réécrire dans leur chantier respectif ; le 4300
 (succès) est servi avec le libellé du catalogue, donc aligné par la 059.
+
+## Logiciels composés (#216, règle client du 17/09/2026, migrations 068 et 069)
+
+Un logiciel composé regroupe deux logiciels ou plus du même éditeur (Office,
+composé de Word et d'Excel). Il porte sa propre licence ; chaque composant est
+couvert par héritage par la licence du composé ; l'inverse n'existe pas. La
+composition vit en Tenant (`produit_composition`, 068), sur un logiciel du
+catalogue comme sur un logiciel créé localement, sans aucune écriture en
+Commune. Un seul niveau en v0.5 : un composé n'est jamais composant.
+
+Codes pris dans la plage licences (4000-4099), premiers libres en bloc après
+4059 : la composition n'existe que pour l'héritage des droits. Les routes
+vivent dans `logiciels.js` (fiche de Référentiels > Logiciels), permission
+`gerer_referentiels`.
+
+| Code | Type | Libellé | Émis par |
+|------|------|---------|----------|
+| 4060 | succes | Composant ajouté au logiciel composé | POST /api/logiciels/:id/composants (201, corps `{ id_produit_composant }`, data = `{ id, label, source }` du composant) |
+| 4061 | succes | Composant retiré du logiciel composé | DELETE /api/logiciels/:id/composants/:idComposant (data null) |
+| 4062 | erreur | Logiciel composant introuvable | POST (400 : identifiant absent, mal formé ou inconnu des deux bases ; 5310 en 404 quand c'est le composé qui est inconnu) |
+| 4063 | erreur | Un logiciel ne peut pas être son propre composant | POST (409) |
+| 4064 | erreur | Le composant doit appartenir au même éditeur que le logiciel composé | POST (409, message rendu avec les libellés ; aussi quand l'éditeur de l'un des deux n'est pas renseigné, la règle n'étant alors pas vérifiable) |
+| 4065 | erreur | Ce logiciel fait déjà partie de la composition | POST (409, unicité du couple) |
+| 4066 | erreur | Un logiciel composé ne peut pas être composant d'un autre logiciel composé | POST (409, deux cas rendus : le composant visé est lui-même composé, ou le composé visé est déjà composant ; garde SQL par trigger en 068) |
+| 4067 | erreur | Ce logiciel ne fait pas partie de la composition | DELETE (404, couple absent ou identifiant mal formé) |
+| 4068 | trace | Composant ajouté à un logiciel composé | audit_log, action PRODUIT_COMPOSITION_AJOUTEE (entite_type produit_composition) |
+| 4069 | trace | Composant retiré d'un logiciel composé | audit_log, action PRODUIT_COMPOSITION_RETIREE |
+
+Lectures, sans nouveau code :
+- GET /api/logiciels (5300) sert `nb_composants` et `nb_composes` sur chaque
+  ligne ; GET /api/logiciels/:id (5301) sert `composants` et `composes`
+  (`{ id, label, source, editeur_label }`, libellé null pour un identifiant
+  que plus aucune base ne connaît) et `composition_incomplete` (un seul
+  composant saisi, la règle en demande deux) ;
+- DELETE /api/logiciels/:id (5317) compte les liens de composition parmi les
+  rattachements bloquants (`details.compositions`), `supprimable` en tient
+  compte ;
+- GET /api/conformite (4300) sert `droits_total` (droit effectif),
+  `droits_propres` et `droits_herites` sur chaque ligne. Règle : droits
+  effectifs d'un composant = droits propres + droits propres des composés qui
+  le contiennent ; usages propres à chacun ; un manque est valorisé en
+  entier, un excédent seulement sur les droits propres (les droits hérités
+  sont déjà valorisés sur la ligne du composé). L'héritage complète la ligne
+  d'un logiciel porteur d'une licence, il n'en crée pas.
+
+### Compléments depuis la fiche logiciel (#217)
+
+Aucun nouveau code. La fiche de Référentiels > Logiciels réutilise les routes
+existantes : POST /api/produits/:id/versions et /editions (4034 à 4037,
+permission `saisir_licence`) pour un logiciel du catalogue, POST
+/api/logiciels/:id/versions et /editions (5305, 5307, 5318 à 5321, permission
+`gerer_referentiels`) pour un logiciel créé localement. GET /api/logiciels et
+GET /api/logiciels/:id fusionnent désormais les compléments de la 063 aux
+versions et éditions du catalogue ; chaque déclinaison porte `source`
+(`catalogue`, `complement` ou `client`).

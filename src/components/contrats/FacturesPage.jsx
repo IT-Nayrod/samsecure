@@ -19,6 +19,11 @@
 // Date de la preuve (#214) : colonne « Date de la preuve » (date métier du
 // document, distincte de « Déposé le »), triable, et filtre par période (Du /
 // Au) appliqué par l'API ; les preuves antérieures restent sans date.
+// Preuve externe (#220, règle client du 17/09/2026) : colonne « Support »
+// (fichier, lien ouvert dans un nouvel onglet ou référence copiable) et colonne
+// « Empreinte » (SHA-256 abrégé, valeur entière en infobulle et dans l'export).
+// Une preuve externe est une ligne comme les autres : même tuile, mêmes
+// filtres, même validation, même export.
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, FileCheck, AlertTriangle, X } from 'lucide-react';
@@ -36,7 +41,8 @@ import DocumentIcon from './DocumentIcon';
 import ManqueBadge from './ManqueBadge';
 import PreuveFormModal from './PreuveFormModal';
 import { libelleContrat } from './libelleContrat';
-import { contratDeLaPreuve, cibleValidation } from './preuveAffichage';
+import PreuveSupportExterne from './PreuveSupportExterne';
+import { contratDeLaPreuve, cibleValidation, preuveExterne, libelleMode, supportEnTexte, empreinteAbregee } from './preuveAffichage';
 import useRbac from '../../hooks/useRbac';
 import { useToast } from '../../hooks/useToast';
 import { formatDate } from '../../utils/dateUtils';
@@ -174,6 +180,14 @@ export default function FacturesPage() {
     { key: 'liaison', label: 'Rattachement',
       csvValue: r => [r.contrat_affiche, r.commande_label, r.licence_affichee].filter(Boolean).join(' - '),
       render: r => [r.contrat_affiche, r.commande_label, r.licence_affichee].filter(Boolean).join(' - ') || '-' },
+    { key: 'mode', label: 'Support', sortable: true, getValue: r => libelleMode(r), csvValue: r => supportEnTexte(r),
+      render: r => (preuveExterne(r)
+        ? <div><span className="text-xs text-gray-500">{libelleMode(r)}</span><PreuveSupportExterne preuve={r} compact /></div>
+        : libelleMode(r)) },
+    { key: 'hash_sha256', label: 'Empreinte', csvValue: r => r.hash_sha256 ?? '',
+      render: r => (r.hash_sha256
+        ? <span className="font-mono text-xs" title={r.hash_sha256}>{empreinteAbregee(r.hash_sha256)}</span>
+        : '-') },
     { key: 'date_preuve', label: 'Date de la preuve', sortable: true, render: r => formatDate(r.date_preuve), csvValue: r => r.date_preuve ? formatDate(r.date_preuve) : '' },
     { key: 'created_at', label: 'Déposé le', sortable: true, render: r => formatDate(r.created_at), csvValue: r => formatDate(r.created_at) },
     { key: 'statut_validation', label: 'Validation', sortable: true,

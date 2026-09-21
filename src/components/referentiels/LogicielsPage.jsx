@@ -30,6 +30,20 @@ function SourceBadge({ source }) {
   return <Badge variant={source === 'catalogue' ? 'neutral' : 'success'} label={source === 'catalogue' ? 'Catalogue' : 'Client'} />;
 }
 
+// Composition (#216) : un logiciel composé regroupe des composants du même
+// éditeur, sa licence les couvre. Lecture seule ici, la saisie se fait sur la
+// fiche. Rien n'est affiché pour un logiciel hors de toute composition.
+function libelleComposition(produit) {
+  if (produit.nb_composants > 0) return `Composé (${produit.nb_composants})`;
+  if (produit.nb_composes > 0) return 'Composant';
+  return null;
+}
+
+function CompositionBadge({ produit }) {
+  const libelle = libelleComposition(produit);
+  return libelle ? <Badge variant="neutral" label={libelle} /> : null;
+}
+
 function TreeNode({ produit, enfantsParParent, depth, navigate }) {
   const [open, setOpen] = useState(depth === 0);
   const enfants = enfantsParParent.get(produit.id) ?? [];
@@ -49,6 +63,7 @@ function TreeNode({ produit, enfantsParParent, depth, navigate }) {
         <LogoEditeur editeur={editeurDuProduit(produit)} size={20} />
         <span className="text-sm text-blue-800 hover:underline">{produit.label}</span>
         <SourceBadge source={produit.source} />
+        <CompositionBadge produit={produit} />
       </div>
       {open && hasEnfants && enfants.map(e => (
         <TreeNode key={e.id} produit={e} enfantsParParent={enfantsParParent} depth={depth + 1} navigate={navigate} />
@@ -151,6 +166,7 @@ export default function LogicielsPage() {
     { key: 'editeur_label', label: 'Éditeur', sortable: true, render: r => r.editeur_label ?? '-' },
     { key: 'sku', label: 'SKU', render: r => r.sku ?? '-' },
     { key: 'source', label: 'Source', sortable: true, render: r => <SourceBadge source={r.source} /> },
+    { key: 'composition', label: 'Composition', getValue: r => libelleComposition(r) ?? '', render: r => (libelleComposition(r) ? <CompositionBadge produit={r} /> : '-') },
     { key: 'niveau', label: 'Niveau', getValue: r => r.id_produit_parent ? 'Sous-logiciel' : 'Logiciel', render: r => r.id_produit_parent ? 'Sous-logiciel' : 'Logiciel' },
     { key: 'nb_versions', label: 'Nb versions', getValue: r => r.versions.length, render: r => r.versions.length },
     { key: 'nb_editions', label: 'Nb éditions', getValue: r => r.editions.length, render: r => r.editions.length },

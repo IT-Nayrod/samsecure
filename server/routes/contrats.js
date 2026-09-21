@@ -10,6 +10,12 @@
 // Harmonisation du 16/09/2026 : la projection sert aussi la société du
 // prédécesseur et la liste des successeurs (id, label, societe_label,
 // archive), pour la fiche et le champ « Renouvelle le contrat » du formulaire.
+//
+// Type Interne (#219, règle client du 17/09/2026, migration 070) : prêt de
+// licences entre entités d'une même organisation. Le signataire côté vendeur
+// est une société du tenant (id_societe_preteuse) et non un revendeur. Le type
+// se reconnaît à son code 'interne', jamais à son libellé (personnalisable).
+// Succession, échéance et validation : droit commun, rien de propre au type.
 
 import express from "express";
 import { tenantPool } from "../db.js";
@@ -65,6 +71,8 @@ const SELECT_CONTRAT = `
          c.id_editeur,   e.raison_sociale AS editeur_label,
          c.id_societe,   s.raison_sociale AS societe_label,
          c.id_revendeur, r.raison_sociale AS revendeur_label,
+         c.id_societe_preteuse, sp.raison_sociale AS societe_preteuse_label,
+         COALESCE(sp.raison_sociale, r.raison_sociale) AS signataire_vendeur_label,
          c.id_contrat_parent, p.label AS parent_label, ps.raison_sociale AS parent_societe_label,
          c.id_contrat_predecesseur, pr.label AS predecesseur_label, prs.raison_sociale AS predecesseur_societe_label,
          (SELECT COALESCE(json_agg(json_build_object(
@@ -92,6 +100,7 @@ const SELECT_CONTRAT = `
   LEFT JOIN editeur      e  ON e.id  = c.id_editeur
   LEFT JOIN societe      s  ON s.id  = c.id_societe
   LEFT JOIN revendeur    r  ON r.id  = c.id_revendeur
+  LEFT JOIN societe      sp ON sp.id = c.id_societe_preteuse
   LEFT JOIN contrat      p  ON p.id  = c.id_contrat_parent
   LEFT JOIN societe      ps ON ps.id = p.id_societe
   LEFT JOIN contrat      pr ON pr.id = c.id_contrat_predecesseur
@@ -141,7 +150,7 @@ async function jamaisValide(client, id) {
 const CHAMPS = [
   "label", "id_type_contrat", "id_editeur", "id_societe", "id_revendeur",
   "id_contrat_parent", "date_debut", "date_fin", "a_renouveler", "duree_resiliation",
-  "id_contrat_predecesseur",
+  "id_contrat_predecesseur", "id_societe_preteuse",
 ];
 
 // Un <select> vide et un <input type="date"> vide envoient "" et non null.
@@ -161,6 +170,7 @@ function normaliserCorps(body = {}) {
     a_renouveler: body.a_renouveler === true,
     duree_resiliation: vide(body.duree_resiliation) === null ? null : Number(body.duree_resiliation),
     id_contrat_predecesseur: vide(body.id_contrat_predecesseur),
+    id_societe_preteuse: vide(body.id_societe_preteuse),
   };
 }
 
@@ -172,13 +182,24 @@ async function existe(client, table, id) {
   return rowCount > 0;
 }
 
+// Code du type, clé des règles propres à un type : jamais le label, qui est
+// personnalisable (copy-on-write sur type_contrat). Un identifiant inconnu rend
+// null, le 3014 de validerContrat le refuse ensuite.
+async function codeTypeContrat(client, idType) {
+  if (!idType || !UUID_RE.test(idType)) return null;
+  const { rows } = await client.query(`SELECT code FROM type_contrat WHERE id = $1`, [idType]);
+  return rows[0]?.code ?? null;
+}
+
 async function validerContrat(client, body) {
-  const { label, id_type_contrat, id_editeur, id_societe, id_revendeur, date_debut, date_fin } = body;
+  const { label, id_type_contrat, id_editeur, id_societe, id_revendeur, id_societe_preteuse,
+          date_debut, date_fin } = body;
 
   if (!label || !label.trim())
     return { status: 400, code: 3011, error: "Le libelle est obligatoire." };
   if (!id_type_contrat)
     return { status: 400, code: 3012, error: "Le type de contrat est obligatoire." };
+  const interne = (await codeTypeContrat(client, id_type_contrat)) === "interne";
   // Obligatoires depuis le retour de Samuel (#95). Pas de NOT NULL en base : un
   // contrat existant qui en manque reste consultable, il n'est refusé qu'à sa
   // prochaine modification puisque le PATCH valide l'enregistrement fusionné.
@@ -186,8 +207,23 @@ async function validerContrat(client, body) {
     return { status: 400, code: 3022, error: "L'editeur est obligatoire." };
   if (!id_societe)
     return { status: 400, code: 3023, error: "La societe signataire est obligatoire." };
-  if (!id_revendeur)
-    return { status: 400, code: 3024, error: "Le revendeur signataire est obligatoire." };
+  // Signataire côté vendeur (#219) : la société prêteuse sur un contrat Interne,
+  // le revendeur sur tout autre type, jamais les deux. Le refus est symétrique
+  // pour qu'un changement de type ne laisse pas traîner le signataire de
+  // l'ancien type (le PATCH valide l'enregistrement fusionné).
+  if (interne) {
+    if (!id_societe_preteuse)
+      return { status: 400, code: 3030, error: "La société prêteuse est obligatoire pour un contrat de type Interne." };
+    if (id_societe_preteuse === id_societe)
+      return { status: 400, code: 3031, error: "La société prêteuse doit être différente de la société signataire." };
+    if (id_revendeur)
+      return { status: 400, code: 3032, error: "Un contrat de type Interne ne porte pas de revendeur : le signataire côté vendeur est la société prêteuse." };
+  } else {
+    if (!id_revendeur)
+      return { status: 400, code: 3024, error: "Le revendeur signataire est obligatoire." };
+    if (id_societe_preteuse)
+      return { status: 400, code: 3033, error: "La société prêteuse est réservée aux contrats de type Interne." };
+  }
   if (!date_debut)
     return { status: 400, code: 3025, error: "La date de debut est obligatoire." };
   // Doublon volontaire de ck_contrat_dates : la contrainte base produirait une
@@ -202,6 +238,11 @@ async function validerContrat(client, body) {
     return { status: 400, code: 3016, error: "Societe signataire introuvable." };
   if (!(await existe(client, "revendeur", id_revendeur)))
     return { status: 400, code: 3017, error: "Revendeur signataire introuvable." };
+  // Garde-fou UUID propre à ce champ : un identifiant mal formé est une société
+  // introuvable, pas une 22P02 remontée en 500.
+  if (id_societe_preteuse
+      && (!UUID_RE.test(id_societe_preteuse) || !(await existe(client, "societe", id_societe_preteuse))))
+    return { status: 400, code: 3034, error: "Société prêteuse introuvable." };
   return null;
 }
 
@@ -402,11 +443,11 @@ router.post("/contrats", async (req, res) => {
     const label = corps.label.trim();
     const { rows: [cree] } = await client.query(
       `INSERT INTO contrat (${CHAMPS.join(", ")})
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        RETURNING id`,
       [label, corps.id_type_contrat, corps.id_editeur, corps.id_societe, corps.id_revendeur,
        corps.id_contrat_parent, corps.date_debut, corps.date_fin, corps.a_renouveler,
-       corps.duree_resiliation, corps.id_contrat_predecesseur]
+       corps.duree_resiliation, corps.id_contrat_predecesseur, corps.id_societe_preteuse]
     );
 
     if (parent.anomalie) {
@@ -452,7 +493,7 @@ router.patch("/contrats/:id", async (req, res) => {
     const { rows: existant } = await client.query(
       `SELECT label, id_type_contrat, id_editeur, id_societe, id_revendeur, id_contrat_parent,
               date_debut::text AS date_debut, date_fin::text AS date_fin,
-              a_renouveler, duree_resiliation, id_contrat_predecesseur, archive
+              a_renouveler, duree_resiliation, id_contrat_predecesseur, id_societe_preteuse, archive
        FROM contrat WHERE id = $1`, [id]);
     if (!existant.length) {
       await client.query("ROLLBACK");
@@ -498,11 +539,11 @@ router.patch("/contrats/:id", async (req, res) => {
           SET label = $1, id_type_contrat = $2, id_editeur = $3, id_societe = $4,
               id_revendeur = $5, id_contrat_parent = $6, date_debut = $7, date_fin = $8,
               a_renouveler = $9, duree_resiliation = $10, id_contrat_predecesseur = $11,
-              updated_at = now()
-        WHERE id = $12`,
+              id_societe_preteuse = $12, updated_at = now()
+        WHERE id = $13`,
       [label, corps.id_type_contrat, corps.id_editeur, corps.id_societe, corps.id_revendeur,
        corps.id_contrat_parent, corps.date_debut, corps.date_fin, corps.a_renouveler,
-       corps.duree_resiliation, corps.id_contrat_predecesseur, id]
+       corps.duree_resiliation, corps.id_contrat_predecesseur, corps.id_societe_preteuse, id]
     );
 
     // Rattachement à un cadre ou détachement : l'anomalie éventuelle n'a plus lieu d'être.

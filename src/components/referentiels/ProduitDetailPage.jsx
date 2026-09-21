@@ -5,9 +5,24 @@
 // Un produit du catalogue commun se consulte mais ne se modifie pas depuis un
 // espace client : l'API refuse toute écriture le visant, et modifiable porte
 // cette règle jusqu'à l'écran.
-import { useState, useCallback, useEffect } from 'react';
+//
+// #217 : versions et éditions s'ajoutent depuis la fiche dans les deux cas,
+// par le geste des formulaires licence et maintenance (LicenceDeclinaisonAjout).
+// Logiciel du catalogue : complément du client (POST /produits/:id/versions et
+// /editions, droit saisir_licence, celui que la route exige). Logiciel créé
+// localement : routes /logiciels/:id/versions et /editions (gerer_referentiels).
+// Avant ce ticket, la fiche d'un logiciel du catalogue n'offrait aucun ajout et
+// n'affichait pas les compléments saisis ailleurs.
+//
+// #216, logiciel composé (règle client du 17/09/2026) : la section Composition
+// liste les composants d'un composé (ajout et retrait sous gerer_referentiels,
+// sur un logiciel du catalogue comme sur un logiciel client) et les composés
+// dont le logiciel fait partie. Le sélecteur ne propose que ce que le serveur
+// accepterait (même éditeur, ni composé ni déjà composant) ; le serveur reste
+// seul juge, ses refus sont affichés tels quels.
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Pencil, Trash2, Plus, X } from 'lucide-react';
+import { Pencil, Trash2, X, Plus } from 'lucide-react';
 import { logicielsService, editeursService, editeurDuProduit } from '../../services/referentielsService';
 import { optionnel } from '../../services/http';
 import Breadcrumb from '../ui/Breadcrumb';
@@ -21,7 +36,9 @@ import StatutValidationBadge from './StatutValidationBadge';
 import ValidationActions from './ValidationActions';
 import ProduitFormModal from './ProduitFormModal';
 import LogoEditeur from './LogoEditeur';
+import LicenceDeclinaisonAjout from '../deploiement/LicenceDeclinaisonAjout';
 import useRbac from '../../hooks/useRbac';
+import useAuth from '../../hooks/useAuth';
 import useValidation from '../../hooks/useValidation';
 import { appliquerStatut } from '../../services/validationService';
 import { useToast } from '../../hooks/useToast';
@@ -33,6 +50,7 @@ export default function ProduitDetailPage() {
   const { canWrite, canValidate, canDelete } = useRbac({
     write: 'gerer_referentiels', validate: 'valider_saisie',
   });
+  const { hasPermission } = useAuth();
   const [produit, setProduit] = useState(null);
   const [tousProduits, setTousProduits] = useState([]);
   const [editeurs, setEditeurs] = useState([]);
@@ -41,8 +59,7 @@ export default function ProduitDetailPage() {
   const [errorStatus, setErrorStatus] = useState(null);
   const [formOpen, setFormOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [newVersion, setNewVersion] = useState('');
-  const [newEdition, setNewEdition] = useState('');
+  const [nouveauComposant, setNouveauComposant] = useState('');
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -92,9 +109,9 @@ export default function ProduitDetailPage() {
     }
   }
 
-  // Les quatre gestes de déclinaison partagent leur traitement d'erreur : le
-  // message du serveur, doublon compris, part en toast et la fiche est
-  // rechargée pour rester alignée sur la base.
+  // Les retraits de déclinaison partagent leur traitement d'erreur : le
+  // message du serveur part en toast et la fiche est rechargée pour rester
+  // alignée sur la base. L'ajout est porté par LicenceDeclinaisonAjout.
   async function gesteDeclinaison(action, succes) {
     try {
       await action();
@@ -105,16 +122,29 @@ export default function ProduitDetailPage() {
     }
   }
 
-  const ajouterVersion = () => gesteDeclinaison(
-    async () => { await logicielsService.addVersion(id, newVersion.trim()); setNewVersion(''); },
-    'Version ajoutée.');
   const retirerVersion = (idVersion) => gesteDeclinaison(
     () => logicielsService.removeVersion(id, idVersion), 'Version supprimée.');
-  const ajouterEdition = () => gesteDeclinaison(
-    async () => { await logicielsService.addEdition(id, newEdition.trim()); setNewEdition(''); },
-    'Édition ajoutée.');
   const retirerEdition = (idEdition) => gesteDeclinaison(
     () => logicielsService.removeEdition(id, idEdition), 'Édition supprimée.');
+
+  // Composition (#216) : même traitement que les déclinaisons, le refus du
+  // serveur part en toast et la fiche est rechargée.
+  const ajouterComposant = () => gesteDeclinaison(
+    async () => { await logicielsService.addComposant(id, nouveauComposant); setNouveauComposant(''); },
+    'Composant ajouté.');
+  const retirerComposant = (idComposant) => gesteDeclinaison(
+    () => logicielsService.removeComposant(id, idComposant), 'Composant retiré.');
+
+  // Candidats du sélecteur : même éditeur, ni le logiciel lui-même, ni un
+  // logiciel déjà composant de celui-ci, ni un logiciel lui-même composé (un
+  // seul niveau en v0.5). Sans éditeur sur la fiche, aucun candidat.
+  const candidatsComposant = useMemo(() => {
+    if (!produit?.id_editeur) return [];
+    const dejaComposants = new Set((produit.composants ?? []).map(c => c.id));
+    return (tousProduits ?? []).filter(p =>
+      p.id !== produit.id && p.id_editeur === produit.id_editeur
+      && !dejaComposants.has(p.id) && !(p.nb_composants > 0));
+  }, [produit, tousProduits]);
 
   const fil = (
     <Breadcrumb items={[
@@ -155,6 +185,14 @@ export default function ProduitDetailPage() {
   const enfants = produit.enfants ?? [];
   const versions = produit.versions ?? [];
   const editions = produit.editions ?? [];
+  const composants = produit.composants ?? [];
+  const composes = produit.composes ?? [];
+  // Le droit affiché est celui que la route exige : complément du catalogue
+  // sous saisir_licence, déclinaison d'un logiciel client sous
+  // gerer_referentiels. Un bouton visible ne mène jamais à un refus.
+  const peutAjouterDeclinaison = isCatalogue ? hasPermission('saisir_licence') : canWrite;
+  const ajoutVersion = isCatalogue ? null : logicielsService.addVersion;
+  const ajoutEdition = isCatalogue ? null : logicielsService.addEdition;
 
   return (
     <div className="flex flex-col gap-6">
@@ -205,7 +243,7 @@ export default function ProduitDetailPage() {
 
       {isCatalogue && (
         <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl px-4 py-3 text-sm text-amber-800 dark:text-amber-300">
-          Catalogue commun, non modifiable. Ce logiciel est partagé par tous les clients SamSecure.
+          Catalogue commun : ce logiciel est partagé par tous les clients SamSecure, sa fiche n&apos;est pas modifiable. Les versions, les éditions et la composition que vous ajoutez restent propres à votre espace.
         </div>
       )}
 
@@ -243,6 +281,82 @@ export default function ProduitDetailPage() {
           }
         </section>
 
+        <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 md:col-span-2">
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Composition</h2>
+          <p className="text-xs text-gray-500 mb-3">
+            Un logiciel composé regroupe au moins deux logiciels du même éditeur. Sa licence couvre chacun de ses composants ; la licence d&apos;un composant ne couvre jamais le logiciel composé.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs text-gray-500 mb-1">Composants ({composants.length})</p>
+              {composes.length > 0 ? (
+                <p className="text-sm text-gray-500">Ce logiciel est déjà composant d&apos;un logiciel composé : il ne peut pas être composé à son tour.</p>
+              ) : (
+                <>
+                  <div className="flex flex-col gap-1.5 mb-3">
+                    {composants.length === 0
+                      ? <p className="text-sm text-gray-500">Aucun composant : ce logiciel n&apos;est pas un logiciel composé.</p>
+                      : composants.map(c => (
+                        <div key={c.id} className="flex items-center justify-between px-3 py-1.5 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                          {c.label
+                            ? <Link to={`/referentiels/logiciels/${c.id}`} className="text-sm text-blue-800 hover:underline">{c.label}</Link>
+                            : <span className="text-sm text-gray-500">Logiciel introuvable</span>}
+                          {canWrite && (
+                            <button onClick={() => retirerComposant(c.id)} aria-label="Retirer le composant" className="text-gray-400 hover:text-red-500">
+                              <X size={14} />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                  </div>
+                  {produit.composition_incomplete && (
+                    <p className="text-xs text-amber-700 dark:text-amber-400 mb-3">Un logiciel composé regroupe au moins deux logiciels : ajoutez un second composant.</p>
+                  )}
+                  {canWrite && (
+                    produit.id_editeur ? (
+                      <div className="flex gap-2">
+                        <select
+                          value={nouveauComposant}
+                          onChange={e => setNouveauComposant(e.target.value)}
+                          aria-label="Logiciel à ajouter comme composant"
+                          className="flex-1 text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="">{candidatsComposant.length ? 'Choisir un logiciel du même éditeur...' : 'Aucun autre logiciel de cet éditeur'}</option>
+                          {candidatsComposant.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+                        </select>
+                        <Button variant="secondary" size="sm" onClick={ajouterComposant} disabled={!nouveauComposant}>
+                          <Plus size={14} /> Ajouter
+                        </Button>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-gray-500">L&apos;éditeur de ce logiciel n&apos;est pas renseigné : la composition exige des logiciels du même éditeur.</p>
+                    )
+                  )}
+                </>
+              )}
+            </div>
+            <div>
+              <p className="text-xs text-gray-500 mb-1">Fait partie de ({composes.length})</p>
+              {composes.length === 0
+                ? <p className="text-sm text-gray-500">Ce logiciel n&apos;est composant d&apos;aucun logiciel composé.</p>
+                : (
+                  <>
+                    <ul className="flex flex-col gap-1 mb-2">
+                      {composes.map(c => (
+                        <li key={c.id}>
+                          {c.label
+                            ? <Link to={`/referentiels/logiciels/${c.id}`} className="text-sm text-blue-800 hover:underline">{c.label}</Link>
+                            : <span className="text-sm text-gray-500">Logiciel introuvable</span>}
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="text-xs text-gray-500">Les licences de {composes.length > 1 ? 'ces logiciels composés' : 'ce logiciel composé'} couvrent aussi ce logiciel, en plus de ses licences propres.</p>
+                  </>
+                )}
+            </div>
+          </div>
+        </section>
+
         <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
           <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Versions ({versions.length})</h2>
           <div className="flex flex-col gap-1.5 mb-3">
@@ -250,7 +364,10 @@ export default function ProduitDetailPage() {
               ? <p className="text-sm text-gray-500">Aucune version enregistrée.</p>
               : versions.map(v => (
                 <div key={v.id} className="flex items-center justify-between px-3 py-1.5 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                  <span className="text-sm text-gray-700 dark:text-gray-300">{v.label}</span>
+                  <span className="text-sm text-gray-700 dark:text-gray-300">
+                    {v.label}
+                    {v.source === 'complement' && <span className="ml-2 text-xs text-gray-400">Ajoutée par votre espace</span>}
+                  </span>
                   {!isCatalogue && canWrite && (
                     <button onClick={() => retirerVersion(v.id)} aria-label="Supprimer la version" className="text-gray-400 hover:text-red-500">
                       <X size={14} />
@@ -259,18 +376,8 @@ export default function ProduitDetailPage() {
                 </div>
               ))}
           </div>
-          {!isCatalogue && canWrite && (
-            <div className="flex gap-2">
-              <input
-                value={newVersion}
-                onChange={e => setNewVersion(e.target.value)}
-                placeholder="Nouvelle version..."
-                className="flex-1 text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <Button variant="secondary" size="sm" onClick={ajouterVersion} disabled={!newVersion.trim()}>
-                <Plus size={14} /> Ajouter
-              </Button>
-            </div>
+          {peutAjouterDeclinaison && (
+            <LicenceDeclinaisonAjout type="versions" idProduit={produit.id} onAjout={load} ajouter={ajoutVersion} />
           )}
         </section>
 
@@ -281,7 +388,10 @@ export default function ProduitDetailPage() {
               ? <p className="text-sm text-gray-500">Aucune édition enregistrée.</p>
               : editions.map(e => (
                 <div key={e.id} className="flex items-center justify-between px-3 py-1.5 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                  <span className="text-sm text-gray-700 dark:text-gray-300">{e.label}</span>
+                  <span className="text-sm text-gray-700 dark:text-gray-300">
+                    {e.label}
+                    {e.source === 'complement' && <span className="ml-2 text-xs text-gray-400">Ajoutée par votre espace</span>}
+                  </span>
                   {!isCatalogue && canWrite && (
                     <button onClick={() => retirerEdition(e.id)} aria-label="Supprimer l'édition" className="text-gray-400 hover:text-red-500">
                       <X size={14} />
@@ -290,18 +400,8 @@ export default function ProduitDetailPage() {
                 </div>
               ))}
           </div>
-          {!isCatalogue && canWrite && (
-            <div className="flex gap-2">
-              <input
-                value={newEdition}
-                onChange={e => setNewEdition(e.target.value)}
-                placeholder="Nouvelle édition..."
-                className="flex-1 text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <Button variant="secondary" size="sm" onClick={ajouterEdition} disabled={!newEdition.trim()}>
-                <Plus size={14} /> Ajouter
-              </Button>
-            </div>
+          {peutAjouterDeclinaison && (
+            <LicenceDeclinaisonAjout type="editions" idProduit={produit.id} onAjout={load} ajouter={ajoutEdition} />
           )}
         </section>
       </div>
@@ -327,7 +427,7 @@ export default function ProduitDetailPage() {
         message={
           produit.supprimable
             ? `Supprimer définitivement ${produit.label} ? Cette action est irréversible.`
-            : `Suppression impossible : ${produit.label} est rattaché à ${produit.nb_licences} licence${produit.nb_licences > 1 ? 's' : ''} et ${enfants.length} sous-produit${enfants.length > 1 ? 's' : ''}. Détachez ou supprimez d'abord ces éléments.`
+            : `Suppression impossible : ${produit.label} est rattaché à ${produit.nb_licences} licence${produit.nb_licences > 1 ? 's' : ''}, ${enfants.length} sous-logiciel${enfants.length > 1 ? 's' : ''} et ${composants.length + composes.length} lien${composants.length + composes.length > 1 ? 's' : ''} de composition. Détachez ou supprimez d'abord ces éléments.`
         }
       />
     </div>
