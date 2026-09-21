@@ -2140,8 +2140,23 @@ window.toggleProfilPermission = async function (profilId, permId, accorde) {
     const permObj = state.permissions.find(x => x.id === permId);
     if (accorde) { await api.addProfilPermission(profilId, { id_permission: permId }); pushAdminLog(`Permission "${permObj?.label || permObj?.code || permId}" ajoutée au groupe "${pPerm?.label || pPerm?.code || profilId}"`); }
     else { await api.removeProfilPermission(profilId, permId); pushAdminLog(`Permission "${permObj?.label || permObj?.code || permId}" retirée du groupe "${pPerm?.label || pPerm?.code || profilId}"`); }
-    delete state.profilPermissions[profilId]; renderMatriceDroits(); toast("Droit mis à jour");
-  } catch (e) { alert(e.message); }
+    // #169 : le cache du groupe est mis à jour sur place. Il était vidé puis la
+    // matrice redessinée : le temps de la relecture, la zone se réduisait à la
+    // ligne "Chargement...", la page raccourcissait et le navigateur ramenait le
+    // défilement en haut, à chaque coche. La case porte déjà le bon état (c'est
+    // le clic qui l'a changée) : rien n'est redessiné en cas de succès.
+    const acquis = state.profilPermissions[profilId] || [];
+    state.profilPermissions[profilId] = accorde
+      ? [...acquis.filter(p => p.id !== permId), permObj || { id: permId }]
+      : acquis.filter(p => p.id !== permId);
+    toast("Droit mis à jour");
+  } catch (e) {
+    alert(e.message);
+    // Refus : la case cochée à tort est remise d'aplomb depuis l'état réel du
+    // groupe, relu AVANT de redessiner pour que la matrice garde sa hauteur.
+    try { state.profilPermissions[profilId] = await api.getProfilPermissions(profilId); } catch (e2) { /* le cache précédent reste la référence */ }
+    renderMatriceDroits();
+  }
 };
 window.supprimerUtilisateur = async function (id) { if (!confirm("Désactiver cet utilisateur ? Le compte reste visible et pourra être réactivé.")) return; try { const uDel = state.utilisateurs.find(x => x.id === id); await api.desactiverUtilisateur(id); pushAdminLog(`Utilisateur "${uDel?.prenom || ''} ${uDel?.nom || ''}" désactivé`); toast("Utilisateur désactivé"); await init(); } catch (e) { alert(e.message); } };
 window.supprimerProfil = async function (id) {
