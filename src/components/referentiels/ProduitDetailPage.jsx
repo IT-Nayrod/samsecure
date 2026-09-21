@@ -5,9 +5,17 @@
 // Un produit du catalogue commun se consulte mais ne se modifie pas depuis un
 // espace client : l'API refuse toute écriture le visant, et modifiable porte
 // cette règle jusqu'à l'écran.
+//
+// #217 : versions et éditions s'ajoutent depuis la fiche dans les deux cas,
+// par le geste des formulaires licence et maintenance (LicenceDeclinaisonAjout).
+// Logiciel du catalogue : complément du client (POST /produits/:id/versions et
+// /editions, droit saisir_licence, celui que la route exige). Logiciel créé
+// localement : routes /logiciels/:id/versions et /editions (gerer_referentiels).
+// Avant ce ticket, la fiche d'un logiciel du catalogue n'offrait aucun ajout et
+// n'affichait pas les compléments saisis ailleurs.
 import { useState, useCallback, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Pencil, Trash2, Plus, X } from 'lucide-react';
+import { Pencil, Trash2, X } from 'lucide-react';
 import { logicielsService, editeursService, editeurDuProduit } from '../../services/referentielsService';
 import { optionnel } from '../../services/http';
 import Breadcrumb from '../ui/Breadcrumb';
@@ -21,7 +29,9 @@ import StatutValidationBadge from './StatutValidationBadge';
 import ValidationActions from './ValidationActions';
 import ProduitFormModal from './ProduitFormModal';
 import LogoEditeur from './LogoEditeur';
+import LicenceDeclinaisonAjout from '../deploiement/LicenceDeclinaisonAjout';
 import useRbac from '../../hooks/useRbac';
+import useAuth from '../../hooks/useAuth';
 import useValidation from '../../hooks/useValidation';
 import { appliquerStatut } from '../../services/validationService';
 import { useToast } from '../../hooks/useToast';
@@ -33,6 +43,7 @@ export default function ProduitDetailPage() {
   const { canWrite, canValidate, canDelete } = useRbac({
     write: 'gerer_referentiels', validate: 'valider_saisie',
   });
+  const { hasPermission } = useAuth();
   const [produit, setProduit] = useState(null);
   const [tousProduits, setTousProduits] = useState([]);
   const [editeurs, setEditeurs] = useState([]);
@@ -41,8 +52,6 @@ export default function ProduitDetailPage() {
   const [errorStatus, setErrorStatus] = useState(null);
   const [formOpen, setFormOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [newVersion, setNewVersion] = useState('');
-  const [newEdition, setNewEdition] = useState('');
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -92,9 +101,9 @@ export default function ProduitDetailPage() {
     }
   }
 
-  // Les quatre gestes de déclinaison partagent leur traitement d'erreur : le
-  // message du serveur, doublon compris, part en toast et la fiche est
-  // rechargée pour rester alignée sur la base.
+  // Les retraits de déclinaison partagent leur traitement d'erreur : le
+  // message du serveur part en toast et la fiche est rechargée pour rester
+  // alignée sur la base. L'ajout est porté par LicenceDeclinaisonAjout.
   async function gesteDeclinaison(action, succes) {
     try {
       await action();
@@ -105,14 +114,8 @@ export default function ProduitDetailPage() {
     }
   }
 
-  const ajouterVersion = () => gesteDeclinaison(
-    async () => { await logicielsService.addVersion(id, newVersion.trim()); setNewVersion(''); },
-    'Version ajoutée.');
   const retirerVersion = (idVersion) => gesteDeclinaison(
     () => logicielsService.removeVersion(id, idVersion), 'Version supprimée.');
-  const ajouterEdition = () => gesteDeclinaison(
-    async () => { await logicielsService.addEdition(id, newEdition.trim()); setNewEdition(''); },
-    'Édition ajoutée.');
   const retirerEdition = (idEdition) => gesteDeclinaison(
     () => logicielsService.removeEdition(id, idEdition), 'Édition supprimée.');
 
@@ -155,6 +158,12 @@ export default function ProduitDetailPage() {
   const enfants = produit.enfants ?? [];
   const versions = produit.versions ?? [];
   const editions = produit.editions ?? [];
+  // Le droit affiché est celui que la route exige : complément du catalogue
+  // sous saisir_licence, déclinaison d'un logiciel client sous
+  // gerer_referentiels. Un bouton visible ne mène jamais à un refus.
+  const peutAjouterDeclinaison = isCatalogue ? hasPermission('saisir_licence') : canWrite;
+  const ajoutVersion = isCatalogue ? null : logicielsService.addVersion;
+  const ajoutEdition = isCatalogue ? null : logicielsService.addEdition;
 
   return (
     <div className="flex flex-col gap-6">
@@ -205,7 +214,7 @@ export default function ProduitDetailPage() {
 
       {isCatalogue && (
         <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl px-4 py-3 text-sm text-amber-800 dark:text-amber-300">
-          Catalogue commun, non modifiable. Ce logiciel est partagé par tous les clients SamSecure.
+          Catalogue commun : ce logiciel est partagé par tous les clients SamSecure, sa fiche n'est pas modifiable. Les versions et éditions que vous ajoutez restent propres à votre espace.
         </div>
       )}
 
@@ -250,7 +259,10 @@ export default function ProduitDetailPage() {
               ? <p className="text-sm text-gray-500">Aucune version enregistrée.</p>
               : versions.map(v => (
                 <div key={v.id} className="flex items-center justify-between px-3 py-1.5 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                  <span className="text-sm text-gray-700 dark:text-gray-300">{v.label}</span>
+                  <span className="text-sm text-gray-700 dark:text-gray-300">
+                    {v.label}
+                    {v.source === 'complement' && <span className="ml-2 text-xs text-gray-400">Ajoutée par votre espace</span>}
+                  </span>
                   {!isCatalogue && canWrite && (
                     <button onClick={() => retirerVersion(v.id)} aria-label="Supprimer la version" className="text-gray-400 hover:text-red-500">
                       <X size={14} />
@@ -259,18 +271,8 @@ export default function ProduitDetailPage() {
                 </div>
               ))}
           </div>
-          {!isCatalogue && canWrite && (
-            <div className="flex gap-2">
-              <input
-                value={newVersion}
-                onChange={e => setNewVersion(e.target.value)}
-                placeholder="Nouvelle version..."
-                className="flex-1 text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <Button variant="secondary" size="sm" onClick={ajouterVersion} disabled={!newVersion.trim()}>
-                <Plus size={14} /> Ajouter
-              </Button>
-            </div>
+          {peutAjouterDeclinaison && (
+            <LicenceDeclinaisonAjout type="versions" idProduit={produit.id} onAjout={load} ajouter={ajoutVersion} />
           )}
         </section>
 
@@ -281,7 +283,10 @@ export default function ProduitDetailPage() {
               ? <p className="text-sm text-gray-500">Aucune édition enregistrée.</p>
               : editions.map(e => (
                 <div key={e.id} className="flex items-center justify-between px-3 py-1.5 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                  <span className="text-sm text-gray-700 dark:text-gray-300">{e.label}</span>
+                  <span className="text-sm text-gray-700 dark:text-gray-300">
+                    {e.label}
+                    {e.source === 'complement' && <span className="ml-2 text-xs text-gray-400">Ajoutée par votre espace</span>}
+                  </span>
                   {!isCatalogue && canWrite && (
                     <button onClick={() => retirerEdition(e.id)} aria-label="Supprimer l'édition" className="text-gray-400 hover:text-red-500">
                       <X size={14} />
@@ -290,18 +295,8 @@ export default function ProduitDetailPage() {
                 </div>
               ))}
           </div>
-          {!isCatalogue && canWrite && (
-            <div className="flex gap-2">
-              <input
-                value={newEdition}
-                onChange={e => setNewEdition(e.target.value)}
-                placeholder="Nouvelle édition..."
-                className="flex-1 text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <Button variant="secondary" size="sm" onClick={ajouterEdition} disabled={!newEdition.trim()}>
-                <Plus size={14} /> Ajouter
-              </Button>
-            </div>
+          {peutAjouterDeclinaison && (
+            <LicenceDeclinaisonAjout type="editions" idProduit={produit.id} onAjout={load} ajouter={ajoutEdition} />
           )}
         </section>
       </div>
