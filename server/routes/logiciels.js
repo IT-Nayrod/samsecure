@@ -79,16 +79,31 @@ function normaliserCorps(body = {}) {
 
 // ---- Lectures et résolutions ------------------------------------------------
 
-// Déclinaisons d'une base, indexées par produit. Sert les quatre tables :
-// version et édition en Commune, version_client et edition_client en Tenant.
-async function declinaisons(client, table) {
+// Déclinaisons d'une base, indexées par produit. Sert les six tables :
+// version et édition en Commune, version_client et edition_client en Tenant,
+// version_complement et edition_complement en Tenant (063). Chaque déclinaison
+// porte sa source : la fiche distingue ce que le catalogue livre de ce que le
+// client a ajouté.
+async function declinaisons(client, table, source) {
   const { rows } = await client.query(
     `SELECT id, id_produit, label FROM ${table} ORDER BY label`);
   const index = new Map();
   for (const d of rows) {
     const l = index.get(d.id_produit) ?? [];
-    l.push({ id: d.id, label: d.label });
+    l.push({ id: d.id, label: d.label, source });
     index.set(d.id_produit, l);
+  }
+  return index;
+}
+
+// Catalogue et compléments du client sous une seule liste par produit, triée
+// par libellé. #217 : la fiche ne lisait que la Commune, une version ajoutée
+// depuis le formulaire licence (063) n'y apparaissait jamais.
+function fusionnerDeclinaisons(catalogue, complements) {
+  const index = new Map(catalogue);
+  for (const [idProduit, liste] of complements) {
+    index.set(idProduit, [...(index.get(idProduit) ?? []), ...liste]
+      .sort((a, b) => a.label.localeCompare(b.label, "fr", { numeric: true })));
   }
   return index;
 }
@@ -132,13 +147,17 @@ function habiller(ligne, source, editeurs, versions, editions, licences) {
 // Catalogue global. Les produits n'ont pas de statut de validation : ils ne
 // sont pas saisis par le client, ils lui sont livrés.
 async function chargerCatalogue(editeurs, licences) {
-  const [{ rows }, versions, editions] = await Promise.all([
+  const [{ rows }, vCatalogue, eCatalogue, vComplements, eComplements] = await Promise.all([
     commonPool.query(
       `SELECT id, label, sku, id_editeur, id_produit_parent, created_at
          FROM produit_referentiel ORDER BY label`),
-    declinaisons(commonPool, "version"),
-    declinaisons(commonPool, "edition"),
+    declinaisons(commonPool, "version", "catalogue"),
+    declinaisons(commonPool, "edition", "catalogue"),
+    declinaisons(tenantPool, "version_complement", "complement"),
+    declinaisons(tenantPool, "edition_complement", "complement"),
   ]);
+  const versions = fusionnerDeclinaisons(vCatalogue, vComplements);
+  const editions = fusionnerDeclinaisons(eCatalogue, eComplements);
   return rows.map((r) => habiller(
     { ...r, updated_at: null, soumis_par: null, statut_validation: null,
       statut_validation_label: null, message_refus: null },
@@ -148,8 +167,8 @@ async function chargerCatalogue(editeurs, licences) {
 async function chargerProduitsClient(editeurs, licences, filtreSql = "", params = []) {
   const [{ rows }, versions, editions] = await Promise.all([
     tenantPool.query(`${SELECT_PRODUIT_CLIENT} ${filtreSql} ORDER BY p.label`, params),
-    declinaisons(tenantPool, "version_client"),
-    declinaisons(tenantPool, "edition_client"),
+    declinaisons(tenantPool, "version_client", "client"),
+    declinaisons(tenantPool, "edition_client", "client"),
   ]);
   return rows.map((r) => habiller({ ...r, sku: null }, "client", editeurs, versions, editions, licences));
 }
@@ -379,8 +398,8 @@ router.patch("/logiciels/:id", async (req, res) => {
 
     const [editeurs, licences] = await Promise.all([editeursParId(), licencesParProduit(tenantPool)]);
     const [versions, editions] = await Promise.all([
-      declinaisons(tenantPool, "version_client"),
-      declinaisons(tenantPool, "edition_client"),
+      declinaisons(tenantPool, "version_client", "client"),
+      declinaisons(tenantPool, "edition_client", "client"),
     ]);
     succes(res, 5303,
       habiller({ ...rows[0], sku: null }, "client", editeurs, versions, editions, licences));
