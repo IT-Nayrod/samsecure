@@ -7,6 +7,15 @@
 // support n'a pas de demande propre depuis la #204). La distinction preuve /
 // facture n'existe plus à l'écran ; la table facture et le circuit de dépôt
 // combiné (factures.js) sont inchangés.
+// Preuve externe (#220, règle client du 17/09/2026, migration 072) : une preuve
+// porte un mode, fichier (document déposé ici, comportement d'origine), url ou
+// reference (document qui vit ailleurs, désigné par une adresse ou par un texte
+// libre). Une preuve externe se crée en un seul appel, sans dépôt de fichier ;
+// son empreinte SHA-256 est saisie à la main et facultative. Validation,
+// détection des manques, compteurs et exports ne regardent pas le mode : une
+// preuve externe y vaut une preuve déposée. L'arbitrage D27 (lien de GED à la
+// place d'un fichier) est clos par cette règle : le lien ne passe plus par
+// url_fichier, il a son mode et sa colonne.
 
 import express from "express";
 import { tenantPool, commonPool } from "../db.js";
@@ -19,6 +28,7 @@ import {
 } from "../utils/stockagePreuves.js";
 import { COLONNES_STATUT, soumettre, purgerValidations } from "../utils/validationWorkflow.js";
 import { dateIsoValide } from "../utils/dateIso.js";
+import { MODE_DEFAUT, modeExterne, appliquerMode, controlerValeurMode, controlerMode } from "../utils/modePreuve.js";
 
 const router = express.Router();
 
@@ -81,6 +91,9 @@ const JOINTURE_STATUT_PREUVE = `
 // rattachée à une commande se situe aussi par le contrat de celle-ci, comme le
 // faisait la ligne facture ; id_contrat reste le rattachement direct, seul
 // modifiable.
+// mode, url_externe et reference_externe (#220) : le support de la preuve. Un
+// mode NULL (la 072 laisse la colonne nullable) est servi comme fichier, même
+// lecture que la contrainte ck_preuve_mode_coherence.
 const SELECT_PREUVE = `
   SELECT p.id, p.label,
          p.date_preuve::text AS date_preuve,
@@ -90,6 +103,7 @@ const SELECT_PREUVE = `
          cm.id_contrat AS id_contrat_commande, ctc.label AS contrat_commande_label,
          sctc.raison_sociale AS contrat_commande_societe_label,
          p.id_licence,     li.label AS licence_label,
+         COALESCE(p.mode, '${MODE_DEFAUT}') AS mode, p.url_externe, p.reference_externe,
          p.url_fichier, p.hash_sha256, p.nom_origine, p.created_at,
          fx.id AS id_facture, fx.label AS facture_label,
          (SELECT count(*) FROM facture f WHERE f.id_preuve = p.id)::int AS nb_factures,
@@ -112,10 +126,12 @@ const SELECT_PREUVE = `
 // le dépôt de la #49 le renseigne, en même temps que url_fichier et le hash.
 // date_preuve (#214) : date métier du document, distincte de created_at (date
 // de dépôt, posée par la base), facultative, commune à tous les types.
+// mode, url_externe, reference_externe (#220) : support de la preuve, voir
+// utils/modePreuve.js.
 // Ordre identique aux $n de l'INSERT et de l'UPDATE.
 const CHAMPS = [
   "label", "id_type_preuve", "id_contrat", "id_commande", "id_licence", "url_fichier", "hash_sha256",
-  "date_preuve",
+  "date_preuve", "mode", "url_externe", "reference_externe",
 ];
 
 // Filtres de liste : premier usage de query params dans les CRUD du projet.
@@ -201,8 +217,12 @@ async function resoumettre(client, idPreuve, idUtilisateur) {
 
 // Un select vide envoie "" et non null. Sans cette normalisation, "" part sur
 // une colonne UUID et produit une 22P02 brute remontée en 500.
+// L'empreinte est débarrassée de ses blancs et passée en minuscules (#220) :
+// saisie à la main pour une preuve externe, elle arrive souvent d'un
+// copier-coller, et doit rester comparable à celles que le dépôt calcule.
 function normaliserCorps(body = {}) {
   const vide = (v) => (v === "" || v === undefined ? null : v);
+  const empreinte = (v) => (typeof v === "string" ? v.trim().toLowerCase() : v);
   return {
     label: body.label ?? "",
     id_type_preuve: vide(body.id_type_preuve),
@@ -210,15 +230,19 @@ function normaliserCorps(body = {}) {
     id_commande: vide(body.id_commande),
     id_licence: vide(body.id_licence),
     url_fichier: vide(body.url_fichier),
-    hash_sha256: vide(body.hash_sha256),
+    hash_sha256: vide(empreinte(body.hash_sha256)),
     date_preuve: vide(body.date_preuve),
+    mode: vide(body.mode),
+    url_externe: vide(body.url_externe),
+    reference_externe: vide(body.reference_externe),
   };
 }
 
 // idPreuve : preuve existante (PATCH), pour tolérer le type Facture sur une
 // preuve déjà portée par sa facture.
+// body : corps passé par appliquerMode (mode renseigné, un seul support).
 async function validerPreuve(client, body, { idPreuve = null } = {}) {
-  const { label, id_type_preuve, id_contrat, id_commande, id_licence, url_fichier, hash_sha256, date_preuve } = body;
+  const { label, id_type_preuve, id_contrat, id_commande, id_licence, hash_sha256, date_preuve, mode } = body;
 
   if (!label || !label.trim())
     return { status: 400, code: 3211, error: "Le libelle est obligatoire." };
@@ -226,7 +250,22 @@ async function validerPreuve(client, body, { idPreuve = null } = {}) {
     return { status: 400, code: 3212, error: "Le type de preuve est obligatoire." };
   if (!(await existe(client, "type_preuve", id_type_preuve)))
     return { status: 400, code: 3213, error: "Type de preuve introuvable." };
-  if (await typeEstFacture(client, id_type_preuve) && !(await porteeParFacture(client, idPreuve)))
+  // Mode admis (#220), contrôlé avant la règle du type Facture, qui en dépend.
+  const modeInvalide = controlerValeurMode(mode);
+  if (modeInvalide) return modeInvalide;
+  // Le type Facture reste réservé au mode fichier (#220) : le circuit facture
+  // exige le document (dépôt combiné, fichier, preuve support et facture en une
+  // transaction). Refus dédié, placé avant le 3234 qui orienterait vers un
+  // dépôt de facture sans dire que le mode est en cause. Vaut aussi pour la
+  // preuve support d'une facture, quel que soit son type : la passer en externe
+  // laisserait une facture sans son document.
+  const estFacture = await typeEstFacture(client, id_type_preuve);
+  const supportFacture = await porteeParFacture(client, idPreuve);
+  if (modeExterne(mode) && (estFacture || supportFacture))
+    return { status: 400, code: 3238, error: estFacture
+      ? "Le type Facture est réservé au mode fichier : une facture se dépose avec son document, ni URL externe ni référence."
+      : "Cette preuve est le support d'une facture : elle reste en mode fichier, une facture se dépose avec son document." };
+  if (estFacture && !supportFacture)
     return { status: 400, code: 3234, error: "Le type Facture n'est pas accepté ici : une facture se dépose avec son fichier par le dépôt de facture (POST /factures/depot)." };
   // Règle métier de la #48, étendue par la #208 : une preuve sans rattachement
   // est orpheline, elle ne serait atteignable ni par un contrat, ni par une
@@ -242,20 +281,21 @@ async function validerPreuve(client, body, { idPreuve = null } = {}) {
     return { status: 400, code: 3216, error: "Commande introuvable." };
   if (!(await existe(client, "licence", id_licence)))
     return { status: 400, code: 3228, error: "Licence introuvable." };
-  // url_fichier est NOT NULL en base (002_tenant_schema.sql:351). Décision du
-  // 11/08 : on ne migre pas, le champ est donc obligatoire dès la #48. En #49
-  // il sera renseigné par le module de dépôt et non plus par le client, sans
-  // changement de ce contrat d'API.
-  // [ARBITRAGE D27] en attente : aucun contrôle de format n'est appliqué ici,
-  // ni exigence d'un chemin de stockage, ni acceptation explicite d'une URL
-  // http/https de GED. La chaîne est stockée telle quelle. La règle viendra se
-  // brancher à cet endroit précis, code 3231 réservé.
-  if (!url_fichier || !url_fichier.trim())
-    return { status: 400, code: 3217, error: "Le chemin du fichier est obligatoire." };
-  // Le hash reste facultatif : le rendre obligatoire préjugerait de D27, qui
-  // prévoit justement un hash NULL pour un lien externe. Seul son format est
-  // vérifié quand il est fourni.
-  if (hash_sha256 && !SHA256_RE.test(hash_sha256))
+  // Cohérence du support avec le mode (#220), miroir de la contrainte
+  // ck_preuve_mode_coherence : url_fichier obligatoire en mode fichier (3217,
+  // règle de la #48 ; la colonne n'est plus NOT NULL depuis la 072, la
+  // contrainte et ce contrôle portent l'obligation), URL http ou https en mode
+  // url (3236), référence en mode reference (3237). En mode fichier, aucun
+  // contrôle de format n'est appliqué à url_fichier, stocké tel quel comme
+  // depuis la #48 ; le dépôt qui suit le remplace par le nom physique.
+  // L'arbitrage D27 est clos par la #220 : un lien de GED se déclare en mode
+  // url. Les codes 3231 et 3232 restent réservés et non émis.
+  const incoherent = controlerMode(body);
+  if (incoherent) return incoherent;
+  // L'empreinte reste facultative dans tous les modes : calculée par le dépôt
+  // pour un fichier, saisie à la main pour une preuve externe. Seul son format
+  // est vérifié quand elle est fournie.
+  if (hash_sha256 && !(typeof hash_sha256 === "string" && SHA256_RE.test(hash_sha256)))
     return { status: 400, code: 3218, error: "L'empreinte SHA-256 doit comporter 64 caracteres hexadecimaux." };
   // Date de la preuve (#214) : facultative pour tous les types, les preuves
   // antérieures restent sans date. Format et calendrier contrôlés ici, sinon
@@ -340,7 +380,9 @@ router.get("/preuves/:id", async (req, res) => {
 });
 
 router.post("/preuves", async (req, res) => {
-  const corps = normaliserCorps(req.body);
+  // Une preuve externe (#220) est complète dès cet appel : aucun dépôt de
+  // fichier ne suit, elle part en validation comme une preuve déposée.
+  const corps = appliquerMode(normaliserCorps(req.body));
   const client = await tenantPool.connect();
   try {
     await client.query("BEGIN");
@@ -354,10 +396,11 @@ router.post("/preuves", async (req, res) => {
     const label = corps.label.trim();
     const { rows: [creee] } = await client.query(
       `INSERT INTO preuve (${CHAMPS.join(", ")})
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        RETURNING id`,
       [label, corps.id_type_preuve, corps.id_contrat, corps.id_commande, corps.id_licence,
-       corps.url_fichier, corps.hash_sha256, corps.date_preuve]
+       corps.url_fichier, corps.hash_sha256, corps.date_preuve,
+       corps.mode, corps.url_externe, corps.reference_externe]
     );
 
     // Toute saisie part en attente de validation, dans la même transaction que
@@ -391,7 +434,8 @@ router.patch("/preuves/:id", async (req, res) => {
 
     const { rows: existant } = await client.query(
       `SELECT label, id_type_preuve, id_contrat, id_commande, id_licence, url_fichier, hash_sha256,
-              date_preuve::text AS date_preuve
+              date_preuve::text AS date_preuve,
+              COALESCE(mode, '${MODE_DEFAUT}') AS mode, url_externe, reference_externe, nom_origine
        FROM preuve WHERE id = $1`, [id]);
     if (!existant.length) {
       await client.query("ROLLBACK");
@@ -402,10 +446,23 @@ router.patch("/preuves/:id", async (req, res) => {
     // champ obligatoire qui n'a simplement pas été transmis. hasOwnProperty
     // distingue le champ absent du champ volontairement mis à null.
     const patch = normaliserCorps(req.body);
-    const corps = { ...existant[0] };
+    const transmis = (champ) => Object.prototype.hasOwnProperty.call(req.body ?? {}, champ);
+    const { nom_origine: nomOrigineAvant, ...avant } = existant[0];
+    let corps = { ...avant };
     for (const champ of CHAMPS) {
-      if (Object.prototype.hasOwnProperty.call(req.body, champ)) corps[champ] = patch[champ];
+      if (transmis(champ)) corps[champ] = patch[champ];
     }
+
+    // Changement de mode (#220) : le mode décide du support, les champs des
+    // autres modes repartent à null (appliquerMode). L'empreinte décrivait le
+    // document précédent : elle ne survit au changement que si l'appelant la
+    // transmet, sinon une preuve externe garderait le hash d'un fichier retiré,
+    // ou un fichier à venir celui d'un document externe.
+    corps = appliquerMode(corps);
+    const changementMode = corps.mode !== avant.mode;
+    if (changementMode && !transmis("hash_sha256")) corps.hash_sha256 = null;
+    // Fichier physique retiré par un passage en externe : tracé et supprimé.
+    const fichierRetire = changementMode && modeExterne(corps.mode) && NOM_PHYSIQUE_RE.test(avant.url_fichier || "");
 
     const invalide = await validerPreuve(client, corps, { idPreuve: id });
     if (invalide) {
@@ -414,21 +471,39 @@ router.patch("/preuves/:id", async (req, res) => {
     }
 
     // Pas de updated_at : la table preuve n'en porte pas (002_tenant_schema.sql:344).
+    // nom_origine ($12) n'a de sens que pour un fichier déposé : conservé tel
+    // qu'en base en mode fichier, effacé pour une preuve externe.
     const label = corps.label.trim();
     await client.query(
       `UPDATE preuve
           SET label = $1, id_type_preuve = $2, id_contrat = $3, id_commande = $4,
-              id_licence = $5, url_fichier = $6, hash_sha256 = $7, date_preuve = $8
-        WHERE id = $9`,
+              id_licence = $5, url_fichier = $6, hash_sha256 = $7, date_preuve = $8,
+              mode = $9, url_externe = $10, reference_externe = $11,
+              nom_origine = CASE WHEN $12::boolean THEN nom_origine ELSE NULL END
+        WHERE id = $13`,
       [label, corps.id_type_preuve, corps.id_contrat, corps.id_commande, corps.id_licence,
-       corps.url_fichier, corps.hash_sha256, corps.date_preuve, id]
+       corps.url_fichier, corps.hash_sha256, corps.date_preuve,
+       corps.mode, corps.url_externe, corps.reference_externe, corps.mode === "fichier", id]
     );
+
+    // Trace probante du retrait : l'empreinte du fichier retiré reste
+    // consultable en audit, comme pour un remplacement.
+    if (fichierRetire) {
+      await audit(client, req, "RETRAIT_FICHIER", id,
+        { mode: avant.mode, url_fichier: avant.url_fichier, hash_sha256: avant.hash_sha256, nom_origine: nomOrigineAvant },
+        { mode: corps.mode, url_externe: corps.url_externe, reference_externe: corps.reference_externe, hash_sha256: corps.hash_sha256 });
+    }
 
     // Une modification est une saisie : retour en attente, motif de refus effacé.
     await resoumettre(client, id, req.user?.id);
 
     await log(client, req, "UPDATE", "preuve", id, `Modification de la preuve "${label}"`, patch);
     await client.query("COMMIT");
+
+    // Le fichier physique ne survit pas au passage en externe, pour la même
+    // raison qu'à la suppression : plus aucune ligne ne le référence. Supprimé
+    // après le COMMIT, pour ne pas le perdre si la transaction échouait.
+    if (fichierRetire) await supprimerFichier(avant.url_fichier);
 
     const { rows } = await tenantPool.query(`${SELECT_PREUVE} WHERE p.id = $1`, [id]);
     succes(res, 3203, rows[0]);
@@ -534,10 +609,22 @@ async function deposerFichier(req, res) {
     await client.query("BEGIN");
 
     const { rows: existant } = await client.query(
-      `SELECT label, url_fichier, hash_sha256, nom_origine FROM preuve WHERE id = $1`, [id]);
+      `SELECT label, url_fichier, hash_sha256, nom_origine, COALESCE(mode, '${MODE_DEFAUT}') AS mode
+         FROM preuve WHERE id = $1`, [id]);
     if (!existant.length) {
       await client.query("ROLLBACK");
       return erreur(res, 3210, { status: 404, message: "Preuve introuvable." });
+    }
+    // Preuve externe (#220) : y poser un fichier violerait la contrainte de
+    // cohérence (un seul support par preuve) et effacerait sans le dire l'URL
+    // ou la référence. Le mode se change d'abord, par PATCH, en connaissance de
+    // cause ; le dépôt redevient alors possible.
+    if (modeExterne(existant[0].mode)) {
+      await client.query("ROLLBACK");
+      return erreur(res, 3239, {
+        status: 409,
+        message: "Dépôt de fichier impossible : cette preuve est externe. Passez-la d'abord en mode fichier.",
+      });
     }
     const avant = existant[0];
     const remplacement = NOM_PHYSIQUE_RE.test(avant.url_fichier || "");
@@ -608,10 +695,10 @@ router.get("/preuves/:id/fichier", async (req, res) => {
 
     const { url_fichier, nom_origine } = rows[0];
 
-    // [ARBITRAGE D27] en attente : si le lien GED externe est retenu, c'est ici
-    // qu'une url_fichier en http/https donnera lieu à une redirection plutôt
-    // qu'à un accès disque, code 3232 réservé au pré-catalogue. Dans l'attente,
-    // seul un fichier déposé par cette tâche est servi.
+    // Preuve externe (#220) : url_fichier est NULL, la route répond 3224 comme
+    // pour toute preuve sans fichier. Aucune redirection vers l'URL externe
+    // (l'arbitrage D27 l'envisageait, code 3232 resté réservé) : l'écran ouvre
+    // lui-même le lien servi par la projection, l'API ne sert que ses fichiers.
     if (!NOM_PHYSIQUE_RE.test(url_fichier || ""))
       return erreur(res, 3224, { status: 404, message: "Aucun fichier n'a ete depose pour cette preuve." });
 
