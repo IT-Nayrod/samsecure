@@ -1,6 +1,6 @@
 // GroupesPage - CRUD des groupes (profils), diffusion tenant/sociétés,
 // matrice de permissions par module avec sauvegarde immédiate.
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Pencil, Trash2, Plus } from 'lucide-react';
 import DataTable from '../ui/DataTable';
@@ -49,9 +49,21 @@ export default function GroupesPage() {
   const [detail, setDetail] = useState(null); // groupe sélectionné
   const [detailPermissions, setDetailPermissions] = useState([]);
   const [confirm, setConfirm] = useState(null);
+  // Fiche réellement ouverte et cases dont l'écriture est en vol : des refs,
+  // pour que les réponses asynchrones lisent l'état courant et non celui du
+  // rendu qui a lancé l'appel.
+  const detailIdRef = useRef(null);
+  const togglesEnCours = useRef(new Set());
+  const relectureRequise = useRef(false);
 
-  const load = useCallback(async () => {
-    setIsLoading(true);
+  // silencieux (#169) : rechargement demandé depuis la fiche ouverte (coche
+  // d'un utilisateur, changement de diffusion). Sans lui, chaque coche basculait
+  // la liste d'arrière-plan en squelette : la page raccourcissait, son
+  // défilement retombait en haut et la liste clignotait derrière le panneau.
+  // Les données sont remplacées sur place, le squelette reste réservé au
+  // premier chargement et aux créations et suppressions de groupe.
+  const load = useCallback(async ({ silencieux = false } = {}) => {
+    if (!silencieux) setIsLoading(true);
     try {
       const [g, s, c, u, a] = await Promise.all([
         groupsService.list(), societesService.list(), permissionsService.list(),
@@ -146,26 +158,70 @@ export default function GroupesPage() {
 
   async function openDetail(group) {
     setDetail(group);
+    detailIdRef.current = group.id;
+    // La matrice du groupe précédent ne doit pas rester affichée sous le titre
+    // du nouveau : une coche porterait sur un état qui n'est pas le sien.
+    setDetailPermissions([]);
     try {
       const perms = await groupsService.listPermissions(group.id);
-      setDetailPermissions(perms);
+      // Réponse tardive d'une fiche refermée ou remplacée : ignorée.
+      if (detailIdRef.current === group.id) setDetailPermissions(perms);
     } catch (err) {
       addToast({ type: 'error', message: err.message });
     }
   }
 
+  function closeDetail() {
+    detailIdRef.current = null;
+    relectureRequise.current = false;
+    setDetail(null);
+  }
+
+  // Sauvegarde immédiate d'une case. La coche est appliquée tout de suite à
+  // l'écran puis confirmée par l'API : en enchaînant plusieurs droits, chaque
+  // case répond au clic sans attendre la précédente. En cas de refus (#170),
+  // le message du serveur est affiché tel quel et la matrice est relue, pour
+  // que l'écran montre l'état réel du groupe et non une supposition.
   async function togglePermission(permId, checked) {
     if (!detail) return;
+    const groupId = detail.id;
+    const cle = `${groupId}:${permId}`;
+    // Une case dont l'écriture est encore en vol ignore le clic suivant : deux
+    // appels contraires sur le même droit arriveraient dans un ordre non garanti.
+    if (togglesEnCours.current.has(cle)) return;
+    togglesEnCours.current.add(cle);
+    setDetailPermissions((prev) => {
+      const sans = prev.filter((p) => p.id !== permId);
+      const perm = catalogue.find((p) => p.id === permId);
+      return checked && perm ? [...sans, perm] : sans;
+    });
     try {
-      if (checked) {
-        await groupsService.addPermission(detail.id, permId);
-        setDetailPermissions((prev) => [...prev, catalogue.find((p) => p.id === permId)]);
-      } else {
-        await groupsService.removePermission(detail.id, permId);
-        setDetailPermissions((prev) => prev.filter((p) => p.id !== permId));
-      }
+      if (checked) await groupsService.addPermission(groupId, permId);
+      else await groupsService.removePermission(groupId, permId);
     } catch (err) {
       addToast({ type: 'error', message: err.message });
+      relectureRequise.current = true;
+    } finally {
+      togglesEnCours.current.delete(cle);
+      await relireApresRefus(groupId);
+    }
+  }
+
+  // Relecture de la matrice après un refus, une fois toutes les écritures en
+  // vol retombées : relire plus tôt montrerait comme décochée une case dont
+  // l'ajout n'est pas encore validé en base. Si une nouvelle coche part pendant
+  // la relecture, son résultat est écarté et la relecture est reportée à la fin
+  // de cette coche.
+  async function relireApresRefus(groupId) {
+    if (!relectureRequise.current || togglesEnCours.current.size > 0) return;
+    relectureRequise.current = false;
+    try {
+      const perms = await groupsService.listPermissions(groupId);
+      if (detailIdRef.current !== groupId) return;
+      if (togglesEnCours.current.size > 0) { relectureRequise.current = true; return; }
+      setDetailPermissions(perms);
+    } catch {
+      // La relecture a échoué elle aussi : le message du refus suffit.
     }
   }
 
@@ -222,7 +278,7 @@ export default function GroupesPage() {
         }
         const rows = await groupsService.listSocietes(detail.id);
         setDiffusions((prev) => ({ ...prev, [detail.id]: rows }));
-        await load();
+        await load({ silencieux: true });
       } catch (err) {
         addToast({ type: 'error', message: err.message });
       }
@@ -244,7 +300,7 @@ export default function GroupesPage() {
         }
         const rows = await groupsService.listSocietes(detail.id);
         setDiffusions((prev) => ({ ...prev, [detail.id]: rows }));
-        await load();
+        await load({ silencieux: true });
       } catch (err) {
         addToast({ type: 'error', message: err.message });
       }
@@ -325,7 +381,7 @@ export default function GroupesPage() {
         </div>
       </SlideOver>
 
-      <SlideOver isOpen={!!detail} onClose={() => setDetail(null)} title={detail ? `Groupe "${detail.label}"` : ''} size="lg">
+      <SlideOver isOpen={!!detail} onClose={closeDetail} title={detail ? `Groupe "${detail.label}"` : ''} size="lg">
         {detail && (
           <div className="flex flex-col gap-6">
             <section>
@@ -372,7 +428,7 @@ export default function GroupesPage() {
               users={users}
               userSocietesMap={userSocietesMap}
               attributions={attributions}
-              onChange={load}
+              onChange={() => load({ silencieux: true })}
             />
           </div>
         )}
