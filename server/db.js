@@ -50,3 +50,15 @@ const base = {
 
 export const commonPool = new Pool({ ...base, database: process.env.PGDATABASE_COMMON });
 export const tenantPool = new Pool({ ...base, database: process.env.PGDATABASE_TENANT });
+
+// Une connexion idle tuée côté serveur (redémarrage de Postgres,
+// pg_terminate_backend) émet 'error' sur le pool ; sans écouteur, Node abat
+// tout le process (panne dev du 23/09/2026). On trace et on laisse le pool
+// recréer ses connexions à la requête suivante.
+function surErreurPool(nom) {
+  return (err) => {
+    console.error(`[db] connexion perdue sur le pool ${nom} : ${err.message}`);
+  };
+}
+commonPool.on("error", surErreurPool("commun"));
+tenantPool.on("error", surErreurPool("tenant"));
