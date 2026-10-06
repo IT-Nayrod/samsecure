@@ -61,7 +61,9 @@ const INPUT_CLS = 'w-full px-3 py-2 border border-gray-300 dark:border-gray-600 
 export const TYPES_PAR_RATTACHEMENT = {
   contrat:  ['contrat_annexes', 'autre'],
   commande: ['bon_commande', 'bon_livraison', 'facture', 'autre'],
-  licence:  ['certificat', 'clefs_licence', 'autre'],
+  // certificat_authenticite (D57, migrations 080 et 081) : propre a la
+  // licence, facultatif, il n'est propose que sur ce rattachement.
+  licence:  ['certificat_authenticite', 'certificat', 'clefs_licence', 'autre'],
 };
 
 // Seule connaissance en dur du circuit facture : le code du type, celui que
@@ -76,8 +78,9 @@ const RATTACHEMENTS = [
 ];
 
 // Champs que le formulaire commun porte déjà : la définition ne les rend pas
-// une seconde fois.
-const CHAMPS_COMMUNS = ['label', ...RATTACHEMENTS.map(r => r.champ)];
+// une seconde fois, elle n'apporte que leur caractère obligatoire (et son
+// libellé pour la date, « Date de la facture » sur le type facture).
+const CHAMPS_COMMUNS = ['label', 'date_preuve', ...RATTACHEMENTS.map(r => r.champ)];
 
 // Rendu HTML d'un champ additionnel d'après son type de champ (060). Une
 // référence hors rattachement est saisie comme un identifiant.
@@ -172,6 +175,11 @@ export default function PreuveFormModal({
     [definitions, typeChoisi]);
   const champsAdditionnels = champsDuType.filter(c => !CHAMPS_COMMUNS.includes(c.nom));
   const rattachementImpose = RATTACHEMENTS.find(r => champsDuType.some(c => c.nom === r.champ && c.obligatoire))?.code ?? null;
+  // Date du document : champ commun, rendu une seule fois ; la définition du
+  // type la rend obligatoire (type facture : montant et date obligatoires,
+  // décision du 10/09/2026) et peut la retitrer.
+  const champDate = champsDuType.find(c => c.nom === 'date_preuve') ?? null;
+  const dateObligatoire = !!champDate?.obligatoire;
 
   // Un rattachement obligatoire dans la définition impose l'objet de
   // rattachement : le formulaire y bascule dès que la définition est connue.
@@ -239,7 +247,8 @@ export default function PreuveFormModal({
   const supportComplet = form.mode === 'fichier' ? !!file
     : form.mode === 'url' ? urlConforme && hashConforme
     : !!form.reference_externe.trim() && hashConforme;
-  const complet = !!(supportComplet && form.label.trim() && form.id_type_preuve && idRattache && champsComplets && rattachementConforme);
+  const complet = !!(supportComplet && form.label.trim() && form.id_type_preuve && idRattache && champsComplets
+    && rattachementConforme && (!dateObligatoire || form.date_preuve));
 
   // Valeurs des champs additionnels, sous leur nom technique, vides omises.
   function valeursChamps() {
@@ -427,7 +436,8 @@ export default function PreuveFormModal({
             <input className={INPUT_CLS} value={form.label} autoFocus
               onChange={e => setForm(v => ({ ...v, label: e.target.value }))} />
           </FormField>
-          <FormField label="Date de la preuve" hint="Date du document, distincte du dépôt">
+          <FormField label={champDate?.libelle ?? 'Date de la preuve'} required={dateObligatoire}
+            hint="Date du document, distincte du dépôt">
             <input type="date" className={INPUT_CLS} value={form.date_preuve}
               onChange={e => setForm(v => ({ ...v, date_preuve: e.target.value }))} />
           </FormField>

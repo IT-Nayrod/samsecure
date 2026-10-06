@@ -18,8 +18,23 @@ import {
   jointureStatut, COLONNES_STATUT, soumettre, purgerValidations,
 } from "../utils/validationWorkflow.js";
 import { dateIsoValide } from "../utils/dateIso.js";
+import { permissionsEffectives } from "../utils/droitsUtilisateur.js";
 
 const router = express.Router();
+
+// Montant de la facture (082) : montant financier, visible avec
+// consulter_kpi_financiers seulement, servi a null avec montants_masques
+// sinon, meme regle que licences.js. Jamais caviarde en chaine : un
+// consommateur ne doit pas confondre "masque" et "0".
+async function montantsVisibles(req) {
+  const { permissions } = await permissionsEffectives(req.user.id);
+  return permissions.has("consulter_kpi_financiers");
+}
+
+function masquerFacture(row, visibles) {
+  return visibles ? { ...row, montants_masques: false }
+                  : { ...row, montant: null, montants_masques: true };
+}
 
 // Convention du projet : helper de journalisation local à chaque routeur.
 // id_auteur est lu dans req.user (session JWT), comme le fait audit() : les
@@ -49,6 +64,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 // (résolution E3). C'est aussi ce qui permet le filtre par contrat plus bas.
 const SELECT_FACTURE = `
   SELECT f.id, f.label,
+         f.montant::float8 AS montant,
          f.id_commande, cm.label AS commande_label,
          cm.id_contrat, ct.label AS contrat_label, sct.raison_sociale AS contrat_societe_label,
          f.id_preuve,   pr.label AS preuve_label, pr.url_fichier AS preuve_url_fichier,
@@ -65,8 +81,10 @@ const SELECT_FACTURE = `
   LEFT JOIN type_preuve tp ON tp.id = pr.id_type_preuve
   ${jointureStatut("facture", "f")}`;
 
-// Ordre identique aux $n de l'INSERT et de l'UPDATE.
-const CHAMPS = ["label", "id_commande", "id_preuve"];
+// Ordre identique aux $n de l'INSERT et de l'UPDATE. montant (082) :
+// obligatoire au depot unifie (decision du 10/09/2026), tolere a null sur les
+// factures anterieures et les PATCH partiels.
+const CHAMPS = ["label", "id_commande", "id_preuve", "montant"];
 
 // Mêmes axes de filtrage que /preuves, pour que l'écran unifie Documents de la
 // #51 applique un seul jeu de filtres aux deux ressources. Contrat et type de
@@ -104,10 +122,12 @@ async function existe(client, table, id) {
 
 function normaliserCorps(body = {}) {
   const vide = (v) => (v === "" || v === undefined ? null : v);
+  const montant = vide(body.montant);
   return {
     label: body.label ?? "",
     id_commande: vide(body.id_commande),
     id_preuve: vide(body.id_preuve),
+    montant: montant === null ? null : Number(montant),
   };
 }
 
@@ -130,6 +150,12 @@ async function validerFacture(client, body) {
   // est nullable, on ne vérifie que l'existence de la référence fournie.
   if (!(await existe(client, "preuve", id_preuve)))
     return { status: 400, code: 3254, error: "Preuve introuvable." };
+  // Doublon volontaire de ck_facture_montant (082) : la contrainte produirait
+  // une 23514 en 500, on veut un 400 lisible. L'obligation, elle, n'est portee
+  // que par le depot unifie : une facture anterieure a la 082 reste modifiable
+  // sans montant.
+  if (body.montant !== null && (!Number.isFinite(body.montant) || body.montant < 0))
+    return { status: 400, code: 3258, error: "Le montant doit etre un montant positif ou nul." };
   return null;
 }
 
@@ -142,7 +168,8 @@ router.get("/factures", async (req, res) => {
       `${SELECT_FACTURE} ${filtres.clause} ORDER BY f.created_at DESC, f.label`,
       filtres.params
     );
-    succes(res, 3240, rows);
+    const visibles = await montantsVisibles(req);
+    succes(res, 3240, rows.map((r) => masquerFacture(r, visibles)));
   } catch (err) {
     console.error("GET /factures error", err);
     erreur(res, 3299, { status: 500, message: "Erreur serveur" });
@@ -204,8 +231,11 @@ async function deposerFacture(req, res) {
   // ne le distingue pas : un seul champ à saisir pour un seul geste métier.
   const labelPreuve = (vide(req.body?.label_preuve) ?? label).trim();
   // Date de la preuve (#214) : date de la facture, portée par la preuve
-  // support comme pour tout autre type, facultative.
+  // support. Obligatoire au dépôt unifié depuis la décision du 10/09/2026
+  // (type facture = montant et date obligatoires), comme le montant (082).
   const datePreuve = vide(req.body?.date_preuve);
+  const montantSaisi = vide(req.body?.montant);
+  const montant = montantSaisi === null ? null : Number(montantSaisi);
 
   const client = await tenantPool.connect();
   let ecrit = null;
@@ -228,9 +258,21 @@ async function deposerFacture(req, res) {
       await client.query("ROLLBACK");
       return erreur(res, 3213, { status: 400, message: "Type de preuve introuvable." });
     }
-    if (datePreuve !== null && !dateIsoValide(datePreuve)) {
+    if (datePreuve === null) {
+      await client.query("ROLLBACK");
+      return erreur(res, 3246, { status: 400, message: "La date de la facture est obligatoire." });
+    }
+    if (!dateIsoValide(datePreuve)) {
       await client.query("ROLLBACK");
       return erreur(res, 3233, { status: 400, message: "La date de la preuve est invalide (format attendu AAAA-MM-JJ)." });
+    }
+    if (montant === null) {
+      await client.query("ROLLBACK");
+      return erreur(res, 3257, { status: 400, message: "Le montant de la facture est obligatoire." });
+    }
+    if (!Number.isFinite(montant) || montant < 0) {
+      await client.query("ROLLBACK");
+      return erreur(res, 3258, { status: 400, message: "Le montant doit etre un montant positif ou nul." });
     }
     const idTypePreuve = idTypePreuveDemande ?? await typePreuveFacture(client);
 
@@ -242,8 +284,8 @@ async function deposerFacture(req, res) {
       [labelPreuve, idTypePreuve, idCommande, ecrit.nomPhysique, ecrit.hash, ecrit.nomOrigine, datePreuve]);
 
     const { rows: [facture] } = await client.query(
-      `INSERT INTO facture (label, id_commande, id_preuve) VALUES ($1, $2, $3) RETURNING id`,
-      [label, idCommande, preuve.id]);
+      `INSERT INTO facture (label, id_commande, id_preuve, montant) VALUES ($1, $2, $3, $4) RETURNING id`,
+      [label, idCommande, preuve.id, montant]);
 
     // Une seule saisie du point de vue du workflow (#204) : la facture. La
     // preuve n'est que le support du fichier, elle ne porte aucune demande de
@@ -255,7 +297,8 @@ async function deposerFacture(req, res) {
       { url_fichier: ecrit.nomPhysique, hash_sha256: ecrit.hash, nom_origine: ecrit.nomOrigine,
         taille: req.file.size, id_facture: facture.id, date_preuve: datePreuve });
     await audit(client, req, "CREATE", "facture", facture.id,
-      { label, id_commande: idCommande, id_preuve: preuve.id, hash_sha256: ecrit.hash });
+      { label, id_commande: idCommande, id_preuve: preuve.id, montant, date_preuve: datePreuve,
+        hash_sha256: ecrit.hash });
 
     await log(client, req, "CREATE", "preuve", preuve.id,
       `Creation de la preuve "${labelPreuve}" au depot de la facture "${label}"`,
@@ -266,7 +309,7 @@ async function deposerFacture(req, res) {
     await client.query("COMMIT");
 
     const { rows } = await tenantPool.query(`${SELECT_FACTURE} WHERE f.id = $1`, [facture.id]);
-    succes(res, 3245, rows[0], { status: 201 });
+    succes(res, 3245, masquerFacture(rows[0], await montantsVisibles(req)), { status: 201 });
   } catch (err) {
     await client.query("ROLLBACK").catch(() => {});
     // Tout ou rien jusqu'au disque : le fichier écrit avant l'échec ne doit pas
@@ -302,7 +345,7 @@ router.get("/factures/:id", async (req, res) => {
     const { rows } = await tenantPool.query(`${SELECT_FACTURE} WHERE f.id = $1`, [id]);
     if (!rows.length) return erreur(res, 3250, { status: 404, message: "Facture introuvable." });
 
-    succes(res, 3241, rows[0]);
+    succes(res, 3241, masquerFacture(rows[0], await montantsVisibles(req)));
   } catch (err) {
     console.error("GET /factures/:id error", err);
     erreur(res, 3299, { status: 500, message: "Erreur serveur" });
@@ -324,9 +367,9 @@ router.post("/factures", async (req, res) => {
     const label = corps.label.trim();
     const { rows: [creee] } = await client.query(
       `INSERT INTO facture (${CHAMPS.join(", ")})
-       VALUES ($1, $2, $3)
+       VALUES ($1, $2, $3, $4)
        RETURNING id`,
-      [label, corps.id_commande, corps.id_preuve]
+      [label, corps.id_commande, corps.id_preuve, corps.montant]
     );
 
     // Toute saisie part en attente de validation, dans la même transaction que
@@ -337,7 +380,7 @@ router.post("/factures", async (req, res) => {
     await client.query("COMMIT");
 
     const { rows } = await tenantPool.query(`${SELECT_FACTURE} WHERE f.id = $1`, [creee.id]);
-    succes(res, 3242, rows[0], { status: 201 });
+    succes(res, 3242, masquerFacture(rows[0], await montantsVisibles(req)), { status: 201 });
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("POST /factures error", err);
@@ -359,7 +402,7 @@ router.patch("/factures/:id", async (req, res) => {
     }
 
     const { rows: existant } = await client.query(
-      `SELECT label, id_commande, id_preuve FROM facture WHERE id = $1`, [id]);
+      `SELECT label, id_commande, id_preuve, montant::float8 AS montant FROM facture WHERE id = $1`, [id]);
     if (!existant.length) {
       await client.query("ROLLBACK");
       return erreur(res, 3250, { status: 404, message: "Facture introuvable." });
@@ -382,8 +425,8 @@ router.patch("/factures/:id", async (req, res) => {
     // Pas de updated_at : la table facture n'en porte pas (002_tenant_schema.sql:356).
     const label = corps.label.trim();
     await client.query(
-      `UPDATE facture SET label = $1, id_commande = $2, id_preuve = $3 WHERE id = $4`,
-      [label, corps.id_commande, corps.id_preuve, id]
+      `UPDATE facture SET label = $1, id_commande = $2, id_preuve = $3, montant = $4 WHERE id = $5`,
+      [label, corps.id_commande, corps.id_preuve, corps.montant, id]
     );
 
     // Une modification est une saisie : retour en attente, motif de refus effacé.
@@ -393,7 +436,7 @@ router.patch("/factures/:id", async (req, res) => {
     await client.query("COMMIT");
 
     const { rows } = await tenantPool.query(`${SELECT_FACTURE} WHERE f.id = $1`, [id]);
-    succes(res, 3243, rows[0]);
+    succes(res, 3243, masquerFacture(rows[0], await montantsVisibles(req)));
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("PATCH /factures/:id error", err);

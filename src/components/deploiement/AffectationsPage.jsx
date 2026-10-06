@@ -164,6 +164,9 @@ export default function AffectationsPage() {
     ) },
     { key: 'societe_label', label: 'Société', sortable: true, render: r => r.societe_label ?? '-' },
     { key: 'reference_client', label: 'Référence client', sortable: true },
+    { key: 'type_cible', label: 'Cible', sortable: true, getValue: r => r.type_cible ?? 'utilisateur',
+      render: r => ((r.type_cible ?? 'utilisateur') === 'poste' ? 'Poste ou machine' : 'Utilisateur'),
+      csvValue: r => ((r.type_cible ?? 'utilisateur') === 'poste' ? 'Poste ou machine' : 'Utilisateur') },
     { key: 'quantite', label: 'Quantité', sortable: true },
     { key: 'statut_validation', label: 'Validation', sortable: true, render: r => <ValidationCell statut={r.statut_validation} motif={r.message_refus} /> },
     { key: 'revalidation', label: 'Revalidation', getValue: r => r.date_prochaine_revalidation ?? '', render: r => (

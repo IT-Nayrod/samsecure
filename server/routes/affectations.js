@@ -37,14 +37,24 @@ async function log(client, req, action, entite_type, entite_id, description, pay
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-// Les produits vivent en BDD Commune : aucune jointure possible, l'API fait
-// le pont. Une requête par réponse, jamais une par ligne.
+// Les produits du catalogue vivent en BDD Commune : aucune jointure possible,
+// l'API fait le pont. licence.id_produit peut aussi désigner un logiciel créé
+// par le client (produit_client, Tenant, sans sku), même doctrine
+// qu'inventaire.js depuis le correctif du 06/10/2026. Une requête par base et
+// par réponse, jamais une par ligne.
 async function libellesProduits(ids) {
   const uniques = [...new Set(ids.filter(Boolean))];
   if (!uniques.length) return new Map();
   const { rows } = await commonPool.query(
     `SELECT id, label, sku FROM produit_referentiel WHERE id = ANY($1::uuid[])`, [uniques]);
-  return new Map(rows.map((r) => [r.id, r]));
+  const map = new Map(rows.map((r) => [r.id, r]));
+  const restants = uniques.filter((id) => !map.has(id));
+  if (restants.length) {
+    const { rows: clients } = await tenantPool.query(
+      `SELECT id, label FROM produit_client WHERE id = ANY($1::uuid[])`, [restants]);
+    for (const r of clients) map.set(r.id, { ...r, sku: null });
+  }
+  return map;
 }
 
 function joindreProduits(rows, produits) {
@@ -59,7 +69,7 @@ function joindreProduits(rows, produits) {
 // colonnes de sortie viennent de COLONNES_REVALIDATION, qui réécrivent le
 // statut à la lecture (valide + échéance dépassée = a_revalider).
 const SELECT_AFFECTATION = `
-  SELECT a.id, a.label, a.reference_client, a.quantite,
+  SELECT a.id, a.label, a.reference_client, a.quantite, a.type_cible,
          a.id_licence,  l.label AS licence_label, l.id_produit, l.quantite AS licence_quantite,
          a.id_societe,  s.raison_sociale AS societe_label,
          COALESCE(s.delai_revalidation, 30) AS delai_revalidation,
@@ -86,7 +96,10 @@ const SELECT_AFFECTATION = `
 
 const ORDRE = `ORDER BY a.created_at DESC, a.reference_client`;
 
-const CHAMPS = ["id_licence", "id_societe", "quantite", "reference_client"];
+// type_cible (084) : utilisateur (defaut) ou poste (poste de travail ou
+// machine). La reference_client reste la reference libre de la cible.
+const TYPES_CIBLE = ["utilisateur", "poste"];
+const CHAMPS = ["id_licence", "id_societe", "quantite", "reference_client", "type_cible"];
 
 async function existe(client, table, id) {
   if (!id) return true;
@@ -103,6 +116,7 @@ function normaliserCorps(body = {}) {
     id_societe: vide(body.id_societe),
     quantite: quantite === null ? null : Number(quantite),
     reference_client: typeof body.reference_client === "string" ? body.reference_client.trim() : vide(body.reference_client),
+    type_cible: vide(body.type_cible),
   };
 }
 
@@ -122,6 +136,10 @@ async function validerAffectation(client, corps) {
     return { status: 400, code: 4115, error: "La quantite doit etre un entier strictement positif." };
   if (!reference_client)
     return { status: 400, code: 4116, error: "La reference client est obligatoire." };
+  // Doublon volontaire de ck_affectation_type_cible (084) : un 400 lisible
+  // plutot qu'une 23514 en 500.
+  if (corps.type_cible !== null && !TYPES_CIBLE.includes(corps.type_cible))
+    return { status: 400, code: 4133, error: "Le type de cible est invalide (utilisateur ou poste)." };
   return null;
 }
 
@@ -313,12 +331,13 @@ router.post("/affectations", async (req, res) => {
     }
 
     // label = référence client : c'est ce que validation.js lit pour ses
-    // traces, et ce que la file du Manager DSI affiche.
+    // traces, et ce que la file du Manager DSI affiche. type_cible absent du
+    // corps : le défaut du DDL (utilisateur, 084) fait foi.
     const { rows: [creee] } = await client.query(
-      `INSERT INTO affectation (label, id_licence, id_societe, quantite, reference_client)
-       VALUES ($1, $2, $3, $4, $1)
+      `INSERT INTO affectation (label, id_licence, id_societe, quantite, reference_client, type_cible)
+       VALUES ($1, $2, $3, $4, $1, COALESCE($5, 'utilisateur'))
        RETURNING id`,
-      [corps.reference_client, corps.id_licence, corps.id_societe, corps.quantite]);
+      [corps.reference_client, corps.id_licence, corps.id_societe, corps.quantite, corps.type_cible]);
 
     await soumettre(client, "affectation", creee.id, req.user?.id);
     await refleterStatut(client, creee.id, "en_attente");
@@ -361,10 +380,15 @@ router.patch("/affectations/:id", async (req, res) => {
       return erreur(res, 4110, { status: 404, message: "Affectation introuvable." });
     }
 
+    // type_cible (084) lu ici : lireAffectation (utils/revalidation.js) sert
+    // le circuit de validation et n'a pas a connaitre la cible.
+    const { rows: [{ type_cible: cibleAvant }] } = await client.query(
+      `SELECT type_cible FROM affectation WHERE id = $1`, [id]);
     const patch = normaliserCorps(req.body);
     const corps = {
       id_licence: avant.id_licence, id_societe: avant.id_societe,
       quantite: avant.quantite, reference_client: avant.reference_client,
+      type_cible: cibleAvant ?? "utilisateur",
     };
     for (const champ of CHAMPS) {
       if (Object.prototype.hasOwnProperty.call(req.body, champ)) corps[champ] = patch[champ];
@@ -378,9 +402,10 @@ router.patch("/affectations/:id", async (req, res) => {
 
     await client.query(
       `UPDATE affectation
-          SET label = $1, reference_client = $1, id_licence = $2, id_societe = $3, quantite = $4
-        WHERE id = $5`,
-      [corps.reference_client, corps.id_licence, corps.id_societe, corps.quantite, id]);
+          SET label = $1, reference_client = $1, id_licence = $2, id_societe = $3, quantite = $4,
+              type_cible = COALESCE($5, 'utilisateur')
+        WHERE id = $6`,
+      [corps.reference_client, corps.id_licence, corps.id_societe, corps.quantite, corps.type_cible, id]);
 
     // Toute modification resoumet, comme le module 2 : l'échéance en cours
     // cesse d'être opposable jusqu'à la nouvelle validation.
@@ -388,7 +413,8 @@ router.patch("/affectations/:id", async (req, res) => {
     await refleterStatut(client, id, "en_attente");
 
     const delta = diff(
-      { id_licence: avant.id_licence, id_societe: avant.id_societe, quantite: avant.quantite, reference_client: avant.reference_client },
+      { id_licence: avant.id_licence, id_societe: avant.id_societe, quantite: avant.quantite,
+        reference_client: avant.reference_client, type_cible: cibleAvant ?? "utilisateur" },
       corps);
     await historiser(client, {
       idSociete: corps.id_societe, idUtilisateur: req.user?.id, action: "UPDATE",

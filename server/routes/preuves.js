@@ -29,8 +29,22 @@ import {
 import { COLONNES_STATUT, soumettre, purgerValidations } from "../utils/validationWorkflow.js";
 import { dateIsoValide } from "../utils/dateIso.js";
 import { MODE_DEFAUT, modeExterne, appliquerMode, controlerValeurMode, controlerMode } from "../utils/modePreuve.js";
+import { permissionsEffectives } from "../utils/droitsUtilisateur.js";
 
 const router = express.Router();
+
+// Montant de la facture portee par la preuve support (082) : montant
+// financier, visible avec consulter_kpi_financiers seulement, servi a null
+// avec montants_masques sinon, meme regle que licences.js et factures.js.
+async function montantsVisibles(req) {
+  const { permissions } = await permissionsEffectives(req.user.id);
+  return permissions.has("consulter_kpi_financiers");
+}
+
+function masquerPreuve(row, visibles) {
+  return visibles ? { ...row, montants_masques: false }
+                  : { ...row, facture_montant: null, montants_masques: true };
+}
 
 // Convention du projet : helper de journalisation local à chaque routeur.
 // id_auteur est lu dans req.user (session JWT), comme le fait audit() : les
@@ -106,6 +120,7 @@ const SELECT_PREUVE = `
          COALESCE(p.mode, '${MODE_DEFAUT}') AS mode, p.url_externe, p.reference_externe,
          p.url_fichier, p.hash_sha256, p.nom_origine, p.created_at,
          fx.id AS id_facture, fx.label AS facture_label,
+         fx.montant::float8 AS facture_montant,
          (SELECT count(*) FROM facture f WHERE f.id_preuve = p.id)::int AS nb_factures,
          ${COLONNES_STATUT}
   FROM preuve p
@@ -117,7 +132,7 @@ const SELECT_PREUVE = `
   LEFT JOIN societe     sctc ON sctc.id = ctc.id_societe
   LEFT JOIN licence     li ON li.id = p.id_licence
   LEFT JOIN LATERAL (
-    SELECT f.id, f.label FROM facture f WHERE f.id_preuve = p.id
+    SELECT f.id, f.label, f.montant FROM facture f WHERE f.id_preuve = p.id
      ORDER BY f.created_at, f.id LIMIT 1
   ) fx ON true
   ${JOINTURE_STATUT_PREUVE}`;
@@ -317,7 +332,8 @@ router.get("/preuves", async (req, res) => {
       `${SELECT_PREUVE} ${filtres.clause} ORDER BY p.created_at DESC, p.label`,
       filtres.params
     );
-    succes(res, 3200, rows);
+    const visibles = await montantsVisibles(req);
+    succes(res, 3200, rows.map((r) => masquerPreuve(r, visibles)));
   } catch (err) {
     console.error("GET /preuves error", err);
     erreur(res, 3299, { status: 500, message: "Erreur serveur" });
@@ -372,7 +388,7 @@ router.get("/preuves/:id", async (req, res) => {
     const { rows } = await tenantPool.query(`${SELECT_PREUVE} WHERE p.id = $1`, [id]);
     if (!rows.length) return erreur(res, 3210, { status: 404, message: "Preuve introuvable." });
 
-    succes(res, 3201, rows[0]);
+    succes(res, 3201, masquerPreuve(rows[0], await montantsVisibles(req)));
   } catch (err) {
     console.error("GET /preuves/:id error", err);
     erreur(res, 3299, { status: 500, message: "Erreur serveur" });
@@ -411,7 +427,7 @@ router.post("/preuves", async (req, res) => {
     await client.query("COMMIT");
 
     const { rows } = await tenantPool.query(`${SELECT_PREUVE} WHERE p.id = $1`, [creee.id]);
-    succes(res, 3202, rows[0], { status: 201 });
+    succes(res, 3202, masquerPreuve(rows[0], await montantsVisibles(req)), { status: 201 });
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("POST /preuves error", err);
@@ -506,7 +522,7 @@ router.patch("/preuves/:id", async (req, res) => {
     if (fichierRetire) await supprimerFichier(avant.url_fichier);
 
     const { rows } = await tenantPool.query(`${SELECT_PREUVE} WHERE p.id = $1`, [id]);
-    succes(res, 3203, rows[0]);
+    succes(res, 3203, masquerPreuve(rows[0], await montantsVisibles(req)));
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("PATCH /preuves/:id error", err);
@@ -657,7 +673,7 @@ async function deposerFichier(req, res) {
     if (remplacement && avant.url_fichier !== ecrit.nomPhysique) await supprimerFichier(avant.url_fichier);
 
     const { rows } = await tenantPool.query(`${SELECT_PREUVE} WHERE p.id = $1`, [id]);
-    succes(res, 3205, rows[0], { status: 201 });
+    succes(res, 3205, masquerPreuve(rows[0], await montantsVisibles(req)), { status: 201 });
   } catch (err) {
     await client.query("ROLLBACK").catch(() => {});
     // Le fichier écrit avant l'échec ne doit pas rester orphelin sur le disque.

@@ -18,6 +18,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Trash2, ExternalLink, Copy, Check, FileWarning, XCircle } from 'lucide-react';
 import { preuvesService, facturesService } from '../../services/documentsService';
+import { formatMontant } from '../../services/licencesService';
 import Breadcrumb from '../ui/Breadcrumb';
 import Button from '../ui/Button';
 import ConfirmModal from '../ui/ConfirmModal';
@@ -244,6 +245,9 @@ export default function DocumentDetailPage() {
         <Champ label="Libellé">{doc.label}</Champ>
         <Champ label="Type">{doc.type_label}</Champ>
         <Champ label="Date de la preuve">{doc.date_preuve ? formatDate(doc.date_preuve) : null}</Champ>
+        {doc.id_facture && (
+          <Champ label="Montant de la facture">{formatMontant(doc.facture_montant, doc.montants_masques)}</Champ>
+        )}
         <Champ label={externe ? 'Enregistrée le' : 'Déposé le'}>{formatDate(doc.created_at)}</Champ>
         <Champ label="Support">{libelleMode(doc)}</Champ>
         {!externe && <Champ label="Nom du fichier d'origine">{doc.nom_origine}</Champ>}

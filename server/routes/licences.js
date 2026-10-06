@@ -223,10 +223,14 @@ async function resoudreVersions(rows, cles) {
   if (ids.length) {
     const { rows: v } = await commonPool.query(`SELECT id, label FROM version WHERE id = ANY($1)`, [ids]);
     for (const x of v) labels.set(x.id, x.label);
-    // Versions ajoutées par le client (063), hors catalogue Commune.
+    // Versions ajoutées par le client (063) et versions propres des
+    // logiciels client (040), hors catalogue Commune.
     const restants = ids.filter((id) => !labels.has(id));
     if (restants.length) {
-      const { rows: c } = await tenantPool.query(`SELECT id, label FROM version_complement WHERE id = ANY($1)`, [restants]);
+      const { rows: c } = await tenantPool.query(
+        `SELECT id, label FROM version_complement WHERE id = ANY($1)
+         UNION ALL
+         SELECT id, label FROM version_client WHERE id = ANY($1)`, [restants]);
       for (const x of c) labels.set(x.id, x.label);
     }
   }
@@ -267,6 +271,14 @@ async function resoudreCatalogue(rows) {
     const { rows: p } = await commonPool.query(
       `SELECT id, label, sku, id_editeur FROM produit_referentiel WHERE id = ANY($1)`, [idsProduits]);
     for (const x of p) produits.set(x.id, x);
+    // Logiciels créés par le client (040) : mêmes identifiants logiques,
+    // stockés en Tenant, sans sku. Une requête pour tout ce qui manque.
+    const produitsRestants = idsProduits.filter((id) => !produits.has(id));
+    if (produitsRestants.length) {
+      const { rows: pc } = await tenantPool.query(
+        `SELECT id, label, id_editeur FROM produit_client WHERE id = ANY($1)`, [produitsRestants]);
+      for (const x of pc) produits.set(x.id, { ...x, sku: null });
+    }
   }
   const declinaisons = new Map();
   if (idsDeclinaisons.length) {
@@ -275,14 +287,19 @@ async function resoudreCatalogue(rows) {
        UNION ALL
        SELECT id, label FROM version WHERE id = ANY($1)`, [idsDeclinaisons]);
     for (const x of d) declinaisons.set(x.id, x.label);
-    // Déclinaisons ajoutées par le client (063) : mêmes identifiants
-    // logiques, stockées en Tenant. Une requête pour tout ce qui manque.
+    // Déclinaisons ajoutées par le client (063) et déclinaisons propres des
+    // logiciels client (040) : mêmes identifiants logiques, stockées en
+    // Tenant. Une requête pour tout ce qui manque.
     const restants = idsDeclinaisons.filter((id) => !declinaisons.has(id));
     if (restants.length) {
       const { rows: c } = await tenantPool.query(
         `SELECT id, label FROM edition_complement WHERE id = ANY($1)
          UNION ALL
-         SELECT id, label FROM version_complement WHERE id = ANY($1)`, [restants]);
+         SELECT id, label FROM version_complement WHERE id = ANY($1)
+         UNION ALL
+         SELECT id, label FROM edition_client WHERE id = ANY($1)
+         UNION ALL
+         SELECT id, label FROM version_client WHERE id = ANY($1)`, [restants]);
       for (const x of c) declinaisons.set(x.id, x.label);
     }
   }
@@ -385,14 +402,29 @@ async function existe(client, table, id) {
   return rowCount > 0;
 }
 
-// Référence vers la BDD Commune : produit, ou déclinaison rattachée au produit.
-async function produitExiste(id) {
+// Référence vers le catalogue Commune seul : les compléments (063) ne
+// s'ajoutent qu'à un produit du catalogue, un logiciel créé par le client
+// porte ses propres déclinaisons (version_client, edition_client).
+async function produitCatalogueExiste(id) {
   const { rowCount } = await commonPool.query(`SELECT 1 FROM produit_referentiel WHERE id = $1`, [id]);
   return rowCount > 0;
 }
-// La déclinaison peut venir du catalogue Commune ou des compléments ajoutés
-// par le client (063, table <table>_complement en Tenant) : les deux sources
-// sont acceptées, toujours rattachées au produit.
+// Logiciel créé par le client (produit_client, 040). licence.id_produit est
+// polymorphe sans FK ni discriminant (même doctrine qu'inventaire.js:56) : le
+// catalogue Commune et les logiciels du client sont tous deux des cibles
+// licites d'une licence. Correctif du 06/10/2026, bug bloquant signalé par
+// Samuel : seul le catalogue était accepté à l'écriture d'une licence.
+async function produitClientExiste(id) {
+  const { rowCount } = await tenantPool.query(`SELECT 1 FROM produit_client WHERE id = $1`, [id]);
+  return rowCount > 0;
+}
+async function produitExiste(id) {
+  return (await produitCatalogueExiste(id)) || (await produitClientExiste(id));
+}
+// La déclinaison peut venir du catalogue Commune, des compléments ajoutés par
+// le client sur un produit du catalogue (063, table <table>_complement) ou des
+// déclinaisons propres d'un logiciel client (040, table <table>_client) : les
+// trois sources sont acceptées, toujours rattachées au produit.
 async function declinaisonDuProduit(table, id, idProduit) {
   if (!id) return true;
   const { rowCount } = await commonPool.query(
@@ -400,7 +432,10 @@ async function declinaisonDuProduit(table, id, idProduit) {
   if (rowCount > 0) return true;
   const { rowCount: complement } = await tenantPool.query(
     `SELECT 1 FROM ${table}_complement WHERE id = $1 AND id_produit = $2`, [id, idProduit]);
-  return complement > 0;
+  if (complement > 0) return true;
+  const { rowCount: duClient } = await tenantPool.query(
+    `SELECT 1 FROM ${table}_client WHERE id = $1 AND id_produit = $2`, [id, idProduit]);
+  return duClient > 0;
 }
 
 // Un <select> vide et un <input type="date"> vide envoient "" et non null.
@@ -442,7 +477,7 @@ async function validerLicence(client, corps, { typeInitial = null, idLicence = n
   if (!c.id_produit)
     return { status: 400, code: 4011, error: "Le logiciel est obligatoire." };
   if (!uuidValide(c.id_produit) || !(await produitExiste(c.id_produit)))
-    return { status: 400, code: 4012, error: "Logiciel introuvable au catalogue." };
+    return { status: 400, code: 4012, error: "Logiciel introuvable." };
   if (!uuidValide(c.id_edition) || !(await declinaisonDuProduit("edition", c.id_edition, c.id_produit)))
     return { status: 400, code: 4013, error: "Édition introuvable ou étrangère au logiciel." };
   if (!uuidValide(c.id_version) || !(await declinaisonDuProduit("version", c.id_version, c.id_produit)))
@@ -1154,6 +1189,10 @@ router.post("/licences/:id/prolonger", async (req, res) => {
 // par un lien logique, et servie avec le catalogue (GET /produits/complements,
 // fusionné par le front). Doublons refusés à la casse et aux accents près,
 // contre le catalogue Commune et contre les compléments déjà saisis.
+// Correctif du 06/10/2026 : le même geste, sous la même permission
+// saisir_licence, sert aussi un logiciel créé par le client : la déclinaison
+// est alors écrite dans sa table propre (version_client, edition_client, 040)
+// et non en complément, pour que la fiche logiciel de Référentiels la voie.
 const COMPLEMENTS = {
   versions: { table: "version", accord: "la version", codeAjout: 4034 },
   editions: { table: "edition", accord: "l'edition", codeAjout: 4035 },
@@ -1189,9 +1228,11 @@ function ajouterComplement(type) {
     const client = await tenantPool.connect();
     try {
       await client.query("BEGIN");
-      if (!UUID_RE.test(id) || !(await produitExiste(id))) {
+      const auCatalogue = UUID_RE.test(id) && (await produitCatalogueExiste(id));
+      const chezLeClient = !auCatalogue && UUID_RE.test(id) && (await produitClientExiste(id));
+      if (!auCatalogue && !chezLeClient) {
         await client.query("ROLLBACK");
-        return erreur(res, 4012, { status: 404, message: "Logiciel introuvable au catalogue." });
+        return erreur(res, 4012, { status: 404, message: "Logiciel introuvable." });
       }
       if (!normalise) {
         await client.query("ROLLBACK");
@@ -1201,31 +1242,48 @@ function ajouterComplement(type) {
         await client.query("ROLLBACK");
         return erreur(res, 4036, { status: 400, message: `Le libelle de ${d.accord} ne peut pas depasser 100 caracteres.` });
       }
-      // Doublon contre le catalogue Commune (comparaison faite ici, la Commune
-      // ne portant pas de forme normalisée) puis contre les compléments.
-      const { rows: catalogue } = await commonPool.query(
-        `SELECT id, label FROM ${d.table} WHERE id_produit = $1`, [id]);
-      const existante = catalogue.find((x) => normaliserLibelle(x.label) === normalise);
-      const { rows: [complement] } = await client.query(
-        `SELECT id, label FROM ${d.table}_complement WHERE id_produit = $1 AND label_normalise = $2`, [id, normalise]);
-      if (existante || complement) {
+      // Doublon refusé contre la ou les sources du produit : catalogue Commune
+      // (comparaison faite ici, la Commune ne portant pas de forme normalisée)
+      // puis compléments pour un produit du catalogue ; déclinaisons propres
+      // pour un logiciel client (table sans label_normalise, comparaison ici).
+      let deja = null;
+      if (auCatalogue) {
+        const { rows: catalogue } = await commonPool.query(
+          `SELECT id, label FROM ${d.table} WHERE id_produit = $1`, [id]);
+        const existante = catalogue.find((x) => normaliserLibelle(x.label) === normalise);
+        const { rows: [complement] } = await client.query(
+          `SELECT id, label FROM ${d.table}_complement WHERE id_produit = $1 AND label_normalise = $2`, [id, normalise]);
+        deja = existante ? { ...existante, source: "catalogue" }
+             : complement ? { ...complement, source: "complement" } : null;
+      } else {
+        const { rows: propres } = await client.query(
+          `SELECT id, label FROM ${d.table}_client WHERE id_produit = $1`, [id]);
+        const existante = propres.find((x) => normaliserLibelle(x.label) === normalise);
+        deja = existante ? { ...existante, source: "client" } : null;
+      }
+      if (deja) {
         await client.query("ROLLBACK");
-        const deja = existante ?? complement;
         return erreur(res, 4037, {
           status: 409,
           message: `Cette ${d.table} existe déjà pour ce logiciel sous le libellé "${deja.label}".`,
-          details: { id: deja.id, label: deja.label, source: existante ? "catalogue" : "complement" },
+          details: { id: deja.id, label: deja.label, source: deja.source },
         });
       }
 
-      const { rows: [creee] } = await client.query(
-        `INSERT INTO ${d.table}_complement (id_produit, label, label_normalise, id_auteur)
-         VALUES ($1, $2, $3, $4) RETURNING id, id_produit, label`,
-        [id, label, normalise, req?.user?.id || null]);
-      await log(client, req, "CREATE", `${d.table}_complement`, creee.id,
-        `Ajout de ${d.accord} "${label}" au produit ${id} (complement du catalogue)`, { id_produit: id, label });
+      const { rows: [creee] } = auCatalogue
+        ? await client.query(
+            `INSERT INTO ${d.table}_complement (id_produit, label, label_normalise, id_auteur)
+             VALUES ($1, $2, $3, $4) RETURNING id, id_produit, label`,
+            [id, label, normalise, req?.user?.id || null])
+        : await client.query(
+            `INSERT INTO ${d.table}_client (id_produit, label)
+             VALUES ($1, $2) RETURNING id, id_produit, label`,
+            [id, label]);
+      await log(client, req, "CREATE", auCatalogue ? `${d.table}_complement` : `${d.table}_client`, creee.id,
+        `Ajout de ${d.accord} "${label}" au produit ${id} (${auCatalogue ? "complement du catalogue" : "logiciel du client"})`,
+        { id_produit: id, label });
       await client.query("COMMIT");
-      succes(res, d.codeAjout, { ...creee, source: "complement" }, { status: 201 });
+      succes(res, d.codeAjout, { ...creee, source: auCatalogue ? "complement" : "client" }, { status: 201 });
     } catch (err) {
       await client.query("ROLLBACK");
       console.error(`POST /produits/:id/${type} error`, err);
