@@ -3,6 +3,7 @@
 import express from "express";
 import { tenantPool } from "../db.js";
 import { estUuid, deciderAjout, deciderRetrait } from "../utils/matriceGroupe.js";
+import { auditer } from "../utils/audit.js";
 
 const router = express.Router();
 
@@ -85,6 +86,11 @@ router.post("/profils/:id/permissions", async (req, res) => {
     await log(client, "CREATE", "profil_permission", rows[0].id,
       `Permission "${perm[0].label || perm[0].code}" ajoutée au groupe "${prof[0].label}"`,
       decision.ecriture === "reactiver" ? { ...rows[0], reactivation: true } : rows[0]);
+    // code_retour: 2064
+    await auditer(client, req, {
+      action: "GROUPE_PERMISSION_AJOUTEE", entiteType: "profil", entiteId: id,
+      apres: { groupe: prof[0].label, permission: perm[0].label || perm[0].code },
+    });
     await client.query("COMMIT");
     res.status(decision.status).json(rows[0]);
   } catch (err) {
@@ -118,6 +124,11 @@ router.delete("/profils/:id/permissions/:idPermission", async (req, res) => {
     const { rows: prof } = await client.query(`SELECT label FROM profil WHERE id = $1`, [id]);
     const { rows: perm } = await client.query(`SELECT label, code FROM permission WHERE id = $1`, [idPermission]);
     await log(client, "DELETE", "profil_permission", ligne.id, `Permission "${perm[0]?.label || perm[0]?.code || idPermission}" retirée du groupe "${prof[0]?.label || id}"`, { id_profil: id, id_permission: idPermission });
+    // code_retour: 2065
+    await auditer(client, req, {
+      action: "GROUPE_PERMISSION_RETIREE", entiteType: "profil", entiteId: id,
+      avant: { groupe: prof[0]?.label || null, permission: perm[0]?.label || perm[0]?.code || null },
+    });
     await client.query("COMMIT");
     res.status(decision.status).end();
   } catch (err) {
