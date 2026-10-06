@@ -1422,7 +1422,8 @@ pre-catalogue contre migrations soit complete dans les deux sens.
 
 ## Notifications (#121, M3-notifications)
 
-Plage 5500-5549, seedee par la migration Commune 052. Routeur
+Plage 5500-5549, seedee par les migrations Commune 052 (socle #121) et 078
+(relance volontaire des courriers, spec v1.1 du 27/09). Routeur
 `server/routes/notifications.js`, moteur `server/utils/notifications/`
 (catalogue, regles pures, moteur, courriers, planificateur). Socle Tenant :
 migration 051 (colonnes sur `notification`, table `preference_notification`,
@@ -1432,9 +1433,9 @@ schema 002 sont reutilisees, pas recreees.
 
 Permissions : toutes les routes sont personnelles (bornees a `req.user.id`
 dans le routeur) et declarees PUBLIC_AUTHENTIFIE, sauf le declenchement manuel
-du traitement planifie, reserve au profil Administrateur SAM par
-`gerer_connecteurs` (meme convention que /mails/test). Aucune permission
-nouvelle.
+du traitement planifie et la relance volontaire des courriers, reserves au
+profil Administrateur SAM par `gerer_connecteurs` (meme convention que
+/mails/test) et traces dans audit_log. Aucune permission nouvelle.
 
 | Code | Type | Libelle | Emis par |
 |---|---|---|---|
@@ -1445,6 +1446,7 @@ nouvelle.
 | 5504 | succes | Préférences de notification | GET /api/notifications/preferences |
 | 5505 | succes | Préférences de notification enregistrées | PUT /api/notifications/preferences |
 | 5506 | succes | Traitement planifié des notifications exécuté | POST /api/notifications/executer-planification |
+| 5507 | succes | Courriers de notification relancés | POST /api/notifications/relancer-courriers |
 | 5510 | erreur | Notification introuvable | PATCH /api/notifications/:id/lu (404, y compris celle d'un autre utilisateur) |
 | 5511 | erreur | Identifiant de notification invalide | PATCH /api/notifications/:id/lu (400) |
 | 5512 | erreur | Le filtre lu doit valoir true ou false | GET /api/notifications |
@@ -1453,15 +1455,16 @@ nouvelle.
 | 5515 | erreur | Le réglage du courrier doit valoir immediat, quotidien ou desactive | PUT /api/notifications/preferences |
 | 5516 | erreur | Un traitement planifié est déjà en cours | POST /api/notifications/executer-planification (409) |
 | 5517 | erreur | Les préférences doivent être transmises sous forme de liste | PUT /api/notifications/preferences |
+| 5518 | erreur | Une relance des courriers est déjà en cours | POST /api/notifications/relancer-courriers (409) |
 | 5549 | erreur | Erreur serveur inattendue (module notifications) | toutes |
 
 Points de lecture :
 
-- huit types au pre-catalogue applicatif (`catalogue.js`) : echeance_contrat,
-  echeance_souscription, depassement_conformite, budget_seuil,
-  validation_en_attente, saisie_traitee, revalidation_echue ; le huitieme est
-  la reserve de structure (type en texte controle par le catalogue, un
-  nouveau type ne demande aucune migration) ;
+- neuf types au pre-catalogue applicatif (`catalogue.js`) : echeance_contrat,
+  echeance_souscription, fin_maintenance (D59-D60, spec v1.1), contrat_a_suivre,
+  depassement_conformite, budget_seuil, validation_en_attente, saisie_traitee,
+  revalidation_echue (type en texte controle par le catalogue, un nouveau type
+  ne demande aucune migration) ;
 - la notification en application est toujours creee ; le courrier suit la
   preference de l'utilisateur par type (immediat, quotidien, desactive),
   defauts du catalogue sinon. Un refus de saisie force l'immediat sauf si le
@@ -1475,11 +1478,21 @@ Points de lecture :
   la specification sont reconnus par leur permission signature (droits de
   dashboard, `gerer_connecteurs` pour l'administrateur) ; sans
   `consulter_kpi_financiers`, aucun montant dans le texte ni dans le
-  courrier (IT Ops recoit les quantites seules) ;
+  courrier dans l'application (IT Ops recoit les quantites seules) ;
+- confidentialite des courriels (spec v1.1, 27/09) : aucun courriel ne porte
+  de donnee metier (montant, quantite, motif, preuve d'ecart, libelle
+  d'entite) ; libelle generique du type et lien vers l'ecran concerne
+  seulement, objet prefixe "SamSecure - <nom du tenant>" ; pas de file de
+  retry applicative, un echec laisse la notification dans l'application,
+  relance volontaire par POST /notifications/relancer-courriers ;
+- multilingue (spec v1.1) : libelles de l'application et des courriels servis
+  dans la langue de l'utilisateur via le referentiel langue/traduction de la
+  Commune (module 'notifications', seed EN par la 078), repli sur la langue
+  par defaut du tenant puis sur le francais du code ;
 - evenementiel : `soumettre()` du workflow (validation_en_attente) et le
   traitement de `validation.js` (saisie_traitee), dans la transaction de
   l'appelant sous SAVEPOINT, jamais bloquant ; planifie : 7 h Paris
-  (echeances, revalidations, conformite, budget, purge) et 7 h 30
+  (echeances, fins de maintenance, revalidations, conformite, budget, purge) et 7 h 30
   (recapitulatif), rattrapage au demarrage, verrou journalier dans
   `tache_asynchrone` ;
 - envois journalises sur la notification (statut, date, resultat, tentatives),

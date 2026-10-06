@@ -197,6 +197,7 @@ export const ROUTES_PERMISSIONS = [
   ["PUT",    "/notifications/preferences",             PUBLIC_AUTHENTIFIE],
   ["POST",   "/notifications/tout-lu",                 PUBLIC_AUTHENTIFIE],
   ["POST",   "/notifications/executer-planification",  "gerer_connecteurs"],
+  ["POST",   "/notifications/relancer-courriers",       "gerer_connecteurs"],
   ["GET",    "/notifications",                         PUBLIC_AUTHENTIFIE],
   ["PATCH",  "/notifications/:id/lu",                  PUBLIC_AUTHENTIFIE],
 

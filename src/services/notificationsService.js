@@ -38,4 +38,8 @@ export const notificationsService = {
 
   // Reserve a l'administrateur : traitement quotidien puis recapitulatif.
   executerPlanification: () => http.post('/notifications/executer-planification'),
+
+  // Reserve a l'administrateur : relance volontaire des courriers en echec
+  // (spec v1.1, pas de file de retry applicative). Sans doublon possible.
+  relancerCourriers: () => http.post('/notifications/relancer-courriers'),
 };

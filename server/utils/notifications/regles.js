@@ -1,4 +1,5 @@
-// Regles pures du module notifications (story #121).
+// Regles pures du module notifications (story #121, revues pour la spec v1.1
+// - retours Samuel du 27/09/2026).
 //
 // Aucun acces a la base, aucune dependance au serveur : tout ce qui est ici
 // se teste en isolation (regles.test.js, node --test). Le moteur, les
@@ -6,6 +7,7 @@
 // donnees lues en base.
 import {
   TYPES, typeConnu, courrierDefaut, LIBELLES_MODES, PALIERS_CONTRAT_DEFAUT,
+  COURRIELS, COURRIEL_GENERIQUE, appliquerModele,
 } from "./catalogue.js";
 
 // ---------------------------------------------------------------------------
@@ -21,14 +23,15 @@ export function cleEvenement(type, ...parties) {
   return [type, ...segments].join(":");
 }
 
-// Cle d'une echeance (echeance_contrat, echeance_souscription), 16/09/2026 :
-// type:id:date_fin:palier. La date de fin fait partie de la cle pour qu'une
-// prolongation (nouvelle date de fin) produise naturellement une nouvelle
-// notification au passage suivant, sans liberation manuelle de la cle
-// precedente. L'anti-doublon reste porte par l'index unique (051) : meme
-// entite, meme date de fin, meme palier, une seule notification par
-// utilisateur. La date est reduite au jour calendaire, qu'elle arrive en
-// chaine ISO ou en Date ; sans date, le segment vaut "aucun" comme ailleurs.
+// Cle d'une echeance (echeance_contrat, echeance_souscription,
+// fin_maintenance), 16/09/2026 : type:id:date_fin:palier. La date de fin fait
+// partie de la cle pour qu'une prolongation (nouvelle date de fin) produise
+// naturellement une nouvelle notification au passage suivant, sans liberation
+// manuelle de la cle precedente. L'anti-doublon reste porte par l'index
+// unique (051) : meme entite, meme date de fin, meme palier, une seule
+// notification par utilisateur. La date est reduite au jour calendaire,
+// qu'elle arrive en chaine ISO ou en Date ; sans date, le segment vaut
+// "aucun" comme ailleurs.
 export function cleEcheance(type, id, dateFin, palier) {
   const jour = dateFin === null || dateFin === undefined || dateFin === ""
     ? null
@@ -50,6 +53,52 @@ export function echeanceNotifiable(nbSuccesseurs) {
   return !(Number.isFinite(n) && n > 0);
 }
 
+// Continuite des fins de maintenance (D59-D60, alertes lot 2), meme esprit
+// que les souscriptions : l'alerte s'eteint des que la suite est assuree.
+//   nb_maintenances_suivantes : periodes de maintenance de la licence dont la
+//     fin depasse celle de la periode consideree (NULL = sans fin) ;
+//   nb_successeurs_licence    : licences renouvelees sur ce predecesseur ;
+//   nb_successeurs_contrat    : contrats succedant au contrat de la licence ;
+//   date_arret                : arret volontaire de la maintenance (version
+//     figee) : la fin est un choix, pas une echeance a surveiller.
+export function maintenanceNotifiable({
+  nb_maintenances_suivantes = 0,
+  nb_successeurs_licence = 0,
+  nb_successeurs_contrat = 0,
+  date_arret = null,
+} = {}) {
+  if (date_arret) return false;
+  for (const n of [nb_maintenances_suivantes, nb_successeurs_licence, nb_successeurs_contrat]) {
+    const v = Number(n);
+    if (Number.isFinite(v) && v > 0) return false;
+  }
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// Multilingue : regles pures (le cache et les lectures en base vivent dans
+// traductions.js, qui consomme ces deux fonctions)
+// ---------------------------------------------------------------------------
+
+// Code langue normalise : minuscules, tronque a la langue ("fr-FR" -> "fr").
+export function normaliserLangue(code) {
+  const base = String(code || "").trim().toLowerCase().split(/[-_]/)[0];
+  return base || null;
+}
+
+// Premiere traduction trouvee pour la cle dans l'ordre des langues donnees.
+// null si aucune : l'appelant retombe sur le modele francais du code.
+export function resoudreTraduction(parLangue, langues, cle) {
+  if (!(parLangue instanceof Map)) return null;
+  for (const langue of langues) {
+    if (!langue) continue;
+    const dico = parLangue.get(langue);
+    const valeur = dico && dico.get(cle);
+    if (valeur) return valeur;
+  }
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // Destinataires
 // ---------------------------------------------------------------------------
@@ -65,7 +114,8 @@ export function couvreSociete(candidat, idSociete) {
 
 // Selection des destinataires d'un evenement parmi les candidats (utilisateurs
 // actifs, avec permissions effectives et portee).
-//   candidats : [{ id, email, prenom, nom, permissions: Set, isTenantScope, societeIds }]
+//   candidats : [{ id, email, prenom, nom, langue, permissions: Set,
+//                  isTenantScope, societeIds }]
 //   evenement : { type, id_societe, audience?, destinataires?, exclure? }
 // - destinataires : identifiants explicites (auteur d'une saisie), la portee
 //   n'est pas verifiee, seuls l'existence et l'exclusion le sont ;
@@ -142,10 +192,22 @@ export function palierAtteint(joursRestants, paliers = PALIERS_CONTRAT_DEFAUT) {
 }
 
 // ---------------------------------------------------------------------------
-// Courriers
+// Courriers (confidentialite v1.1, retours Samuel du 27/09)
+//
+// Aucun courriel ne porte de donnee metier : ni montant, ni quantite, ni
+// motif, ni preuve d'ecart, ni titre ou message de la notification. Chaque
+// courrier se reduit au libelle generique du type (catalogue COURRIELS,
+// traduisible) et au lien vers l'ecran concerne ; la donnee reste dans
+// l'application, servie sous controle des droits.
 // ---------------------------------------------------------------------------
 
 export const PREFIXE_SUJET = "SamSecure";
+
+// Prefixe d'objet : SamSecure plus le nom du tenant (client.raison_sociale),
+// lu par courriers.js. Sans nom (base vide, lecture en echec), SamSecure seul.
+export function prefixeSujet(nomTenant) {
+  return nomTenant ? `${PREFIXE_SUJET} - ${nomTenant}` : PREFIXE_SUJET;
+}
 
 function lienAbsolu(lien, urlBase) {
   if (!lien) return "";
@@ -155,52 +217,78 @@ function lienAbsolu(lien, urlBase) {
 
 const MENTION_PREFERENCES = "Vous recevez ce message selon vos préférences de notification, modifiables dans SamSecure, menu Mon profil, onglet Notifications.";
 
-// Courrier immediat : meme contenu que la notification, lien vers l'ecran,
+// tr local des courriers : modele du referentiel langue/traduction s'il
+// existe, modele francais sinon.
+function trDe(traduire) {
+  return (cle, modeleDefaut, params = null) =>
+    appliquerModele((traduire && traduire(cle)) || modeleDefaut, params);
+}
+
+function libellesCourriel(type, tr) {
+  const defaut = COURRIELS[type] || COURRIEL_GENERIQUE;
+  return {
+    objet: tr(`courriel.${type}.objet`, defaut.objet),
+    message: tr(`courriel.${type}.message`, defaut.message),
+  };
+}
+
+// Courrier immediat : libelle generique de l'evenement, lien vers l'ecran,
 // mention du reglage. Texte brut, paragraphes separes par une ligne vide,
-// comme l'attend le gabarit du socle mail.
-export function composerCourrier(notification, { urlBase } = {}) {
+// comme l'attend le gabarit du socle mail. Jamais le titre ni le message de
+// la notification.
+export function composerCourrier(notification, { urlBase, nomTenant = null, traduire = null } = {}) {
+  const tr = trDe(traduire);
   const lien = lienAbsolu(notification.lien, urlBase);
+  const { objet, message } = libellesCourriel(notification.type, tr);
   const paragraphes = [
-    notification.message,
-    lien ? `Ouvrir l'écran concerné : ${lien}` : null,
-    MENTION_PREFERENCES,
+    message,
+    lien ? tr("courriel.commun.ouvrir", "Consulter le détail dans SamSecure : {lien}", { lien }) : null,
+    tr("courriel.commun.preferences", MENTION_PREFERENCES),
   ].filter(Boolean);
   return {
-    sujet: `${PREFIXE_SUJET} : ${notification.titre}`,
+    sujet: `${prefixeSujet(nomTenant)} : ${objet}`,
     contenu: paragraphes.join("\n\n"),
   };
 }
 
-function libelleType(type) {
-  return typeConnu(type) ? TYPES[type].libelle : "Autres notifications";
+function libelleType(type, tr) {
+  const defaut = typeConnu(type) ? TYPES[type].libelle : "Autres notifications";
+  return tr(`type.${type}.libelle`, defaut);
 }
 
-// Recapitulatif quotidien : les notifications de la veille regroupees par
-// type, chacune avec son texte et son lien, en un seul courrier.
-export function composerRecapitulatif(notifications, { urlBase, dateLabel } = {}) {
+// Recapitulatif quotidien : le nombre de notifications par type et les liens
+// vers les ecrans concernes, en un seul courrier. Les liens identiques d'un
+// meme type sont dedoublonnes (plusieurs alertes budget menent au meme
+// ecran). Aucun texte de notification.
+export function composerRecapitulatif(notifications, { urlBase, dateLabel, nomTenant = null, traduire = null } = {}) {
+  const tr = trDe(traduire);
   const parType = new Map();
   for (const n of notifications) {
     if (!parType.has(n.type)) parType.set(n.type, []);
     parType.get(n.type).push(n);
   }
   const total = notifications.length;
-  const intro = `Vous avez ${total} ${total > 1 ? "nouvelles notifications" : "nouvelle notification"} dans SamSecure` +
-    (dateLabel ? ` (${dateLabel})` : "") + ".";
+  const date = dateLabel ? ` (${dateLabel})` : "";
+  const intro = total > 1
+    ? tr("courriel.recap.intro_plusieurs", "Vous avez {n} nouvelles notifications dans SamSecure{date}.", { n: total, date })
+    : tr("courriel.recap.intro_une", "Vous avez {n} nouvelle notification dans SamSecure{date}.", { n: total, date });
   const blocs = [intro];
   // Ordre du catalogue, types inconnus a la fin.
   const ordre = [...Object.keys(TYPES), ...[...parType.keys()].filter((t) => !typeConnu(t))];
   for (const type of ordre) {
     const liste = parType.get(type);
     if (!liste) continue;
-    const lignes = liste.map((n) => {
-      const lien = lienAbsolu(n.lien, urlBase);
-      return `- ${n.message}${lien ? `\n  ${lien}` : ""}`;
-    });
-    blocs.push(`${libelleType(type)} (${liste.length})\n${lignes.join("\n")}`);
+    const liens = [...new Set(liste.map((n) => lienAbsolu(n.lien, urlBase)).filter(Boolean))];
+    const lignes = liens.map((lien) =>
+      `- ${tr("courriel.recap.consulter", "Consulter : {lien}", { lien })}`);
+    blocs.push(`${libelleType(type, tr)} (${liste.length})${lignes.length ? `\n${lignes.join("\n")}` : ""}`);
   }
-  blocs.push(MENTION_PREFERENCES);
+  blocs.push(tr("courriel.commun.preferences", MENTION_PREFERENCES));
+  const sujet = total > 1
+    ? tr("courriel.recap.objet_plusieurs", "récapitulatif quotidien, {n} notifications", { n: total })
+    : tr("courriel.recap.objet_une", "récapitulatif quotidien, {n} notification", { n: total });
   return {
-    sujet: `${PREFIXE_SUJET} : récapitulatif quotidien, ${total} ${total > 1 ? "notifications" : "notification"}`,
+    sujet: `${prefixeSujet(nomTenant)} : ${sujet}`,
     contenu: blocs.join("\n\n"),
   };
 }

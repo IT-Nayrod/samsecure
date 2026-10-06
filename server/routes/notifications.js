@@ -3,17 +3,23 @@
 // Routes personnelles : chaque requete est bornee a req.user.id, un
 // utilisateur ne lit, ne marque et ne regle que les siennes. Le controle
 // central (routesPermissions.js) les declare PUBLIC_AUTHENTIFIE, a
-// l'exception du declenchement manuel du traitement planifie, reserve au
-// profil administrateur par gerer_connecteurs (meme convention que
-// /mails/test).
+// l'exception du declenchement manuel du traitement planifie et de la
+// relance volontaire des courriers, reserves au profil administrateur par
+// gerer_connecteurs (meme convention que /mails/test) et traces dans
+// audit_log.
 //
 // Codes 5500-5549 (migration Commune 052), enveloppe normalisee
 // (utils/reponse.js).
 import express from "express";
 import { tenantPool } from "../db.js";
 import { succes, erreur } from "../utils/reponse.js";
-import { TYPES, TYPES_CODES, typeConnu, MODES_COURRIER, courrierDefaut, LIBELLES_MODES } from "../utils/notifications/catalogue.js";
+import {
+  TYPES, TYPES_CODES, typeConnu, MODES_COURRIER, courrierDefaut, LIBELLES_MODES, destinatairesDefaut,
+} from "../utils/notifications/catalogue.js";
 import { executerManuellement } from "../utils/notifications/planificateur.js";
+import { relancerCourriers } from "../utils/notifications/courriers.js";
+import { traducteurPour } from "../utils/notifications/traductions.js";
+import { auditer } from "../utils/audit.js";
 
 const router = express.Router();
 
@@ -99,14 +105,30 @@ router.get("/notifications/compteur", async (req, res) => {
 // Preferences : tableau types x reglage du courrier. Absence de ligne =
 // defaut du catalogue, renvoye avec source "defaut".
 // ---------------------------------------------------------------------------
-async function lirePreferences(idUtilisateur) {
+// Libelles servis dans la langue de l'utilisateur (referentiel
+// langue/traduction, multilingue v1.1), repli sur le francais du catalogue.
+async function traducteurUtilisateur(idUtilisateur) {
+  const { rows } = await tenantPool.query(
+    `SELECT langue FROM utilisateur WHERE id = $1`, [idUtilisateur]);
+  const traduire = await traducteurPour(rows[0]?.langue);
+  return (cle, defaut) => (traduire && traduire(cle)) || defaut;
+}
+
+function modesTraduits(tr) {
+  return MODES_COURRIER.map((m) => ({ code: m, libelle: tr(`mode.${m}`, LIBELLES_MODES[m]) }));
+}
+
+async function lirePreferences(idUtilisateur, tr) {
   const { rows } = await tenantPool.query(
     `SELECT type, courrier FROM preference_notification WHERE id_utilisateur = $1`, [idUtilisateur]);
   const perso = new Map(rows.map((r) => [r.type, r.courrier]));
   return TYPES_CODES.map((type) => ({
     type,
-    libelle: TYPES[type].libelle,
-    description: TYPES[type].description,
+    libelle: tr(`type.${type}.libelle`, TYPES[type].libelle),
+    description: tr(`type.${type}.description`, TYPES[type].description),
+    // Destinataires par defaut du catalogue (profils), pour l'ecran des
+    // preferences : qui recoit ce type en l'absence de reglage.
+    destinataires_defaut: destinatairesDefaut(type),
     courrier: perso.get(type) || courrierDefaut(type),
     courrier_defaut: courrierDefaut(type),
     source: perso.has(type) ? "utilisateur" : "defaut",
@@ -115,9 +137,10 @@ async function lirePreferences(idUtilisateur) {
 
 router.get("/notifications/preferences", async (req, res) => {
   try {
+    const tr = await traducteurUtilisateur(req.user.id);
     succes(res, 5504, {
-      modes: MODES_COURRIER.map((m) => ({ code: m, libelle: LIBELLES_MODES[m] })),
-      preferences: await lirePreferences(req.user.id),
+      modes: modesTraduits(tr),
+      preferences: await lirePreferences(req.user.id, tr),
     });
   } catch (err) {
     console.error("GET /notifications/preferences error", err);
@@ -157,9 +180,10 @@ router.put("/notifications/preferences", async (req, res) => {
       }
     }
     await client.query("COMMIT");
+    const tr = await traducteurUtilisateur(req.user.id);
     succes(res, 5505, {
-      modes: MODES_COURRIER.map((m) => ({ code: m, libelle: LIBELLES_MODES[m] })),
-      preferences: await lirePreferences(req.user.id),
+      modes: modesTraduits(tr),
+      preferences: await lirePreferences(req.user.id, tr),
     });
   } catch (err) {
     await client.query("ROLLBACK").catch(() => {});
@@ -193,9 +217,37 @@ router.post("/notifications/executer-planification", async (req, res) => {
   try {
     const resultat = await executerManuellement();
     if (!resultat) return erreur(res, 5516, { status: 409 });
+    await auditer(tenantPool, req, {
+      action: "notifications_execution_planification",
+      entiteType: "notification", entiteId: null,
+      apres: resultat,
+    });
     succes(res, 5506, resultat);
   } catch (err) {
     console.error("POST /notifications/executer-planification error", err);
+    erreur(res, 5549, { status: 500, message: "Erreur serveur" });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// POST /notifications/relancer-courriers (Admin SAM) : relance volontaire des
+// courriers en echec (spec v1.1 : pas de file de retry applicative, un echec
+// laisse la notification dans l'application ; la reprise est un acte
+// volontaire). Sans doublon : seuls les statuts a_envoyer et echec sont
+// repris, jamais envoye.
+// ---------------------------------------------------------------------------
+router.post("/notifications/relancer-courriers", async (req, res) => {
+  try {
+    const resultat = await relancerCourriers();
+    if (!resultat) return erreur(res, 5518, { status: 409 });
+    await auditer(tenantPool, req, {
+      action: "notifications_relance_courriers",
+      entiteType: "notification", entiteId: null,
+      apres: resultat,
+    });
+    succes(res, 5507, resultat);
+  } catch (err) {
+    console.error("POST /notifications/relancer-courriers error", err);
     erreur(res, 5549, { status: 500, message: "Erreur serveur" });
   }
 });
