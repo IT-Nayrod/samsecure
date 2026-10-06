@@ -1,15 +1,19 @@
-// UserFormModal - création / édition d'un utilisateur réel (identité,
-// rattachement, groupés). L'attribution de groupes se pilote directement ici
-// (section Groupes) et en miroir depuis la fiche du groupe.
+// UserFormModal - création / édition d'un utilisateur réel : identité,
+// fenêtre d'activité, profil par défaut (#249), rattachement, groupes.
+//
+// Section Profil distincte de la section Groupes (refonte #249) : un seul
+// profil par défaut, appliqué à toutes les sociétés de rattachement (chaque
+// société configurée applique sa matrice, les autres suivent le défaut du
+// tenant). Les groupes s'ajoutent au profil, sans notion de société (#57).
+// Plus aucune purge ni intersection d'attributions à gérer : le rattachement
+// se modifie librement, le périmètre effectif suit.
 import { useState, useEffect } from 'react';
 import SlideOver from '../ui/SlideOver';
 import Button from '../ui/Button';
 import FormField from '../ui/FormField';
-import ConfirmModal from '../ui/ConfirmModal';
 import SocieteSelector from '../ui/SocieteSelector';
 import UserGroupsSection from './UserGroupsSection';
 import { validateEmail, validateRequired } from '../../utils/validation';
-import { isGroupAssignable } from '../../utils/attributionScope';
 
 const LANGUES = [{ value: 'fr', label: 'Français' }, { value: 'en', label: 'English' }];
 
@@ -21,25 +25,21 @@ const EMPTY_FORM = {
 };
 
 
-export default function UserFormModal({ isOpen, onClose, onSubmit, user, initialSocieteIds, societes, userAttributions, groups, groupDiffusions, onGroupsChanged }) {
+export default function UserFormModal({ isOpen, onClose, onSubmit, user, initialSocieteIds, societes, profils, userAttributions, groups, onGroupsChanged }) {
   const isEdit = !!user;
   const [form, setForm] = useState(EMPTY_FORM);
+  const [idProfil, setIdProfil] = useState('');
   const [scope, setScope] = useState('tenant'); // 'tenant' | 'specifique'
   const [selectedSocietes, setSelectedSocietes] = useState([]);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
-  const [impactModal, setImpactModal] = useState(null);
-  // Groupes cochés alors qu'ils ne sont assignables qu'avec le rattachement
-  // en cours d'édition (pas encore enregistré) : mis en attente ici, créés
-  // réellement à l'enregistrement une fois le nouveau rattachement effectif.
-  const [pendingGroupAdditions, setPendingGroupAdditions] = useState(new Set());
 
   // #169 : la fiche ne se réinitialise que si le rattachement enregistré
   // change réellement. La dépendance portait sur l'identité du tableau : chaque
   // coche de groupe recharge la page, qui sert un nouveau tableau de même
-  // contenu, et la fiche repartait de l'état enregistré (saisies en cours et
-  // coches en attente perdues, sélecteur de sociétés replié, d'où un saut du
-  // panneau sous le curseur).
+  // contenu, et la fiche repartait de l'état enregistré (saisies en cours
+  // perdues, sélecteur de sociétés replié, d'où un saut du panneau sous le
+  // curseur).
   const cleRattachement = (initialSocieteIds || []).map((id) => id ?? 'tenant').join(',');
 
   useEffect(() => {
@@ -51,31 +51,20 @@ export default function UserFormModal({ isOpen, onClose, onSubmit, user, initial
         temporaire: !!user.date_finale, date_finale: user.date_finale || '',
         date_mise_en_fonction: user.date_mise_en_fonction || '',
       });
+      setIdProfil(user.id_profil || '');
       const ids = initialSocieteIds || [];
       const isTenant = ids.includes(null) || ids.length === 0;
       setScope(isTenant ? 'tenant' : 'specifique');
       setSelectedSocietes(ids.filter(Boolean));
     } else {
       setForm(EMPTY_FORM);
+      setIdProfil('');
       setScope('tenant');
       setSelectedSocietes([]);
     }
     setErrors({});
-    setPendingGroupAdditions(new Set());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, isOpen, cleRattachement]);
-
-  // Rattachement en cours d'édition (non enregistré), pour la prévisualisation
-  // temps réel de la section Groupes.
-  const nouvellesSocietesLive = scope === 'tenant' ? [null] : selectedSocietes;
-
-  function togglePendingAddition(groupId, checked) {
-    setPendingGroupAdditions((prev) => {
-      const next = new Set(prev);
-      if (checked) next.add(groupId); else next.delete(groupId);
-      return next;
-    });
-  }
 
   function validate() {
     const e = {};
@@ -94,19 +83,7 @@ export default function UserFormModal({ isOpen, onClose, onSubmit, user, initial
 
   const isValid = Object.keys(validate()).length === 0;
 
-  async function doSave(payload, nouvellesSocietes, impactees, additions) {
-    setLoading(true);
-    try {
-      await onSubmit(payload, nouvellesSocietes, impactees || [], additions || []);
-      onClose();
-    } catch (err) {
-      setErrors((v) => ({ ...v, global: err.message }));
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  function handleSave() {
+  async function handleSave() {
     const e = validate();
     if (Object.keys(e).length) { setErrors(e); return; }
     const payload = {
@@ -121,32 +98,15 @@ export default function UserFormModal({ isOpen, onClose, onSubmit, user, initial
     if (!isEdit) payload.mot_de_passe_hash = form.password;
     const nouvellesSocietes = scope === 'tenant' ? [null] : selectedSocietes;
 
-    // Réévalue CHAQUE attribution actuelle contre le nouveau rattachement, via
-    // la même fonction que les cases à cocher (isGroupAssignable). Ne pas se
-    // contenter de comparer les sociétés retirées : un passage tenant ->
-    // spécifique retire une portée implicite (NULL) qu'un simple diff de
-    // tableaux ne détecte pas, alors qu'il invalide potentiellement les
-    // attributions prises à l'échelle tenant.
-    const impactees = (userAttributions || []).filter((a) => {
-      const groupSocieteIds = (groupDiffusions?.[a.id_profil] || []);
-      return !isGroupAssignable(nouvellesSocietes, groupSocieteIds);
-    });
-
-    const additions = Array.from(pendingGroupAdditions);
-
-    if (impactees.length) {
-      const liste = impactees.map((a) => {
-        const g = (groups || []).find((g) => g.id === a.id_profil);
-        return g?.label || 'groupe inconnu';
-      }).join(' • ');
-      setImpactModal({
-        message: `Ce rattachement supprimera les attributions suivantes, devenues sans société commune : ${liste}. Continuer ?`,
-        onConfirm: () => doSave(payload, nouvellesSocietes, impactees, additions),
-      });
-      return;
+    setLoading(true);
+    try {
+      await onSubmit(payload, nouvellesSocietes, idProfil || null);
+      onClose();
+    } catch (err) {
+      setErrors((v) => ({ ...v, global: err.message }));
+    } finally {
+      setLoading(false);
     }
-
-    doSave(payload, nouvellesSocietes, [], additions);
   }
 
   return (
@@ -266,31 +226,34 @@ export default function UserFormModal({ isOpen, onClose, onSubmit, user, initial
           )}
         </section>
 
+        <section>
+          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 pb-2 border-b border-gray-100 dark:border-gray-700">
+            Profil
+          </h3>
+          <FormField label="Profil par défaut">
+            <select className={INPUT_CLS} value={idProfil} onChange={e => setIdProfil(e.target.value)}>
+              <option value="">Aucun profil</option>
+              {(profils || []).map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.label}{p.type === 'systeme' ? ' (système)' : ''}
+                </option>
+              ))}
+            </select>
+          </FormField>
+          <p className="text-xs text-gray-500 mt-2">
+            Le profil s'applique à toutes les sociétés de rattachement de l'utilisateur : chaque société configurée applique sa propre matrice, les autres suivent la matrice par défaut du tenant.
+          </p>
+        </section>
+
         {isEdit && (
           <UserGroupsSection
             userId={user.id}
-            userSocieteIds={initialSocieteIds || []}
-            pendingSocieteIds={nouvellesSocietesLive}
-            pendingAdditions={pendingGroupAdditions}
-            onTogglePendingAddition={togglePendingAddition}
             groups={groups || []}
-            groupDiffusions={groupDiffusions || {}}
-            societes={societes || []}
             attributions={userAttributions || []}
             onChange={onGroupsChanged}
           />
         )}
       </div>
-
-      <ConfirmModal
-        isOpen={!!impactModal}
-        onClose={() => setImpactModal(null)}
-        onConfirm={() => impactModal?.onConfirm()}
-        title="Attributions impactées"
-        message={impactModal?.message}
-        isDestructive
-        confirmLabel="Confirmer le retrait"
-      />
     </SlideOver>
   );
 }

@@ -6,6 +6,7 @@ import express from "express";
 import bcrypt from "bcryptjs";
 import { tenantPool } from "../db.js";
 import { getAdminScope, isUserInScope, scopeWhereClause } from "../utils/scope.js";
+import { estUuid } from "../utils/matriceGroupe.js";
 import { auditer, diff } from "../utils/audit.js";
 import { traduireEvenement } from "../utils/historiqueLibelles.js";
 import { verifierPolitique, genererMotDePasse } from "../utils/motDePasse.js";
@@ -40,8 +41,10 @@ router.get("/utilisateurs", async (req, res) => {
     const { rows } = await tenantPool.query(
       `SELECT u.id, u.nom, u.prenom, u.email, u.actif,
               u.date_finale::text AS date_finale,
-              u.date_mise_en_fonction::text AS date_mise_en_fonction
+              u.date_mise_en_fonction::text AS date_mise_en_fonction,
+              u.id_profil, p.code AS profil_code, p.label AS profil_label
        FROM utilisateur u
+       LEFT JOIN profil p ON p.id = u.id_profil
        WHERE (${clause})
        ORDER BY u.nom, u.prenom`,
       params
@@ -384,6 +387,87 @@ router.post("/utilisateurs/:id/societes", async (req, res) => {
   }
 });
 
+// Profil par défaut du compte (#249) : un seul, applique à toutes les
+// sociétés de rattachement (chacune avec sa matrice configurée ou le défaut).
+// id_profil null retire le profil. Un groupe est refusé : il s'attribue par
+// la section Groupes (utilisateur_profil_societe).
+router.put("/utilisateurs/:id/profil", async (req, res) => {
+  const { id } = req.params;
+  const { id_profil } = req.body || {};
+  if (!estUuid(id)) return res.status(404).json({ error: "Utilisateur introuvable" });
+  if (id_profil != null && !estUuid(id_profil)) {
+    return res.status(404).json({ error: "Profil introuvable" });
+  }
+
+  const scope = await getAdminScope(req.user.id);
+  if (!(await isUserInScope(id, scope))) {
+    // code_retour: 2051
+    return res.status(403).json({ error: "Cet utilisateur n'est pas dans votre périmètre." });
+  }
+
+  const client = await tenantPool.connect();
+  try {
+    await client.query("BEGIN");
+    const { rows: cible } = await client.query(
+      `SELECT u.id, u.prenom, u.nom, u.id_profil, p.label AS profil_label
+         FROM utilisateur u
+         LEFT JOIN profil p ON p.id = u.id_profil
+        WHERE u.id = $1
+        FOR UPDATE OF u`,
+      [id]
+    );
+    // code_retour: 2050
+    if (!cible.length) { await client.query("ROLLBACK"); return res.status(404).json({ error: "Utilisateur introuvable" }); }
+
+    let nouveau = null;
+    if (id_profil != null) {
+      const { rows: prof } = await client.query(
+        `SELECT id, label, type FROM profil WHERE id = $1 AND date_suppression IS NULL`, [id_profil]
+      );
+      if (!prof.length) { await client.query("ROLLBACK"); return res.status(404).json({ error: "Profil introuvable" }); }
+      if (prof[0].type === "groupe") {
+        await client.query("ROLLBACK");
+        // code_retour: 2077
+        return res.status(409).json({
+          error: `Le groupe "${prof[0].label}" ne s'attribue pas comme profil : utilisez la section Groupes.`,
+        });
+      }
+      nouveau = prof[0];
+    }
+
+    const { rows } = await client.query(
+      `UPDATE utilisateur u SET id_profil = $2
+        WHERE u.id = $1
+        RETURNING u.id, u.id_profil`,
+      [id, nouveau?.id || null]
+    );
+    const { rows: relecture } = await client.query(
+      `SELECT u.id, u.id_profil, p.code AS profil_code, p.label AS profil_label
+         FROM utilisateur u LEFT JOIN profil p ON p.id = u.id_profil
+        WHERE u.id = $1`,
+      [rows[0].id]
+    );
+    const libelle = nouveau
+      ? `Profil "${nouveau.label}" attribué à ${cible[0].prenom} ${cible[0].nom}`
+      : `Profil retiré de ${cible[0].prenom} ${cible[0].nom}`;
+    await log(client, "UPDATE", "utilisateur", id, libelle, { id_profil: nouveau?.id || null });
+    // code_retour: 2073
+    await auditer(client, req, {
+      action: "PROFIL_DEFAUT_MODIFIE", entiteId: id,
+      avant: { profil: cible[0].profil_label || null },
+      apres: { profil: nouveau?.label || null },
+    });
+    await client.query("COMMIT");
+    res.json(relecture[0]);
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("PUT /utilisateurs/:id/profil error", err);
+    res.status(500).json({ error: "Erreur serveur" });
+  } finally {
+    client.release();
+  }
+});
+
 // GET /api/utilisateurs/:id/historique
 // Lecture seule de la trace probante d'un compte. N'écrit rien, ne modifie
 // rien : consulter un historique ne doit pas en produire une ligne.
@@ -520,14 +604,13 @@ router.get("/utilisateurs/:id/societes", async (req, res) => {
   }
 });
 
+// #249 : le retrait d'une société du rattachement ne cascade plus sur les
+// attributions. Le profil par défaut est porté par utilisateur.id_profil et
+// les groupes ne sont plus portés par société (#57) : il n'y a plus rien à
+// purger, le périmètre effectif suit le rattachement restant.
 router.delete("/utilisateurs/:id/societes/:societeId", async (req, res) => {
   const { id, societeId } = req.params;
   try {
-    await tenantPool.query(
-      `UPDATE utilisateur_profil_societe SET date_suppression = now()
-       WHERE id_utilisateur = $1 AND id_societe = $2 AND date_suppression IS NULL`,
-      [id, societeId]
-    );
     const { rowCount } = await tenantPool.query(
       `UPDATE utilisateur_societe SET date_suppression = now()
        WHERE id_utilisateur = $1 AND id_societe = $2 AND date_suppression IS NULL`,

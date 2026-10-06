@@ -52,14 +52,16 @@ try {
     [idUtilisateur]
   );
 
+  // #249 : le profil par defaut du compte est porte par utilisateur.id_profil
+  // (migration 094). C'est lui que lit le calcul des droits ; sans lui, un
+  // administrateur provisionne apres la 094 n'aurait aucune permission.
   const { rowCount } = await client.query(
-    `INSERT INTO utilisateur_profil_societe (id_utilisateur, id_profil, id_societe)
-     SELECT $1, p.id, NULL FROM profil p WHERE p.code = 'admin_sam'
-     ON CONFLICT ON CONSTRAINT uq_utilisateur_profil_societe DO UPDATE
-       SET date_suppression = NULL`,
+    `UPDATE utilisateur u SET id_profil = p.id
+       FROM profil p
+      WHERE u.id = $1 AND p.code = 'admin_sam'`,
     [idUtilisateur]
   );
-  if (rowCount === 0) throw new Error("Groupe 'admin_sam' introuvable : migration 011 non appliquee ?");
+  if (rowCount === 0) throw new Error("Profil 'admin_sam' introuvable : migration 011 non appliquee ?");
 
   await client.query("COMMIT");
   console.log(`[${APP_ENV}] Administrateur ${email} provisionne, portee tenant.`);

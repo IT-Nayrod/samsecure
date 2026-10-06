@@ -1,47 +1,15 @@
-// attributionScope - réplique fidèle de refreshAttributionSocietes (sandbox
-// Antonin, index.html) : une attribution groupe/utilisateur n'est valide que
-// sur l'intersection du rattachement de l'utilisateur et de la diffusion du
-// groupe. Portée NULL (tenant) des deux côtés = "toutes sociétés".
-// Utilisé aux deux points d'entrée (fiche utilisateur, fiche groupe).
+// attributionScope - attribution des groupes personnalisés à un utilisateur.
+//
+// Refonte #249 (#57) : un groupe ne porte plus de sociétés de diffusion, sa
+// portée suit le rattachement de l'utilisateur. Les règles d'intersection
+// rattachement x diffusion ont disparu avec elle : attribuer, c'est créer la
+// ligne (id_societe NULL côté API), retirer, c'est la retirer. retirerGroupe
+// couvre aussi les attributions historiques par société (plusieurs lignes
+// pour un même couple utilisateur/groupe avant la refonte).
 import { attributionsService } from '../services/adminService';
 
-export function isTenantScope(societeIds) {
-  return societeIds.length === 0 || societeIds.includes(null);
-}
-
-// Calcule la portée validée : { tenant: true } si les deux côtés sont à
-// l'échelle tenant (l'attribution devra porter id_societe = NULL), sinon
-// { tenant: false, societeIds } = liste exacte des sociétés sur lesquelles
-// l'attribution doit être créée (une ligne par société).
-export function computeIntersection(userSocieteIds, groupSocieteIds) {
-  const userTenant = isTenantScope(userSocieteIds);
-  const groupTenant = isTenantScope(groupSocieteIds);
-  if (userTenant && groupTenant) return { tenant: true, societeIds: [] };
-  if (userTenant) return { tenant: false, societeIds: groupSocieteIds.filter(Boolean) };
-  if (groupTenant) return { tenant: false, societeIds: userSocieteIds.filter(Boolean) };
-  const groupSet = new Set(groupSocieteIds.filter(Boolean));
-  return { tenant: false, societeIds: userSocieteIds.filter((id) => id && groupSet.has(id)) };
-}
-
-// Un groupe est cochable pour un utilisateur si l'intersection de leurs
-// portées est non vide (ou si l'un des deux est à l'échelle tenant).
-export function isGroupAssignable(userSocieteIds, groupSocieteIds) {
-  if (isTenantScope(userSocieteIds) || isTenantScope(groupSocieteIds)) return true;
-  const groupSet = new Set(groupSocieteIds.filter(Boolean));
-  return userSocieteIds.some((id) => id && groupSet.has(id));
-}
-
-// Crée l'attribution (ou les attributions, une par société de l'intersection)
-// couvrant l'intégralité du périmètre validé.
-export async function attribuerGroupe(userId, groupId, userSocieteIds, groupSocieteIds) {
-  const { tenant, societeIds } = computeIntersection(userSocieteIds, groupSocieteIds);
-  if (tenant) {
-    await attributionsService.create(userId, { id_profil: groupId, id_societe: null });
-    return;
-  }
-  for (const societeId of societeIds) {
-    await attributionsService.create(userId, { id_profil: groupId, id_societe: societeId });
-  }
+export async function attribuerGroupe(userId, groupId) {
+  await attributionsService.create(userId, { id_profil: groupId });
 }
 
 // Retire toutes les attributions existantes pour ce couple utilisateur/groupe.

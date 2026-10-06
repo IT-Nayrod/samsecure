@@ -1,6 +1,7 @@
 // DroitsViewer - visionneuse des droits effectifs d'un utilisateur, par
-// société de son rattachement. Reprend les badges de source de la sandbox :
-// hérité d'un groupe, accordé par exception, retiré par exception, non accordé.
+// société de son rattachement. Depuis le #249, la source distingue le profil
+// par défaut (matrice configurée pour la société regardée, ou défaut du
+// tenant) des groupes personnalisés, en plus des exceptions.
 import { useState, useEffect, useMemo } from 'react';
 import SlideOver from '../ui/SlideOver';
 import { useToast } from '../../hooks/useToast';
@@ -10,7 +11,8 @@ import { MODULES } from '../../constants/permissions';
 
 // Libellés fidèles à renderSourceBadge (sandbox, index.html).
 const SOURCE_CONFIG = {
-  profil: { label: 'Accordé · Groupe', cls: 'bg-blue-100 text-blue-800' },
+  profil: { label: 'Accordé · Profil', cls: 'bg-blue-100 text-blue-800' },
+  groupe: { label: 'Accordé · Groupe', cls: 'bg-purple-100 text-purple-800' },
   exceptionaccorde: { label: 'Accordé · Exception', cls: 'bg-green-100 text-green-800' },
   exceptionretire: { label: 'Retiré · Exception', cls: 'bg-red-100 text-red-800' },
   aucun: { label: 'Non accordé', cls: 'bg-gray-100 text-gray-500' },
@@ -109,6 +111,16 @@ export default function DroitsViewer({ isOpen, onClose, user, societes, userSoci
           </div>
         </div>
 
+        {!loading && (
+          <p className="text-xs text-gray-500 bg-gray-50 dark:bg-gray-700/50 rounded-lg px-3 py-2">
+            {droits?.profil
+              ? `Profil "${droits.profil.label}" : ${droits.profil.configure
+                  ? 'matrice configurée pour cette société'
+                  : 'matrice par défaut du tenant (société non configurée)'}.`
+              : 'Aucun profil par défaut : seuls les groupes et les exceptions s\'appliquent.'}
+          </p>
+        )}
+
         {loading ? (
           <p className="text-sm text-gray-400">Chargement…</p>
         ) : (
@@ -121,7 +133,7 @@ export default function DroitsViewer({ isOpen, onClose, user, societes, userSoci
                     <div key={r.permission.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm bg-white dark:bg-gray-800">
                       <span className="text-gray-700 dark:text-gray-200">
                         {r.permission.label}
-                        {r.redondante && <span className="ml-2 text-xs text-gray-400">(exception redondante avec le groupe)</span>}
+                        {r.redondante && <span className="ml-2 text-xs text-gray-400">(exception redondante avec le profil ou un groupe)</span>}
                       </span>
                       <SourceBadge source={r.source} />
                     </div>

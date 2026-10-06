@@ -5,6 +5,9 @@
 export const ADMIN_PERMISSIONS = {
   UTILISATEURS: 'gerer_utilisateurs',
   GROUPES: 'gerer_utilisateurs',
+  // #249 (Q5) : parametrage des matrices des profils par defaut, permission
+  // dediee detenue par admin_sam seulement par defaut.
+  PROFILS: 'gerer_profils',
   EXCEPTIONS: 'gerer_exceptions_droit',
   JOURNAL: 'consulter_audit_log',
   SOCIETES: 'gerer_referentiels',

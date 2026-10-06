@@ -19,7 +19,6 @@ import { formatDate } from '../../utils/dateUtils';
 import useDebounce from '../../hooks/useDebounce';
 import { exportToCsv } from '../../utils/exportCsv';
 import { usersService, societesService, groupsService, attributionsService } from '../../services/adminService';
-import { attribuerGroupe } from '../../utils/attributionScope';
 import { estInactif, estEnAttenteDeMiseEnFonction, dateIso, FILTRES_STATUT, FILTRES_DATES, filtrerParStatut } from './statutCompte';
 
 // Le statut Supprime n'existe plus : depuis la migration 022, le retrait d'un
@@ -50,10 +49,10 @@ export default function UsersPage() {
   const { user: utilisateurConnecte } = useAuth();
   const [users, setUsers] = useState([]);
   const [societes, setSocietes] = useState([]);
-  const [groups, setGroups] = useState([]);
+  const [profils, setProfils] = useState([]); // profils par défaut et système (#249)
+  const [groups, setGroups] = useState([]);   // groupes personnalisés seuls
   const [attributions, setAttributions] = useState([]);
   const [userSocietes, setUserSocietes] = useState({}); // { userId: [id_societe|null] }
-  const [groupDiffusions, setGroupDiffusions] = useState({}); // { groupId: [id_societe|null] }
   const [isLoading, setIsLoading] = useState(true);
 
   const [filterStatut, setFilterStatut] = useState('actifs');
@@ -86,16 +85,15 @@ export default function UsersPage() {
       ]);
       setUsers(u);
       setSocietes(s);
-      setGroups(g);
+      // GET /profils sert les trois types (074) : le sélecteur de profil prend
+      // les profils par défaut et système, la section Groupes les groupes.
+      setProfils(g.filter((x) => x.type !== 'groupe'));
+      setGroups(g.filter((x) => x.type === 'groupe'));
       setAttributions(a);
       const rattachements = await Promise.all(u.map((usr) => usersService.listSocietes(usr.id)));
       const map = {};
       u.forEach((usr, i) => { map[usr.id] = rattachements[i].map((r) => r.id_societe); });
       setUserSocietes(map);
-      const diffusions = await Promise.all(g.map((grp) => groupsService.listSocietes(grp.id)));
-      const gMap = {};
-      g.forEach((grp, i) => { gMap[grp.id] = diffusions[i].map((r) => r.id_societe); });
-      setGroupDiffusions(gMap);
     } catch (err) {
       addToast({ type: 'error', message: err.message });
     } finally {
@@ -144,7 +142,7 @@ export default function UsersPage() {
 
   const selectionnes = useMemo(() => filtered.filter((u) => selection.has(u.id)), [filtered, selection]);
 
-  async function handleSubmit(payload, nouvellesSocietes, impactees = [], additions = []) {
+  async function handleSubmit(payload, nouvellesSocietes, idProfil) {
     let userId = formModal.user?.id;
     if (formModal.user) {
       await usersService.update(userId, payload);
@@ -168,30 +166,12 @@ export default function UsersPage() {
       await usersService.addSociete(userId, cle === 'TENANT' ? null : cle);
     }
 
-    // Purge des attributions devenues sans intersection. Le retrait d'une
-    // société précise du rattachement les cascade déjà côté serveur ; on
-    // couvre ici en plus le passage tenant -> spécifique, que l'API ne
-    // cascade pas (aucune route dédiée pour cibler la ligne id_societe NULL
-    // d'une attribution). Les 404 (déjà retirée par la cascade serveur) sont
-    // ignorées.
-    for (const a of impactees) {
-      try {
-        await attributionsService.remove(userId, a.id);
-      } catch {
-        // déjà supprimée par la cascade serveur
-      }
-    }
-
-    // Groupes cochés dans l'aperçu temps réel alors qu'ils n'étaient
-    // assignables qu'avec CE nouveau rattachement (pas encore enregistré au
-    // moment de la coche) : le rattachement vient d'être appliqué ci-dessus,
-    // on peut désormais calculer la bonne portée et créer l'attribution.
-    for (const groupId of additions) {
-      try {
-        await attribuerGroupe(userId, groupId, nouvellesSocietes, groupDiffusions[groupId] || []);
-      } catch (err) {
-        addToast({ type: 'error', message: err.message });
-      }
+    // Profil par défaut (#249) : un seul, posé si la sélection a changé. Plus
+    // aucune purge ni intersection d'attributions : le rattachement se modifie
+    // librement, le périmètre effectif du profil et des groupes le suit.
+    const ancienProfil = formModal.user?.id_profil || null;
+    if ((idProfil || null) !== ancienProfil) {
+      await usersService.setProfil(userId, idProfil || null);
     }
 
     addToast({ type: 'success', message: formModal.user ? 'Utilisateur mis à jour.' : 'Utilisateur créé.' });
@@ -262,6 +242,11 @@ export default function UsersPage() {
   const columns = [
     { key: 'nom', label: 'Prénom Nom', sortable: true, render: r => <span className="font-medium text-gray-900 dark:text-white">{r.prenom} {r.nom}</span>, csvValue: r => `${r.prenom} ${r.nom}` },
     { key: 'email', label: 'Email', sortable: true },
+    { key: 'profil', label: 'Profil', sortable: false, render: r => (
+      r.profil_label
+        ? <ProfileBadge profil={r.profil_code} label={r.profil_label} />
+        : <span className="text-xs text-gray-400">Aucun profil</span>
+    ), csvValue: r => r.profil_label || '' },
     { key: 'groupes', label: 'Groupe(s)', render: r => (
       <div className="flex flex-wrap gap-1">{groupsOf(r.id).map((g) => <ProfileBadge key={g.id} profil={g.code} label={g.label} />)}</div>
     ) },
@@ -366,9 +351,9 @@ export default function UsersPage() {
         user={formModal.user}
         initialSocieteIds={formModal.user ? userSocietes[formModal.user.id] : []}
         societes={societes}
+        profils={profils}
         userAttributions={formModal.user ? attributions.filter((a) => a.id_utilisateur === formModal.user.id) : []}
         groups={groups}
-        groupDiffusions={groupDiffusions}
         onGroupsChanged={() => load({ silencieux: true })}
       />
 

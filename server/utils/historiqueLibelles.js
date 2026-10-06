@@ -130,13 +130,25 @@ export function traduireEvenement(ligne, idCompteCible) {
       break;
 
     case "GROUPE_ATTRIBUE":
-      libelle = `Groupe "${ap.profil || "inconnu"}" attribué sur ${ap.societe || "tenant"}${parActeur}`;
-      details = { groupe: ap.profil ?? null, portee: ap.societe ?? "tenant" };
+      // Les traces antérieures au #249 portent une portée (societe) : elle
+      // reste affichée. Les nouvelles n'en ont plus (#57), le groupe suit le
+      // rattachement de l'utilisateur.
+      libelle = `Groupe "${ap.profil || "inconnu"}" attribué${ap.societe ? ` sur ${ap.societe}` : ""}${parActeur}`;
+      details = { groupe: ap.profil ?? null, ...(ap.societe ? { portee: ap.societe } : {}) };
       break;
 
     case "GROUPE_RETIRE":
-      libelle = `Groupe "${av.profil || "inconnu"}" retiré sur ${av.societe || "tenant"}${parActeur}`;
-      details = { groupe: av.profil ?? null, portee: av.societe ?? "tenant" };
+      libelle = `Groupe "${av.profil || "inconnu"}" retiré${av.societe ? ` sur ${av.societe}` : ""}${parActeur}`;
+      details = { groupe: av.profil ?? null, ...(av.societe ? { portee: av.societe } : {}) };
+      break;
+
+    case "PROFIL_DEFAUT_MODIFIE":
+      // #249 : le profil par défaut du compte, un seul, appliqué à tout le
+      // rattachement. Trois formes : attribué, remplacé, retiré.
+      if (ap.profil && av.profil) libelle = `Profil "${av.profil}" remplacé par "${ap.profil}"${parActeur}`;
+      else if (ap.profil) libelle = `Profil "${ap.profil}" attribué${parActeur}`;
+      else libelle = `Profil${av.profil ? ` "${av.profil}"` : ""} retiré${parActeur}`;
+      details = { profil_avant: av.profil ?? null, profil_apres: ap.profil ?? null };
       break;
 
     case "EXCEPTION_AJOUTEE": {

@@ -1,51 +1,64 @@
-// OrganisationDetailPage - fiche détail d'une organisation (données réelles)
+// OrganisationDetailPage - fiche détail d'une société (données réelles), en
+// deux onglets : Informations (identité, paramètres financiers, utilisateurs
+// rattachés) et Profils (#249, configuration des matrices des profils par
+// défaut pour cette société, visible avec gerer_profils).
+//
+// Refonte #249 : plus de détection de « groupes orphelins » à la suppression
+// ni de purge d'attributions au retrait d'un rattachement (#57) : un groupe ne
+// porte plus de diffusion, le périmètre effectif suit le rattachement restant.
 import { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Pencil, Trash2, UserX } from 'lucide-react';
+import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { Pencil, Trash2, UserX, Building2, Shield } from 'lucide-react';
 import Breadcrumb from '../ui/Breadcrumb';
 import Button from '../ui/Button';
 import Badge from '../ui/Badge';
 import ConfirmModal from '../ui/ConfirmModal';
-import Modal from '../ui/Modal';
 import EmptyState from '../ui/EmptyState';
 import OrganisationFormModal from './OrganisationFormModal';
+import SocieteProfilsTab from '../societes/SocieteProfilsTab';
 import { useToast } from '../../hooks/useToast';
-import { societesService, usersService, groupsService, attributionsService } from '../../services/adminService';
-import { isGroupAssignable } from '../../utils/attributionScope';
+import useAuth from '../../hooks/useAuth';
+import { ADMIN_PERMISSIONS } from '../../constants/permissions';
+import { societesService, usersService } from '../../services/adminService';
 
 export default function OrganisationDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { addToast } = useToast();
+  const { hasPermission } = useAuth();
   const [organisations, setOrganisations] = useState([]);
   const [users, setUsers] = useState([]);
   const [userSocietesMap, setUserSocietesMap] = useState({}); // { userId: [id_societe|null] }
-  const [groups, setGroups] = useState([]);
-  const [groupDiffusions, setGroupDiffusions] = useState({}); // { groupId: [id_societe|null] }
-  const [attributions, setAttributions] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
   const [deleteInfo, setDeleteInfo] = useState(null);
   const [retraitInfo, setRetraitInfo] = useState(null);
 
+  // Onglets : Profils n'existe qu'avec la permission dédiée (Q5). L'onglet
+  // actif vit dans l'URL (?tab=profils), ce qui permet le lien direct depuis
+  // l'onglet Profils de l'administration.
+  const peutGererProfils = hasPermission(ADMIN_PERMISSIONS.PROFILS);
+  const tabUrl = searchParams.get('tab');
+  const tab = tabUrl === 'profils' && peutGererProfils ? 'profils' : 'infos';
+
+  function changerOnglet(suivant) {
+    const next = new URLSearchParams(searchParams);
+    if (suivant === 'profils') next.set('tab', 'profils');
+    else next.delete('tab');
+    setSearchParams(next, { replace: true });
+  }
+
   const load = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [rows, u, g, a] = await Promise.all([
-        societesService.list(), usersService.list(), groupsService.list(), attributionsService.listAll(),
-      ]);
+      const [rows, u] = await Promise.all([societesService.list(), usersService.list()]);
       setOrganisations(rows);
       setUsers(u);
-      setGroups(g);
-      setAttributions(a);
       const rattachements = await Promise.all(u.map((usr) => usersService.listSocietes(usr.id)));
       const map = {};
       u.forEach((usr, i) => { map[usr.id] = rattachements[i].map((r) => r.id_societe); });
       setUserSocietesMap(map);
-      const diffs = await Promise.all(g.map((grp) => groupsService.listSocietes(grp.id)));
-      const gMap = {};
-      g.forEach((grp, i) => { gMap[grp.id] = diffs[i].map((r) => r.id_societe); });
-      setGroupDiffusions(gMap);
     } catch (err) {
       addToast({ type: 'error', message: err.message });
     } finally {
@@ -96,53 +109,22 @@ export default function OrganisationDetailPage() {
     return ids;
   }
 
-  async function askDelete() {
-    try {
-      const descendants = collectDescendants(organisation.id);
-      const orphanLists = await Promise.all([organisation.id, ...descendants].map((sid) => societesService.orphanGroups(sid)));
-      // Dédoublonnage par id de groupe (un même groupe peut ressortir pour
-      // plusieurs sociétés de la descendance), fidèle à supprimerSociete (sandbox).
-      const seen = new Set();
-      const orphanGroups = orphanLists.flat().filter((g) => {
-        if (seen.has(g.id)) return false;
-        seen.add(g.id);
-        return true;
-      });
-      if (orphanGroups.length) {
-        setDeleteInfo({ mode: 'orphans', descendants, orphanGroups });
-      } else if (descendants.length) {
-        setDeleteInfo({ mode: 'simple', message: `Supprimer "${organisation.raison_sociale}" et ses ${descendants.length} filiale(s) ?` });
-      } else {
-        setDeleteInfo({ mode: 'simple', message: `Supprimer définitivement "${organisation.raison_sociale}" ?` });
-      }
-    } catch (err) {
-      addToast({ type: 'error', message: err.message });
-    }
+  function askDelete() {
+    const descendants = collectDescendants(organisation.id);
+    setDeleteInfo({
+      message: descendants.length
+        ? `Supprimer "${organisation.raison_sociale}" et ses ${descendants.length} filiale(s) ?`
+        : `Supprimer définitivement "${organisation.raison_sociale}" ?`,
+    });
   }
 
-  function goReassign(groupId) {
-    setDeleteInfo(null);
-    navigate(`/admin/utilisateurs?tab=groupes&groupId=${groupId}`);
-  }
-
-  // Retrait d'un utilisateur de cette organisation : le retrait d'une société
-  // du rattachement fait tomber les attributions qui n'ont plus d'intersection
-  // avec la diffusion de leur groupe (même fonction centralisée que les deux
-  // autres points d'entrée) : le serveur cascade déjà ce retrait précis
-  // (DELETE /utilisateurs/{id}/societes/{id}), on prévient avant.
+  // Retrait d'un utilisateur de cette société : le rattachement seul est
+  // retiré. Le profil et les groupes du compte ne sont plus purgés (#249) :
+  // leur périmètre effectif suit le rattachement restant.
   function askRetirerRattachement(user) {
-    const rattachementActuel = userSocietesMap[user.id] || [];
-    const nouveauRattachement = rattachementActuel.filter((sid) => sid !== organisation.id);
-    const impactees = attributions
-      .filter((a) => a.id_utilisateur === user.id)
-      .filter((a) => !isGroupAssignable(nouveauRattachement, groupDiffusions[a.id_profil] || []));
-    const liste = impactees.map((a) => groups.find((g) => g.id === a.id_profil)?.label || a.id_profil).join(' • ');
     setRetraitInfo({
       user,
-      impactees,
-      message: impactees.length
-        ? `Retirer ${user.prenom} ${user.nom} de "${organisation.raison_sociale}" supprimera son attribution aux groupes : ${liste}. Continuer ?`
-        : `Retirer ${user.prenom} ${user.nom} de "${organisation.raison_sociale}" ?`,
+      message: `Retirer ${user.prenom} ${user.nom} de "${organisation.raison_sociale}" ? Ses droits ne s'appliqueront plus à cette société.`,
     });
   }
 
@@ -150,16 +132,6 @@ export default function OrganisationDetailPage() {
     if (!retraitInfo) return;
     try {
       await usersService.removeSociete(retraitInfo.user.id, organisation.id);
-      // Le serveur cascade déjà les attributions scopées exactement sur cette
-      // société ; on couvre en plus celles restées à une autre portée (ex.
-      // tenant) mais devenues sans intersection avec le nouveau rattachement.
-      for (const a of retraitInfo.impactees || []) {
-        try {
-          await attributionsService.remove(retraitInfo.user.id, a.id);
-        } catch {
-          // déjà supprimée par la cascade serveur
-        }
-      }
       addToast({ type: 'success', message: `${retraitInfo.user.prenom} ${retraitInfo.user.nom} retiré(e) de la société.` });
       await load();
     } catch (err) {
@@ -176,6 +148,11 @@ export default function OrganisationDetailPage() {
       addToast({ type: 'error', message: err.message });
     }
   }
+
+  const ONGLETS = [
+    { key: 'infos', label: 'Informations', icon: Building2 },
+    ...(peutGererProfils ? [{ key: 'profils', label: 'Profils', icon: Shield }] : []),
+  ];
 
   return (
     <div className="flex flex-col gap-6">
@@ -202,84 +179,108 @@ export default function OrganisationDetailPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Identité</h2>
-          <div className="flex flex-col gap-3">
-            <div>
-              <p className="text-xs text-gray-500 mb-1">SIRET</p>
-              <p className="text-sm text-gray-800 dark:text-gray-200">{organisation.siret ?? '-'}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 mb-1">Société parente</p>
-              {parent
-                ? <Link to={`/referentiels/organisation/${parent.id}`} className="text-sm text-blue-800 hover:underline">{parent.raison_sociale}</Link>
-                : <p className="text-sm text-gray-500">Aucune (société mère)</p>
-              }
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 mb-1">Filiales ({filiales.length})</p>
-              {filiales.length === 0
-                ? <p className="text-sm text-gray-500">Aucune filiale.</p>
-                : (
-                  <ul className="flex flex-col gap-1">
-                    {filiales.map(f => (
-                      <li key={f.id}><Link to={`/referentiels/organisation/${f.id}`} className="text-sm text-blue-800 hover:underline">{f.raison_sociale}</Link></li>
-                    ))}
-                  </ul>
-                )}
-            </div>
-          </div>
-        </section>
+      {ONGLETS.length > 1 && (
+        <div className="flex gap-1 border-b border-gray-200 dark:border-gray-700 overflow-x-auto">
+          {ONGLETS.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => changerOnglet(t.key)}
+              className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px whitespace-nowrap transition-colors ${
+                tab === t.key
+                  ? 'border-blue-700 text-blue-700 dark:text-blue-400'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+              }`}
+            >
+              <t.icon size={15} /> {t.label}
+            </button>
+          ))}
+        </div>
+      )}
 
-        <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Paramètres financiers</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
-              <p className="text-xs text-gray-500 mb-1">Durée amortissement</p>
-              <p className="text-sm text-gray-800 dark:text-gray-200">{organisation.duree_amortissement ? `${organisation.duree_amortissement} mois` : '-'}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 mb-1">Revalorisation annuelle</p>
-              <p className="text-sm text-gray-800 dark:text-gray-200">{organisation.revalorisation_annuelle != null ? `${organisation.revalorisation_annuelle} %` : '-'}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 mb-1">Délai de revalidation</p>
-              <p className="text-sm text-gray-800 dark:text-gray-200">{organisation.delai_revalidation ? `${organisation.delai_revalidation} jours` : '-'}</p>
-            </div>
-          </div>
-        </section>
-      </div>
-
-      <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Utilisateurs rattachés ({rattaches.length})</h2>
-        {rattaches.length === 0 ? (
-          <p className="text-sm text-gray-500">Aucun utilisateur rattaché explicitement à cette société.</p>
-        ) : (
-          <div className="flex flex-col divide-y divide-gray-100 dark:divide-gray-700">
-            {rattaches.map((u) => (
-              <div key={u.id} className="flex items-center justify-between gap-3 py-2">
+      {tab === 'profils' ? (
+        <SocieteProfilsTab societe={organisation} />
+      ) : (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+              <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Identité</h2>
+              <div className="flex flex-col gap-3">
                 <div>
-                  <p className="text-sm text-gray-800 dark:text-gray-200">{u.prenom} {u.nom}</p>
-                  <p className="text-xs text-gray-500">{u.email}</p>
+                  <p className="text-xs text-gray-500 mb-1">SIRET</p>
+                  <p className="text-sm text-gray-800 dark:text-gray-200">{organisation.siret ?? '-'}</p>
                 </div>
-                <button
-                  onClick={() => askRetirerRattachement(u)}
-                  aria-label={`Retirer ${u.prenom} ${u.nom}`}
-                  className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-red-600"
-                >
-                  <UserX size={14} />
-                </button>
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">Société parente</p>
+                  {parent
+                    ? <Link to={`/referentiels/organisation/${parent.id}`} className="text-sm text-blue-800 hover:underline">{parent.raison_sociale}</Link>
+                    : <p className="text-sm text-gray-500">Aucune (société mère)</p>
+                  }
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">Filiales ({filiales.length})</p>
+                  {filiales.length === 0
+                    ? <p className="text-sm text-gray-500">Aucune filiale.</p>
+                    : (
+                      <ul className="flex flex-col gap-1">
+                        {filiales.map(f => (
+                          <li key={f.id}><Link to={`/referentiels/organisation/${f.id}`} className="text-sm text-blue-800 hover:underline">{f.raison_sociale}</Link></li>
+                        ))}
+                      </ul>
+                    )}
+                </div>
               </div>
-            ))}
+            </section>
+
+            <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+              <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Paramètres financiers</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">Durée amortissement</p>
+                  <p className="text-sm text-gray-800 dark:text-gray-200">{organisation.duree_amortissement ? `${organisation.duree_amortissement} mois` : '-'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">Revalorisation annuelle</p>
+                  <p className="text-sm text-gray-800 dark:text-gray-200">{organisation.revalorisation_annuelle != null ? `${organisation.revalorisation_annuelle} %` : '-'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">Délai de revalidation</p>
+                  <p className="text-sm text-gray-800 dark:text-gray-200">{organisation.delai_revalidation ? `${organisation.delai_revalidation} jours` : '-'}</p>
+                </div>
+              </div>
+            </section>
           </div>
-        )}
-      </section>
+
+          <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+            <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Utilisateurs rattachés ({rattaches.length})</h2>
+            {rattaches.length === 0 ? (
+              <p className="text-sm text-gray-500">Aucun utilisateur rattaché explicitement à cette société.</p>
+            ) : (
+              <div className="flex flex-col divide-y divide-gray-100 dark:divide-gray-700">
+                {rattaches.map((u) => (
+                  <div key={u.id} className="flex items-center justify-between gap-3 py-2">
+                    <div>
+                      <p className="text-sm text-gray-800 dark:text-gray-200">{u.prenom} {u.nom}</p>
+                      <p className="text-xs text-gray-500">{u.email}</p>
+                    </div>
+                    <button
+                      onClick={() => askRetirerRattachement(u)}
+                      aria-label={`Retirer ${u.prenom} ${u.nom}`}
+                      className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-red-600"
+                    >
+                      <UserX size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        </>
+      )}
 
       <OrganisationFormModal isOpen={formOpen} onClose={() => setFormOpen(false)} onSubmit={handleSubmit} organisation={organisation} existingOrganisations={organisations} />
 
       <ConfirmModal
-        isOpen={deleteInfo?.mode === 'simple'}
+        isOpen={!!deleteInfo}
         onClose={() => setDeleteInfo(null)}
         onConfirm={handleDelete}
         title="Supprimer la société"
@@ -287,36 +288,6 @@ export default function OrganisationDetailPage() {
         confirmLabel="Supprimer"
         message={deleteInfo?.message}
       />
-
-      {/* Cas avec groupes orphelins : parcours de réassignation avant suppression,
-          fidèle à supprimerSociete (sandbox) : réassigner d'abord ou supprimer quand même. */}
-      <Modal
-        isOpen={deleteInfo?.mode === 'orphans'}
-        onClose={() => setDeleteInfo(null)}
-        title="Groupes orphelins détectés"
-        size="md"
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setDeleteInfo(null)}>Annuler</Button>
-            <Button variant="destructive" onClick={handleDelete}>Supprimer quand même</Button>
-            <Button variant="primary" onClick={() => goReassign(deleteInfo.orphanGroups[0].id)}>Réassigner d'abord</Button>
-          </>
-        }
-      >
-        <p className="text-sm text-gray-700 dark:text-gray-300 mb-3">
-          {deleteInfo?.descendants?.length > 0 && `Supprimer "${organisation.raison_sociale}" et ses ${deleteInfo.descendants.length} filiale(s) `}
-          {!(deleteInfo?.descendants?.length > 0) && `Supprimer "${organisation.raison_sociale}" `}
-          entraînera la suppression des groupes suivants, diffusés uniquement ici :
-        </p>
-        <ul className="flex flex-col gap-1 mb-3">
-          {deleteInfo?.orphanGroups?.map((g) => (
-            <li key={g.id} className="text-sm text-gray-600 dark:text-gray-300">• {g.label || g.code}</li>
-          ))}
-        </ul>
-        <p className="text-sm text-gray-500">
-          Vous pouvez d'abord réassigner la diffusion de ces groupes sur une autre société, ou supprimer quand même.
-        </p>
-      </Modal>
 
       <ConfirmModal
         isOpen={!!retraitInfo}
