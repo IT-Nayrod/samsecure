@@ -10,6 +10,7 @@ import Button from '../ui/Button';
 import Modal from '../ui/Modal';
 import FormField from '../ui/FormField';
 import { societesService } from '../../services/adminService';
+import SeuilsDashboardPanel from './SeuilsDashboardPanel';
 
 const TABS = ['Informations client', 'Sociétés', 'Configuration', 'Connecteurs'];
 const CONNECTEURS = ['Lansweeper', 'GLPI', 'Active Directory', 'SCCM', 'Intune', 'Ivanti'];
@@ -65,17 +66,17 @@ function OrganisationsTab() {
 
 function ConfigTab() {
   return (
-    <div className="flex flex-col gap-6 max-w-lg">
-      <FormField label="Langue par défaut">
-        <select className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-          <option value="fr">Français</option>
-        </select>
-      </FormField>
+    <div className="flex flex-col gap-6">
+      <div className="max-w-lg">
+        <FormField label="Langue par défaut">
+          <select className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+            <option value="fr">Français</option>
+          </select>
+        </FormField>
+      </div>
       <div>
         <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Seuils dashboard</h4>
-        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-xl px-4 py-3">
-          <p className="text-sm text-blue-700 dark:text-blue-400">Ces seuils sont gérés par l'équipe SamSecure. Contactez le support pour les modifier.</p>
-        </div>
+        <SeuilsDashboardPanel />
       </div>
     </div>
   );
