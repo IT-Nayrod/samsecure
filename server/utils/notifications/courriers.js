@@ -34,9 +34,11 @@ function urlBase() {
 }
 
 // ---------------------------------------------------------------------------
-// Nom du tenant (client.raison_sociale), pour le prefixe d'objet. Charge une
-// fois puis conserve : le nom du groupe client ne change pas en cours de vie
-// du processus. Une lecture en echec laisse le prefixe "SamSecure" seul.
+// Nom du tenant (tenant_config.raison_sociale, ligne unique de l'espace
+// client ; il n'existe pas de table client - correctif recette du
+// 06/10/2026), pour le prefixe d'objet. Charge une fois puis conserve : le
+// nom du groupe client ne change pas en cours de vie du processus. Une
+// lecture en echec laisse le prefixe "SamSecure" seul.
 // ---------------------------------------------------------------------------
 
 let nomTenantCache;
@@ -45,7 +47,7 @@ export async function nomTenant() {
   if (nomTenantCache !== undefined) return nomTenantCache;
   try {
     const { rows } = await tenantPool.query(
-      `SELECT raison_sociale FROM client ORDER BY created_at LIMIT 1`);
+      `SELECT raison_sociale FROM tenant_config LIMIT 1`);
     nomTenantCache = rows[0]?.raison_sociale || null;
   } catch (err) {
     console.error("[notifications] nom du tenant illisible", err.message);

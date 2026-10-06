@@ -20,10 +20,9 @@ en base, l'écran où regarder, le résultat exact attendu.
    fournie dans l'en-tête du script).
 2. Déclencher le traitement des notifications : connexion `admin.recette`,
    puis `POST /api/notifications/executer-planification` (ou attendre le
-   passage planifié de 7 h). **Attention au bug BUG-1 ci-dessous** : le
-   traitement s'arrête à l'étape « fins de maintenance » ; seules les
-   échéances de contrats et de souscriptions sortent tant qu'il n'est pas
-   corrigé.
+   passage planifié de 7 h). Le traitement complet passe depuis le correctif
+   BUG-1 du 06/10/2026 : réponse 200, code 5506, toutes les détections
+   exécutées.
 3. Utilisateurs de recette — mot de passe commun **Recette#2026** :
 
    | Compte | Profil / particularité |
@@ -44,7 +43,7 @@ en base, l'écran où regarder, le résultat exact attendu.
    compte de recette (présence/absence), jamais en nombre total de
    destinataires.
 
-## Bugs applicatifs connus (révélés par ce jeu, non corrigés)
+## Bugs applicatifs révélés par ce jeu (corrigés le 06/10/2026 ; migration 096 à jouer)
 
 - **BUG-1 (bloquant)** — `server/utils/notifications/planificateur.js:171-172`
   (`detecterFinsMaintenance`) référence `l.id_contrat`, colonne supprimée de
@@ -56,18 +55,30 @@ en base, l'écran où regarder, le résultat exact attendu.
   route. Révélé par LIC-08 + POST /notifications/executer-planification. Les
   attendus NTF-04 à NTF-07 ont été vérifiés en appelant les détections une à
   une (fonctions exportées du planificateur) : ils valent après correctif.
+  **Corrigé le 06/10/2026** : le contrat est déduit par la chaîne licence →
+  commande → contrat (`co.id_contrat` via `licence.id_commande`), même motif
+  que le reste du dépôt ; test pur `planificateur.test.js` ; vérifié par la
+  route (200, code 5506, `fin_maintenance : 10`, NTF-04 à NTF-07 et NTF-13
+  conformes).
 - **BUG-2** — D53 partiellement cassé : quand droits = 0 avec des usages, le
   taux doit être ABSENT ; `recalculer_precalcul_conformite_ligne` (046, révisée
   058/065/068) insère `LEAST(v_taux, 999.99)` or `LEAST(NULL, 999.99)` vaut
   999.99 en SQL : `ecart_pct` sort à **999.99 au lieu de null** (statut
   dépassement et anomalie restent corrects). Révélé par LIC-04 et LIC-10
   (GET /conformite, colonne taux). Le pendant JS (`valoriserBalance`) est,
-  lui, correct.
+  lui, correct. **Corrigé le 06/10/2026** par la migration
+  `096_tenant_correctif_taux_droits_nuls.sql` (CASE conservant le NULL,
+  reprise des seules lignes faussées), **à jouer en dev puis staging** ;
+  vérifié en transaction annulée sur le tenant dev : LIC-04 et LIC-10
+  ressortent avec ecart_pct null, témoins 84/86/140 inchangés, rejouable.
 - **BUG-3 (mineur)** — `server/utils/notifications/courriers.js:48` lit
   `FROM client`, table inexistante (le nom du tenant vit dans
   `tenant_config.raison_sociale`) : l'objet des courriels sort « SamSecure : … »
   sans le nom du client, et `log_serveur` trace « nom du tenant illisible » à
-  chaque envoi. Révélé par l'envoi des courriers immédiats.
+  chaque envoi. Révélé par l'envoi des courriers immédiats. **Corrigé le
+  06/10/2026** : lecture de `tenant_config.raison_sociale` ; l'objet sort
+  « SamSecure - REC Client Recette : … » (vu dans log_serveur) et la trace
+  « nom du tenant illisible » a disparu du log.
 
 ---
 
@@ -236,7 +247,7 @@ en base, l'écran où regarder, le résultat exact attendu.
 - **Attendu** : bandeau « contrat à suivre » (contrat_a_suivre = true sur les
   licences), notification contrat_a_suivre gravité rouge (échu), Manager DSI et
   Admin SAM, y compris dsi.nord (Filiale Nord) ; rien n'est modifié
-  automatiquement. — **Vérifié** (notification via détection directe, BUG-1).
+  automatiquement. — **Vérifié** (détection directe, puis revérifié par la route le 06/10/2026 après correctif BUG-1).
 
 ## CMD — Commandes
 
@@ -286,9 +297,9 @@ en base, l'écran où regarder, le résultat exact attendu.
 - **En base** : date_fin_souscription = J-1, 3 usages validés.
 - **Attendu** : la licence est sortie des droits **dès aujourd'hui** : droits 0,
   usages 3, statut dépassement, anomalie **usage_sans_droit** ouverte, écart
-  -3 valorisé -1 200 € ; **aucun taux** attendu — à l'écran le taux sort à
-  999,99 (BUG-2). Statut d'échéance de la licence : « expiré ». — **Vérifié
-  (bug documenté).**
+  -3 valorisé -1 200 € ; **aucun taux** (BUG-2 corrigé par la migration 096 :
+  ecart_pct null vérifié en transaction annulée, écran à revoir une fois la
+  096 jouée). Statut d'échéance de la licence : « expiré ». — **Vérifié.**
 
 ### LIC-05 — Souscription qui échoit dans 20 jours
 - **Attendu** : notification echeance_souscription (palier 30 jours, jaune),
@@ -310,8 +321,10 @@ en base, l'écran où regarder, le résultat exact attendu.
 
 ### LIC-08 — Maintenance qui se termine dans 20 jours sans suite
 - **Attendu** : notification **fin_maintenance** (Manager DSI, Admin SAM,
-  IT Ops). — **NON VÉRIFIABLE : BUG-1** (le traitement plante précisément sur
-  cette détection). Statut maintenance « active » avec fin à J+20 : vérifié.
+  IT Ops ; dsi.nord inclus — licence de la Filiale Nord). — **Vérifié le
+  06/10/2026 après correctif BUG-1** : admin, dsi, dsi.en, dsi.nord et itops
+  servis, gravité jaune, financier et saisie absents. Statut maintenance
+  « active » avec fin à J+20 : vérifié.
 
 ### LIC-09 — Maintenance arrêtée il y a 6 mois
 - **En base** : date_arret_maintenance = J-6 mois, période close à cette date,
@@ -323,7 +336,8 @@ en base, l'écran où regarder, le résultat exact attendu.
 ### LIC-10 — Licence à droits nuls (quantité 0) avec 2 usages (D53)
 - **Attendu** : anomalie **usage_sans_droit** immédiate (écran Qualité,
   gravité critique), statut dépassement, écart valorisé null (aucun prix) ;
-  **aucun taux** attendu — sort à 999,99 (BUG-2). — **Vérifié (bug documenté).**
+  **aucun taux** (BUG-2 corrigé par la migration 096 : ecart_pct null vérifié
+  en transaction annulée, écran à revoir une fois la 096 jouée). — **Vérifié.**
 
 ### LIC-11 — Licence prolongée par extension de période
 - **En base** : date de fin étendue à J+300 ; trace « PROLONGATION » au journal
@@ -399,7 +413,7 @@ en base, l'écran où regarder, le résultat exact attendu.
   revalidation « dépassé », jours restants -5 ; notification
   revalidation_echue (IT Ops, Manager DSI, Admin SAM ; dsi.nord inclus —
   Filiale Nord ; Financier absent), gravité orange (retard ≤ 30 j).
-  — **Vérifié** (notification via détection directe, BUG-1).
+  — **Vérifié** (détection directe, puis revérifié par la route le 06/10/2026 après correctif BUG-1).
 
 ### AFF-07 — Usage sur logiciel sans licence
 - **Note de modèle** : une affectation exige une licence (id_licence NOT NULL),
@@ -500,9 +514,9 @@ en base, l'écran où regarder, le résultat exact attendu.
 
 ## NTF — Notifications (après POST /notifications/executer-planification)
 
-Rappel BUG-1 : par la route, seuls NTF-01 et NTF-02 sortent aujourd'hui ;
-NTF-04 à NTF-07 ont été vérifiés par appel direct des détections et valent
-après correctif.
+BUG-1 corrigé le 06/10/2026 : la route exécute toutes les détections
+(réponse 200, code 5506). NTF-04 à NTF-07 et NTF-13 revérifiés par la route
+ce jour-là.
 
 ### NTF-01 — Échéance de contrat (palier 30)
 - **Attendu** : 1 notification « REC Contrat échéance 15 jours », gravité
@@ -522,8 +536,8 @@ après correctif.
 
 ### NTF-04 — Contrat à faire suivre
 - **Attendu** : 1 notification rouge « REC Contrat à faire suivre » (échu),
-  Manager DSI + Admin SAM, dsi.nord inclus. — **Vérifié (après correctif
-  BUG-1).**
+  Manager DSI + Admin SAM, dsi.nord inclus. — **Vérifié** (par la route le
+  06/10/2026, correctif BUG-1).
 
 ### NTF-05 — Dépassements de conformité
 - **Attendu** : 3 notifications rouges (REC Logiciel Dépassement 5-7, REC
@@ -531,17 +545,17 @@ après correctif.
   Admin SAM, IT Ops ; **Financier absent**. Message pour dsi.recette (porteur
   des montants) : « … Écart valorisé : 12 000 € (seuil d'alerte 10 000 €). » ;
   message pour itops.recette : quantités seules, **aucun montant**.
-  — **Vérifié (après correctif BUG-1).**
+  — **Vérifié** (par la route le 06/10/2026, correctif BUG-1).
 
 ### NTF-06 — Seuil budgétaire
 - **Attendu** : 1 notification orange « Budget 2026 de REC Filiale Sud engagé à
   95 % » pour financier.recette, financier.retire.recette, dsi.recette,
   dsi.en.recette, admin.recette ; dsi.nord et itops absents. Le message de
   financier.retire **ne porte pas** la phrase « Engagé : 9 500 € pour
-  10 000 € alloués. » (montants masqués). — **Vérifié (après correctif
-  BUG-1).**
+  10 000 € alloués. » (montants masqués). — **Vérifié** (par la route le
+  06/10/2026, correctif BUG-1).
 
-### NTF-07 — Revalidation échue : voir AFF-06. — **Vérifié (après correctif BUG-1).**
+### NTF-07 — Revalidation échue : voir AFF-06. — **Vérifié** (par la route le 06/10/2026, correctif BUG-1).
 
 ### NTF-08 — Validation en attente (action de recette)
 - **Action** : connecté saisie.recette, créer une affectation (licence « REC
@@ -577,11 +591,13 @@ après correctif.
 - **Attendu** : aucun courriel (immédiat ou récapitulatif) ne porte montant,
   quantité, motif ni libellé de donnée métier : objet et message génériques du
   type + lien vers l'écran + mention des préférences. — **Vérifié** (courriers
-  composés depuis les notifications réelles : conformes ; l'objet sort sans le
-  nom du tenant : BUG-3).
+  composés depuis les notifications réelles : conformes ; depuis le correctif
+  BUG-3 du 06/10/2026 l'objet porte le nom du tenant : « SamSecure -
+  REC Client Recette : … »).
 
 ### NTF-13 — Fin de maintenance
 - **Attendu** : notification fin_maintenance (30 jours avant) pour Manager DSI,
-  Admin SAM, IT Ops sur LIC-08 ; continuité pour LIC-07 (période suivante) et
-  LIC-09 (arrêt volontaire). — **BLOQUÉ PAR BUG-1** (la détection plante) ;
-  à revérifier après correctif.
+  Admin SAM, IT Ops sur LIC-08 (dsi.nord inclus — Filiale Nord) ; continuité
+  pour LIC-07 (période suivante) et LIC-09 (arrêt volontaire). — **Vérifié le
+  06/10/2026 après correctif BUG-1** : 10 notifications créées par la route,
+  gravité jaune, aucune sur LIC-07 ni LIC-09.
