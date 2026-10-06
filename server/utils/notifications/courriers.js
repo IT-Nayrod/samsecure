@@ -1,28 +1,57 @@
-// Courriers du module notifications (story #121).
+// Courriers du module notifications (story #121, revus pour la spec v1.1 -
+// retours Samuel du 27/09/2026).
 //
 // Deux voies, toutes deux sur le socle mail existant (server/utils/mail.js,
-// gabarit commun, configuration lue dans l'environnement, aucun identifiant
-// manipule ici) :
+// gabarit commun, configuration lue dans l'environnement - le relais SMTP
+// local et l'expediteur noreply@samsecure.net se reglent par SMTP_* et
+// MAIL_FROM, aucune adresse en dur ici) :
 //   - immediat : une notification, un courrier, envoye peu apres la creation
 //     (delai court et regroupe, pour partir apres le COMMIT de l'appelant) ;
 //   - recapitulatif : toutes les notifications "quotidien" en attente d'un
 //     utilisateur, regroupees en un seul courrier au passage de 7 h 30.
 //
-// Chaque envoi est journalise sur la notification (courrier_statut,
-// courrier_date, courrier_resultat, courrier_tentatives). Un echec est
-// retente au passage suivant, jusqu'a MAX_TENTATIVES : sans serveur de
-// messagerie configure (developpement), le socle refuse proprement (code
-// 1001) et les tentatives s'epuisent sans bloquer le reste.
+// Confidentialite (v1.1) : les contenus sont composes par regles.js a partir
+// des libelles generiques du catalogue, jamais du titre ni du message de la
+// notification. Objet prefixe "SamSecure - <nom du tenant>".
+//
+// Envoi asynchrone, sans file de retry applicative (v1.1) : chaque courrier
+// est tente une fois. Un echec est journalise sur la notification
+// (courrier_statut = echec), qui reste visible dans l'application ; les
+// passages planifies ne le reprennent pas. La relance est un acte volontaire
+// (POST /notifications/relancer-courriers, Admin SAM) : relancerCourriers()
+// reprend les seuls statuts "echec", sans doublon possible (un courrier
+// envoye passe en "envoye" et n'est jamais reselectionne).
 import { tenantPool } from "../../db.js";
 import { envoyerMail } from "../mail.js";
 import { composerCourrier, composerRecapitulatif, dateParis } from "./regles.js";
+import { traducteurPour } from "./traductions.js";
 import { tracer } from "./trace.js";
 
-export const MAX_TENTATIVES = 5;
 const DELAI_IMMEDIAT_MS = 3000;
 
 function urlBase() {
   return process.env.URL_PUBLIQUE || "";
+}
+
+// ---------------------------------------------------------------------------
+// Nom du tenant (client.raison_sociale), pour le prefixe d'objet. Charge une
+// fois puis conserve : le nom du groupe client ne change pas en cours de vie
+// du processus. Une lecture en echec laisse le prefixe "SamSecure" seul.
+// ---------------------------------------------------------------------------
+
+let nomTenantCache;
+
+export async function nomTenant() {
+  if (nomTenantCache !== undefined) return nomTenantCache;
+  try {
+    const { rows } = await tenantPool.query(
+      `SELECT raison_sociale FROM client ORDER BY created_at LIMIT 1`);
+    nomTenantCache = rows[0]?.raison_sociale || null;
+  } catch (err) {
+    console.error("[notifications] nom du tenant illisible", err.message);
+    nomTenantCache = null;
+  }
+  return nomTenantCache;
 }
 
 // Resultat lisible d'un envoi, sans detail technique (le motif complet est
@@ -45,6 +74,12 @@ async function marquer(ids, etat) {
   );
 }
 
+// Statuts repris par un passage : l'automatique n'envoie que les courriers
+// jamais tentes ; la relance volontaire reprend aussi les echecs.
+function statutsRepris(relance) {
+  return relance ? ["a_envoyer", "echec"] : ["a_envoyer"];
+}
+
 // ---------------------------------------------------------------------------
 // Immediat
 // ---------------------------------------------------------------------------
@@ -55,7 +90,7 @@ let minuterie = null;
 // Regroupe les demandes : plusieurs creations rapprochees ne declenchent
 // qu'un seul passage, apres le delai (le temps que la transaction appelante
 // soit validee : une notification non validee est invisible du passage, elle
-// sera prise au suivant).
+// sera prise au suivant). L'action utilisateur n'attend jamais l'envoi.
 export function planifierEnvoiImmediat() {
   if (minuterie) return;
   minuterie = setTimeout(() => {
@@ -65,29 +100,30 @@ export function planifierEnvoiImmediat() {
   if (typeof minuterie.unref === "function") minuterie.unref();
 }
 
-export async function envoyerImmediats() {
+export async function envoyerImmediats({ relance = false } = {}) {
   if (envoiEnCours) return { envoyes: 0, echecs: 0, reportes: true };
   envoiEnCours = true;
   const bilan = { envoyes: 0, echecs: 0 };
   try {
     const { rows } = await tenantPool.query(
-      `SELECT n.id, n.titre, n.message, n.lien, u.email
+      `SELECT n.id, n.type, n.lien, u.email, u.langue
          FROM notification n
          JOIN utilisateur u ON u.id = n.id_utilisateur
         WHERE n.courrier_mode = 'immediat'
-          AND n.courrier_statut IN ('a_envoyer', 'echec')
-          AND n.courrier_tentatives < $1
+          AND n.courrier_statut = ANY($1)
         ORDER BY n.created_at
         LIMIT 200`,
-      [MAX_TENTATIVES]
+      [statutsRepris(relance)]
     );
+    const tenant = rows.length ? await nomTenant() : null;
     for (const n of rows) {
-      const { sujet, contenu } = composerCourrier(n, { urlBase: urlBase() });
+      const traduire = await traducteurPour(n.langue);
+      const { sujet, contenu } = composerCourrier(n, { urlBase: urlBase(), nomTenant: tenant, traduire });
       const etat = await envoyerMail({ destinataire: n.email, sujet, contenu });
       await marquer([n.id], etat);
       if (etat.envoye) bilan.envoyes += 1; else bilan.echecs += 1;
       // Configuration absente : inutile d'insister sur les suivantes dans ce
-      // passage, chacune consommerait une tentative pour le meme motif.
+      // passage, chacune echouerait pour le meme motif.
       if (!etat.envoye && etat.code === 1001) break;
     }
   } finally {
@@ -105,39 +141,51 @@ export async function envoyerImmediats() {
 
 // avant : instant limite (les notifications creees apres ne sont pas reprises,
 // elles partiront le lendemain). Par defaut, le debut du passage.
-export async function envoyerRecapitulatifs({ avant = new Date() } = {}) {
+export async function envoyerRecapitulatifs({ avant = new Date(), relance = false } = {}) {
   const bilan = { utilisateurs: 0, envoyes: 0, echecs: 0, notifications: 0 };
   const { rows } = await tenantPool.query(
-    `SELECT n.id, n.type, n.titre, n.message, n.lien, n.id_utilisateur, u.email
+    `SELECT n.id, n.type, n.lien, n.id_utilisateur, u.email, u.langue
        FROM notification n
        JOIN utilisateur u ON u.id = n.id_utilisateur
       WHERE n.courrier_mode = 'quotidien'
-        AND n.courrier_statut IN ('a_envoyer', 'echec')
-        AND n.courrier_tentatives < $1
+        AND n.courrier_statut = ANY($1)
         AND n.created_at < $2
       ORDER BY n.id_utilisateur, n.created_at`,
-    [MAX_TENTATIVES, avant]
+    [statutsRepris(relance), avant]
   );
   if (!rows.length) return bilan;
 
   const parUtilisateur = new Map();
   for (const r of rows) {
-    if (!parUtilisateur.has(r.id_utilisateur)) parUtilisateur.set(r.id_utilisateur, { email: r.email, liste: [] });
+    if (!parUtilisateur.has(r.id_utilisateur)) parUtilisateur.set(r.id_utilisateur, { email: r.email, langue: r.langue, liste: [] });
     parUtilisateur.get(r.id_utilisateur).liste.push(r);
   }
   bilan.utilisateurs = parUtilisateur.size;
   bilan.notifications = rows.length;
 
-  // Libelle de la veille en toutes lettres, pour l'introduction du courrier.
+  const tenant = await nomTenant();
+  // Libelle de la veille en toutes lettres, pour l'introduction du courrier,
+  // dans la langue du destinataire.
   const veille = new Date(avant.getTime() - 24 * 3600 * 1000);
-  const dateLabel = new Intl.DateTimeFormat("fr-FR", {
-    timeZone: "Europe/Paris", weekday: "long", day: "numeric", month: "long", year: "numeric",
-  }).format(veille);
+  const dateLabelPour = (langue) => {
+    try {
+      return new Intl.DateTimeFormat(langue || "fr", {
+        timeZone: "Europe/Paris", weekday: "long", day: "numeric", month: "long", year: "numeric",
+      }).format(veille);
+    } catch {
+      return new Intl.DateTimeFormat("fr-FR", {
+        timeZone: "Europe/Paris", weekday: "long", day: "numeric", month: "long", year: "numeric",
+      }).format(veille);
+    }
+  };
 
   const groupes = [...parUtilisateur.values()];
   for (let i = 0; i < groupes.length; i += 1) {
-    const { email, liste } = groupes[i];
-    const { sujet, contenu } = composerRecapitulatif(liste, { urlBase: urlBase(), dateLabel });
+    const { email, langue, liste } = groupes[i];
+    const traduire = await traducteurPour(langue);
+    const { sujet, contenu } = composerRecapitulatif(liste, {
+      urlBase: urlBase(), dateLabel: dateLabelPour(langue), nomTenant: tenant, traduire,
+    });
     const etat = await envoyerMail({ destinataire: email, sujet, contenu });
     await marquer(liste.map((n) => n.id), etat);
     if (etat.envoye) bilan.envoyes += 1; else bilan.echecs += 1;
@@ -153,4 +201,27 @@ export async function envoyerRecapitulatifs({ avant = new Date() } = {}) {
   }
   await tracer("info", `Recapitulatif quotidien du ${dateParis(avant)}`, bilan);
   return bilan;
+}
+
+// ---------------------------------------------------------------------------
+// Relance volontaire (Admin SAM) : reprend les courriers en echec, immediats
+// puis recapitulatifs. Pas de doublon possible : seuls les statuts
+// "a_envoyer" et "echec" sont repris, jamais "envoye". Un seul passage a la
+// fois.
+// ---------------------------------------------------------------------------
+
+let relanceEnCours = false;
+
+export async function relancerCourriers() {
+  if (relanceEnCours) return null;
+  relanceEnCours = true;
+  try {
+    const immediats = await envoyerImmediats({ relance: true });
+    const recapitulatifs = await envoyerRecapitulatifs({ avant: new Date(), relance: true });
+    const bilan = { immediats, recapitulatifs };
+    await tracer("info", "Relance volontaire des courriers", bilan);
+    return bilan;
+  } finally {
+    relanceEnCours = false;
+  }
 }

@@ -20,11 +20,12 @@ import { tenantPool, commonPool } from "../../db.js";
 import { seuilsConformite } from "../conformite.js";
 import { jointureStatut } from "../validationWorkflow.js";
 import { jointureRevalidation } from "../revalidation.js";
-import { PALIER_SOUSCRIPTION, SEUIL_BUDGET_DEFAUT } from "./catalogue.js";
+import { PALIER_SOUSCRIPTION, PALIER_MAINTENANCE, SEUIL_BUDGET_DEFAUT } from "./catalogue.js";
 import {
   cleEvenement, cleEcheance, paliersDepuisSeuils, palierAtteint, prochaineOccurrence, heurePassee, dateParis,
-  echeanceNotifiable,
+  echeanceNotifiable, maintenanceNotifiable,
 } from "./regles.js";
+import { rechargerTraductions } from "./traductions.js";
 import { creerNotification, nouveauContexte, libellesProduits, tracer } from "./moteur.js";
 import { envoyerImmediats, envoyerRecapitulatifs } from "./courriers.js";
 import { contratASuivre } from "../successionContrat.js";
@@ -139,6 +140,63 @@ export async function detecterEcheancesSouscriptions(contexte) {
         id_licence: l.id, label: l.label, produit_label: p?.label || null,
         quantite: l.quantite, date_fin: l.date_fin, jours_restants: l.jours_restants,
         societe_label: l.societe_label,
+      },
+    }, contexte);
+    crees += r.crees;
+  }
+  return crees;
+}
+
+// 2 ter. Fins de maintenance (D59-D60, alertes lot 2) : la derniere periode
+//    de maintenance d'une licence (maintenance_historique.date_fin) arrive a
+//    echeance dans les 30 jours. Cle par licence, date de fin et palier
+//    (cleEcheance) : une maintenance prolongee est notifiee a sa nouvelle
+//    echeance sans liberation manuelle. Continuite (comme les
+//    souscriptions, regle pure maintenanceNotifiable) : une periode de
+//    maintenance qui se poursuit au-dela, une licence renouvelee par un
+//    successeur, un contrat renouvele ou un arret volontaire de la
+//    maintenance eteignent l'alerte. Lecture seule de maintenance_historique,
+//    contrat et licence : rien n'est modifie.
+export async function detecterFinsMaintenance(contexte) {
+  const { rows } = await tenantPool.query(
+    `SELECT l.id AS id_licence, l.label AS licence_label, l.id_produit,
+            l.date_arret_maintenance,
+            m.date_fin::text AS date_fin,
+            (m.date_fin - CURRENT_DATE)::int AS jours_restants,
+            co.id_societe, s.raison_sociale AS societe_label,
+            (SELECT count(*) FROM maintenance_historique mx
+              WHERE mx.id_licence = l.id AND mx.id <> m.id
+                AND (mx.date_fin IS NULL OR mx.date_fin > m.date_fin))::int AS nb_maintenances_suivantes,
+            (SELECT count(*) FROM licence sx WHERE sx.id_licence_predecesseur = l.id)::int AS nb_successeurs_licence,
+            (SELECT count(*) FROM contrat cx WHERE l.id_contrat IS NOT NULL
+                AND cx.id_contrat_predecesseur = l.id_contrat)::int AS nb_successeurs_contrat
+       FROM maintenance_historique m
+       JOIN licence l ON l.id = m.id_licence
+       LEFT JOIN commande co ON co.id = l.id_commande
+       LEFT JOIN societe  s ON s.id = co.id_societe
+      WHERE m.date_fin IS NOT NULL
+        AND m.date_fin >= CURRENT_DATE
+        AND m.date_fin <= CURRENT_DATE + $1::int`,
+    [PALIER_MAINTENANCE]);
+  const produits = await libellesProduits(rows.map((r) => r.id_produit));
+  let crees = 0;
+  for (const m of rows) {
+    if (!maintenanceNotifiable({
+      nb_maintenances_suivantes: m.nb_maintenances_suivantes,
+      nb_successeurs_licence: m.nb_successeurs_licence,
+      nb_successeurs_contrat: m.nb_successeurs_contrat,
+      date_arret: m.date_arret_maintenance,
+    })) continue;
+    const p = produits.get(m.id_produit);
+    const r = await creerNotification(null, {
+      type: "fin_maintenance",
+      cle: cleEcheance("fin_maintenance", m.id_licence, m.date_fin, PALIER_MAINTENANCE),
+      id_societe: m.id_societe,
+      entite_type: "licence", entite_id: m.id_licence,
+      donnees: {
+        id_licence: m.id_licence, licence_label: m.licence_label,
+        produit_label: p?.label || null, date_fin: m.date_fin,
+        jours_restants: m.jours_restants, societe_label: m.societe_label,
       },
     }, contexte);
     crees += r.crees;
@@ -358,8 +416,11 @@ let traitementEnCours = false;
 
 export async function traitementQuotidien(contexte = nouveauContexte()) {
   const bilan = {};
+  // Traductions fraiches pour toute la passe (multilingue v1.1).
+  await rechargerTraductions();
   bilan.echeance_contrat = await detecterEcheancesContrats(contexte);
   bilan.echeance_souscription = await detecterEcheancesSouscriptions(contexte);
+  bilan.fin_maintenance = await detecterFinsMaintenance(contexte);
   bilan.contrat_a_suivre = await detecterContratsASuivre(contexte);
   bilan.revalidation_echue = await detecterRevalidationsEchues(contexte);
   bilan.depassement_conformite = await detecterDepassementsConformite(contexte);

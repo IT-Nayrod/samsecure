@@ -3,13 +3,19 @@
 // enregistre par l'API. La notification en application est toujours creee :
 // seul le courrier se regle ici.
 import { useState, useEffect, useCallback } from 'react';
-import { Loader2, RefreshCw } from 'lucide-react';
+import { Loader2, RefreshCw, Send, Play } from 'lucide-react';
 import { useToast } from '../../hooks/useToast';
+import useAuth from '../../hooks/useAuth';
 import Button from '../ui/Button';
 import { notificationsService } from '../../services/notificationsService';
 
 export default function NotifPrefsPanel() {
   const { addToast } = useToast();
+  const { hasPermission } = useAuth();
+  // Actions d'administration (meme droit que la route : gerer_connecteurs).
+  const estAdmin = hasPermission('gerer_connecteurs');
+  const [planification, setPlanification] = useState(false);
+  const [relance, setRelance] = useState(false);
   const [modes, setModes] = useState([]);
   const [preferences, setPreferences] = useState([]);
   const [initiales, setInitiales] = useState({});
@@ -54,6 +60,35 @@ export default function NotifPrefsPanel() {
       addToast({ type: 'error', message: e?.message || 'Les préférences n\'ont pas pu être enregistrées.' });
     } finally {
       setEnregistrement(false);
+    }
+  }
+
+  async function executerPlanification() {
+    setPlanification(true);
+    try {
+      await notificationsService.executerPlanification();
+      addToast({ type: 'success', message: 'Traitement planifié des notifications exécuté.' });
+    } catch (e) {
+      addToast({ type: 'error', message: e?.message || 'Le traitement n\'a pas pu être exécuté.' });
+    } finally {
+      setPlanification(false);
+    }
+  }
+
+  async function relancerCourriers() {
+    setRelance(true);
+    try {
+      const r = await notificationsService.relancerCourriers();
+      const envoyes = (r?.immediats?.envoyes ?? 0) + (r?.recapitulatifs?.envoyes ?? 0);
+      const echecs = (r?.immediats?.echecs ?? 0) + (r?.recapitulatifs?.echecs ?? 0);
+      addToast({
+        type: echecs ? 'warning' : 'success',
+        message: `Courriers relancés : ${envoyes} envoyé${envoyes > 1 ? 's' : ''}, ${echecs} en échec.`,
+      });
+    } catch (e) {
+      addToast({ type: 'error', message: e?.message || 'La relance n\'a pas pu être exécutée.' });
+    } finally {
+      setRelance(false);
     }
   }
 
@@ -105,6 +140,11 @@ export default function NotifPrefsPanel() {
                   <td className="py-3 pr-4">
                     <p className="font-medium text-gray-800 dark:text-gray-200">{p.libelle}</p>
                     <p className="text-xs text-gray-500 mt-0.5">{p.description}</p>
+                    {Array.isArray(p.destinataires_defaut) && p.destinataires_defaut.length > 0 && (
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        Destinataires par défaut : {p.destinataires_defaut.join(', ')}
+                      </p>
+                    )}
                   </td>
                   {modes.map((m) => (
                     <td key={m.code} className="py-3 px-3 text-center">
@@ -136,6 +176,37 @@ export default function NotifPrefsPanel() {
           </span>
         )}
       </div>
+
+      {estAdmin && (
+        <div className="border-t border-gray-200 dark:border-gray-700 pt-4 flex flex-col gap-3">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Administration</h3>
+            <p className="text-xs text-gray-500 mt-1">
+              Le traitement planifié tourne chaque matin à 7 h (détections) et 7 h 30 (récapitulatif).
+              L&apos;exécution manuelle rejoue les détections sans créer de doublon ; la relance reprend
+              les seuls courriers en échec.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              variant="secondary"
+              size="sm"
+              isLoading={planification}
+              onClick={executerPlanification}
+            >
+              <Play size={13} aria-hidden="true" /> Exécuter la planification
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              isLoading={relance}
+              onClick={relancerCourriers}
+            >
+              <Send size={13} aria-hidden="true" /> Relancer les courriers en échec
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
