@@ -155,8 +155,11 @@ export async function detecterEcheancesSouscriptions(contexte) {
 //    souscriptions, regle pure maintenanceNotifiable) : une periode de
 //    maintenance qui se poursuit au-dela, une licence renouvelee par un
 //    successeur, un contrat renouvele ou un arret volontaire de la
-//    maintenance eteignent l'alerte. Lecture seule de maintenance_historique,
-//    contrat et licence : rien n'est modifie.
+//    maintenance eteignent l'alerte. Le contrat de la licence se deduit par
+//    sa commande (licence.id_commande -> commande.id_contrat), comme partout
+//    depuis la migration 014 (correctif recette du 06/10/2026). Lecture seule
+//    de maintenance_historique, contrat, commande et licence : rien n'est
+//    modifie.
 export async function detecterFinsMaintenance(contexte) {
   const { rows } = await tenantPool.query(
     `SELECT l.id AS id_licence, l.label AS licence_label, l.id_produit,
@@ -168,8 +171,8 @@ export async function detecterFinsMaintenance(contexte) {
               WHERE mx.id_licence = l.id AND mx.id <> m.id
                 AND (mx.date_fin IS NULL OR mx.date_fin > m.date_fin))::int AS nb_maintenances_suivantes,
             (SELECT count(*) FROM licence sx WHERE sx.id_licence_predecesseur = l.id)::int AS nb_successeurs_licence,
-            (SELECT count(*) FROM contrat cx WHERE l.id_contrat IS NOT NULL
-                AND cx.id_contrat_predecesseur = l.id_contrat)::int AS nb_successeurs_contrat
+            (SELECT count(*) FROM contrat cx WHERE co.id_contrat IS NOT NULL
+                AND cx.id_contrat_predecesseur = co.id_contrat)::int AS nb_successeurs_contrat
        FROM maintenance_historique m
        JOIN licence l ON l.id = m.id_licence
        LEFT JOIN commande co ON co.id = l.id_commande
