@@ -43,6 +43,18 @@ export const dashboardService = {
   // Montants commandes et payés par éditeur (precalcul_financier), période
   // optionnelle date_debut / date_fin, filtre id_societe.
   engagesPayes: (filtres = {}) => http.get(`/dashboards/engages-payes${query(filtres)}`),
+
+  // Seuils du tenant avec le défaut Commune en regard (écran Paramètres
+  // tenant > Configuration, permission gerer_utilisateurs).
+  seuils: () => http.get('/dashboards/seuils'),
+
+  // Modification d'un seuil : la ligne passe personnalise = true.
+  enregistrerSeuil: (widget_code, echelle, valeur) =>
+    http.put('/dashboards/seuils', { widget_code, echelle, valeur }),
+
+  // Rétablissement des valeurs par défaut : widget_code seul rétablit le
+  // widget, portée vide rétablit tout. Relit la Commune côté serveur.
+  retablirSeuils: (portee = {}) => http.post('/dashboards/seuils/retablir', portee),
 };
 
 // Contrat d'interface conformité, qualité des saisies et indice de confiance

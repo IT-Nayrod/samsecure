@@ -1415,9 +1415,14 @@ pre-catalogue contre migrations soit complete dans les deux sens.
 | 5452 | succes | Synthèse des saisies et revalidations | GET /api/dashboards/synthese |
 | 5453 | succes | Montants totaux par axe | GET /api/dashboards/montants-totaux |
 | 5454 | succes | Montants engagés et payés par éditeur | GET /api/dashboards/engages-payes |
+| 5455 | succes | Seuils des dashboards du tenant | GET /api/dashboards/seuils |
+| 5456 | succes | Seuil de dashboard enregistré | PUT /api/dashboards/seuils |
+| 5457 | succes | Seuils de dashboard rétablis aux valeurs par défaut | POST /api/dashboards/seuils/retablir |
 | 5460 | erreur | L'axe demandé est invalide | GET /api/dashboards/montants-totaux (400) |
 | 5461 | erreur | La période demandée est invalide | GET /api/dashboards/montants-totaux (400) |
 | 5462 | erreur | Les préférences transmises sont invalides | PUT /api/dashboards/preferences (400) |
+| 5463 | erreur | Le seuil transmis est invalide | PUT /api/dashboards/seuils, POST /api/dashboards/seuils/retablir (400) |
+| 5464 | erreur | Le seuil demandé est inconnu | PUT /api/dashboards/seuils, POST /api/dashboards/seuils/retablir (404) |
 | 5499 | erreur | Erreur serveur inattendue (dashboards) | toutes |
 
 ## Notifications (#121, M3-notifications)
