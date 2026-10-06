@@ -337,6 +337,9 @@ commun 3280-3299.
 | 3254 | erreur | Preuve introuvable | POST, PATCH /api/factures |
 | 3255 | reserve | [ARBITRAGE flux] la preuve est obligatoire dès la création. Non émis à ce jour | POST /api/factures |
 | 3259 | erreur | Valeur de filtre invalide | GET /api/factures |
+| 3246 | erreur | La date de la facture est obligatoire | POST /api/factures/depot (décision du 10/09/2026, migration 083) |
+| 3257 | erreur | Le montant de la facture est obligatoire | POST /api/factures/depot (décision du 10/09/2026, migration 083) |
+| 3258 | erreur | Le montant doit être un montant positif ou nul | POST /api/factures/depot, POST et PATCH /api/factures (migration 083) |
 
 ### Commun
 
@@ -688,6 +691,7 @@ dans la transaction du traitement.
 | 4119 | erreur | Identifiant de licence invalide | filtre GET /affectations |
 | 4130 | erreur | Seule une affectation validée peut être revalidée | POST .../revalider (409, `details.statut_validation`) |
 | 4132 | erreur | Suppression impossible : affectation rapprochée d'un inventaire | DELETE (409, `details.inventaires`) |
+| 4133 | erreur | Le type de cible est invalide | POST, PATCH /api/affectations (cible utilisateur ou poste, migrations 084 et 085) |
 | 4199 | erreur | Erreur serveur inattendue (module affectations) | toutes |
 
 Statuts servis par les GET : `statut_validation` est la derniere entree
@@ -896,7 +900,7 @@ cout de maintenance) servis a null avec `montants_masques: true` sans
 | 4009 | succes | Maintenance arretee, version figee | POST /api/licences/:id/arret-maintenance |
 | 4010 | erreur | Licence introuvable | GET/PATCH/DELETE /api/licences/:id et sous-routes (400 sur un filtre invalide de la liste ; 400 "Licence renouvelee introuvable" et 409 boucle de succession sur id_licence_predecesseur, #209) |
 | 4011 | erreur | Le logiciel est obligatoire | POST, PATCH /api/licences |
-| 4012 | erreur | Logiciel introuvable au catalogue | POST, PATCH /api/licences |
+| 4012 | erreur | Logiciel introuvable (catalogue Commune ou logiciel créé par le client, correctif du 06/10/2026, migration 083) | POST, PATCH /api/licences |
 | 4013 | erreur | Édition introuvable ou étrangère au logiciel | POST, PATCH /api/licences |
 | 4014 | erreur | Version introuvable ou étrangère au logiciel | POST, PATCH /api/licences ; POST, PATCH .../maintenance (id_version de la periode, #209) |
 | 4015 | erreur | Commande introuvable | POST, PATCH /api/licences |

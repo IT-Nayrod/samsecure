@@ -17,6 +17,7 @@ import FormField from '../ui/FormField';
 import { licencesService, commandesPourMaintenance } from '../../services/licencesService';
 import { useToast } from '../../hooks/useToast';
 import LicenceDeclinaisonAjout from './LicenceDeclinaisonAjout';
+import { libelleContrat } from '../contrats/libelleContrat';
 
 const INPUT_CLS = 'w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white';
 
@@ -115,7 +116,7 @@ export default function MaintenanceFormModal({
             <option value="">Aucune</option>
             {commandesProposees.map(c => (
               <option key={c.id} value={c.id}>
-                {c.label}{c.contrat_label ? ` (${c.contrat_label})` : ''}{idContrat && c.id_contrat === idContrat ? ' - contrat de la licence' : ''}
+                {c.label}{c.contrat_label ? ` (${libelleContrat(c.contrat_label, c.contrat_societe_label)})` : ''}{idContrat && c.id_contrat === idContrat ? ' - contrat de la licence' : ''}
               </option>
             ))}
             {form.id_commande && !commandesProposees.some(c => c.id === form.id_commande) && (
