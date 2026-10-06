@@ -1,6 +1,6 @@
 // UserManagementPage - page unique de gestion des utilisateurs, regroupant
-// Utilisateurs / Groupes et droits / Exceptions / Journal sous forme
-// d'onglets. Chaque onglet n'est visible que si l'utilisateur détient la
+// Utilisateurs / Profils / Groupes personnalisés / Exceptions / Journal sous
+// forme d'onglets. Chaque onglet n'est visible que si l'utilisateur détient la
 // permission réelle correspondante.
 //
 // L'onglet Attributions autonome a été retiré (refonte Partie A) : c'était un
@@ -10,7 +10,7 @@
 // dans la fiche groupe), avec la même table et les mêmes endpoints.
 import { useState, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Users, KeyRound, ClipboardList, ScrollText } from 'lucide-react';
+import { Users, Shield, KeyRound, ClipboardList, ScrollText } from 'lucide-react';
 import useAuth from '../../hooks/useAuth';
 import { ADMIN_PERMISSIONS } from '../../constants/permissions';
 import UsersPage from '../users/UsersPage';
@@ -18,9 +18,16 @@ import GroupesPage from './GroupesPage';
 import ExceptionsPage from './ExceptionsPage';
 import JournalPage from './JournalPage';
 
+// Séparation profils par défaut / groupes personnalisés (migration 074) : le
+// même écran GroupesPage sert les deux espaces, seul le mode change (matrice
+// éditable sans suppression d'un côté, CRUD et corbeille #64 de l'autre).
+const ProfilsDefautTab = () => <GroupesPage mode="defaut" />;
+const GroupesPersonnalisesTab = () => <GroupesPage mode="personnalises" />;
+
 const TABS = [
   { key: 'utilisateurs', label: 'Utilisateurs', icon: Users, permission: ADMIN_PERMISSIONS.UTILISATEURS, Component: UsersPage },
-  { key: 'groupes', label: 'Groupes et droits', icon: KeyRound, permission: ADMIN_PERMISSIONS.GROUPES, Component: GroupesPage },
+  { key: 'profils', label: 'Profils', icon: Shield, permission: ADMIN_PERMISSIONS.GROUPES, Component: ProfilsDefautTab },
+  { key: 'groupes', label: 'Groupes personnalisés', icon: KeyRound, permission: ADMIN_PERMISSIONS.GROUPES, Component: GroupesPersonnalisesTab },
   { key: 'exceptions', label: 'Exceptions', icon: ClipboardList, permission: ADMIN_PERMISSIONS.EXCEPTIONS, Component: ExceptionsPage },
   { key: 'journal', label: 'Journal', icon: ScrollText, permission: ADMIN_PERMISSIONS.JOURNAL, Component: JournalPage },
 ];

@@ -82,6 +82,11 @@ export const groupsService = {
       utilisateurs: r.utilisateurs,
       societes: (r.societes || []).map((s) => ({ id: s.id, raison_sociale: s.raisonsociale })),
     })),
+  // Corbeille des groupes (#64) : supprimés depuis moins de 90 jours, avec
+  // jours_restants avant purge ; la restauration réactive droits, diffusions
+  // et attributions retirés par la mise en corbeille.
+  listCorbeille: () => http.get('/profils/corbeille'),
+  restore: (id) => http.post(`/profils/${id}/restaurer`),
   listPermissions: (id) => http.get(`/profils/${id}/permissions`),
   addPermission: (id, id_permission) => http.post(`/profils/${id}/permissions`, { id_permission }),
   removePermission: (id, idPermission) => http.delete(`/profils/${id}/permissions/${idPermission}`),

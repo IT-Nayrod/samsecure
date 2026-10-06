@@ -300,6 +300,9 @@ export const ROUTES_PERMISSIONS = [
   ["PATCH",  "/utilisateurs/:id",                               "gerer_utilisateurs"],
   ["POST",   "/utilisateurs/:id/mot-de-passe/reinitialisation", "gerer_utilisateurs"],
 
+  // Corbeille des groupes (#64) : chemin littéral avant /profils/:id.
+  ["GET",    "/profils/corbeille",                        "gerer_utilisateurs"],
+  ["POST",   "/profils/:id/restaurer",                    "gerer_utilisateurs"],
   ["GET",    "/profils/:id/permissions",                 "gerer_utilisateurs"],
   ["POST",   "/profils/:id/permissions",                 "gerer_utilisateurs"],
   ["DELETE", "/profils/:id/permissions/:idPermission",   "gerer_utilisateurs"],
