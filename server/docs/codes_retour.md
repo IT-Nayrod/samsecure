@@ -122,6 +122,16 @@ resoudre comme les autres.
 | 2053 | succes | Sélection désactivée (desactives, ignores, ids_desactives, ids_ignores) | POST /api/utilisateurs/desactivation |
 | 2054 | erreur | La sélection est vide ou invalide | POST /api/utilisateurs/desactivation |
 | 2055 | erreur | La sélection contient le compte connecté | POST /api/utilisateurs/desactivation |
+| 2060 | trace | Groupe créé | POST /api/profils |
+| 2061 | trace | Groupe modifié | PATCH /api/profils/:id |
+| 2062 | trace | Groupe mis en corbeille (#64) | DELETE /api/profils/:id |
+| 2063 | trace | Groupe restauré depuis la corbeille (#64) | POST /api/profils/:id/restaurer |
+| 2064 | trace | Permission ajoutée à un groupe | POST /api/profils/:id/permissions |
+| 2065 | trace | Permission retirée d'un groupe | DELETE /api/profils/:id/permissions/:idPermission |
+| 2066 | trace | Diffusion ajoutée à un groupe | POST /api/profils/:id/societes |
+| 2067 | trace | Diffusion retirée d'un groupe | DELETE /api/profils/:id/societes/:psId |
+| 2068 | erreur | Suppression impossible : profil par défaut ou système (migration 074) | DELETE /api/profils/:id |
+| 2069 | erreur | Ce groupe n'est pas dans la corbeille | POST /api/profils/:id/restaurer |
 | 2099 | erreur | Erreur serveur inattendue (module administration) | toutes |
 
 Désactivation d'une sélection (#212, 16/09/2026) : POST /api/utilisateurs/desactivation
@@ -133,8 +143,8 @@ actif = false sont ignorés et comptés (2053). Refus sans écriture : sélectio
 vide ou identifiant non UUID (2054, 400), compte connecté dans la sélection
 (2055, 409), compte hors périmètre (2051, 403), compte introuvable (2050, 404).
 Comme le reste de la plage administration, ces codes sont des commentaires de
-route hors enveloppe ; 2053 à 2055 restent à seeder par une prochaine
-migration Commune (aucune migration dans le chantier correctifs-admin).
+route hors enveloppe ; 2053 à 2055 ont depuis été seedés par la migration 067,
+et 2060 à 2069 (gestion des groupes, chantier rbac) par la migration 087.
 
 Les champs sensibles ne sont jamais ecrits dans valeur_avant ni valeur_apres :
 mot de passe, hash, jetons et secret 2FA sont retires A L'ECRITURE par

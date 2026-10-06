@@ -318,6 +318,16 @@ router.get("/dashboards/montants-totaux", async (req, res) => {
         const { rows: prods } = await commonPool.query(
           `SELECT id, label FROM produit_referentiel WHERE id = ANY($1::uuid[])`, [ids]);
         for (const p of prods) labels.set(p.id, p.label);
+        // Logiciels créés par le client (produit_client, 040) : une requête
+        // pour tout ce qui manque, même motif que licences.js (06/10/2026,
+        // pendant du chantier droits). Le repli « Logiciel local » ne reste
+        // que pour une licence sans logiciel ou un identifiant orphelin.
+        const restants = ids.filter((id) => !labels.has(id));
+        if (restants.length) {
+          const { rows: duClient } = await tenantPool.query(
+            `SELECT id, label FROM produit_client WHERE id = ANY($1::uuid[])`, [restants]);
+          for (const p of duClient) labels.set(p.id, p.label);
+        }
       }
       lignes = rows.map((x) => ({ ...x, label: labels.get(x.id) ?? "Logiciel local" }));
     } else {
