@@ -143,8 +143,8 @@ actif = false sont ignorés et comptés (2053). Refus sans écriture : sélectio
 vide ou identifiant non UUID (2054, 400), compte connecté dans la sélection
 (2055, 409), compte hors périmètre (2051, 403), compte introuvable (2050, 404).
 Comme le reste de la plage administration, ces codes sont des commentaires de
-route hors enveloppe ; 2053 à 2055 restent à seeder par une prochaine
-migration Commune (aucune migration dans le chantier correctifs-admin).
+route hors enveloppe ; 2053 à 2055 ont depuis été seedés par la migration 067,
+et 2060 à 2069 (gestion des groupes, chantier rbac) par la migration 087.
 
 Les champs sensibles ne sont jamais ecrits dans valeur_avant ni valeur_apres :
 mot de passe, hash, jetons et secret 2FA sont retires A L'ECRITURE par

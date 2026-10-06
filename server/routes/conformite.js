@@ -101,6 +101,16 @@ async function resoudreProduits(rows) {
     const { rows: p } = await commonPool.query(
       `SELECT id, label, id_editeur FROM produit_referentiel WHERE id = ANY($1)`, [idsProduits]);
     for (const x of p) produits.set(x.id, x);
+    // Logiciels créés par le client (produit_client, 040) : mêmes identifiants
+    // logiques, stockés en Tenant. Une requête pour tout ce qui manque, même
+    // motif que licences.js et le moteur de notifications (06/10/2026, pendant
+    // du chantier droits : une licence peut viser un logiciel client).
+    const restants = idsProduits.filter((id) => !produits.has(id));
+    if (restants.length) {
+      const { rows: pc } = await tenantPool.query(
+        `SELECT id, label, id_editeur FROM produit_client WHERE id = ANY($1)`, [restants]);
+      for (const x of pc) produits.set(x.id, x);
+    }
   }
   const idsEditeurs = [...new Set([...produits.values()].map((p) => p.id_editeur).filter(Boolean))];
   const editeurs = new Map();
@@ -121,12 +131,17 @@ async function resoudreProduits(rows) {
   });
 }
 
-// Identifiants des produits d'un éditeur (BDD Commune), pour le filtre
-// id_editeur : le précalcul Tenant ne connaît pas l'éditeur du produit.
+// Identifiants des produits d'un éditeur, pour le filtre id_editeur : le
+// précalcul Tenant ne connaît pas l'éditeur du produit. Catalogue en Commune,
+// logiciels créés par le client en Tenant (040) : sans la seconde requête, un
+// logiciel client disparaîtrait de la liste filtrée par son éditeur alors que
+// sa ligne de conformité existe (06/10/2026, même décision que editeurs.js).
 async function produitsDeLEditeur(idEditeur) {
   const { rows } = await commonPool.query(
     `SELECT id FROM produit_referentiel WHERE id_editeur = $1`, [idEditeur]);
-  return rows.map((r) => r.id);
+  const { rows: duClient } = await tenantPool.query(
+    `SELECT id FROM produit_client WHERE id_editeur = $1`, [idEditeur]);
+  return [...rows, ...duClient].map((r) => r.id);
 }
 
 // ---------------------------------------------------------------------------
