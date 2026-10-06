@@ -1,4 +1,8 @@
-// Permissions d'un profil : consultation, ajout et retrait, journalisés.
+// Permissions d'un groupe : consultation, ajout et retrait case par case,
+// journalisés. Depuis le #249, l'ajout et le retrait sont réservés aux groupes
+// personnalisés : la matrice d'un profil par défaut se remplace intégralement
+// (PUT /profils/:id/matrice, Q2) et celle du profil système est figée. La
+// consultation reste ouverte à tous les types (les écrans l'affichent).
 
 import express from "express";
 import { tenantPool } from "../db.js";
@@ -60,9 +64,16 @@ router.post("/profils/:id/permissions", async (req, res) => {
     // Références validées avant écriture : un 404 ou un 400 lisible plutôt que
     // la violation de clé étrangère (23503) rendue en 500.
     const { rows: prof } = await client.query(
-      `SELECT label FROM profil WHERE id = $1 AND date_suppression IS NULL`, [id]
+      `SELECT label, type FROM profil WHERE id = $1 AND date_suppression IS NULL`, [id]
     );
     if (!prof.length) { await client.query("ROLLBACK"); return res.status(404).json({ error: "Groupe introuvable." }); }
+    if (prof[0].type !== "groupe") {
+      await client.query("ROLLBACK");
+      // code_retour: 2078
+      return res.status(409).json({
+        error: `La matrice du profil "${prof[0].label}" se gère par remplacement complet depuis l'onglet Profils.`,
+      });
+    }
     const { rows: perm } = await client.query(`SELECT label, code FROM permission WHERE id = $1`, [id_permission]);
     if (!perm.length) { await client.query("ROLLBACK"); return res.status(400).json({ error: "Cette permission n'existe pas au catalogue." }); }
 
@@ -110,6 +121,16 @@ router.delete("/profils/:id/permissions/:idPermission", async (req, res) => {
   const client = await tenantPool.connect();
   try {
     await client.query("BEGIN");
+    const { rows: profGarde } = await client.query(
+      `SELECT label, type FROM profil WHERE id = $1 AND date_suppression IS NULL`, [id]
+    );
+    if (profGarde.length && profGarde[0].type !== "groupe") {
+      await client.query("ROLLBACK");
+      // code_retour: 2078
+      return res.status(409).json({
+        error: `La matrice du profil "${profGarde[0].label}" se gère par remplacement complet depuis l'onglet Profils.`,
+      });
+    }
     const ligne = await lireLigne(client, id, idPermission);
     const decision = deciderRetrait(ligne);
     if (decision.ecriture === "aucune") {

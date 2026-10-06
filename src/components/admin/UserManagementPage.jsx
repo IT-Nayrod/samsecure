@@ -14,20 +14,20 @@ import { Users, Shield, KeyRound, ClipboardList, ScrollText } from 'lucide-react
 import useAuth from '../../hooks/useAuth';
 import { ADMIN_PERMISSIONS } from '../../constants/permissions';
 import UsersPage from '../users/UsersPage';
+import ProfilsPage from './ProfilsPage';
 import GroupesPage from './GroupesPage';
 import ExceptionsPage from './ExceptionsPage';
 import JournalPage from './JournalPage';
 
-// Séparation profils par défaut / groupes personnalisés (migration 074) : le
-// même écran GroupesPage sert les deux espaces, seul le mode change (matrice
-// éditable sans suppression d'un côté, CRUD et corbeille #64 de l'autre).
-const ProfilsDefautTab = () => <GroupesPage mode="defaut" />;
-const GroupesPersonnalisesTab = () => <GroupesPage mode="personnalises" />;
-
+// Séparation profils par défaut / groupes personnalisés (074, refonte #249) :
+// l'onglet Profils édite la matrice par défaut du tenant et son paramétrage
+// par société, sous la permission dédiée gerer_profils (Q5) ; l'onglet Groupes
+// garde le CRUD, la matrice case par case et la corbeille #64 sous
+// gerer_utilisateurs.
 const TABS = [
   { key: 'utilisateurs', label: 'Utilisateurs', icon: Users, permission: ADMIN_PERMISSIONS.UTILISATEURS, Component: UsersPage },
-  { key: 'profils', label: 'Profils', icon: Shield, permission: ADMIN_PERMISSIONS.GROUPES, Component: ProfilsDefautTab },
-  { key: 'groupes', label: 'Groupes personnalisés', icon: KeyRound, permission: ADMIN_PERMISSIONS.GROUPES, Component: GroupesPersonnalisesTab },
+  { key: 'profils', label: 'Profils', icon: Shield, permission: ADMIN_PERMISSIONS.PROFILS, Component: ProfilsPage },
+  { key: 'groupes', label: 'Groupes personnalisés', icon: KeyRound, permission: ADMIN_PERMISSIONS.GROUPES, Component: GroupesPage },
   { key: 'exceptions', label: 'Exceptions', icon: ClipboardList, permission: ADMIN_PERMISSIONS.EXCEPTIONS, Component: ExceptionsPage },
   { key: 'journal', label: 'Journal', icon: ScrollText, permission: ADMIN_PERMISSIONS.JOURNAL, Component: JournalPage },
 ];

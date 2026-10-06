@@ -14,7 +14,9 @@
 //
 // Codes disponibles, referentiel permission (29 codes, 7 modules) :
 //   administration : gerer_utilisateurs, gerer_exceptions_droit,
-//                    consulter_audit_log, gerer_connecteurs
+//                    consulter_audit_log, gerer_connecteurs,
+//                    gerer_profils (#249, 30e code : parametrage des matrices
+//                    des profils par defaut, detenu par admin_sam seulement)
 //   droits_usage   : consulter_contrats, consulter_factures, saisir_contrat,
 //                    saisir_commande, deposer_facture_preuve
 //   deploiement    : valider_saisie, consulter_licences, consulter_inventaire,
@@ -273,11 +275,29 @@ export const ROUTES_PERMISSIONS = [
   ["DELETE", "/contacts/:id",                "gerer_contacts"],
 
   // ---- Organisation : societes ---------------------------------------------
-  ["GET",    "/societes/:id/profils-orphelins", "gerer_referentiels"],
+  // /societes/:id/profils-orphelins a disparu avec la diffusion des groupes
+  // (#57) : un groupe ne devient plus orphelin d'une societe.
   ["GET",    "/societes",                    "consulter_referentiels"],
   ["POST",   "/societes",                    "gerer_referentiels"],
   ["PATCH",  "/societes/:id",                "gerer_referentiels"],
   ["DELETE", "/societes/:id",                "gerer_referentiels"],
+
+  // ---- Administration : profils par defaut, matrices par societe (#249) -----
+  // gerer_profils (Q5) : parametrage des matrices, par defaut et par societe.
+  // Acces par profil : admin_sam seul la detient par defaut (093/094), aucun
+  // profil par defaut ne la porte. Distincte de gerer_utilisateurs, qui reste
+  // la permission des comptes, des attributions et du CRUD des groupes.
+  // Les ecrans Profils lisent aussi les catalogues (GET /profils, GET
+  // /permissions, GET /societes), servis sous gerer_utilisateurs et
+  // consulter_referentiels : gerer_profils est un complement du socle
+  // administrateur, pas un droit autoporteur (le controle central n'exprime
+  // pas de OU, meme doctrine que les dashboards #116).
+  ["GET",    "/societes/:id/profils",                   "gerer_profils"],
+  ["PUT",    "/societes/:id/profils/:idProfil/matrice", "gerer_profils"],
+  ["DELETE", "/societes/:id/profils/:idProfil/matrice", "gerer_profils"],
+  ["PUT",    "/profils/:id/matrice",                    "gerer_profils"],
+  ["POST",   "/profils/:id/matrice/appliquer",          "gerer_profils"],
+  ["GET",    "/profils/:id/societes-configurees",       "gerer_profils"],
 
   // ---- Administration : exceptions de droits -------------------------------
   // Declarees avant les routes /utilisateurs/:id/... generiques.
@@ -292,6 +312,9 @@ export const ROUTES_PERMISSIONS = [
   ["PUT",    "/utilisateurs/:id/mot-de-passe",                  "gerer_utilisateurs"],
   ["GET",    "/utilisateurs/:id/historique",                    "gerer_utilisateurs"],
   ["GET",    "/utilisateurs/:id/droits-effectifs",              "gerer_utilisateurs"],
+  // Profil par defaut du compte (#249) : un seul, applique au rattachement.
+  ["PUT",    "/utilisateurs/:id/profil",                        "gerer_utilisateurs"],
+  // Attributions de groupes personnalises (type groupe seulement depuis #249).
   ["GET",    "/utilisateurs/:id/profils",                       "gerer_utilisateurs"],
   ["POST",   "/utilisateurs/:id/profils",                       "gerer_utilisateurs"],
   ["DELETE", "/utilisateurs/:id/profils/:attribId",             "gerer_utilisateurs"],
@@ -310,12 +333,12 @@ export const ROUTES_PERMISSIONS = [
   // Corbeille des groupes (#64) : chemin littéral avant /profils/:id.
   ["GET",    "/profils/corbeille",                        "gerer_utilisateurs"],
   ["POST",   "/profils/:id/restaurer",                    "gerer_utilisateurs"],
+  // La lecture de la matrice sert les deux ecrans (profils et groupes) ;
+  // l'ecriture case par case est reservee aux groupes par la route (2078).
+  // Les routes de diffusion /profils/:id/societes ont disparu avec le #57.
   ["GET",    "/profils/:id/permissions",                 "gerer_utilisateurs"],
   ["POST",   "/profils/:id/permissions",                 "gerer_utilisateurs"],
   ["DELETE", "/profils/:id/permissions/:idPermission",   "gerer_utilisateurs"],
-  ["GET",    "/profils/:id/societes",                    "gerer_utilisateurs"],
-  ["POST",   "/profils/:id/societes",                    "gerer_utilisateurs"],
-  ["DELETE", "/profils/:id/societes/:psId",              "gerer_utilisateurs"],
   ["GET",    "/profils/:id/impact",                      "gerer_utilisateurs"],
   ["GET",    "/profils",                                 "gerer_utilisateurs"],
   ["POST",   "/profils",                                 "gerer_utilisateurs"],
