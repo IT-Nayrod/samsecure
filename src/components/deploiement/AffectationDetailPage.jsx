@@ -186,6 +186,10 @@ export default function AffectationDetailPage() {
               <p className="text-sm text-gray-800 dark:text-gray-200">{a.quantite}</p>
             </div>
             <div>
+              <p className="text-xs text-gray-500 mb-1">Cible</p>
+              <p className="text-sm text-gray-800 dark:text-gray-200">{(a.type_cible ?? 'utilisateur') === 'poste' ? 'Poste ou machine' : 'Utilisateur'}</p>
+            </div>
+            <div>
               <p className="text-xs text-gray-500 mb-1">Référence client</p>
               <p className="text-sm text-gray-800 dark:text-gray-200">{a.reference_client}</p>
             </div>

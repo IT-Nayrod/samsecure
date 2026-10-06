@@ -269,6 +269,16 @@ async function detecterUsagesSansDroit(client) {
     `SELECT id, label FROM produit_referentiel WHERE id = ANY($1)`,
     [rows.map((r) => r.id_produit)]);
   const libelles = new Map(produits.map((p) => [p.id, p.label]));
+  // Logiciels créés par le client (produit_client, 040), hors catalogue
+  // Commune : une requête pour tout ce qui manque, même motif que licences.js
+  // (06/10/2026, pendant du chantier droits). Le repli « produit inconnu du
+  // catalogue » ne reste que pour un identifiant réellement orphelin.
+  const restants = rows.map((r) => r.id_produit).filter((id) => !libelles.has(id));
+  if (restants.length) {
+    const { rows: duClient } = await client.query(
+      `SELECT id, label FROM produit_client WHERE id = ANY($1)`, [restants]);
+    for (const p of duClient) libelles.set(p.id, p.label);
+  }
   return rows.map((r) => {
     const libelle = libelles.get(r.id_produit) ?? "produit inconnu du catalogue";
     return {

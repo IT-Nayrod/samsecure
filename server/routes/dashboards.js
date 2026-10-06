@@ -16,6 +16,8 @@ import { tenantPool, commonPool } from "../db.js";
 import { succes, erreur } from "../utils/reponse.js";
 import { jointureStatut, ENTITES_VALIDABLES, colonneLabel } from "../utils/validationWorkflow.js";
 import { LICENCE_EXPIREE } from "../utils/conformite.js";
+import { auditer, diff } from "../utils/audit.js";
+import { validerValeurSeuil, verifierCoherenceSeuil } from "../utils/seuilsDashboard.js";
 
 const router = express.Router();
 
@@ -318,6 +320,16 @@ router.get("/dashboards/montants-totaux", async (req, res) => {
         const { rows: prods } = await commonPool.query(
           `SELECT id, label FROM produit_referentiel WHERE id = ANY($1::uuid[])`, [ids]);
         for (const p of prods) labels.set(p.id, p.label);
+        // Logiciels créés par le client (produit_client, 040) : une requête
+        // pour tout ce qui manque, même motif que licences.js (06/10/2026,
+        // pendant du chantier droits). Le repli « Logiciel local » ne reste
+        // que pour une licence sans logiciel ou un identifiant orphelin.
+        const restants = ids.filter((id) => !labels.has(id));
+        if (restants.length) {
+          const { rows: duClient } = await tenantPool.query(
+            `SELECT id, label FROM produit_client WHERE id = ANY($1::uuid[])`, [restants]);
+          for (const p of duClient) labels.set(p.id, p.label);
+        }
       }
       lignes = rows.map((x) => ({ ...x, label: labels.get(x.id) ?? "Logiciel local" }));
     } else {
@@ -397,6 +409,240 @@ router.get("/dashboards/engages-payes", async (req, res) => {
   } catch (err) {
     console.error("GET /dashboards/engages-payes error", err);
     erreur(res, 5499, { status: 500, message: "Erreur serveur" });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Édition des seuils par l'administrateur du tenant (chantier seuils, 10/2026).
+//
+// Modèle validé : le tenant est rempli au provisionnement par diffusion depuis
+// la Commune (migration 091), la lecture de la colorimétrie se fait dans le
+// tenant, le rétablissement relit la Commune. Le défaut Commune est servi en
+// regard de chaque ligne pour l'écran de paramétrage ; une ligne encore
+// absente du tenant (base provisionnée avant 091) est servie depuis le défaut
+// et recréée côté tenant à la première écriture : aucun trou n'est bloquant.
+// Permission : gerer_utilisateurs pour la v0.5 (routesPermissions.js).
+// ---------------------------------------------------------------------------
+
+// Convention du projet : helper de journalisation local à chaque routeur,
+// erreurs avalées (le journal raconte, l'audit prouve).
+async function log(client, req, action, entite_type, entite_id, description, payload) {
+  try {
+    await client.query(
+      `INSERT INTO journal_ecriture (action, entite_type, entite_id, description, id_auteur, payload)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [action, entite_type, entite_id || null, description, req?.user?.id || null,
+       payload ? JSON.stringify(payload) : null]
+    );
+  } catch (e) {
+    console.error("[journal] log failed:", e.message);
+  }
+}
+
+const SELECT_SEUIL = `SELECT id, widget_code, echelle, valeur::float8 AS valeur,
+                             unite, direction, personnalise
+                        FROM seuil_dashboard`;
+
+// Liste complète pour l'écran de paramétrage : lignes du tenant, défaut
+// Commune en regard sur la clé naturelle widget_code + échelle. Les clés
+// présentes en Commune mais absentes du tenant sont servies depuis le défaut
+// (source "defaut") pour rester lisibles avant la diffusion 091.
+async function listeSeuils() {
+  const [defauts, tenant] = await Promise.all([
+    commonPool.query(
+      `SELECT widget_code, echelle, valeur::float8 AS valeur, unite, direction
+         FROM default_seuil_dashboard`),
+    tenantPool.query(`${SELECT_SEUIL} ORDER BY widget_code, echelle`),
+  ]);
+  const parCle = new Map();
+  for (const d of defauts.rows) {
+    parCle.set(`${d.widget_code}:${d.echelle}`, {
+      widget_code: d.widget_code, echelle: d.echelle,
+      valeur: d.valeur, unite: d.unite, direction: d.direction,
+      personnalise: false, source: "defaut",
+      defaut: { valeur: d.valeur, unite: d.unite, direction: d.direction },
+    });
+  }
+  for (const t of tenant.rows) {
+    const defaut = parCle.get(`${t.widget_code}:${t.echelle}`)?.defaut ?? null;
+    parCle.set(`${t.widget_code}:${t.echelle}`, {
+      widget_code: t.widget_code, echelle: t.echelle,
+      valeur: t.valeur, unite: t.unite, direction: t.direction,
+      personnalise: t.personnalise, source: "tenant",
+      defaut,
+    });
+  }
+  return [...parCle.values()].sort((a, b) =>
+    a.widget_code === b.widget_code ? a.echelle - b.echelle
+      : a.widget_code.localeCompare(b.widget_code));
+}
+
+// ---------------------------------------------------------------------------
+// GET /dashboards/seuils
+// Seuils du tenant avec le défaut Commune en regard, pour l'écran de
+// paramétrage (Paramètres tenant > Configuration).
+// ---------------------------------------------------------------------------
+router.get("/dashboards/seuils", async (req, res) => {
+  try {
+    succes(res, 5455, { seuils: await listeSeuils() });
+  } catch (err) {
+    console.error("GET /dashboards/seuils error", err);
+    erreur(res, 5499, { status: 500, message: "Erreur serveur" });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// PUT /dashboards/seuils
+// Modification d'un seuil : corps { widget_code, echelle, valeur }. La ligne
+// passe personnalise = true (copy-on-write : elle est protégée des
+// synchronisations). La cohérence entre échelles est vérifiée avant écriture
+// sur les lignes effectives du widget (tenant, défaut Commune en repli).
+// ---------------------------------------------------------------------------
+router.put("/dashboards/seuils", async (req, res) => {
+  const { widget_code, echelle, valeur } = req.body ?? {};
+  if (typeof widget_code !== "string" || !widget_code || widget_code.length > 50
+      || !Number.isInteger(echelle) || echelle < 1 || echelle > 4)
+    return erreur(res, 5463, { status: 400, message: "Le seuil transmis est invalide." });
+  const messageValeur = validerValeurSeuil(valeur);
+  if (messageValeur)
+    return erreur(res, 5463, { status: 400, message: messageValeur });
+
+  const client = await tenantPool.connect();
+  try {
+    await client.query("BEGIN");
+    const [defauts, tenant] = await Promise.all([
+      commonPool.query(
+        `SELECT widget_code, echelle, valeur::float8 AS valeur, unite, direction
+           FROM default_seuil_dashboard WHERE widget_code = $1`, [widget_code]),
+      client.query(`${SELECT_SEUIL} WHERE widget_code = $1 FOR UPDATE`, [widget_code]),
+    ]);
+
+    // Lignes effectives du widget : tenant, défaut Commune en repli.
+    const effectives = new Map();
+    for (const d of defauts.rows) effectives.set(d.echelle, d);
+    for (const t of tenant.rows) effectives.set(t.echelle, t);
+    const cible = effectives.get(echelle);
+    if (!cible) {
+      await client.query("ROLLBACK");
+      return erreur(res, 5464, { status: 404, message: "Le seuil demandé est inconnu." });
+    }
+    const messageCoherence = verifierCoherenceSeuil([...effectives.values()], echelle, valeur);
+    if (messageCoherence) {
+      await client.query("ROLLBACK");
+      return erreur(res, 5463, { status: 400, message: messageCoherence });
+    }
+
+    const defautCle = defauts.rows.find((d) => d.echelle === echelle) ?? null;
+    const avant = tenant.rows.find((t) => t.echelle === echelle) ?? null;
+    const { rows } = await client.query(
+      `INSERT INTO seuil_dashboard (widget_code, echelle, valeur, unite, direction, personnalise, valeurs_defaut)
+       VALUES ($1, $2, $3, $4, $5, true, $6)
+       ON CONFLICT (widget_code, echelle) DO UPDATE SET
+         valeur = EXCLUDED.valeur,
+         personnalise = true,
+         valeurs_defaut = COALESCE(seuil_dashboard.valeurs_defaut, EXCLUDED.valeurs_defaut)
+       RETURNING id, widget_code, echelle, valeur::float8 AS valeur, unite, direction, personnalise`,
+      [widget_code, echelle, valeur,
+       cible.unite ?? null, cible.direction ?? null,
+       defautCle ? JSON.stringify({ valeur: defautCle.valeur, unite: defautCle.unite, direction: defautCle.direction }) : null]);
+    const ligne = rows[0];
+
+    const d = diff(
+      avant ? { valeur: avant.valeur, personnalise: avant.personnalise } : null,
+      { valeur: ligne.valeur, personnalise: ligne.personnalise });
+    await auditer(client, req, {
+      action: "UPDATE_SEUIL_DASHBOARD", entiteType: "seuil_dashboard", entiteId: ligne.id,
+      avant: d.avant, apres: { widget_code, echelle, ...d.apres },
+    });
+    await log(client, req, "UPDATE", "seuil_dashboard", ligne.id,
+      `Modification du seuil "${widget_code}" (échelle ${echelle}) : ${ligne.valeur}`,
+      { widget_code, echelle, valeur: ligne.valeur });
+    await client.query("COMMIT");
+
+    succes(res, 5456, { ...ligne, source: "tenant",
+      defaut: defautCle ? { valeur: defautCle.valeur, unite: defautCle.unite, direction: defautCle.direction } : null });
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => {});
+    console.error("PUT /dashboards/seuils error", err);
+    erreur(res, 5499, { status: 500, message: "Erreur serveur" });
+  } finally {
+    client.release();
+  }
+});
+
+// ---------------------------------------------------------------------------
+// POST /dashboards/seuils/retablir
+// Rétablissement des valeurs par défaut : relit la Commune et réécrit le
+// tenant (personnalise = false). Corps : { widget_code?, echelle? } ;
+// widget_code seul rétablit toutes les échelles du widget, corps vide
+// rétablit tout, echelle (avec widget_code) rétablit une seule ligne.
+// ---------------------------------------------------------------------------
+router.post("/dashboards/seuils/retablir", async (req, res) => {
+  const { widget_code, echelle } = req.body ?? {};
+  if (widget_code !== undefined
+      && (typeof widget_code !== "string" || !widget_code || widget_code.length > 50))
+    return erreur(res, 5463, { status: 400, message: "Le seuil transmis est invalide." });
+  if (echelle !== undefined
+      && (widget_code === undefined || !Number.isInteger(echelle) || echelle < 1 || echelle > 4))
+    return erreur(res, 5463, { status: 400, message: "Le seuil transmis est invalide." });
+
+  const client = await tenantPool.connect();
+  try {
+    const { rows: defauts } = await commonPool.query(
+      `SELECT widget_code, echelle, valeur::float8 AS valeur, unite, direction
+         FROM default_seuil_dashboard
+        WHERE ($1::varchar IS NULL OR widget_code = $1)
+          AND ($2::int IS NULL OR echelle = $2)
+        ORDER BY widget_code, echelle`,
+      [widget_code ?? null, echelle ?? null]);
+    if (!defauts.length)
+      return erreur(res, 5464, { status: 404, message: "Le seuil demandé est inconnu." });
+
+    await client.query("BEGIN");
+    const { rows: avant } = await client.query(
+      `${SELECT_SEUIL}
+        WHERE personnalise = true
+          AND ($1::varchar IS NULL OR widget_code = $1)
+          AND ($2::int IS NULL OR echelle = $2)
+        FOR UPDATE`,
+      [widget_code ?? null, echelle ?? null]);
+    for (const d of defauts) {
+      await client.query(
+        `INSERT INTO seuil_dashboard (widget_code, echelle, valeur, unite, direction, personnalise, valeurs_defaut)
+         VALUES ($1, $2, $3, $4, $5, false, $6)
+         ON CONFLICT (widget_code, echelle) DO UPDATE SET
+           valeur = EXCLUDED.valeur,
+           unite = EXCLUDED.unite,
+           direction = EXCLUDED.direction,
+           personnalise = false,
+           valeurs_defaut = EXCLUDED.valeurs_defaut`,
+        [d.widget_code, d.echelle, d.valeur, d.unite, d.direction,
+         JSON.stringify({ valeur: d.valeur, unite: d.unite, direction: d.direction })]);
+    }
+
+    const portee = widget_code
+      ? (echelle ? `seuil "${widget_code}" échelle ${echelle}` : `widget "${widget_code}"`)
+      : "tous les seuils";
+    await auditer(client, req, {
+      action: "RESET_SEUIL_DASHBOARD", entiteType: "seuil_dashboard",
+      entiteId: avant.length === 1 ? avant[0].id : null,
+      avant: avant.length
+        ? { personnalises: avant.map((a) => ({ widget_code: a.widget_code, echelle: a.echelle, valeur: a.valeur })) }
+        : null,
+      apres: { portee, nb_retablis: defauts.length },
+    });
+    await log(client, req, "UPDATE", "seuil_dashboard", null,
+      `Rétablissement des seuils par défaut (${portee})`,
+      { widget_code: widget_code ?? null, echelle: echelle ?? null, nb_retablis: defauts.length });
+    await client.query("COMMIT");
+
+    succes(res, 5457, { seuils: await listeSeuils() });
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => {});
+    console.error("POST /dashboards/seuils/retablir error", err);
+    erreur(res, 5499, { status: 500, message: "Erreur serveur" });
+  } finally {
+    client.release();
   }
 });
 

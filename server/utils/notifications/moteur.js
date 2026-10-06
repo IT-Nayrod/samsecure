@@ -27,6 +27,7 @@ import {
   cleEvenement, selectionnerDestinataires, modeCourrier, statutCourrierInitial,
 } from "./regles.js";
 import { planifierEnvoiImmediat } from "./courriers.js";
+import { traducteurPour } from "./traductions.js";
 import { tracer } from "./trace.js";
 
 // ---------------------------------------------------------------------------
@@ -41,7 +42,7 @@ export function nouveauContexte() {
 
 async function chargerCandidats() {
   const { rows } = await tenantPool.query(
-    `SELECT id, email, prenom, nom FROM utilisateur
+    `SELECT id, email, prenom, nom, langue FROM utilisateur
       WHERE actif = true
         AND (date_finale           IS NULL OR date_finale           >= CURRENT_DATE)
         AND (date_mise_en_fonction IS NULL OR date_mise_en_fonction <= CURRENT_DATE)
@@ -51,7 +52,7 @@ async function chargerCandidats() {
     const [droits, portee] = await Promise.all([permissionsEffectives(u.id), getAdminScope(u.id)]);
     if (droits.compteInactif) continue;
     candidats.push({
-      id: u.id, email: u.email, prenom: u.prenom, nom: u.nom,
+      id: u.id, email: u.email, prenom: u.prenom, nom: u.nom, langue: u.langue,
       permissions: droits.permissions,
       isTenantScope: portee.isTenantScope,
       societeIds: portee.societeIds,
@@ -122,7 +123,10 @@ export async function creerNotification(client, evenement, contexte = nouveauCon
       let immediat = false;
       for (const dest of liste) {
         const montantsVisibles = dest.permissions.has(PERMISSION_MONTANTS);
-        const texte = composerTexte(evenement.type, evenement.donnees, { montantsVisibles });
+        // Multilingue (v1.1) : le texte en application sort dans la langue du
+        // destinataire (referentiel langue/traduction, repli francais).
+        const traduire = await traducteurPour(dest.langue);
+        const texte = composerTexte(evenement.type, evenement.donnees, { montantsVisibles, traduire });
         const mode = modeCourrier(prefs.get(`${dest.id}:${evenement.type}`), evenement.type, evenement.urgence);
         const { rowCount } = await cx.query(
           `INSERT INTO notification

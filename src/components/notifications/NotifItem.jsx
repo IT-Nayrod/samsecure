@@ -3,13 +3,14 @@
 // jaune, orange, rouge). Le clic marque la notification lue et ouvre l'ecran
 // concerne, deja filtre par le lien fourni par l'API.
 import {
-  Bell, AlertTriangle, CheckCircle, XCircle, Clock, CalendarClock, PiggyBank, RefreshCw, Info,
+  Bell, AlertTriangle, CheckCircle, XCircle, Clock, CalendarClock, PiggyBank, RefreshCw, Info, Wrench,
 } from 'lucide-react';
 import { timeAgo } from '../../utils/dateUtils';
 
 const TYPE_ICONS = {
   echeance_contrat: CalendarClock,
   echeance_souscription: CalendarClock,
+  fin_maintenance: Wrench,
   depassement_conformite: AlertTriangle,
   budget_seuil: PiggyBank,
   validation_en_attente: Clock,

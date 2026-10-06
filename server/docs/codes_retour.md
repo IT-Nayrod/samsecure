@@ -122,6 +122,16 @@ resoudre comme les autres.
 | 2053 | succes | Sélection désactivée (desactives, ignores, ids_desactives, ids_ignores) | POST /api/utilisateurs/desactivation |
 | 2054 | erreur | La sélection est vide ou invalide | POST /api/utilisateurs/desactivation |
 | 2055 | erreur | La sélection contient le compte connecté | POST /api/utilisateurs/desactivation |
+| 2060 | trace | Groupe créé | POST /api/profils |
+| 2061 | trace | Groupe modifié | PATCH /api/profils/:id |
+| 2062 | trace | Groupe mis en corbeille (#64) | DELETE /api/profils/:id |
+| 2063 | trace | Groupe restauré depuis la corbeille (#64) | POST /api/profils/:id/restaurer |
+| 2064 | trace | Permission ajoutée à un groupe | POST /api/profils/:id/permissions |
+| 2065 | trace | Permission retirée d'un groupe | DELETE /api/profils/:id/permissions/:idPermission |
+| 2066 | trace | Diffusion ajoutée à un groupe | POST /api/profils/:id/societes |
+| 2067 | trace | Diffusion retirée d'un groupe | DELETE /api/profils/:id/societes/:psId |
+| 2068 | erreur | Suppression impossible : profil par défaut ou système (migration 074) | DELETE /api/profils/:id |
+| 2069 | erreur | Ce groupe n'est pas dans la corbeille | POST /api/profils/:id/restaurer |
 | 2099 | erreur | Erreur serveur inattendue (module administration) | toutes |
 
 Désactivation d'une sélection (#212, 16/09/2026) : POST /api/utilisateurs/desactivation
@@ -133,8 +143,8 @@ actif = false sont ignorés et comptés (2053). Refus sans écriture : sélectio
 vide ou identifiant non UUID (2054, 400), compte connecté dans la sélection
 (2055, 409), compte hors périmètre (2051, 403), compte introuvable (2050, 404).
 Comme le reste de la plage administration, ces codes sont des commentaires de
-route hors enveloppe ; 2053 à 2055 restent à seeder par une prochaine
-migration Commune (aucune migration dans le chantier correctifs-admin).
+route hors enveloppe ; 2053 à 2055 ont depuis été seedés par la migration 067,
+et 2060 à 2069 (gestion des groupes, chantier rbac) par la migration 087.
 
 Les champs sensibles ne sont jamais ecrits dans valeur_avant ni valeur_apres :
 mot de passe, hash, jetons et secret 2FA sont retires A L'ECRITURE par
@@ -337,6 +347,9 @@ commun 3280-3299.
 | 3254 | erreur | Preuve introuvable | POST, PATCH /api/factures |
 | 3255 | reserve | [ARBITRAGE flux] la preuve est obligatoire dès la création. Non émis à ce jour | POST /api/factures |
 | 3259 | erreur | Valeur de filtre invalide | GET /api/factures |
+| 3246 | erreur | La date de la facture est obligatoire | POST /api/factures/depot (décision du 10/09/2026, migration 083) |
+| 3257 | erreur | Le montant de la facture est obligatoire | POST /api/factures/depot (décision du 10/09/2026, migration 083) |
+| 3258 | erreur | Le montant doit être un montant positif ou nul | POST /api/factures/depot, POST et PATCH /api/factures (migration 083) |
 
 ### Commun
 
@@ -688,6 +701,7 @@ dans la transaction du traitement.
 | 4119 | erreur | Identifiant de licence invalide | filtre GET /affectations |
 | 4130 | erreur | Seule une affectation validée peut être revalidée | POST .../revalider (409, `details.statut_validation`) |
 | 4132 | erreur | Suppression impossible : affectation rapprochée d'un inventaire | DELETE (409, `details.inventaires`) |
+| 4133 | erreur | Le type de cible est invalide | POST, PATCH /api/affectations (cible utilisateur ou poste, migrations 084 et 085) |
 | 4199 | erreur | Erreur serveur inattendue (module affectations) | toutes |
 
 Statuts servis par les GET : `statut_validation` est la derniere entree
@@ -896,7 +910,7 @@ cout de maintenance) servis a null avec `montants_masques: true` sans
 | 4009 | succes | Maintenance arretee, version figee | POST /api/licences/:id/arret-maintenance |
 | 4010 | erreur | Licence introuvable | GET/PATCH/DELETE /api/licences/:id et sous-routes (400 sur un filtre invalide de la liste ; 400 "Licence renouvelee introuvable" et 409 boucle de succession sur id_licence_predecesseur, #209) |
 | 4011 | erreur | Le logiciel est obligatoire | POST, PATCH /api/licences |
-| 4012 | erreur | Logiciel introuvable au catalogue | POST, PATCH /api/licences |
+| 4012 | erreur | Logiciel introuvable (catalogue Commune ou logiciel créé par le client, correctif du 06/10/2026, migration 083) | POST, PATCH /api/licences |
 | 4013 | erreur | Édition introuvable ou étrangère au logiciel | POST, PATCH /api/licences |
 | 4014 | erreur | Version introuvable ou étrangère au logiciel | POST, PATCH /api/licences ; POST, PATCH .../maintenance (id_version de la periode, #209) |
 | 4015 | erreur | Commande introuvable | POST, PATCH /api/licences |
@@ -1415,14 +1429,20 @@ pre-catalogue contre migrations soit complete dans les deux sens.
 | 5452 | succes | Synthèse des saisies et revalidations | GET /api/dashboards/synthese |
 | 5453 | succes | Montants totaux par axe | GET /api/dashboards/montants-totaux |
 | 5454 | succes | Montants engagés et payés par éditeur | GET /api/dashboards/engages-payes |
+| 5455 | succes | Seuils des dashboards du tenant | GET /api/dashboards/seuils |
+| 5456 | succes | Seuil de dashboard enregistré | PUT /api/dashboards/seuils |
+| 5457 | succes | Seuils de dashboard rétablis aux valeurs par défaut | POST /api/dashboards/seuils/retablir |
 | 5460 | erreur | L'axe demandé est invalide | GET /api/dashboards/montants-totaux (400) |
 | 5461 | erreur | La période demandée est invalide | GET /api/dashboards/montants-totaux (400) |
 | 5462 | erreur | Les préférences transmises sont invalides | PUT /api/dashboards/preferences (400) |
+| 5463 | erreur | Le seuil transmis est invalide | PUT /api/dashboards/seuils, POST /api/dashboards/seuils/retablir (400) |
+| 5464 | erreur | Le seuil demandé est inconnu | PUT /api/dashboards/seuils, POST /api/dashboards/seuils/retablir (404) |
 | 5499 | erreur | Erreur serveur inattendue (dashboards) | toutes |
 
 ## Notifications (#121, M3-notifications)
 
-Plage 5500-5549, seedee par la migration Commune 052. Routeur
+Plage 5500-5549, seedee par les migrations Commune 052 (socle #121) et 078
+(relance volontaire des courriers, spec v1.1 du 27/09). Routeur
 `server/routes/notifications.js`, moteur `server/utils/notifications/`
 (catalogue, regles pures, moteur, courriers, planificateur). Socle Tenant :
 migration 051 (colonnes sur `notification`, table `preference_notification`,
@@ -1432,9 +1452,9 @@ schema 002 sont reutilisees, pas recreees.
 
 Permissions : toutes les routes sont personnelles (bornees a `req.user.id`
 dans le routeur) et declarees PUBLIC_AUTHENTIFIE, sauf le declenchement manuel
-du traitement planifie, reserve au profil Administrateur SAM par
-`gerer_connecteurs` (meme convention que /mails/test). Aucune permission
-nouvelle.
+du traitement planifie et la relance volontaire des courriers, reserves au
+profil Administrateur SAM par `gerer_connecteurs` (meme convention que
+/mails/test) et traces dans audit_log. Aucune permission nouvelle.
 
 | Code | Type | Libelle | Emis par |
 |---|---|---|---|
@@ -1445,6 +1465,7 @@ nouvelle.
 | 5504 | succes | Préférences de notification | GET /api/notifications/preferences |
 | 5505 | succes | Préférences de notification enregistrées | PUT /api/notifications/preferences |
 | 5506 | succes | Traitement planifié des notifications exécuté | POST /api/notifications/executer-planification |
+| 5507 | succes | Courriers de notification relancés | POST /api/notifications/relancer-courriers |
 | 5510 | erreur | Notification introuvable | PATCH /api/notifications/:id/lu (404, y compris celle d'un autre utilisateur) |
 | 5511 | erreur | Identifiant de notification invalide | PATCH /api/notifications/:id/lu (400) |
 | 5512 | erreur | Le filtre lu doit valoir true ou false | GET /api/notifications |
@@ -1453,15 +1474,16 @@ nouvelle.
 | 5515 | erreur | Le réglage du courrier doit valoir immediat, quotidien ou desactive | PUT /api/notifications/preferences |
 | 5516 | erreur | Un traitement planifié est déjà en cours | POST /api/notifications/executer-planification (409) |
 | 5517 | erreur | Les préférences doivent être transmises sous forme de liste | PUT /api/notifications/preferences |
+| 5518 | erreur | Une relance des courriers est déjà en cours | POST /api/notifications/relancer-courriers (409) |
 | 5549 | erreur | Erreur serveur inattendue (module notifications) | toutes |
 
 Points de lecture :
 
-- huit types au pre-catalogue applicatif (`catalogue.js`) : echeance_contrat,
-  echeance_souscription, depassement_conformite, budget_seuil,
-  validation_en_attente, saisie_traitee, revalidation_echue ; le huitieme est
-  la reserve de structure (type en texte controle par le catalogue, un
-  nouveau type ne demande aucune migration) ;
+- neuf types au pre-catalogue applicatif (`catalogue.js`) : echeance_contrat,
+  echeance_souscription, fin_maintenance (D59-D60, spec v1.1), contrat_a_suivre,
+  depassement_conformite, budget_seuil, validation_en_attente, saisie_traitee,
+  revalidation_echue (type en texte controle par le catalogue, un nouveau type
+  ne demande aucune migration) ;
 - la notification en application est toujours creee ; le courrier suit la
   preference de l'utilisateur par type (immediat, quotidien, desactive),
   defauts du catalogue sinon. Un refus de saisie force l'immediat sauf si le
@@ -1475,11 +1497,21 @@ Points de lecture :
   la specification sont reconnus par leur permission signature (droits de
   dashboard, `gerer_connecteurs` pour l'administrateur) ; sans
   `consulter_kpi_financiers`, aucun montant dans le texte ni dans le
-  courrier (IT Ops recoit les quantites seules) ;
+  courrier dans l'application (IT Ops recoit les quantites seules) ;
+- confidentialite des courriels (spec v1.1, 27/09) : aucun courriel ne porte
+  de donnee metier (montant, quantite, motif, preuve d'ecart, libelle
+  d'entite) ; libelle generique du type et lien vers l'ecran concerne
+  seulement, objet prefixe "SamSecure - <nom du tenant>" ; pas de file de
+  retry applicative, un echec laisse la notification dans l'application,
+  relance volontaire par POST /notifications/relancer-courriers ;
+- multilingue (spec v1.1) : libelles de l'application et des courriels servis
+  dans la langue de l'utilisateur via le referentiel langue/traduction de la
+  Commune (module 'notifications', seed EN par la 078), repli sur la langue
+  par defaut du tenant puis sur le francais du code ;
 - evenementiel : `soumettre()` du workflow (validation_en_attente) et le
   traitement de `validation.js` (saisie_traitee), dans la transaction de
   l'appelant sous SAVEPOINT, jamais bloquant ; planifie : 7 h Paris
-  (echeances, revalidations, conformite, budget, purge) et 7 h 30
+  (echeances, fins de maintenance, revalidations, conformite, budget, purge) et 7 h 30
   (recapitulatif), rattrapage au demarrage, verrou journalier dans
   `tache_asynchrone` ;
 - envois journalises sur la notification (statut, date, resultat, tentatives),

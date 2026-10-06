@@ -123,6 +123,15 @@ async function resoudreProduits(rows) {
     const { rows: p } = await commonPool.query(
       `SELECT id, label, sku FROM produit_referentiel WHERE id = ANY($1::uuid[])`, [ids]);
     for (const x of p) produits.set(x.id, x);
+    // Logiciels créés par le client (produit_client, 040), stockés en Tenant
+    // et sans sku : une requête pour tout ce qui manque, même motif que
+    // licences.js (06/10/2026, pendant du chantier droits).
+    const restants = ids.filter((id) => !produits.has(id));
+    if (restants.length) {
+      const { rows: pc } = await tenantPool.query(
+        `SELECT id, label FROM produit_client WHERE id = ANY($1::uuid[])`, [restants]);
+      for (const x of pc) produits.set(x.id, { ...x, sku: null });
+    }
   }
   return rows.map((r) => ({
     ...r,

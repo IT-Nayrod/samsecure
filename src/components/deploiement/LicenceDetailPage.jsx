@@ -228,7 +228,7 @@ export default function LicenceDetailPage() {
           <div>
             <p className="font-medium">Ce contrat doit être renouvelé ou prolongé : des licences ont été renouvelées dessus.</p>
             <p className="text-xs mt-0.5">
-              Le contrat <Link to={`/contrats/liste/${licence.id_contrat}`} className="underline">{licence.contrat_label ?? 'rattaché'}</Link>
+              Le contrat <Link to={`/contrats/liste/${licence.id_contrat}`} className="underline">{libelleContrat(licence.contrat_label, licence.contrat_societe_label) ?? 'rattaché'}</Link>
               {licence.contrat_date_fin ? ` (fin le ${licence.contrat_date_fin})` : ''} est échu ou arrive à échéance et n&apos;a ni successeur ni prolongation. Rien n&apos;est modifié automatiquement.
             </p>
           </div>

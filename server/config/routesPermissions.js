@@ -183,6 +183,12 @@ export const ROUTES_PERMISSIONS = [
   ["GET",    "/dashboards/synthese",        "consulter_inventaire"],
   ["GET",    "/dashboards/montants-totaux", "consulter_kpi_financiers"],
   ["GET",    "/dashboards/engages-payes",   "consulter_kpi_financiers"],
+  // Édition des seuils de dashboard par l'administrateur du tenant (chantier
+  // seuils) : gerer_utilisateurs pour la v0.5, en attendant une permission
+  // d'administration du paramétrage dédiée.
+  ["GET",    "/dashboards/seuils",          "gerer_utilisateurs"],
+  ["PUT",    "/dashboards/seuils",          "gerer_utilisateurs"],
+  ["POST",   "/dashboards/seuils/retablir", "gerer_utilisateurs"],
 
   // ---- Notifications (#121) --------------------------------------------------
   // Routes personnelles : chaque requete est bornee a l'utilisateur du jeton
@@ -197,6 +203,7 @@ export const ROUTES_PERMISSIONS = [
   ["PUT",    "/notifications/preferences",             PUBLIC_AUTHENTIFIE],
   ["POST",   "/notifications/tout-lu",                 PUBLIC_AUTHENTIFIE],
   ["POST",   "/notifications/executer-planification",  "gerer_connecteurs"],
+  ["POST",   "/notifications/relancer-courriers",       "gerer_connecteurs"],
   ["GET",    "/notifications",                         PUBLIC_AUTHENTIFIE],
   ["PATCH",  "/notifications/:id/lu",                  PUBLIC_AUTHENTIFIE],
 
@@ -300,6 +307,9 @@ export const ROUTES_PERMISSIONS = [
   ["PATCH",  "/utilisateurs/:id",                               "gerer_utilisateurs"],
   ["POST",   "/utilisateurs/:id/mot-de-passe/reinitialisation", "gerer_utilisateurs"],
 
+  // Corbeille des groupes (#64) : chemin littéral avant /profils/:id.
+  ["GET",    "/profils/corbeille",                        "gerer_utilisateurs"],
+  ["POST",   "/profils/:id/restaurer",                    "gerer_utilisateurs"],
   ["GET",    "/profils/:id/permissions",                 "gerer_utilisateurs"],
   ["POST",   "/profils/:id/permissions",                 "gerer_utilisateurs"],
   ["DELETE", "/profils/:id/permissions/:idPermission",   "gerer_utilisateurs"],

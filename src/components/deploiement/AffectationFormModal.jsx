@@ -12,7 +12,14 @@ import { useToast } from '../../hooks/useToast';
 
 const INPUT_CLS = 'w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white';
 
-const EMPTY_FORM = { id_licence: '', id_societe: '', quantite: 1, reference_client: '' };
+const EMPTY_FORM = { id_licence: '', id_societe: '', quantite: 1, reference_client: '', type_cible: 'utilisateur' };
+
+// Cible de l'usage déclaré (migration 084) : un utilisateur nommé ou un
+// poste / une machine. Les affectations antérieures valent utilisateur.
+export const CIBLES_AFFECTATION = [
+  { code: 'utilisateur', label: 'Utilisateur nommé' },
+  { code: 'poste', label: 'Poste ou machine' },
+];
 
 function licenceLabel(l) {
   const produit = l.produit_label ? `${l.produit_label} - ` : '';
@@ -39,6 +46,7 @@ export default function AffectationFormModal({ isOpen, onClose, onSaved, affecta
         id_societe: affectation.id_societe ?? '',
         quantite: affectation.quantite ?? 1,
         reference_client: affectation.reference_client ?? '',
+        type_cible: affectation.type_cible ?? 'utilisateur',
       });
     } else {
       setForm(EMPTY_FORM);
@@ -115,7 +123,13 @@ export default function AffectationFormModal({ isOpen, onClose, onSaved, affecta
             {societes.map(s => <option key={s.id} value={s.id}>{s.raison_sociale}</option>)}
           </select>
         </FormField>
-        <FormField label="Référence client" required hint="Asset matériel ou utilisateur nommé">
+        <FormField label="Cible" required hint="Un usage se déclare pour un utilisateur nommé ou pour un poste / une machine">
+          <select className={INPUT_CLS} value={form.type_cible ?? 'utilisateur'} onChange={e => setForm(v => ({ ...v, type_cible: e.target.value }))}>
+            {CIBLES_AFFECTATION.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
+          </select>
+        </FormField>
+        <FormField label="Référence client" required
+          hint={(form.type_cible ?? 'utilisateur') === 'poste' ? 'Identifiant du poste ou de la machine (nom réseau, numéro d\u2019inventaire)' : 'Nom ou identifiant de l\u2019utilisateur'}>
           <input className={INPUT_CLS} value={form.reference_client} onChange={e => setForm(v => ({ ...v, reference_client: e.target.value }))} />
         </FormField>
         <FormField label="Quantité" required>

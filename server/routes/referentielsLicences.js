@@ -15,16 +15,27 @@ const router = express.Router();
 // Catalogue complet en un appel : produits avec leurs versions et éditions
 // imbriquées, triés par libellé. Le formulaire n'a ainsi qu'une source pour
 // les trois sélecteurs dépendants (produit, puis édition et version).
+// Correctif du 06/10/2026 (bug bloquant signalé par Samuel) : les logiciels
+// créés par le client (produit_client, 040) sont servis au même titre que le
+// catalogue Commune, avec leurs déclinaisons propres (version_client,
+// edition_client) ; chaque ligne porte source ('catalogue' ou 'client'), une
+// licence pouvant viser les deux (lien logique sans FK, comme inventaire.js).
 router.get("/produits", async (req, res) => {
   try {
-    const [{ rows: produits }, { rows: versions }, { rows: editions }] = await Promise.all([
+    const [{ rows: produits }, { rows: versions }, { rows: editions },
+           { rows: produitsClient }, { rows: versionsClient }, { rows: editionsClient }] = await Promise.all([
       commonPool.query(`SELECT id, label, sku, id_editeur, id_produit_parent
                           FROM produit_referentiel ORDER BY label`),
       commonPool.query(`SELECT id, id_produit, label FROM version ORDER BY label`),
       commonPool.query(`SELECT id, id_produit, label FROM edition ORDER BY label`),
+      tenantPool.query(`SELECT id, label, id_editeur, id_produit_parent
+                          FROM produit_client ORDER BY label`),
+      tenantPool.query(`SELECT id, id_produit, label FROM version_client ORDER BY label`),
+      tenantPool.query(`SELECT id, id_produit, label FROM edition_client ORDER BY label`),
     ]);
 
-    const idsEditeurs = [...new Set(produits.map((p) => p.id_editeur).filter(Boolean))];
+    const idsEditeurs = [...new Set([...produits, ...produitsClient]
+      .map((p) => p.id_editeur).filter(Boolean))];
     const editeurs = new Map();
     if (idsEditeurs.length) {
       const { rows } = await tenantPool.query(
@@ -42,20 +53,28 @@ router.get("/produits", async (req, res) => {
       }
       return index;
     };
-    const versionsPar = parProduit(versions);
-    const editionsPar = parProduit(editions);
+    const versionsPar = parProduit([...versions, ...versionsClient]);
+    const editionsPar = parProduit([...editions, ...editionsClient]);
 
-    succes(res, 4050, produits.map((p) => {
+    const habiller = (p, source) => {
       const e = p.id_editeur ? editeurs.get(p.id_editeur) : null;
       return {
         ...p,
+        sku: p.sku ?? null,
+        source,
         editeur_label: e?.raison_sociale ?? null,
         editeur_url_logo_defaut: e?.url_logo_defaut ?? null,
         editeur_url_logo_custom: e?.url_logo_custom ?? null,
         versions: versionsPar.get(p.id) ?? [],
         editions: editionsPar.get(p.id) ?? [],
       };
-    }));
+    };
+    // Les deux origines se mêlent dans un seul tri sur le libellé, comme la
+    // liste de l'écran Logiciels : la source n'est qu'une donnée de la ligne.
+    succes(res, 4050, [
+      ...produits.map((p) => habiller(p, "catalogue")),
+      ...produitsClient.map((p) => habiller(p, "client")),
+    ].sort((a, b) => a.label.localeCompare(b.label, "fr", { numeric: true })));
   } catch (err) {
     console.error("GET /produits error", err);
     erreur(res, 4059, { status: 500, message: "Erreur serveur" });

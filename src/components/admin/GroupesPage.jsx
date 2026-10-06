@@ -1,9 +1,14 @@
-// GroupesPage - CRUD des groupes (profils), diffusion tenant/sociétés,
-// matrice de permissions par module avec sauvegarde immédiate.
+// GroupesPage - groupes de droits, diffusion tenant/sociétés, matrice de
+// permissions par module avec sauvegarde immédiate. Depuis la migration 074,
+// l'écran sert deux espaces via la prop mode : "defaut" (profils par défaut et
+// système de la plateforme, matrice éditable, jamais supprimables, profil
+// système en lecture seule) et "personnalises" (groupes créés par le client,
+// CRUD complet et corbeille #64 : 90 jours avant purge, restauration).
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Pencil, Trash2, Plus } from 'lucide-react';
+import { Pencil, Trash2, Plus, Archive, RotateCcw } from 'lucide-react';
 import DataTable from '../ui/DataTable';
+import { formatDate } from '../../utils/dateUtils';
 import Badge from '../ui/Badge';
 import Button from '../ui/Button';
 import FormField from '../ui/FormField';
@@ -29,7 +34,8 @@ function slugify(label) {
     .slice(0, 50);
 }
 
-export default function GroupesPage() {
+export default function GroupesPage({ mode = 'personnalises' }) {
+  const estDefaut = mode === 'defaut';
   const { addToast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const [groups, setGroups] = useState([]);
@@ -40,6 +46,10 @@ export default function GroupesPage() {
   const [userSocietesMap, setUserSocietesMap] = useState({}); // { userId: [id_societe|null] }
   const [attributions, setAttributions] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  const [corbeille, setCorbeille] = useState([]);
+  const [corbeilleOpen, setCorbeilleOpen] = useState(false);
+  const [restauration, setRestauration] = useState(null); // id en cours
 
   const [createModal, setCreateModal] = useState(false);
   const [newGroup, setNewGroup] = useState({ label: '', description: '' });
@@ -65,11 +75,14 @@ export default function GroupesPage() {
   const load = useCallback(async ({ silencieux = false } = {}) => {
     if (!silencieux) setIsLoading(true);
     try {
-      const [g, s, c, u, a] = await Promise.all([
+      const [g, s, c, u, a, cb] = await Promise.all([
         groupsService.list(), societesService.list(), permissionsService.list(),
         usersService.list(), attributionsService.listAll(),
+        // La lecture de la corbeille déclenche la purge des 90 jours côté API.
+        estDefaut ? Promise.resolve([]) : groupsService.listCorbeille(),
       ]);
       setGroups(g);
+      setCorbeille(cb);
       setSocietes(s);
       setCatalogue(c);
       setUsers(u);
@@ -106,6 +119,13 @@ export default function GroupesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groups]);
 
+  // Chaque espace ne montre que ses profils : par défaut et système d'un côté,
+  // groupes personnalisés de l'autre (migration 074).
+  const visibles = useMemo(
+    () => groups.filter((g) => (estDefaut ? g.type !== 'groupe' : g.type === 'groupe')),
+    [groups, estDefaut]
+  );
+
   function diffusionLabel(groupId) {
     const rows = diffusions[groupId] || [];
     if (rows.some((r) => r.id_societe === null)) return 'Toutes sociétés (tenant)';
@@ -139,20 +159,34 @@ export default function GroupesPage() {
       if (impact.utilisateurs.length) parts.push(`${impact.utilisateurs.length} utilisateur(s) : ${impact.utilisateurs.map(u => `${u.prenom} ${u.nom}`).join(', ')}`);
       if (impact.societes.length) parts.push(`${impact.societes.length} société(s) en diffusion spécifique : ${impact.societes.map(s => s.raison_sociale).join(', ')}`);
       const message = parts.length
-        ? `Ce groupe est encore utilisé. ${parts.join(' — ')}. Le supprimer retirera ces attributions. Continuer ?`
-        : `Supprimer le groupe "${group.label}" ?`;
+        ? `Ce groupe est encore utilisé. ${parts.join(' — ')}. Le supprimer retirera ces attributions, restaurables depuis la corbeille pendant 90 jours. Continuer ?`
+        : `Placer le groupe "${group.label}" dans la corbeille ? Il restera restaurable pendant 90 jours.`;
       setConfirm({
         title: 'Supprimer le groupe',
         message,
         destructive: true,
         action: async () => {
           await groupsService.remove(group.id);
-          addToast({ type: 'success', message: 'Groupe supprimé.' });
+          addToast({ type: 'success', message: 'Groupe placé dans la corbeille.' });
           await load();
         },
       });
     } catch (err) {
       addToast({ type: 'error', message: err.message });
+    }
+  }
+
+  async function restaurer(groupe) {
+    setRestauration(groupe.id);
+    try {
+      await groupsService.restore(groupe.id);
+      addToast({ type: 'success', message: `Groupe "${groupe.label}" restauré.` });
+      await load({ silencieux: true });
+    } catch (err) {
+      // Message de l'API tel quel, jamais reconstruit.
+      addToast({ type: 'error', message: err.message });
+    } finally {
+      setRestauration(null);
     }
   }
 
@@ -329,23 +363,33 @@ export default function GroupesPage() {
     return groups;
   }, [catalogue]);
 
+  // Le profil système (admin_sam) reste consultable mais figé : un
+  // administrateur ne doit pas pouvoir y retirer l'administration par mégarde.
+  const lectureSeule = detail?.type === 'systeme';
   const detailDiffusion = detail ? (diffusions[detail.id] || []) : [];
   const isTenantDiffusion = detailDiffusion.some((r) => r.id_societe === null);
   const detailPermIds = new Set(detailPermissions.map((p) => p.id));
 
   const columns = [
-    { key: 'label', label: 'Groupe', sortable: true, render: r => <ProfileBadge profil={r.code} label={r.label} /> },
+    { key: 'label', label: estDefaut ? 'Profil' : 'Groupe', sortable: true, render: r => <ProfileBadge profil={r.code} label={r.label} /> },
     { key: 'description', label: 'Description' },
     { key: 'diffusion', label: 'Diffusion', render: r => <span className="text-xs text-gray-500">{diffusionLabel(r.id)}</span> },
+    ...(estDefaut ? [{
+      key: 'type', label: 'Type', render: r => (
+        <Badge variant={r.type === 'systeme' ? 'warning' : 'neutral'} label={r.type === 'systeme' ? 'Système' : 'Par défaut'} />
+      ),
+    }] : []),
     {
       key: 'actions', label: 'Actions', render: r => (
         <div className="flex items-center gap-1">
           <button onClick={() => openDetail(r)} aria-label="Gérer" className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-700">
             <Pencil size={14} />
           </button>
-          <button onClick={() => askDelete(r)} aria-label="Supprimer" className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-red-600">
-            <Trash2 size={14} />
-          </button>
+          {r.type === 'groupe' && (
+            <button onClick={() => askDelete(r)} aria-label="Supprimer" className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-red-600">
+              <Trash2 size={14} />
+            </button>
+          )}
         </div>
       ),
     },
@@ -355,16 +399,27 @@ export default function GroupesPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Groupes et droits</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{groups.length} groupe{groups.length > 1 ? 's' : ''}</p>
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">{estDefaut ? 'Profils' : 'Groupes personnalisés'}</h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            {estDefaut
+              ? `${visibles.length} profil${visibles.length > 1 ? 's' : ''} de la plateforme, matrice éditable, non supprimables`
+              : `${visibles.length} groupe${visibles.length > 1 ? 's' : ''}`}
+          </p>
         </div>
-        <Button variant="primary" onClick={() => setCreateModal(true)}>
-          <Plus size={15} /> Nouveau groupe
-        </Button>
+        {!estDefaut && (
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" onClick={() => setCorbeilleOpen(true)}>
+              <Archive size={15} /> Corbeille ({corbeille.length})
+            </Button>
+            <Button variant="primary" onClick={() => setCreateModal(true)}>
+              <Plus size={15} /> Nouveau groupe
+            </Button>
+          </div>
+        )}
       </div>
 
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-        <DataTable columns={columns} data={groups} filename="groupes" isLoading={isLoading} onRowClick={openDetail} emptyState={{ message: 'Aucun groupe.' }} />
+        <DataTable columns={columns} data={visibles} filename={estDefaut ? 'profils' : 'groupes'} isLoading={isLoading} onRowClick={openDetail} emptyState={{ message: estDefaut ? 'Aucun profil.' : 'Aucun groupe.' }} />
       </div>
 
       <SlideOver isOpen={createModal} onClose={() => setCreateModal(false)} title="Nouveau groupe" size="sm"
@@ -381,20 +436,25 @@ export default function GroupesPage() {
         </div>
       </SlideOver>
 
-      <SlideOver isOpen={!!detail} onClose={closeDetail} title={detail ? `Groupe "${detail.label}"` : ''} size="lg">
+      <SlideOver isOpen={!!detail} onClose={closeDetail} title={detail ? `${estDefaut ? 'Profil' : 'Groupe'} "${detail.label}"` : ''} size="lg">
         {detail && (
           <div className="flex flex-col gap-6">
+            {lectureSeule && (
+              <p className="text-xs text-amber-700 bg-amber-50 dark:bg-amber-900/20 dark:text-amber-400 rounded-lg px-3 py-2">
+                Profil système : diffusion et permissions en lecture seule.
+              </p>
+            )}
             <section>
               <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 pb-2 border-b border-gray-100 dark:border-gray-700">Diffusion</h3>
               <div className="flex gap-2 mb-3">
-                <button type="button" onClick={() => toggleDiffusionTenant(true)} className={`flex-1 px-3 py-2 rounded-lg text-sm border ${isTenantDiffusion ? 'bg-blue-50 border-blue-400 text-blue-700 font-medium' : 'border-gray-200 text-gray-600'}`}>
+                <button type="button" disabled={lectureSeule} onClick={() => toggleDiffusionTenant(true)} className={`flex-1 px-3 py-2 rounded-lg text-sm border ${isTenantDiffusion ? 'bg-blue-50 border-blue-400 text-blue-700 font-medium' : 'border-gray-200 text-gray-600'} ${lectureSeule ? 'opacity-60 cursor-not-allowed' : ''}`}>
                   Échelle tenant
                 </button>
-                <button type="button" onClick={() => toggleDiffusionTenant(false)} className={`flex-1 px-3 py-2 rounded-lg text-sm border ${!isTenantDiffusion ? 'bg-blue-50 border-blue-400 text-blue-700 font-medium' : 'border-gray-200 text-gray-600'}`}>
+                <button type="button" disabled={lectureSeule} onClick={() => toggleDiffusionTenant(false)} className={`flex-1 px-3 py-2 rounded-lg text-sm border ${!isTenantDiffusion ? 'bg-blue-50 border-blue-400 text-blue-700 font-medium' : 'border-gray-200 text-gray-600'} ${lectureSeule ? 'opacity-60 cursor-not-allowed' : ''}`}>
                   Sociétés spécifiques
                 </button>
               </div>
-              {!isTenantDiffusion && (
+              {!isTenantDiffusion && !lectureSeule && (
                 <SocieteSelector
                   organisations={societes}
                   selectedIds={detailDiffusion.filter((r) => r.id_societe !== null).map((r) => r.id_societe)}
@@ -411,8 +471,8 @@ export default function GroupesPage() {
                     <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1.5">{moduleName}</p>
                     <div className="flex flex-col gap-1">
                       {perms.map((p) => (
-                        <label key={p.id} className="flex items-center gap-2 text-sm px-2 py-1 rounded hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
-                          <input type="checkbox" checked={detailPermIds.has(p.id)} onChange={(e) => togglePermission(p.id, e.target.checked)} className="rounded border-gray-300" />
+                        <label key={p.id} className={`flex items-center gap-2 text-sm px-2 py-1 rounded ${lectureSeule ? 'opacity-70' : 'hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer'}`}>
+                          <input type="checkbox" disabled={lectureSeule} checked={detailPermIds.has(p.id)} onChange={(e) => togglePermission(p.id, e.target.checked)} className="rounded border-gray-300" />
                           <span className="text-gray-700 dark:text-gray-200">{p.label}</span>
                         </label>
                       ))}
@@ -433,6 +493,32 @@ export default function GroupesPage() {
           </div>
         )}
       </SlideOver>
+
+      {!estDefaut && (
+        <SlideOver isOpen={corbeilleOpen} onClose={() => setCorbeilleOpen(false)} title="Corbeille des groupes" size="sm">
+          <div className="flex flex-col gap-3">
+            <p className="text-xs text-gray-500">
+              Un groupe supprimé reste restaurable pendant 90 jours, avec ses droits, sa diffusion et ses attributions. Au-delà, il est purgé définitivement.
+            </p>
+            {corbeille.length === 0 && (
+              <p className="text-sm text-gray-500 py-6 text-center">La corbeille est vide.</p>
+            )}
+            {corbeille.map((g) => (
+              <div key={g.id} className="flex items-center justify-between gap-3 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{g.label}</p>
+                  <p className="text-xs text-gray-500">
+                    Supprimé le {formatDate(g.date_suppression)} — {g.jours_restants} jour{g.jours_restants > 1 ? 's' : ''} restant{g.jours_restants > 1 ? 's' : ''}
+                  </p>
+                </div>
+                <Button variant="secondary" size="sm" onClick={() => restaurer(g)} isLoading={restauration === g.id}>
+                  <RotateCcw size={14} /> Restaurer
+                </Button>
+              </div>
+            ))}
+          </div>
+        </SlideOver>
+      )}
 
       <ConfirmModal
         isOpen={!!confirm}
