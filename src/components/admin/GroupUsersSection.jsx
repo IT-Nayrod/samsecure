@@ -1,11 +1,13 @@
 // GroupUsersSection - gestion des utilisateurs d'un groupe depuis sa fiche.
-// Second point d'entrée, en miroir de UserGroupsSection : même règle
-// d'intersection, mêmes endpoints, même table utilisateur_profil_societe.
+// Second point d'entrée, en miroir de UserGroupsSection : mêmes endpoints,
+// même table utilisateur_profil_societe. Depuis le #249 (#57), un groupe ne
+// porte plus de diffusion : tout utilisateur actif est cochable, l'attribution
+// vaut sur son rattachement.
 import { useState } from 'react';
 import { useToast } from '../../hooks/useToast';
-import { isGroupAssignable, attribuerGroupe, retirerGroupe } from '../../utils/attributionScope';
+import { attribuerGroupe, retirerGroupe } from '../../utils/attributionScope';
 
-export default function GroupUsersSection({ groupId, groupSocieteIds, users, userSocietesMap, attributions, onChange }) {
+export default function GroupUsersSection({ groupId, users, attributions, onChange }) {
   const { addToast } = useToast();
   const [pending, setPending] = useState(null);
 
@@ -14,18 +16,10 @@ export default function GroupUsersSection({ groupId, groupSocieteIds, users, use
   );
 
   async function toggle(user, checked) {
-    const userSocieteIds = userSocietesMap[user.id] || [];
-    // Garde-fou défensif : même si la case ne devrait jamais être cochable
-    // dans ce cas (désactivée), l'appel de création n'est émis que si
-    // l'intersection est réellement non vide.
-    if (checked && !isGroupAssignable(userSocieteIds, groupSocieteIds)) {
-      addToast({ type: 'error', message: "Aucune société commune entre le rattachement de l'utilisateur et la diffusion de ce groupe." });
-      return;
-    }
     setPending(user.id);
     try {
       if (checked) {
-        await attribuerGroupe(user.id, groupId, userSocieteIds, groupSocieteIds);
+        await attribuerGroupe(user.id, groupId);
         addToast({ type: 'success', message: `${user.prenom} ${user.nom} rattaché(e) au groupe.` });
       } else {
         await retirerGroupe(user.id, groupId, attributions);
@@ -46,15 +40,12 @@ export default function GroupUsersSection({ groupId, groupSocieteIds, users, use
       </h3>
       <div className="flex flex-col gap-1 max-h-64 overflow-y-auto">
         {users.filter((u) => u.actif).map((user) => {
-          const userSocieteIds = userSocietesMap[user.id] || [];
-          const assignable = isGroupAssignable(userSocieteIds, groupSocieteIds);
           const checked = attributedUserIds.has(user.id);
-          const disabled = (!assignable && !checked) || pending === user.id;
+          const disabled = pending === user.id;
           return (
             <label
               key={user.id}
               className={`flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-sm ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700'}`}
-              title={!assignable && !checked ? "Aucune société commune entre le rattachement de l'utilisateur et la diffusion du groupe" : undefined}
             >
               <input
                 type="checkbox"
@@ -65,9 +56,6 @@ export default function GroupUsersSection({ groupId, groupSocieteIds, users, use
               />
               <span className="text-gray-700 dark:text-gray-200">{user.prenom} {user.nom}</span>
               <span className="text-xs text-gray-400">{user.email}</span>
-              {!assignable && !checked && (
-                <span className="text-xs text-gray-400 ml-auto">Aucune société commune</span>
-              )}
             </label>
           );
         })}

@@ -1,8 +1,16 @@
-// Sociétés du tenant : création, modification, suppression et détection des
-// profils qui deviendraient orphelins après un retrait.
+// Sociétés du tenant : création, modification, suppression, et configuration
+// des profils par défaut par société (#249, onglet Profils de la fiche
+// société, permission gerer_profils).
+//
+// La détection des « profils orphelins » a disparu avec la diffusion (#57) :
+// un groupe ne meurt plus avec une société, sa portée suit le rattachement
+// des utilisateurs.
 
 import express from "express";
 import { tenantPool } from "../db.js";
+import { estUuid } from "../utils/matriceGroupe.js";
+import { auditer } from "../utils/audit.js";
+import { validerPermissionIds, matriceSocieteCourante, configurerMatriceSociete } from "../utils/matriceProfil.js";
 
 const router = express.Router();
 
@@ -106,45 +114,14 @@ router.patch("/societes/:id", async (req, res) => {
   }
 });
 
-router.get("/societes/:id/profils-orphelins", async (req, res) => {
-  const { id } = req.params;
-  try {
-    const { rows } = await tenantPool.query(
-      `SELECT p.id, p.code, p.label
-       FROM profil p
-       WHERE p.date_suppression IS NULL
-         AND EXISTS (SELECT 1 FROM profil_societe ps WHERE ps.id_profil = p.id AND ps.id_societe = $1 AND ps.date_suppression IS NULL)
-         AND NOT EXISTS (
-           SELECT 1 FROM profil_societe ps2
-           WHERE ps2.id_profil = p.id AND ps2.id_societe IS DISTINCT FROM $1 AND ps2.date_suppression IS NULL
-         )`,
-      [id]
-    );
-    res.json(rows);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Erreur serveur" });
-  }
-});
-
+// #249/#57 : plus aucune purge de groupes ni d'attributions. Les groupes ne
+// portent plus de diffusion (un groupe ne devient jamais orphelin d'une
+// société), les attributions de groupes ne sont plus portées par société, et
+// les configurations de profils de la société (092) deviennent inertes d'elles-
+// mêmes : le calcul des droits ne couvre que les sociétés actives.
 async function purgeSociete(client, id) {
   await client.query(`UPDATE exception_droit SET date_suppression = now() WHERE id_societe = $1 AND date_suppression IS NULL`, [id]);
-  await client.query(`UPDATE utilisateur_profil_societe SET date_suppression = now() WHERE id_societe = $1 AND date_suppression IS NULL`, [id]);
   await client.query(`UPDATE utilisateur_societe SET date_suppression = now() WHERE id_societe = $1 AND date_suppression IS NULL`, [id]);
-  const { rows: profilsLies } = await client.query(
-    `SELECT id_profil FROM profil_societe WHERE id_societe = $1 AND date_suppression IS NULL`, [id]
-  );
-  await client.query(`UPDATE profil_societe SET date_suppression = now() WHERE id_societe = $1`, [id]);
-  for (const row of profilsLies) {
-    const profilId = row.id_profil;
-    const { rows: reste } = await client.query(
-      `SELECT 1 FROM profil_societe WHERE id_profil = $1 AND date_suppression IS NULL LIMIT 1`, [profilId]
-    );
-    if (reste.length === 0) {
-      await client.query(`UPDATE profil_permission SET date_suppression = now() WHERE id_profil = $1`, [profilId]);
-      await client.query(`UPDATE profil SET date_suppression = now() WHERE id = $1`, [profilId]);
-    }
-  }
   await client.query(`UPDATE societe SET date_suppression = now() WHERE id = $1`, [id]);
 }
 
@@ -179,6 +156,168 @@ router.delete("/societes/:id", async (req, res) => {
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("DELETE /societes/:id error", err);
+    res.status(500).json({ error: "Erreur serveur" });
+  } finally {
+    client.release();
+  }
+});
+
+
+// ---------------------------------------------------------------------------
+// Profils par défaut de la société (#249), permission gerer_profils (Q5).
+// Onglet Profils de la fiche société : état « suit le défaut » ou
+// « configuré », matrice en remplacement complet (Q2), retour au défaut.
+// ---------------------------------------------------------------------------
+
+// État des quatre profils par défaut pour la société : marqueur de
+// configuration (Q3) et matrice effective (configurée si marqueur, sinon la
+// matrice par défaut du tenant). Le profil système admin_sam n'est pas servi :
+// sa matrice est figée et ne se configure pas par société.
+router.get("/societes/:id/profils", async (req, res) => {
+  const { id } = req.params;
+  if (!estUuid(id)) return res.status(404).json({ error: "Société introuvable" });
+  try {
+    const { rows: soc } = await tenantPool.query(
+      `SELECT id, raison_sociale FROM societe WHERE id = $1 AND date_suppression IS NULL`, [id]
+    );
+    // code_retour: 2075
+    if (!soc.length) return res.status(404).json({ error: "Société introuvable" });
+
+    const { rows: profils } = await tenantPool.query(
+      `SELECT p.id, p.code, p.label, p.description,
+              (psc.id IS NOT NULL) AS configure,
+              psc.configure_le,
+              TRIM(COALESCE(u.prenom, '') || ' ' || COALESCE(u.nom, '')) AS configure_par_label
+         FROM profil p
+         LEFT JOIN profil_societe_configuration psc
+                ON psc.id_profil = p.id AND psc.id_societe = $1
+         LEFT JOIN utilisateur u ON u.id = psc.id_configure_par
+        WHERE p.type = 'profil_defaut' AND p.date_suppression IS NULL
+        ORDER BY p.label`,
+      [id]
+    );
+
+    const resultat = [];
+    for (const profil of profils) {
+      const { rows: matrice } = profil.configure
+        ? await tenantPool.query(
+            `SELECT id_permission FROM profil_societe_permission
+              WHERE id_profil = $1 AND id_societe = $2`, [profil.id, id])
+        : await tenantPool.query(
+            `SELECT id_permission FROM profil_permission
+              WHERE id_profil = $1 AND date_suppression IS NULL`, [profil.id]);
+      resultat.push({ ...profil, permission_ids: matrice.map((r) => r.id_permission) });
+    }
+    res.json({ societe: soc[0], profils: resultat });
+  } catch (err) {
+    console.error("GET /societes/:id/profils error", err);
+    res.status(500).json({ error: "Erreur serveur" });
+  }
+});
+
+// Remplacement complet de la matrice du profil pour cette société (Q2). La
+// société devient configurée (Q3), y compris pour une matrice vide : vider
+// volontairement n'est pas revenir au défaut.
+router.put("/societes/:id/profils/:idProfil/matrice", async (req, res) => {
+  const { id, idProfil } = req.params;
+  if (!estUuid(id)) return res.status(404).json({ error: "Société introuvable" });
+  if (!estUuid(idProfil)) return res.status(404).json({ error: "Profil introuvable" });
+  const client = await tenantPool.connect();
+  try {
+    await client.query("BEGIN");
+    const { rows: soc } = await client.query(
+      `SELECT id, raison_sociale FROM societe WHERE id = $1 AND date_suppression IS NULL`, [id]
+    );
+    // code_retour: 2075
+    if (!soc.length) { await client.query("ROLLBACK"); return res.status(404).json({ error: "Société introuvable" }); }
+    const { rows: prof } = await client.query(
+      `SELECT id, label, type FROM profil WHERE id = $1 AND date_suppression IS NULL FOR UPDATE`, [idProfil]
+    );
+    if (!prof.length) { await client.query("ROLLBACK"); return res.status(404).json({ error: "Profil introuvable" }); }
+    if (prof[0].type !== "profil_defaut") {
+      await client.query("ROLLBACK");
+      // code_retour: 2074
+      return res.status(409).json({ error: `"${prof[0].label}" n'est pas un profil par défaut : seul un profil par défaut se configure par société.` });
+    }
+    const matrice = await validerPermissionIds(client, req.body?.permission_ids);
+    if (matrice.erreur) {
+      await client.query("ROLLBACK");
+      // code_retour: 2076
+      return res.status(400).json({ error: matrice.erreur });
+    }
+    const { rows: conf } = await client.query(
+      `SELECT 1 FROM profil_societe_configuration WHERE id_profil = $1 AND id_societe = $2`,
+      [idProfil, id]
+    );
+    const avantConfigure = conf.length > 0;
+    const avantCodes = avantConfigure ? await matriceSocieteCourante(client, idProfil, id) : null;
+    await configurerMatriceSociete(client, req, {
+      profil: prof[0], societe: soc[0], ids: matrice.ids, codes: matrice.codes,
+      avantConfigure, avantCodes,
+    });
+    const { rows: relecture } = await client.query(
+      `SELECT psc.configure_le,
+              TRIM(COALESCE(u.prenom, '') || ' ' || COALESCE(u.nom, '')) AS configure_par_label
+         FROM profil_societe_configuration psc
+         LEFT JOIN utilisateur u ON u.id = psc.id_configure_par
+        WHERE psc.id_profil = $1 AND psc.id_societe = $2`,
+      [idProfil, id]
+    );
+    await client.query("COMMIT");
+    res.json({
+      id_profil: idProfil, id_societe: id, configure: true,
+      configure_le: relecture[0]?.configure_le || null,
+      configure_par_label: relecture[0]?.configure_par_label || null,
+      permission_ids: matrice.ids,
+    });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("PUT /societes/:id/profils/:idProfil/matrice error", err);
+    res.status(500).json({ error: "Erreur serveur" });
+  } finally {
+    client.release();
+  }
+});
+
+// Retour au défaut : retire la configuration et sa matrice. La société suit à
+// nouveau la matrice par défaut du tenant, les évolutions futures comprises.
+router.delete("/societes/:id/profils/:idProfil/matrice", async (req, res) => {
+  const { id, idProfil } = req.params;
+  if (!estUuid(id) || !estUuid(idProfil)) {
+    return res.status(404).json({ error: "Cette société n'est pas configurée pour ce profil." });
+  }
+  const client = await tenantPool.connect();
+  try {
+    await client.query("BEGIN");
+    const { rows: conf } = await client.query(
+      `SELECT psc.id, p.label AS profil_label, s.raison_sociale
+         FROM profil_societe_configuration psc
+         JOIN profil p ON p.id = psc.id_profil
+         JOIN societe s ON s.id = psc.id_societe
+        WHERE psc.id_profil = $1 AND psc.id_societe = $2
+        FOR UPDATE`,
+      [idProfil, id]
+    );
+    if (!conf.length) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Cette société n'est pas configurée pour ce profil." });
+    }
+    const avantCodes = await matriceSocieteCourante(client, idProfil, id);
+    await client.query(`DELETE FROM profil_societe_permission WHERE id_profil = $1 AND id_societe = $2`, [idProfil, id]);
+    await client.query(`DELETE FROM profil_societe_configuration WHERE id_profil = $1 AND id_societe = $2`, [idProfil, id]);
+    await log(client, "DELETE", "profil_societe_permission", idProfil,
+      `Profil "${conf[0].profil_label}" revenu au défaut pour la société "${conf[0].raison_sociale}"`, null);
+    // code_retour: 2072
+    await auditer(client, req, {
+      action: "PROFIL_SOCIETE_RETOUR_DEFAUT", entiteType: "profil", entiteId: idProfil,
+      avant: { societe: conf[0].raison_sociale, configure: true, permissions: avantCodes },
+      apres: { societe: conf[0].raison_sociale, configure: false },
+    });
+    await client.query("COMMIT");
+    res.status(204).end();
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("DELETE /societes/:id/profils/:idProfil/matrice error", err);
     res.status(500).json({ error: "Erreur serveur" });
   } finally {
     client.release();

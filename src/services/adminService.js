@@ -19,8 +19,10 @@ function normalizeSociete(s) {
   };
 }
 
+// #249 : une attribution de groupe ne porte plus de société (#57), l'API ne
+// sert plus idsociete.
 function normalizeAttribution(a) {
-  return { id: a.id, id_utilisateur: a.idutilisateur, id_profil: a.idprofil, id_societe: a.idsociete };
+  return { id: a.id, id_utilisateur: a.idutilisateur, id_profil: a.idprofil };
 }
 
 function normalizeException(e) {
@@ -56,6 +58,8 @@ export const usersService = {
     http.put(`/utilisateurs/${id}/mot-de-passe`, { mot_de_passe: motDePasse }),
   genererMotDePasse: (id) => http.post(`/utilisateurs/${id}/mot-de-passe/generer`),
   envoyerLienReinitialisation: (id) => http.post(`/utilisateurs/${id}/mot-de-passe/reinitialisation`),
+  // Profil par défaut du compte (#249) : un seul, null le retire.
+  setProfil: (id, id_profil) => http.put(`/utilisateurs/${id}/profil`, { id_profil }),
   listSocietes: (id) =>
     http.get(`/utilisateurs/${id}/societes`).then((rows) =>
       rows.map((r) => ({ id: r.id, id_utilisateur: r.idutilisateur, id_societe: r.idsociete }))
@@ -71,17 +75,10 @@ export const groupsService = {
   create: (payload) => http.post('/profils', payload),
   update: (id, payload) => http.patch(`/profils/${id}`, payload),
   remove: (id) => http.delete(`/profils/${id}`),
-  listSocietes: (id) =>
-    http.get(`/profils/${id}/societes`).then((rows) =>
-      rows.map((r) => ({ id: r.id, id_societe: r.idsociete, raison_sociale: r.raisonsociale }))
-    ),
-  addSociete: (id, id_societe) => http.post(`/profils/${id}/societes`, { id_societe }),
-  removeSociete: (id, psId) => http.delete(`/profils/${id}/societes/${psId}`),
+  // #57 : plus de diffusion par société, les routes /profils/:id/societes ont
+  // disparu ; l'impact d'une suppression ne porte plus que les utilisateurs.
   impact: (id) =>
-    http.get(`/profils/${id}/impact`).then((r) => ({
-      utilisateurs: r.utilisateurs,
-      societes: (r.societes || []).map((s) => ({ id: s.id, raison_sociale: s.raisonsociale })),
-    })),
+    http.get(`/profils/${id}/impact`).then((r) => ({ utilisateurs: r.utilisateurs })),
   // Corbeille des groupes (#64) : supprimés depuis moins de 90 jours, avec
   // jours_restants avant purge ; la restauration réactive droits, diffusions
   // et attributions retirés par la mise en corbeille.
@@ -92,6 +89,22 @@ export const groupsService = {
   removePermission: (id, idPermission) => http.delete(`/profils/${id}/permissions/${idPermission}`),
 };
 
+// Paramétrage des profils par défaut (#249), permission gerer_profils :
+// matrice par défaut du tenant (remplacement complet, Q2), application en
+// masse à des sociétés, sociétés configurées d'un profil.
+export const profilsService = {
+  remplacerMatrice: (id, permission_ids) => http.put(`/profils/${id}/matrice`, { permission_ids }),
+  appliquerMatrice: (id, societe_ids) => http.post(`/profils/${id}/matrice/appliquer`, { societe_ids }),
+  societesConfigurees: (id) => http.get(`/profils/${id}/societes-configurees`).then((rows) =>
+    rows.map((r) => ({
+      id_societe: r.id_societe,
+      raison_sociale: r.raison_sociale,
+      configure_le: r.configure_le,
+      configure_par_label: r.configure_par_label,
+    }))
+  ),
+};
+
 export const permissionsService = {
   list: () => http.get('/permissions'),
 };
@@ -100,8 +113,8 @@ export const attributionsService = {
   listAll: () => http.get('/attributions').then((rows) => rows.map(normalizeAttribution)),
   listForUser: (userId) =>
     http.get(`/utilisateurs/${userId}/profils`).then((rows) => rows.map(normalizeAttribution)),
-  create: (userId, { id_profil, id_societe }) =>
-    http.post(`/utilisateurs/${userId}/profils`, { id_profil, id_societe }).then(normalizeAttribution),
+  create: (userId, { id_profil }) =>
+    http.post(`/utilisateurs/${userId}/profils`, { id_profil }).then(normalizeAttribution),
   remove: (userId, attribId) => http.delete(`/utilisateurs/${userId}/profils/${attribId}`),
 };
 
@@ -123,7 +136,11 @@ export const societesService = {
   create: (payload) => http.post('/societes', payload).then(normalizeSociete),
   update: (id, payload) => http.patch(`/societes/${id}`, payload).then(normalizeSociete),
   remove: (id) => http.delete(`/societes/${id}`),
-  orphanGroups: (id) => http.get(`/societes/${id}/profils-orphelins`),
+  // Onglet Profils de la fiche société (#249, permission gerer_profils).
+  profils: (id) => http.get(`/societes/${id}/profils`),
+  configurerMatrice: (id, idProfil, permission_ids) =>
+    http.put(`/societes/${id}/profils/${idProfil}/matrice`, { permission_ids }),
+  revenirAuDefaut: (id, idProfil) => http.delete(`/societes/${id}/profils/${idProfil}/matrice`),
 };
 
 export const droitsService = {

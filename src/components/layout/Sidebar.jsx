@@ -66,7 +66,7 @@ const MENU = [
       { label: 'Organisation', icon: Building, path: '/referentiels/organisation', permission: ADMIN_PERMISSIONS.SOCIETES },
       {
         label: 'Utilisateurs', icon: UserCog, path: '/admin/utilisateurs',
-        permissions: [ADMIN_PERMISSIONS.UTILISATEURS, ADMIN_PERMISSIONS.GROUPES, ADMIN_PERMISSIONS.EXCEPTIONS, ADMIN_PERMISSIONS.JOURNAL],
+        permissions: [ADMIN_PERMISSIONS.UTILISATEURS, ADMIN_PERMISSIONS.GROUPES, ADMIN_PERMISSIONS.PROFILS, ADMIN_PERMISSIONS.EXCEPTIONS, ADMIN_PERMISSIONS.JOURNAL],
       },
       { label: 'Paramètres', icon: Settings, path: '/admin/settings', permission: ADMIN_PERMISSIONS.UTILISATEURS },
       { label: 'Connecteurs', icon: Plug, path: '/admin/connectors', permission: ADMIN_PERMISSIONS.CONNECTEURS },

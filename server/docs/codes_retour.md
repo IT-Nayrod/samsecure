@@ -1596,3 +1596,47 @@ permission `saisir_licence`) pour un logiciel du catalogue, POST
 GET /api/logiciels/:id fusionnent désormais les compléments de la 063 aux
 versions et éditions du catalogue ; chaque déclinaison porte `source`
 (`catalogue`, `complement` ou `client`).
+
+## Refonte des droits : profils par société (#249, migrations 092 à 094)
+
+Les profils par défaut (IT Ops, Financier, Manager DSI, IT Data input) se
+paramètrent désormais par société : la matrice d'un profil pour une société
+configurée remplace intégralement la matrice par défaut du tenant (jamais un
+delta) ; une société jamais configurée suit le défaut, une matrice vidée
+volontairement reste configurée (marqueur `profil_societe_configuration`,
+092). Le profil par défaut d'un utilisateur est unique
+(`utilisateur.id_profil`, 094) et s'applique à toutes ses sociétés de
+rattachement. Les groupes personnalisés ne portent plus de sociétés de
+diffusion (#57) : leur portée suit le rattachement de l'utilisateur, les
+routes /api/profils/:id/societes sont retirées. Le paramétrage des matrices
+exige la permission `gerer_profils` (Q5, 30e code, module administration),
+accordée par défaut à admin_sam seulement ; l'attribution d'un profil ou d'un
+groupe à un utilisateur reste sous `gerer_utilisateurs`. Routes hors
+enveloppe, comme tout le module administration ; codes seedés par la 093.
+
+| Code | Type | Libellé | Émis par |
+|------|------|---------|----------|
+| 2070 | trace | Matrice par défaut d'un profil remplacée | audit_log, action PROFIL_MATRICE_DEFAUT_REMPLACEE (PUT /api/profils/:id/matrice, avant/après = codes des permissions) |
+| 2071 | trace | Profil configuré pour une société | audit_log, action PROFIL_SOCIETE_CONFIGURE (PUT /api/societes/:id/profils/:idProfil/matrice ; POST /api/profils/:id/matrice/appliquer, une trace par société) |
+| 2072 | trace | Profil revenu au défaut pour une société | audit_log, action PROFIL_SOCIETE_RETOUR_DEFAUT (DELETE /api/societes/:id/profils/:idProfil/matrice) |
+| 2073 | trace | Profil par défaut d'un utilisateur modifié | audit_log, action PROFIL_DEFAUT_MODIFIE (PUT /api/utilisateurs/:id/profil, avant/après = libellé du profil) |
+| 2074 | erreur | Ce profil n'est pas un profil par défaut | routes matrice et configuration sur un groupe ou sur le profil système (409, la route interpole : la matrice d'admin_sam est figée) |
+| 2075 | erreur | Société introuvable | GET /api/societes/:id/profils, PUT et DELETE matrice par société, POST appliquer (404 ; 400 sur une société de la sélection en masse) |
+| 2076 | erreur | Cette permission n'existe pas au catalogue | PUT /api/profils/:id/matrice, PUT matrice par société, corps `permission_ids` (400) |
+| 2077 | erreur | Ce profil ne s'attribue pas par cette route | PUT /api/utilisateurs/:id/profil avec un groupe ; POST /api/utilisateurs/:id/profils avec un profil par défaut ou système (409, la route interpole) |
+| 2078 | erreur | La matrice d'un profil par défaut se gère par remplacement complet | POST et DELETE /api/profils/:id/permissions sur un profil non groupe (409, la route interpole : renvoie vers l'onglet Profils) |
+
+Lectures, sans nouveau code (hors enveloppe, module administration) :
+- GET /api/societes/:id/profils : état des quatre profils par défaut pour la
+  société (`configure`, `configure_le`, `configure_par_label`,
+  `permission_ids` = matrice effective : configurée si marqueur, sinon défaut) ;
+- GET /api/profils/:id/societes-configurees : sociétés configurées d'un
+  profil (`id_societe`, `raison_sociale`, `configure_le`,
+  `configure_par_label`), pour l'onglet Profils de l'administration ;
+- GET /api/utilisateurs sert `id_profil`, `profil_code`, `profil_label` ;
+  GET /api/utilisateurs/:id/profils et GET /api/attributions ne servent plus
+  que les groupes (type `groupe`) ;
+- GET /api/utilisateurs/:id/droits-effectifs?societeId=… sert `profil`
+  (`{ id, code, label, configure }`) et des sources `profil` / `groupe`
+  distinctes ; `profilId` reste accepté (simulation d'un profil, simulateur
+  de droits).

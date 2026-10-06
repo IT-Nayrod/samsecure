@@ -61,6 +61,7 @@ export default function AppRouter() {
             {/* Administration - page unique (onglets internes par permission) */}
             <Route element={<ProtectedRoute requireAnyPermission={[
               ADMIN_PERMISSIONS.UTILISATEURS, ADMIN_PERMISSIONS.GROUPES,
+              ADMIN_PERMISSIONS.PROFILS,
               ADMIN_PERMISSIONS.EXCEPTIONS, ADMIN_PERMISSIONS.JOURNAL,
             ]} />}>
               <Route path="/admin/utilisateurs" element={<UserManagementPage />} />
