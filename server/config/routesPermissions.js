@@ -246,6 +246,8 @@ export const ROUTES_PERMISSIONS = [
   // referentiel, ecrit en Tenant y compris sur un logiciel du catalogue.
   ["POST",   "/logiciels/:id/composants",              "gerer_referentiels"],
   ["DELETE", "/logiciels/:id/composants/:idComposant", "gerer_referentiels"],
+  // #279 : grille de composition par edition de la fiche du compose.
+  ["PUT",    "/logiciels/:id/composition-editions",    "gerer_referentiels"],
   ["GET",    "/logiciels",                   "consulter_referentiels"],
   ["GET",    "/logiciels/:id",               "consulter_referentiels"],
   ["POST",   "/logiciels",                   "gerer_referentiels"],

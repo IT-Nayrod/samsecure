@@ -10,6 +10,8 @@ import {
   statutConformite, niveauConformite,
   licenceExpiree, LICENCE_EXPIREE, TYPES_A_ECHEANCE, TYPE_VERSION_ESSAI,
   droitsHeritesParComposant, appliquerHeritageComposes,
+  compositionEffective, editionContientComposant,
+  droitsActifsParEdition, droitsHeritesParComposantParEdition,
 } from "./conformite.js";
 
 const seuils = { seuilTaux: 90, seuilMontant: 10000 };
@@ -340,5 +342,133 @@ describe("logiciels composes : heritage des droits (#216)", () => {
     assert.equal(b.droits_propres, 10);
     const d = valoriserBalance({ droits_total: 10, usages_total: 14, prix_unitaire: 50 }, seuils);
     assert.equal(d.ecart_valorise, -200);
+  });
+});
+
+// Décision client du 06/10/2026 (#279). Cas de référence, le même que
+// l'attendu de recette LOG-06 : Office composé de Word, Excel et Access par
+// défaut, l'édition Standard exclut Access ; en variante, Access n'est pas au
+// défaut et l'édition Pro l'ajoute. Les tranches de droits sont les droits
+// PROPRES ACTIFS du composé ventilés par édition de licence (null = licences
+// sans édition).
+describe("composition par edition (#279)", () => {
+  const OFFICE = "office", WORD = "word", EXCEL = "excel", ACCESS = "access";
+  const STD = "ed-standard", PRO = "ed-pro";
+  const defautComplet = [WORD, EXCEL, ACCESS];
+  const sansAccessSurStandard = [
+    { id_produit_compose: OFFICE, id_edition: STD, id_produit_composant: ACCESS, inclus: false },
+  ];
+  const accessSurProSeulement = [
+    { id_produit_compose: OFFICE, id_edition: PRO, id_produit_composant: ACCESS, inclus: true },
+  ];
+  const couples = (composants) => composants.map(
+    (c) => ({ id_produit_compose: OFFICE, id_produit_composant: c }));
+  const tranches = new Map([[OFFICE, [
+    { id_edition: STD, droits: 5 },
+    { id_edition: PRO, droits: 3 },
+    { id_edition: null, droits: 2 },
+  ]]]);
+
+  test("composition effective : le defaut moins les exclusions de l'edition", () => {
+    assert.deepEqual([...compositionEffective(defautComplet, sansAccessSurStandard, STD)].sort(),
+      [EXCEL, WORD]);
+    assert.deepEqual([...compositionEffective(defautComplet, sansAccessSurStandard, PRO)].sort(),
+      [ACCESS, EXCEL, WORD]);
+  });
+
+  test("composition effective : le defaut plus les inclusions de l'edition", () => {
+    assert.deepEqual([...compositionEffective([WORD, EXCEL], accessSurProSeulement, PRO)].sort(),
+      [ACCESS, EXCEL, WORD]);
+    assert.deepEqual([...compositionEffective([WORD, EXCEL], accessSurProSeulement, STD)].sort(),
+      [EXCEL, WORD]);
+  });
+
+  test("une licence sans edition couvre la composition par defaut, jamais une inclusion", () => {
+    assert.deepEqual([...compositionEffective(defautComplet, sansAccessSurStandard, null)].sort(),
+      [ACCESS, EXCEL, WORD]);
+    assert.equal(compositionEffective([WORD, EXCEL], accessSurProSeulement, null).has(ACCESS), false);
+    assert.equal(editionContientComposant([WORD, EXCEL], accessSurProSeulement, null, ACCESS), false);
+    assert.equal(editionContientComposant([WORD, EXCEL], accessSurProSeulement, PRO, ACCESS), true);
+  });
+
+  test("une edition sans exception vaut exactement le defaut", () => {
+    assert.deepEqual([...compositionEffective(defautComplet, sansAccessSurStandard, PRO)].sort(),
+      [...compositionEffective(defautComplet, [], PRO)].sort());
+  });
+
+  test("lignes redondantes sans effet : inclus au defaut, exclu hors defaut", () => {
+    const redondantes = [
+      { id_produit_compose: OFFICE, id_edition: STD, id_produit_composant: WORD, inclus: true },
+      { id_produit_compose: OFFICE, id_edition: STD, id_produit_composant: "visio", inclus: false },
+    ];
+    assert.deepEqual([...compositionEffective([WORD, EXCEL], redondantes, STD)].sort(), [EXCEL, WORD]);
+  });
+
+  test("exemple du client : Office Standard sans Access, Office Pro avec", () => {
+    // Office : 5 droits en edition Standard, 3 en Pro, 2 sans edition.
+    // Access est au defaut mais exclu de Standard : il n'herite que de Pro et
+    // des licences sans edition (3 + 2) ; Word herite de tout (10).
+    const herites = droitsHeritesParComposantParEdition(
+      tranches, couples(defautComplet), sansAccessSurStandard);
+    assert.equal(herites.get(WORD), 10);
+    assert.equal(herites.get(EXCEL), 10);
+    assert.equal(herites.get(ACCESS), 5);
+  });
+
+  test("variante : Access hors defaut, ajoute a la seule edition Pro", () => {
+    // Les licences Standard et sans edition ne couvrent jamais Access.
+    const herites = droitsHeritesParComposantParEdition(
+      tranches, couples([WORD, EXCEL]), accessSurProSeulement);
+    assert.equal(herites.get(WORD), 10);
+    assert.equal(herites.get(ACCESS), 3);
+  });
+
+  test("un compose sans exception transmet exactement comme avant ce chantier", () => {
+    const sansException = droitsHeritesParComposantParEdition(tranches, couples(defautComplet), []);
+    const avant = droitsHeritesParComposant(new Map([[OFFICE, 10]]), couples(defautComplet));
+    assert.deepEqual([...sansException.entries()].sort(), [...avant.entries()].sort());
+  });
+
+  test("garde-fous conserves : sens unique, reflexif, couples repetes, un seul niveau", () => {
+    const fautifs = [
+      ...couples([WORD]), ...couples([WORD]),
+      { id_produit_compose: WORD, id_produit_composant: WORD },
+      { id_produit_compose: "suite", id_produit_composant: OFFICE },
+    ];
+    const avecSuite = new Map([...tranches, ["suite", [{ id_edition: null, droits: 100 }]]]);
+    const herites = droitsHeritesParComposantParEdition(avecSuite, fautifs, []);
+    assert.equal(herites.get(WORD), 10);       // pas 20 : couple repete sans effet
+    assert.equal(herites.get(OFFICE), 100);    // seules les tranches propres fournies se transmettent
+    assert.equal(herites.has("suite"), false); // jamais dans l'autre sens
+  });
+
+  test("droitsActifsParEdition : agregation par edition, null pour sans edition", () => {
+    const lignes = [
+      { id_edition: STD, quantite: 3 }, { id_edition: STD, quantite: "2" },
+      { id_edition: null, quantite: 1 }, { quantite: 1 }, null,
+    ];
+    const agregat = new Map(droitsActifsParEdition(lignes).map((t) => [t.id_edition, t.droits]));
+    assert.equal(agregat.get(STD), 5);
+    assert.equal(agregat.get(null), 2);
+    assert.deepEqual(droitsActifsParEdition([]), []);
+  });
+
+  test("appliquerHeritageComposes : le parametre edition active la regle, son absence ne change rien", () => {
+    const lignes = [
+      { id_produit: OFFICE, droits_total: 10, usages_total: 0 },
+      { id_produit: ACCESS, droits_total: 1, usages_total: 4 },
+    ];
+    const edition = { exceptions: sansAccessSurStandard, droitsParEdition: tranches };
+    const [, access] = appliquerHeritageComposes(lignes, couples(defautComplet), null, edition);
+    assert.equal(access.droits_herites, 5);
+    assert.equal(access.droits_total, 6);
+    assert.equal(access.droits_propres, 1);
+    // Sans le parametre : heritage du defaut pour toutes les licences (10).
+    const [, sans] = appliquerHeritageComposes(lignes, couples(defautComplet));
+    assert.equal(sans.droits_herites, 10);
+    assert.equal(sans.droits_total, 11);
+    // L'heritage ne cree toujours pas de ligne.
+    const seules = appliquerHeritageComposes([lignes[0]], couples(defautComplet), null, edition);
+    assert.equal(seules.length, 1);
   });
 });

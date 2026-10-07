@@ -25,6 +25,13 @@
 // sans jamais toucher la Commune. Codes 4060-4069 (migration 069), plage
 // licences : la composition n'existe que pour l'héritage des droits.
 //
+// Composition par édition (#279, décision client du 06/10/2026, migrations
+// 100, 101 et 104) : la composition peut différer selon l'édition du composé
+// (exemple du client : Office Standard et Office Pro diffèrent par Access).
+// La fiche sert les différences au défaut (composition_exceptions) et la
+// grille les enregistre (PUT /logiciels/:id/composition-editions, codes
+// 4070-4074). Une licence sans édition couvre la composition par défaut.
+//
 // Enveloppe normalisée, codes 5300-5399 seedés par la migration 041.
 import express from "express";
 import { tenantPool, commonPool } from "../db.js";
@@ -219,6 +226,51 @@ async function chargerLogiciel(client, id) {
   return catalogue.length ? { ...catalogue[0], source: "catalogue" } : null;
 }
 
+// Plusieurs logiciels d'un coup, les deux bases en deux requêtes et jamais
+// par ligne. Sert la grille de composition par édition (#279).
+async function chargerLogiciels(client, ids) {
+  const charges = new Map();
+  const valides = [...new Set((ids ?? []).filter((x) => typeof x === "string" && UUID_RE.test(x)))];
+  if (!valides.length) return charges;
+  const { rows } = await client.query(
+    `SELECT id, label, id_editeur FROM produit_client WHERE id = ANY($1)`, [valides]);
+  for (const r of rows) charges.set(r.id, { ...r, source: "client" });
+  const restants = valides.filter((x) => !charges.has(x));
+  if (restants.length) {
+    const { rows: catalogue } = await commonPool.query(
+      `SELECT id, label, id_editeur FROM produit_referentiel WHERE id = ANY($1)`, [restants]);
+    for (const r of catalogue) charges.set(r.id, { ...r, source: "catalogue" });
+  }
+  return charges;
+}
+
+// Éditions d'un logiciel selon son origine, id -> libellé : logiciel du
+// catalogue = edition (BDD Commune) plus les compléments du client (063),
+// logiciel client = edition_client. Même doctrine que chargerCatalogue.
+async function editionsDuLogiciel(client, produit) {
+  if (produit.source === "client") {
+    const { rows } = await client.query(
+      `SELECT id, label FROM edition_client WHERE id_produit = $1`, [produit.id]);
+    return new Map(rows.map((e) => [e.id, e.label]));
+  }
+  const [{ rows: commune }, { rows: complements }] = await Promise.all([
+    commonPool.query(`SELECT id, label FROM edition WHERE id_produit = $1`, [produit.id]),
+    client.query(`SELECT id, label FROM edition_complement WHERE id_produit = $1`, [produit.id]),
+  ]);
+  return new Map([...commune, ...complements].map((e) => [e.id, e.label]));
+}
+
+// Exceptions de composition par édition (#279) touchant un logiciel, côté
+// composé (grille de la fiche) comme côté composant (« fait partie de »).
+async function lireExceptionsComposition(client, idLogiciel) {
+  const { rows } = await client.query(
+    `SELECT id_produit_compose, id_edition, id_produit_composant, inclus
+       FROM produit_composition_exception
+      WHERE id_produit_compose = $1 OR id_produit_composant = $1
+      ORDER BY created_at, id`, [idLogiciel]);
+  return rows;
+}
+
 // ---- Validation -------------------------------------------------------------
 
 async function existeTenant(client, table, id) {
@@ -347,7 +399,48 @@ router.get("/logiciels/:id", async (req, res) => {
                editeur_label: p?.editeur_label ?? null };
     };
     const composants = (composition.composantsDe.get(id) ?? []).map(resume);
-    const composes = (composition.composesDe.get(id) ?? []).map(resume);
+
+    // #279 : exceptions de composition par édition. Côté composé, la grille
+    // de la fiche (différences au défaut, libellés résolus) ; côté
+    // composant, les composés qui ne l'incluent que pour certaines éditions
+    // ou l'en excluent. Une édition disparue du catalogue reste sans
+    // libellé : la ligne est invisible dans la grille et nettoyée au
+    // prochain enregistrement (remplacement par différence).
+    const exceptions = await lireExceptionsComposition(tenantPool, id);
+    const labelEdition = (idCompose, idEdition) =>
+      parId.get(idCompose)?.editions?.find((e) => e.id === idEdition)?.label ?? null;
+    const composition_exceptions = exceptions
+      .filter((x) => x.id_produit_compose === id)
+      .map((x) => ({
+        id_edition: x.id_edition,
+        id_produit_composant: x.id_produit_composant,
+        composant_label: parId.get(x.id_produit_composant)?.label ?? null,
+        composant_source: parId.get(x.id_produit_composant)?.source ?? null,
+        inclus: x.inclus,
+      }));
+
+    const composesDefaut = composition.composesDe.get(id) ?? [];
+    const parEditionSeules = new Map();
+    for (const x of exceptions) {
+      if (x.id_produit_composant !== id || !x.inclus || composesDefaut.includes(x.id_produit_compose)) continue;
+      const liste = parEditionSeules.get(x.id_produit_compose) ?? [];
+      liste.push(labelEdition(x.id_produit_compose, x.id_edition) ?? "édition supprimée");
+      parEditionSeules.set(x.id_produit_compose, liste);
+    }
+    const composes = [
+      ...composesDefaut.map((cid) => ({
+        ...resume(cid),
+        // Éditions du composé dont ce logiciel est exclu, pour la nuance de
+        // l'écran « Fait partie de ».
+        hors_editions: exceptions
+          .filter((x) => x.id_produit_compose === cid && x.id_produit_composant === id && !x.inclus)
+          .map((x) => labelEdition(cid, x.id_edition) ?? "édition supprimée"),
+      })),
+      ...[...parEditionSeules].map(([cid, editionsSeules]) => ({
+        ...resume(cid),
+        par_editions: editionsSeules,
+      })),
+    ];
 
     succes(res, 5301, {
       ...produit,
@@ -355,13 +448,15 @@ router.get("/logiciels/:id", async (req, res) => {
       parent_label: parent?.label ?? null,
       composants,
       composes,
+      composition_exceptions,
       // Un composé regroupe au moins deux logiciels (règle du 17/09/2026) :
       // la saisie se fait un composant à la fois, l'écran signale l'entre-deux.
       composition_incomplete: composants.length === 1,
       // Un produit du catalogue n'est jamais supprimable depuis un espace
-      // client, quels que soient ses rattachements.
+      // client, quels que soient ses rattachements. Une exception de
+      // composition par édition (#279) retient aussi la suppression.
       supprimable: produit.modifiable && produit.nb_licences === 0 && enfants.length === 0
-        && composants.length === 0 && composes.length === 0,
+        && composants.length === 0 && composes.length === 0 && exceptions.length === 0,
     });
   } catch (err) {
     console.error("GET /logiciels/:id error", err);
@@ -496,18 +591,22 @@ router.delete("/logiciels/:id", async (req, res) => {
     // ne doit disparaître sous les pieds du module 3.
     // La composition (#216) bloque aussi : produit_composition n'a pas de clé
     // étrangère vers le logiciel (lien logique), une suppression y laisserait
-    // des couples orphelins.
+    // des couples orphelins. Les exceptions par édition (#279) bloquent pour
+    // la même raison, un composant par édition n'étant pas toujours au défaut.
     const { rows: [liens] } = await client.query(
       `SELECT (SELECT count(*) FROM licence        WHERE id_produit = $1)::int        AS licences,
               (SELECT count(*) FROM produit_client WHERE id_produit_parent = $1)::int AS sous_produits,
               (SELECT count(*) FROM produit_composition
-                WHERE id_produit_compose = $1 OR id_produit_composant = $1)::int       AS compositions`,
+                WHERE id_produit_compose = $1 OR id_produit_composant = $1)::int       AS compositions,
+              (SELECT count(*) FROM produit_composition_exception
+                WHERE id_produit_compose = $1 OR id_produit_composant = $1)::int       AS exceptions_edition`,
       [id]);
 
     const bloquants = [];
     if (liens.licences) bloquants.push(`${liens.licences} licence(s)`);
     if (liens.sous_produits) bloquants.push(`${liens.sous_produits} sous-produit(s)`);
     if (liens.compositions) bloquants.push(`${liens.compositions} lien(s) de composition`);
+    if (liens.exceptions_edition) bloquants.push(`${liens.exceptions_edition} exception(s) de composition par édition`);
 
     if (bloquants.length) {
       await client.query("ROLLBACK");
@@ -556,6 +655,8 @@ const DECLINAISONS = {
     table: "edition_client", singulier: "edition", accord: "l'edition",
     codeAjout: 5307, codeRetrait: 5308,
     codeLabelManquant: 5320, codeDoublon: 5321, codeIntrouvable: 5323,
+    // #279 : une édition supprimée emporte ses exceptions de composition.
+    purgerCompositionEdition: true,
   },
 };
 
@@ -635,6 +736,14 @@ function retirerDeclinaison(type) {
           message: `${d.singulier.charAt(0).toUpperCase()}${d.singulier.slice(1)} introuvable.` });
       }
 
+      // #279 : les exceptions de composition portées par une édition
+      // supprimée partent avec elle (lien logique par identifiant, le
+      // trigger de la 100 repose les droits hérités des composants).
+      if (d.purgerCompositionEdition) {
+        await client.query(
+          `DELETE FROM produit_composition_exception WHERE id_edition = $1`, [idDeclinaison]);
+      }
+
       await log(client, req, "DELETE", d.table, idDeclinaison,
         `Suppression de ${d.accord} "${rows[0].label}" du logiciel "${cible.produit.label}"`, null);
 
@@ -687,11 +796,17 @@ router.post("/logiciels/:id/composants", async (req, res) => {
         `« ${composant.label} » n'appartient pas au même éditeur que « ${compose.label} ».`);
     }
 
+    // #279 : les couples nés d'une inclusion par édition comptent pour la
+    // règle du niveau unique, pas pour le doublon (un composant propre à des
+    // éditions peut être promu au défaut).
     const { rows: liens } = await client.query(
-      `SELECT id_produit_compose, id_produit_composant FROM produit_composition
-        WHERE id_produit_compose IN ($1, $2) OR id_produit_composant IN ($1, $2)`,
+      `SELECT id_produit_compose, id_produit_composant, true AS au_defaut FROM produit_composition
+        WHERE id_produit_compose IN ($1, $2) OR id_produit_composant IN ($1, $2)
+       UNION
+       SELECT id_produit_compose, id_produit_composant, false FROM produit_composition_exception
+        WHERE inclus AND (id_produit_compose IN ($1, $2) OR id_produit_composant IN ($1, $2))`,
       [compose.id, composant.id]);
-    if (liens.some((l) => l.id_produit_compose === compose.id && l.id_produit_composant === composant.id)) {
+    if (liens.some((l) => l.au_defaut && l.id_produit_compose === compose.id && l.id_produit_composant === composant.id)) {
       return await refuser(4065, 409, `« ${composant.label} » fait déjà partie de « ${compose.label} ».`);
     }
     // Un seul niveau en v0.5 : un composé n'est jamais composant.
@@ -708,6 +823,13 @@ router.post("/logiciels/:id/composants", async (req, res) => {
       `INSERT INTO produit_composition (id_produit_compose, id_produit_composant, id_auteur)
        VALUES ($1, $2, $3) RETURNING id`,
       [compose.id, composant.id, req?.user?.id || null]);
+
+    // #279 : promu au défaut, le couple repart sans exception (une inclusion
+    // par édition deviendrait redondante, une exclusion changerait de sens).
+    await client.query(
+      `DELETE FROM produit_composition_exception
+        WHERE id_produit_compose = $1 AND id_produit_composant = $2`,
+      [compose.id, composant.id]);
 
     await log(client, req, "CREATE", "produit_composition", cree.id,
       `Ajout du composant "${composant.label}" au logiciel compose "${compose.label}"`,
@@ -763,6 +885,14 @@ router.delete("/logiciels/:id/composants/:idComposant", async (req, res) => {
       return erreur(res, 4067, { status: 404, message: "Ce logiciel ne fait pas partie de la composition." });
     }
 
+    // #279 : retirer un composant du défaut vaut retrait complet, ses
+    // exceptions par édition partent avec lui (le trigger de la 100 repose
+    // les droits hérités du composant).
+    await client.query(
+      `DELETE FROM produit_composition_exception
+        WHERE id_produit_compose = $1 AND id_produit_composant = $2`,
+      [id, idComposant]);
+
     const [compose, composant] = [await chargerLogiciel(client, id), await chargerLogiciel(client, idComposant)];
     await log(client, req, "DELETE", "produit_composition", rows[0].id,
       `Retrait du composant "${composant?.label ?? idComposant}" du logiciel compose "${compose?.label ?? id}"`, null);
@@ -778,6 +908,170 @@ router.delete("/logiciels/:id/composants/:idComposant", async (req, res) => {
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("DELETE /logiciels/:id/composants/:idComposant error", err);
+    erreur(res, 5399, { status: 500, message: "Erreur serveur" });
+  } finally {
+    client.release();
+  }
+});
+
+// Grille de composition par édition (#279, décision client du 06/10/2026).
+// L'écran envoie l'état de ses cases, la route n'enregistre que les
+// différences au défaut et remplace l'existant par différence (une ligne qui
+// redit le défaut est écartée sans erreur, l'identique reste en place). Les
+// contrôles du défaut valent pour un composant ajouté par édition
+// (existence, même éditeur, niveau unique) ; les triggers de la 100
+// tiennent l'unicité du triplet et le niveau face à une écriture
+// concurrente, et reposent les droits hérités des composants touchés.
+router.put("/logiciels/:id/composition-editions", async (req, res) => {
+  const { id } = req.params;
+  const client = await tenantPool.connect();
+  try {
+    await client.query("BEGIN");
+    const refuser = async (code, status, message, details) => {
+      await client.query("ROLLBACK");
+      return erreur(res, code, { status, message, details });
+    };
+
+    const compose = await chargerLogiciel(client, id);
+    if (!compose) return await refuser(5310, 404, "Logiciel introuvable.");
+
+    const { rows: defautRows } = await client.query(
+      `SELECT id_produit_composant FROM produit_composition WHERE id_produit_compose = $1`, [id]);
+    if (!defautRows.length) {
+      return await refuser(4071, 409,
+        `« ${compose.label} » n'est pas un logiciel composé : composez-le avant d'ajuster ses éditions.`);
+    }
+    const defaut = new Set(defautRows.map((r) => r.id_produit_composant));
+
+    const brutes = req.body?.exceptions;
+    if (!Array.isArray(brutes) || brutes.length > 500) {
+      return await refuser(4073, 400,
+        "Exception de composition invalide : une liste d'exceptions est attendue.");
+    }
+
+    const editions = await editionsDuLogiciel(client, compose);
+
+    // Normalisation : seules les différences au défaut sont retenues.
+    const retenues = new Map();
+    for (const ligne of brutes) {
+      const idEdition = ligne?.id_edition, idComposant = ligne?.id_produit_composant;
+      if (typeof idEdition !== "string" || !UUID_RE.test(idEdition)
+        || typeof idComposant !== "string" || !UUID_RE.test(idComposant)
+        || typeof ligne?.inclus !== "boolean") {
+        return await refuser(4073, 400,
+          "Exception de composition invalide : édition, composant et sens (inclus ou exclu) sont obligatoires.");
+      }
+      if (!editions.has(idEdition)) {
+        return await refuser(4072, 400, `Édition inconnue pour « ${compose.label} ».`);
+      }
+      if (idComposant === compose.id) {
+        return await refuser(4063, 409, "Un logiciel ne peut pas être son propre composant.");
+      }
+      const cle = `${idEdition}|${idComposant}`;
+      const deja = retenues.get(cle);
+      if (deja && deja.inclus !== ligne.inclus) {
+        return await refuser(4073, 400,
+          "Exception de composition invalide : une même édition inclut et exclut le même composant.");
+      }
+      if (ligne.inclus === defaut.has(idComposant)) continue;
+      retenues.set(cle, { id_edition: idEdition, id_produit_composant: idComposant, inclus: ligne.inclus });
+    }
+
+    // Un composant ajouté par édition obéit aux règles du défaut : il
+    // existe, il est du même éditeur, et il ne crée pas de deuxième niveau.
+    const ajoutes = [...new Set(
+      [...retenues.values()].filter((x) => x.inclus).map((x) => x.id_produit_composant))];
+    if (ajoutes.length) {
+      const charges = await chargerLogiciels(client, ajoutes);
+      for (const idComposant of ajoutes) {
+        const composant = charges.get(idComposant);
+        if (!composant) return await refuser(4062, 400, "Logiciel composant introuvable.");
+        if (!compose.id_editeur || !composant.id_editeur) {
+          const sans = !compose.id_editeur ? compose : composant;
+          return await refuser(4064, 409,
+            `L'éditeur de « ${sans.label} » n'est pas renseigné : un logiciel composé regroupe des logiciels du même éditeur.`);
+        }
+        if (compose.id_editeur !== composant.id_editeur) {
+          return await refuser(4064, 409,
+            `« ${composant.label} » n'appartient pas au même éditeur que « ${compose.label} ».`);
+        }
+      }
+      const { rows: niveaux } = await client.query(
+        `SELECT id_produit_compose AS id FROM produit_composition WHERE id_produit_compose = ANY($1)
+         UNION
+         SELECT id_produit_compose FROM produit_composition_exception WHERE inclus AND id_produit_compose = ANY($1)`,
+        [ajoutes]);
+      if (niveaux.length) {
+        const fautif = charges.get(niveaux[0].id);
+        return await refuser(4066, 409,
+          `« ${fautif?.label ?? "Ce logiciel"} » est lui-même un logiciel composé : un composé ne peut pas être composant d'un autre composé.`);
+      }
+    }
+
+    // Remplacement par différence : l'identique reste en place (créateur et
+    // date d'origine conservés), le reste est retiré puis écrit.
+    const { rows: existantes } = await client.query(
+      `SELECT id, id_edition, id_produit_composant, inclus
+         FROM produit_composition_exception WHERE id_produit_compose = $1`, [id]);
+    const parCle = new Map(existantes.map((x) => [`${x.id_edition}|${x.id_produit_composant}`, x]));
+    const aRetirer = existantes.filter((x) => {
+      const v = retenues.get(`${x.id_edition}|${x.id_produit_composant}`);
+      return !v || v.inclus !== x.inclus;
+    });
+    const aEcrire = [...retenues.values()].filter((v) => {
+      const x = parCle.get(`${v.id_edition}|${v.id_produit_composant}`);
+      return !x || x.inclus !== v.inclus;
+    });
+
+    if (aRetirer.length) {
+      await client.query(
+        `DELETE FROM produit_composition_exception WHERE id = ANY($1)`,
+        [aRetirer.map((x) => x.id)]);
+    }
+    for (const v of aEcrire) {
+      await client.query(
+        `INSERT INTO produit_composition_exception
+           (id_produit_compose, id_edition, id_produit_composant, inclus, id_auteur)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [id, v.id_edition, v.id_produit_composant, v.inclus, req?.user?.id || null]);
+    }
+
+    if (aRetirer.length || aEcrire.length) {
+      const apres = [...retenues.values()];
+      await log(client, req, "UPDATE", "produit_composition_exception", id,
+        `Composition par edition du logiciel compose "${compose.label}" : ${aEcrire.length} exception(s) ecrite(s), ${aRetirer.length} retiree(s)`,
+        { exceptions: apres });
+      // code_retour: 4074
+      await auditer(client, req, {
+        action: "PRODUIT_COMPOSITION_EDITIONS_MODIFIEE",
+        entiteType: "produit_composition_exception", entiteId: id,
+        avant: { exceptions: existantes.map(({ id_edition, id_produit_composant, inclus }) =>
+          ({ id_edition, id_produit_composant, inclus })) },
+        apres: { exceptions: apres },
+      });
+    }
+
+    // Relecture : la grille rendue est celle de la base.
+    const { rows: relues } = await client.query(
+      `SELECT id_edition, id_produit_composant, inclus
+         FROM produit_composition_exception
+        WHERE id_produit_compose = $1 ORDER BY created_at, id`, [id]);
+    await client.query("COMMIT");
+    succes(res, 4070, { exceptions: relues });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    // Écriture concurrente passée entre le contrôle et l'écriture : la 100
+    // tient l'unicité du triplet (23505) et le niveau unique (23514),
+    // rendus comme les refus qu'ils doublent.
+    if (err.code === "23505") {
+      return erreur(res, 4073, { status: 409,
+        message: "Exception de composition invalide : une écriture concurrente a modifié la grille, rechargez la fiche." });
+    }
+    if (err.code === "23514") {
+      return erreur(res, 4066, { status: 409,
+        message: "Un logiciel composé ne peut pas être composant d'un autre logiciel composé." });
+    }
+    console.error("PUT /logiciels/:id/composition-editions error", err);
     erreur(res, 5399, { status: 500, message: "Erreur serveur" });
   } finally {
     client.release();

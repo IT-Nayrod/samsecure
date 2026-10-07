@@ -47,6 +47,11 @@ export const logicielsService = {
   // doublon, composé déjà composant) viennent du serveur, affichés tels quels.
   addComposant:    (id, idComposant) => http.post(`/logiciels/${id}/composants`, { id_produit_composant: idComposant }),
   removeComposant: (id, idComposant) => http.delete(`/logiciels/${id}/composants/${idComposant}`),
+
+  // Composition par édition (#279) : la grille de la fiche envoie les seules
+  // différences au défaut [{ id_edition, id_produit_composant, inclus }], le
+  // serveur normalise et renvoie les exceptions retenues.
+  saveCompositionEditions: (id, exceptions) => http.put(`/logiciels/${id}/composition-editions`, { exceptions }),
 };
 
 export const revendeursService = {
