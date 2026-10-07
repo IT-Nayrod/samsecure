@@ -1,7 +1,8 @@
-// adminService - accès aux ressources d'administration (utilisateurs, groupés,
-// permissions, attributions, exceptions, sociétés, journal). Normalise ici
-// l'asymétrie du contrat de la sandbox : lecture en clés aplaties
-// (idsociete, raisonsociale...), écriture en snake_case (id_societe...).
+// adminService - accès aux ressources d'administration (utilisateurs,
+// profils, permissions, attributions, exceptions, sociétés, journal).
+// Normalise ici l'asymétrie du contrat de la sandbox : lecture en clés
+// aplaties (idsociete, raisonsociale...), écriture en snake_case
+// (id_societe...).
 import { http } from './http';
 
 function normalizeSociete(s) {
@@ -19,8 +20,8 @@ function normalizeSociete(s) {
   };
 }
 
-// #249 : une attribution de groupe ne porte plus de société (#57), l'API ne
-// sert plus idsociete.
+// #249/#57 : une attribution ne porte plus de société, l'API ne sert plus
+// idsociete.
 function normalizeAttribution(a) {
   return { id: a.id, id_utilisateur: a.idutilisateur, id_profil: a.idprofil };
 }
@@ -39,6 +40,10 @@ function normalizeException(e) {
   };
 }
 
+// Profils (#276, tout est profil) : le nom historique groupsService est
+// conservé (identifiant technique), les routes servent tous les types de
+// profils ; create accepte dashboard_reference (manager_dsi, financier,
+// it_ops) qui pose la permission acceder_dashboard_* a la création.
 export const usersService = {
   // GET /utilisateurs sans paramètre : le contrat d'Antonin (sandbox
   // getUtilisateurs()) n'expose aucun filtre côté requête.
@@ -80,9 +85,9 @@ export const groupsService = {
   // disparu ; l'impact d'une suppression ne porte plus que les utilisateurs.
   impact: (id) =>
     http.get(`/profils/${id}/impact`).then((r) => ({ utilisateurs: r.utilisateurs })),
-  // Corbeille des groupes (#64) : supprimés depuis moins de 90 jours, avec
-  // jours_restants avant purge ; la restauration réactive droits, diffusions
-  // et attributions retirés par la mise en corbeille.
+  // Corbeille des profils ajoutés (#64, #276) : supprimés depuis moins de 90
+  // jours, avec jours_restants avant purge ; la restauration réactive les
+  // droits et attributions retirés par la mise en corbeille.
   listCorbeille: () => http.get('/profils/corbeille'),
   restore: (id) => http.post(`/profils/${id}/restaurer`),
   listPermissions: (id) => http.get(`/profils/${id}/permissions`),
@@ -110,6 +115,10 @@ export const permissionsService = {
   list: () => http.get('/permissions'),
 };
 
+// Attributions unitaires : plus consommées par les écrans depuis le #276 (la
+// fiche utilisateur remplace l'ensemble via usersService.setProfils) ;
+// conservées en miroir des routes unitaires de l'API, pour tout consommateur
+// retardataire.
 export const attributionsService = {
   listAll: () => http.get('/attributions').then((rows) => rows.map(normalizeAttribution)),
   listForUser: (userId) =>

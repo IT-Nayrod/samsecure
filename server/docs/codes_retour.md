@@ -1645,3 +1645,63 @@ Lectures, sans nouveau code (hors enveloppe, module administration) :
   `profilIds` (ensemble des profils par défaut du compte, contrat du
   simulateur de droits) et des sources `profil` / `groupe` distinctes ;
   `profilId` reste accepté (vue par profil, simulation d'un profil).
+
+## Tout est profil et délégation (#276, #278, #282, chantier tout-profil, migration 097)
+
+Décisions client du 06/10/2026 : il n'y a plus de groupes personnalisés, tout
+est profil. La migration 097 ajoute la valeur `ajoute` à `profil.type` et y
+bascule les lignes de type `groupe` (corbeille #64 comprise) ; le code
+serveur traite `groupe` et `ajoute` comme « profil ajouté » tant que la 097
+n'est pas jouée partout. Un profil ajouté se crée, se renomme et part en
+corbeille sous `gerer_profils` ; il se configure exactement comme un profil
+par défaut (matrice par défaut, matrices par société) ; un dashboard de
+référence optionnel à la création (Manager DSI, Financier ou IT Ops) pose la
+permission `acceder_dashboard_*` dans sa matrice initiale. Les profils par
+défaut ne se suppriment ni ne se renomment (2068, 2079). Délégation (#278) :
+`gerer_utilisateurs` et `gerer_profils` sont cochables dans toute matrice ;
+garde-fous serveur : on n'attribue que des permissions que l'on détient
+(2080), seul un admin_sam touche au profil admin_sam et à ses titulaires
+(2081), le périmètre d'un délégataire non admin_sam reste ses sociétés de
+rattachement (2051). Les anciennes actions d'audit GROUPE_* restent en base
+et sont traduites sans le mot « groupe » (historiqueLibelles.js) ; les
+nouvelles écritures portent les actions PROFIL_*. Routes hors enveloppe,
+comme tout le module administration.
+
+Codes seedés par la migration Commune 098 (arbitrage du 07/10/2026 : le
+numéro 098, initialement réservé en tenant, est réaffecté en Commune), en
+`ON CONFLICT DO NOTHING` : le 2078, déjà posé par la 093, garde son libellé
+d'origine là où il existe. Les codes 2090 à 2093 sont réservés au chantier
+sociétés. Le module administration répond hors enveloppe : le code n'est pas
+émis au client, les annotations `// code_retour:` du code font référence.
+
+| Code | Type | Libellé | Émis par |
+|------|------|---------|----------|
+| 2079 | erreur | Un profil par défaut ne se renomme pas | PATCH /api/profils/:id sur un profil par défaut ou système (409, la route interpole ; décision du 06/10/2026 : inaltérables) |
+| 2080 | erreur | Délégation refusée : permission non détenue par l'acteur | PUT /api/profils/:id/matrice (codes ajoutés), POST /api/profils/:id/matrice/appliquer (matrice entière), POST /api/profils avec dashboard de référence, PUT et POST /api/utilisateurs/:id/profils (profil ajouté au compte, matrice effective sur les sociétés de la cible) ; 403, `permissions_manquantes` en détail, l'acteur admin_sam est exempté |
+| 2081 | erreur | Réservé à un administrateur SAM | toute écriture sur un compte titulaire d'admin_sam (PATCH, désactivation, mots de passe, rattachements, attributions) et la pose ou le retrait du profil admin_sam (403) |
+| 2082 | trace | Délégation accordée à un profil | audit_log, action PROFIL_DELEGATION_ACCORDEE (gerer_utilisateurs ou gerer_profils cochée dans une matrice, en plus de la trace de remplacement) |
+| 2083 | trace | Délégation retirée d'un profil | audit_log, action PROFIL_DELEGATION_RETIREE (décochée d'une matrice) |
+| 2084 | trace | Profil ajouté créé | audit_log, action PROFIL_AJOUTE_CREE (POST /api/profils, `dashboard_reference` dans l'après) |
+| 2085 | trace | Profil ajouté modifié | audit_log, action PROFIL_MODIFIE (PATCH /api/profils/:id, diff libellé/description) |
+| 2086 | trace | Profil mis en corbeille | audit_log, action PROFIL_MIS_EN_CORBEILLE (DELETE /api/profils/:id ; remplace GROUPE_MIS_EN_CORBEILLE/2062 pour les nouvelles écritures) |
+| 2087 | trace | Profil restauré depuis la corbeille | audit_log, action PROFIL_RESTAURE (POST /api/profils/:id/restaurer ; remplace GROUPE_RESTAURE/2063) |
+| 2088 | trace | Profil attribué | audit_log, action PROFIL_ATTRIBUE (POST /api/utilisateurs/:id/profils ; remplace GROUPE_ATTRIBUE/2020) |
+| 2089 | trace | Profil retiré | audit_log, action PROFIL_RETIRE (DELETE /api/utilisateurs/:id/profils/:attribId ; remplace GROUPE_RETIRE/2021) |
+
+Changements d'usage sans nouveau code :
+- 2068 : le refus de suppression couvre les profils par défaut et système
+  (les profils ajoutés, eux, partent en corbeille) ;
+- 2069 : « Ce profil n'est pas dans la corbeille » (libellé rendu par la
+  route, sans le mot groupe) ;
+- 2074 : réservé au profil système (matrice figée) ; les profils ajoutés ont
+  accès aux routes matrice comme les profils par défaut ;
+- 2077 : POST /api/utilisateurs/:id/profils sur un profil par défaut ou
+  système renvoie vers la section Profils de la fiche utilisateur ;
+- 2078 : POST et DELETE /api/profils/:id/permissions refusent pour TOUT
+  type : l'édition case à case a disparu avec les groupes ;
+- #282 : GET /api/profils/:id/impact ne filtre plus sur
+  `utilisateur.date_suppression` (colonne supprimée par la 023, 42703 rendu
+  en 500 : c'était l'erreur qui bloquait la suppression à l'écran) ;
+- GET /api/utilisateurs sert `profils` tous types (`[{ id, code, label,
+  type }]`) ; GET /api/utilisateurs/:id/profils et GET /api/attributions
+  servent les profils ajoutés (`groupe` et `ajoute`).

@@ -1,9 +1,10 @@
 // DroitsViewer - visionneuse des droits effectifs d'un utilisateur, par
-// société de son rattachement et par profil (#249 corrigé multi-profils le
-// 06/10/2026) : « Ensemble des profils » montre l'union qui fait foi, chaque
-// profil peut être regardé seul (matrice configurée pour la société regardée,
-// ou défaut du tenant). La source distingue les profils par défaut des
-// groupes personnalisés, en plus des exceptions.
+// société de son rattachement et par profil (#249 corrigé multi-profils,
+// étendu « tout est profil » #276) : « Ensemble des profils » montre l'union
+// qui fait foi, chaque profil peut être regardé seul (matrice configurée
+// pour la société regardée, ou défaut du tenant). Sources : profil ou
+// exception ; la source technique 'groupe' (attributions antérieures à la
+// migration 097) s'affiche comme un profil.
 import { useState, useEffect, useMemo } from 'react';
 import SlideOver from '../ui/SlideOver';
 import { useToast } from '../../hooks/useToast';
@@ -14,7 +15,10 @@ import { MODULES } from '../../constants/permissions';
 // Libellés fidèles à renderSourceBadge (sandbox, index.html).
 const SOURCE_CONFIG = {
   profil: { label: 'Accordé · Profil', cls: 'bg-blue-100 text-blue-800' },
-  groupe: { label: 'Accordé · Groupe', cls: 'bg-purple-100 text-purple-800' },
+  // Source servie pour les attributions de type 'groupe' tant que la 097
+  // n'est pas jouée : même rendu qu'un profil, le mot groupe a disparu de
+  // l'écran (#276).
+  groupe: { label: 'Accordé · Profil', cls: 'bg-blue-100 text-blue-800' },
   exceptionaccorde: { label: 'Accordé · Exception', cls: 'bg-green-100 text-green-800' },
   exceptionretire: { label: 'Retiré · Exception', cls: 'bg-red-100 text-red-800' },
   aucun: { label: 'Non accordé', cls: 'bg-gray-100 text-gray-500' },
@@ -134,7 +138,7 @@ export default function DroitsViewer({ isOpen, onClose, user, societes, userSoci
                     ? 'matrice configurée pour cette société'
                     : 'matrice par défaut du tenant (société non configurée)'}.`
                 ).join(' ')
-              : 'Aucun profil par défaut : seuls les groupes et les exceptions s\'appliquent.'}
+              : 'Aucun profil : seules les exceptions s\'appliquent.'}
           </p>
         )}
 
@@ -150,7 +154,7 @@ export default function DroitsViewer({ isOpen, onClose, user, societes, userSoci
                     <div key={r.permission.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm bg-white dark:bg-gray-800">
                       <span className="text-gray-700 dark:text-gray-200">
                         {r.permission.label}
-                        {r.redondante && <span className="ml-2 text-xs text-gray-400">(exception redondante avec le profil ou un groupe)</span>}
+                        {r.redondante && <span className="ml-2 text-xs text-gray-400">(exception redondante avec un profil)</span>}
                       </span>
                       <SourceBadge source={r.source} />
                     </div>

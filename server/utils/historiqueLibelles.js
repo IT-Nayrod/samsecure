@@ -130,34 +130,78 @@ export function traduireEvenement(ligne, idCompteCible) {
       break;
 
     case "GROUPE_ATTRIBUE":
-      // Les traces antérieures au #249 portent une portée (societe) : elle
-      // reste affichée. Les nouvelles n'en ont plus (#57), le groupe suit le
-      // rattachement de l'utilisateur.
-      libelle = `Groupe "${ap.profil || "inconnu"}" attribué${ap.societe ? ` sur ${ap.societe}` : ""}${parActeur}`;
-      details = { groupe: ap.profil ?? null, ...(ap.societe ? { portee: ap.societe } : {}) };
+    case "PROFIL_ATTRIBUE":
+      // GROUPE_ATTRIBUE : traces historiques (vocabulaire abandonné le
+      // 06/10/2026, tout est profil #276) ; le libellé rendu dit "profil",
+      // l'action en base reste intacte. Les traces antérieures au #249
+      // portent une portée (societe) : elle reste affichée. Les nouvelles
+      // n'en ont plus (#57), le profil suit le rattachement.
+      libelle = `Profil "${ap.profil || "inconnu"}" attribué${ap.societe ? ` sur ${ap.societe}` : ""}${parActeur}`;
+      details = { profil: ap.profil ?? null, ...(ap.societe ? { portee: ap.societe } : {}) };
       break;
 
     case "GROUPE_RETIRE":
-      libelle = `Groupe "${av.profil || "inconnu"}" retiré${av.societe ? ` sur ${av.societe}` : ""}${parActeur}`;
-      details = { groupe: av.profil ?? null, ...(av.societe ? { portee: av.societe } : {}) };
+    case "PROFIL_RETIRE":
+      libelle = `Profil "${av.profil || "inconnu"}" retiré${av.societe ? ` sur ${av.societe}` : ""}${parActeur}`;
+      details = { profil: av.profil ?? null, ...(av.societe ? { portee: av.societe } : {}) };
       break;
 
     case "PROFILS_DEFAUT_MODIFIES": {
-      // #249 corrigé multi-profils (06/10/2026) : l'ensemble des profils par
-      // défaut du compte est remplacé d'un bloc, l'avant/après porte les
-      // libellés. Trois formes : attribués (depuis rien), remplacés, retirés.
+      // #249 corrigé multi-profils (06/10/2026), étendu "tout est profil"
+      // (#276) : l'ensemble des profils du compte, profils ajoutés compris,
+      // est remplacé d'un bloc, l'avant/après porte les libellés. Trois
+      // formes : attribués (depuis rien), remplacés, retirés. L'action garde
+      // son nom en base, le libellé ne dit plus "par défaut".
       const avantProfils = Array.isArray(av.profils) ? av.profils : [];
       const apresProfils = Array.isArray(ap.profils) ? ap.profils : [];
       const citer = (liste) => liste.map((p) => `"${p}"`).join(", ");
       const s = (liste) => (liste.length > 1 ? "s" : "");
       if (apresProfils.length && avantProfils.length) {
-        libelle = `Profil${s(apresProfils)} par défaut remplacé${s(apresProfils)} par ${citer(apresProfils)}${parActeur}`;
+        libelle = `Profil${s(apresProfils)} du compte remplacé${s(apresProfils)} par ${citer(apresProfils)}${parActeur}`;
       } else if (apresProfils.length) {
-        libelle = `Profil${s(apresProfils)} par défaut ${citer(apresProfils)} attribué${s(apresProfils)}${parActeur}`;
+        libelle = `Profil${s(apresProfils)} ${citer(apresProfils)} attribué${s(apresProfils)}${parActeur}`;
       } else {
-        libelle = `Profil${s(avantProfils)} par défaut retiré${s(avantProfils)}${parActeur}`;
+        libelle = `Profil${s(avantProfils)} du compte retiré${s(avantProfils)}${parActeur}`;
       }
       details = { profils_avant: avantProfils, profils_apres: apresProfils };
+      break;
+    }
+
+    // --- Cycle de vie des profils ajoutés (#276) et délégation (#278). ---
+    // Traces portées par l'entité profil : absentes de l'historique d'un
+    // compte, mais le gabarit existe pour tout écran d'audit qui les lira.
+
+    case "PROFIL_AJOUTE_CREE":
+      libelle = `Profil "${ap.label || "inconnu"}" créé${ap.dashboard_reference ? ` (dashboard de référence : ${ap.dashboard_reference})` : ""}${parActeur}`;
+      details = { profil: ap.label ?? null, dashboard_reference: ap.dashboard_reference ?? null };
+      break;
+
+    case "PROFIL_MODIFIE":
+      libelle = `Profil modifié : ${champsLisibles}${parActeur}`;
+      details = { champs_modifies: champs.map((c) => NOMS_CHAMPS[c] || c) };
+      break;
+
+    case "PROFIL_MIS_EN_CORBEILLE":
+      libelle = `Profil "${av.label || "inconnu"}" placé dans la corbeille${parActeur}`;
+      details = { profil: av.label ?? null };
+      break;
+
+    case "PROFIL_RESTAURE":
+      libelle = `Profil "${ap.label || "inconnu"}" restauré depuis la corbeille${parActeur}`;
+      details = { profil: ap.label ?? null };
+      break;
+
+    case "PROFIL_DELEGATION_ACCORDEE": {
+      const codes = Array.isArray(ap.permissions) ? ap.permissions.join(", ") : "";
+      libelle = `Délégation accordée au profil "${ap.profil || "inconnu"}" : ${codes}${parActeur}`;
+      details = { profil: ap.profil ?? null, permissions: ap.permissions ?? null };
+      break;
+    }
+
+    case "PROFIL_DELEGATION_RETIREE": {
+      const codes = Array.isArray(av.permissions) ? av.permissions.join(", ") : "";
+      libelle = `Délégation retirée du profil "${av.profil || "inconnu"}" : ${codes}${parActeur}`;
+      details = { profil: av.profil ?? null, permissions: av.permissions ?? null };
       break;
     }
 
