@@ -22,6 +22,7 @@ import Skeleton from '../ui/Skeleton';
 import StatutEcheanceBadge from './StatutEcheanceBadge';
 import CommandeFormModal from './CommandeFormModal';
 import PreuveFormModal from './PreuveFormModal';
+import ActionsRequises from '../commun/ActionsRequises';
 import { libelleContrat } from './libelleContrat';
 import { fichierDepose } from './preuveAffichage';
 import useRbac from '../../hooks/useRbac';
@@ -57,6 +58,11 @@ export default function CommandeDetailPage() {
   const [introuvable, setIntrouvable] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  // Bloc Actions requises (#324) : version incrémentée après chaque action
+  // pour recharger le bloc sans rechargement de page, et type de preuve
+  // pré-sélectionné quand l'action ouvre la modale (« Déposer une facture »).
+  const [verCompletude, setVerCompletude] = useState(0);
+  const [typePreuveParDefaut, setTypePreuveParDefaut] = useState(null);
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -94,6 +100,7 @@ export default function CommandeDetailPage() {
 
   const appliquer = useCallback(reponse => setCommande(k => appliquerStatut(k, reponse)), []);
   const { valider, refuser } = useValidation(appliquer);
+  const rafraichirCompletude = useCallback(() => setVerCompletude(v => v + 1), []);
 
   // Le fichier est protégé par le jeton : on le télécharge puis on ouvre l'objet
   // URL local, comme le fait la fiche document.
@@ -176,7 +183,7 @@ export default function CommandeDetailPage() {
             onRefuse={motif => refuser('commande', commande.id, motif)}
           />}
           {canDeposer && (
-            <Button variant="primary" size="sm" onClick={() => setPreuveModal(true)}><Plus size={14} /> Ajouter une preuve</Button>
+            <Button variant="primary" size="sm" onClick={() => { setTypePreuveParDefaut(null); setPreuveModal(true); }}><Plus size={14} /> Ajouter une preuve</Button>
           )}
           {canWrite && (
             <Button variant="secondary" size="sm" onClick={() => setFormOpen(true)}><Pencil size={14} /> Éditer</Button>
@@ -196,6 +203,21 @@ export default function CommandeDetailPage() {
           </div>
         </div>
       )}
+
+      {/* Actions requises (#324) : rien ne s'affiche si la fiche est complète. */}
+      <ActionsRequises
+        type="commande"
+        id={commande.id}
+        version={verCompletude}
+        actions={{
+          ...(canDeposer ? {
+            deposer_facture: () => { setTypePreuveParDefaut('facture'); setPreuveModal(true); },
+            deposer_preuve: () => { setTypePreuveParDefaut(null); setPreuveModal(true); },
+          } : {}),
+          ...(canWrite ? { editer_commande: () => setFormOpen(true) } : {}),
+          saisir_licence: () => navigate('/conformite/licences'),
+        }}
+      />
 
       <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
         <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Origine</h2>
@@ -287,7 +309,7 @@ export default function CommandeDetailPage() {
       <CommandeFormModal
         isOpen={formOpen}
         onClose={() => setFormOpen(false)}
-        onSaved={load}
+        onSaved={() => { rafraichirCompletude(); return load(); }}
         commande={commande}
         contrats={contrats}
         societes={societes}
@@ -296,9 +318,10 @@ export default function CommandeDetailPage() {
       />
       <PreuveFormModal
         isOpen={preuveModal}
-        onClose={() => setPreuveModal(false)}
-        onDone={toast => { if (toast) addToast(toast); load(); }}
+        onClose={() => { setPreuveModal(false); setTypePreuveParDefaut(null); }}
+        onDone={toast => { if (toast) addToast(toast); load(); rafraichirCompletude(); }}
         typesPreuve={typesPreuve}
+        typeCodeParDefaut={typePreuveParDefaut}
         contrats={contrats}
         commandes={[commande]}
         contratParDefaut={commande.id_contrat || null}

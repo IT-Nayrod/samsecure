@@ -1731,3 +1731,33 @@ Supprimer que sur une société vide, le serveur restant seul juge au DELETE.
 
 Les 404 de ces routes (identifiant non UUID, société inconnue ou déjà
 supprimée) réutilisent le 2075 « Société introuvable ».
+
+## Complétude des fiches : actions requises (US #324)
+
+Nouvelle plage **5550-5599 — complétude**, à la suite des notifications
+(5500-5549). Le module est en lecture seule : GET /api/completude/:type/:id
+sert les actions requises d'une fiche (contrat, commande, licence, logiciel,
+affectation), GET /api/completude/resume les compteurs par type pour les
+listes et le dashboard. Les règles vivent dans `server/utils/completude.js`
+(fonctions pures testées) et reprennent les définitions existantes :
+manques documentaires de GET /commandes/manques (#50/#215), justificatif de
+contrat de la détection qualité, licence échue de la balance (D44),
+maintenance échue d'`etatMaintenance` (#201), statut d'affectation du
+workflow (#53), usage sans droit du précalcul (D53, héritage #216 compris).
+Chaque manque sort avec sa règle, sa gravité (`bloquant` pour la conformité,
+`recommande` pour l'aptitude à l'audit), son libellé et l'action qui le lève
+(`action.code` est le contrat avec le bloc « Actions requises » du front).
+
+Codes seedés par la migration Commune
+`105_commune_codes_retour_completude.sql` (`ON CONFLICT (code) DO UPDATE`,
+rejouable), à jouer avant la mise en ligne du module puis redémarrer
+l'API ; tant qu'elle n'est pas passée, les réponses sortent avec `libelle`
+null sans casser l'enveloppe (reponse.js).
+
+| Code | Type | Libellé | Émis par |
+|------|------|---------|----------|
+| 5550 | succes | Complétude de la fiche servie | GET /api/completude/:type/:id (200) |
+| 5551 | succes | Résumé de complétude servi | GET /api/completude/resume (200) |
+| 5552 | erreur | Type de fiche inconnu pour la complétude | GET /api/completude/:type/:id, type hors catalogue (400, la route interpole le type demandé). En mode RBAC strict, un type absent de la table des permissions est refusé 3400 en amont (fail-closed) : la table ne déclare que les cinq types, pas de règle générique, pour que l'oubli d'un type nouveau se voie |
+| 5553 | erreur | Fiche introuvable pour la complétude | GET /api/completude/:type/:id, identifiant non UUID ou inconnu (404, message du type : « Commande introuvable. ») |
+| 5559 | erreur | Erreur serveur du module complétude | les deux routes (500) |

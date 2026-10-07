@@ -209,6 +209,21 @@ export const ROUTES_PERMISSIONS = [
   ["GET",    "/notifications",                         PUBLIC_AUTHENTIFIE],
   ["PATCH",  "/notifications/:id/lu",                  PUBLIC_AUTHENTIFIE],
 
+  // ---- Complétude des fiches (US #324) --------------------------------------
+  // Lecture seule : actions requises d'une fiche et résumé des compteurs.
+  // Chaque chemin de fiche suit le droit de lecture de son module (mêmes
+  // permissions que la fiche qu'il complète) ; le résumé est une vue
+  // opérationnelle transverse en comptes agrégés, sans libellé ni montant :
+  // consulter_inventaire, même doctrine que GET /qualite et
+  // /dashboards/synthese (le contrôle central n'exprime pas de OU). Le chemin
+  // littéral /completude/resume précède les chemins paramétrés.
+  ["GET",    "/completude/resume",          "consulter_inventaire"],
+  ["GET",    "/completude/contrat/:id",     "consulter_contrats"],
+  ["GET",    "/completude/commande/:id",    "consulter_contrats"],
+  ["GET",    "/completude/licence/:id",     "consulter_licences"],
+  ["GET",    "/completude/affectation/:id", "consulter_inventaire"],
+  ["GET",    "/completude/logiciel/:id",    "consulter_referentiels"],
+
   // ---- Referentiels en lecture ---------------------------------------------
   ["GET",    "/produits",                    "consulter_referentiels"],
   ["GET",    "/unites-mesure",               "consulter_referentiels"],
