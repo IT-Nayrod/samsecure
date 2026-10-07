@@ -1,9 +1,10 @@
 // Tests purs des règles du modèle de droits #249 (matrice effective d'un
-// profil par défaut, exceptions à retrait prioritaire), sans base.
+// profil par défaut, union multi-profils du correctif du 06/10/2026,
+// exceptions à retrait prioritaire), sans base.
 // Exécution : node --test server/utils/droitsUtilisateur.test.js
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { matriceProfilEffective, appliquerExceptions } from "./droitsRegles.js";
+import { matriceProfilEffective, appliquerExceptions, unionPermissions } from "./droitsRegles.js";
 
 const DEFAUT = ["consulter_licences", "saisir_licence"];
 
@@ -72,6 +73,53 @@ test("une configuration hors des sociétés couvertes ne contribue pas", () => {
     matricesParSociete: new Map(),
   });
   assert.deepEqual([...codes].sort(), [...DEFAUT].sort());
+});
+
+// --- Multi-profils (#73/#190, correctif du 06/10/2026) ----------------------
+
+test("deux profils : union de leurs matrices effectives", () => {
+  const p1 = matriceProfilEffective({
+    societesCouvertes: ["s1"],
+    matriceDefaut: ["consulter_licences"],
+    matricesParSociete: new Map(),
+  });
+  const p2 = matriceProfilEffective({
+    societesCouvertes: ["s1"],
+    matriceDefaut: ["consulter_budget"],
+    matricesParSociete: new Map(),
+  });
+  assert.deepEqual([...unionPermissions([p1, p2])].sort(),
+    ["consulter_budget", "consulter_licences"]);
+});
+
+test("société configurée à vide pour un profil : ne masque pas l'autre profil", () => {
+  // s1 configurée à vide pour P1 (Q3) : P1 n'apporte rien sur s1. P2, non
+  // configuré sur s1, garde sa matrice par défaut : le masquage Q2/Q3 est
+  // propre à chaque profil, il ne traverse pas l'union.
+  const p1 = matriceProfilEffective({
+    societesCouvertes: ["s1"],
+    matriceDefaut: ["saisir_licence"],
+    matricesParSociete: new Map([["s1", []]]),
+  });
+  const p2 = matriceProfilEffective({
+    societesCouvertes: ["s1"],
+    matriceDefaut: ["consulter_licences"],
+    matricesParSociete: new Map(),
+  });
+  assert.deepEqual([...unionPermissions([p1, p2])], ["consulter_licences"]);
+});
+
+test("mono-profil : l'union d'un seul profil est sa matrice, inchangée", () => {
+  const seul = matriceProfilEffective({
+    societesCouvertes: ["s1"],
+    matriceDefaut: DEFAUT,
+    matricesParSociete: new Map(),
+  });
+  assert.deepEqual([...unionPermissions([seul])].sort(), [...DEFAUT].sort());
+});
+
+test("aucun profil : union vide", () => {
+  assert.equal(unionPermissions([]).size, 0);
 });
 
 // --- Exceptions -------------------------------------------------------------

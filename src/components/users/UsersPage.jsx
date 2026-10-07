@@ -142,7 +142,7 @@ export default function UsersPage() {
 
   const selectionnes = useMemo(() => filtered.filter((u) => selection.has(u.id)), [filtered, selection]);
 
-  async function handleSubmit(payload, nouvellesSocietes, idProfil) {
+  async function handleSubmit(payload, nouvellesSocietes, idsProfils) {
     let userId = formModal.user?.id;
     if (formModal.user) {
       await usersService.update(userId, payload);
@@ -166,12 +166,15 @@ export default function UsersPage() {
       await usersService.addSociete(userId, cle === 'TENANT' ? null : cle);
     }
 
-    // Profil par défaut (#249) : un seul, posé si la sélection a changé. Plus
-    // aucune purge ni intersection d'attributions : le rattachement se modifie
-    // librement, le périmètre effectif du profil et des groupes le suit.
-    const ancienProfil = formModal.user?.id_profil || null;
-    if ((idProfil || null) !== ancienProfil) {
-      await usersService.setProfil(userId, idProfil || null);
+    // Profils par défaut (#249 corrigé multi-profils) : l'ensemble est
+    // remplacé d'un appel si la sélection a changé. Plus aucune purge ni
+    // intersection d'attributions : le rattachement se modifie librement, le
+    // périmètre effectif des profils et des groupes le suit.
+    const anciensProfils = (formModal.user?.profils || []).map((p) => p.id);
+    const selectionChangee = anciensProfils.length !== idsProfils.length
+      || idsProfils.some((id) => !anciensProfils.includes(id));
+    if (selectionChangee) {
+      await usersService.setProfils(userId, idsProfils);
     }
 
     addToast({ type: 'success', message: formModal.user ? 'Utilisateur mis à jour.' : 'Utilisateur créé.' });
@@ -242,11 +245,11 @@ export default function UsersPage() {
   const columns = [
     { key: 'nom', label: 'Prénom Nom', sortable: true, render: r => <span className="font-medium text-gray-900 dark:text-white">{r.prenom} {r.nom}</span>, csvValue: r => `${r.prenom} ${r.nom}` },
     { key: 'email', label: 'Email', sortable: true },
-    { key: 'profil', label: 'Profil', sortable: false, render: r => (
-      r.profil_label
-        ? <ProfileBadge profil={r.profil_code} label={r.profil_label} />
+    { key: 'profils', label: 'Profils', sortable: false, render: r => (
+      (r.profils || []).length
+        ? <div className="flex flex-wrap gap-1">{(r.profils || []).map((p) => <ProfileBadge key={p.id} profil={p.code} label={p.label} />)}</div>
         : <span className="text-xs text-gray-400">Aucun profil</span>
-    ), csvValue: r => r.profil_label || '' },
+    ), csvValue: r => (r.profils || []).map((p) => p.label).join(', ') },
     { key: 'groupes', label: 'Groupe(s)', render: r => (
       <div className="flex flex-wrap gap-1">{groupsOf(r.id).map((g) => <ProfileBadge key={g.id} profil={g.code} label={g.label} />)}</div>
     ) },

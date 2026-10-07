@@ -1,18 +1,21 @@
 // UserFormModal - création / édition d'un utilisateur réel : identité,
-// fenêtre d'activité, profil par défaut (#249), rattachement, groupes.
+// fenêtre d'activité, profils par défaut (#249), rattachement, groupes.
 //
-// Section Profil distincte de la section Groupes (refonte #249) : un seul
-// profil par défaut, appliqué à toutes les sociétés de rattachement (chaque
-// société configurée applique sa matrice, les autres suivent le défaut du
-// tenant). Les groupes s'ajoutent au profil, sans notion de société (#57).
-// Plus aucune purge ni intersection d'attributions à gérer : le rattachement
-// se modifie librement, le périmètre effectif suit.
+// Section Profils distincte de la section Groupes (refonte #249, corrigée
+// multi-profils le 06/10/2026, stories #73/#190) : un compte porte PLUSIEURS
+// profils par défaut, cochés comme les groupes ; chacun s'applique à toutes
+// les sociétés de rattachement (chaque société configurée applique sa
+// matrice, les autres suivent le défaut du tenant) et porte son dashboard.
+// Les groupes s'ajoutent aux profils, sans notion de société (#57). Plus
+// aucune purge ni intersection d'attributions à gérer : le rattachement se
+// modifie librement, le périmètre effectif suit.
 import { useState, useEffect } from 'react';
 import SlideOver from '../ui/SlideOver';
 import Button from '../ui/Button';
 import FormField from '../ui/FormField';
 import SocieteSelector from '../ui/SocieteSelector';
 import UserGroupsSection from './UserGroupsSection';
+import ProfileBadge from './ProfileBadge';
 import { validateEmail, validateRequired } from '../../utils/validation';
 
 const LANGUES = [{ value: 'fr', label: 'Français' }, { value: 'en', label: 'English' }];
@@ -28,7 +31,7 @@ const EMPTY_FORM = {
 export default function UserFormModal({ isOpen, onClose, onSubmit, user, initialSocieteIds, societes, profils, userAttributions, groups, onGroupsChanged }) {
   const isEdit = !!user;
   const [form, setForm] = useState(EMPTY_FORM);
-  const [idProfil, setIdProfil] = useState('');
+  const [idsProfils, setIdsProfils] = useState([]);
   const [scope, setScope] = useState('tenant'); // 'tenant' | 'specifique'
   const [selectedSocietes, setSelectedSocietes] = useState([]);
   const [errors, setErrors] = useState({});
@@ -51,14 +54,14 @@ export default function UserFormModal({ isOpen, onClose, onSubmit, user, initial
         temporaire: !!user.date_finale, date_finale: user.date_finale || '',
         date_mise_en_fonction: user.date_mise_en_fonction || '',
       });
-      setIdProfil(user.id_profil || '');
+      setIdsProfils((user.profils || []).map((p) => p.id));
       const ids = initialSocieteIds || [];
       const isTenant = ids.includes(null) || ids.length === 0;
       setScope(isTenant ? 'tenant' : 'specifique');
       setSelectedSocietes(ids.filter(Boolean));
     } else {
       setForm(EMPTY_FORM);
-      setIdProfil('');
+      setIdsProfils([]);
       setScope('tenant');
       setSelectedSocietes([]);
     }
@@ -100,7 +103,7 @@ export default function UserFormModal({ isOpen, onClose, onSubmit, user, initial
 
     setLoading(true);
     try {
-      await onSubmit(payload, nouvellesSocietes, idProfil || null);
+      await onSubmit(payload, nouvellesSocietes, idsProfils);
       onClose();
     } catch (err) {
       setErrors((v) => ({ ...v, global: err.message }));
@@ -228,21 +231,32 @@ export default function UserFormModal({ isOpen, onClose, onSubmit, user, initial
 
         <section>
           <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 pb-2 border-b border-gray-100 dark:border-gray-700">
-            Profil
+            Profils
           </h3>
-          <FormField label="Profil par défaut">
-            <select className={INPUT_CLS} value={idProfil} onChange={e => setIdProfil(e.target.value)}>
-              <option value="">Aucun profil</option>
-              {(profils || []).map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.label}{p.type === 'systeme' ? ' (système)' : ''}
-                </option>
-              ))}
-            </select>
-          </FormField>
-          <p className="text-xs text-gray-500 mt-2">
-            Le profil s'applique à toutes les sociétés de rattachement de l'utilisateur : chaque société configurée applique sa propre matrice, les autres suivent la matrice par défaut du tenant.
+          <p className="text-xs text-gray-500 mb-3">
+            Un compte peut porter plusieurs profils par défaut : chacun s'applique à toutes les sociétés de rattachement (chaque société configurée applique sa propre matrice, les autres suivent la matrice par défaut du tenant) et donne accès à son tableau de bord.
           </p>
+          <div className="flex flex-col gap-1">
+            {(profils || []).map((p) => {
+              const checked = idsProfils.includes(p.id);
+              return (
+                <label
+                  key={p.id}
+                  className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={(e) => setIdsProfils((ids) =>
+                      e.target.checked ? [...ids, p.id] : ids.filter((x) => x !== p.id))}
+                    className="rounded border-gray-300"
+                  />
+                  <ProfileBadge profil={p.code} label={`${p.label}${p.type === 'systeme' ? ' (système)' : ''}`} />
+                </label>
+              );
+            })}
+            {(profils || []).length === 0 && <p className="text-sm text-gray-400">Aucun profil.</p>}
+          </div>
         </section>
 
         {isEdit && (
