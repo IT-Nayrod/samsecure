@@ -1,27 +1,23 @@
-// Permissions d'un groupe : consultation, ajout et retrait case par case,
-// journalisés. Depuis le #249, l'ajout et le retrait sont réservés aux groupes
-// personnalisés : la matrice d'un profil par défaut se remplace intégralement
-// (PUT /profils/:id/matrice, Q2) et celle du profil système est figée. La
-// consultation reste ouverte à tous les types (les écrans l'affichent).
+// Permissions d'un profil : consultation de la matrice par defaut.
+//
+// Tout est profil (#276, 06/10/2026) : l'edition case a case, heritee des
+// groupes personnalises, disparait. Un profil ajoute se configure exactement
+// comme un profil par defaut, par remplacement complet de la matrice
+// (PUT /profils/:id/matrice) et par societe ; la matrice du profil systeme
+// est figee. Les routes d'ecriture repondent un refus propre (2078) plutot
+// que d'etre retirees : un appelant retardataire (ancien ecran, simulateur)
+// recoit un message qui le route vers l'onglet Profils, pas un 404 muet.
+// La consultation reste ouverte (les ecrans d'administration l'affichent).
 
 import express from "express";
 import { tenantPool } from "../db.js";
-import { estUuid, deciderAjout, deciderRetrait } from "../utils/matriceGroupe.js";
-import { auditer } from "../utils/audit.js";
+import { estUuid } from "../utils/matriceGroupe.js";
 
 const router = express.Router();
 
-async function log(client, action, entite_type, entite_id, description, payload) {
-  await client.query(
-    `INSERT INTO journal_ecriture (action, entite_type, entite_id, description, payload)
-     VALUES ($1, $2, $3, $4, $5)`,
-    [action, entite_type, entite_id || null, description, payload ? JSON.stringify(payload) : null]
-  );
-}
-
 router.get("/profils/:id/permissions", async (req, res) => {
   const { id } = req.params;
-  if (!estUuid(id)) return res.status(404).json({ error: "Groupe introuvable." });
+  if (!estUuid(id)) return res.status(404).json({ error: "Profil introuvable" });
   try {
     const { rows } = await tenantPool.query(
       `SELECT p.id, p.code, p.label, p.module
@@ -38,127 +34,28 @@ router.get("/profils/:id/permissions", async (req, res) => {
   }
 });
 
-// Ligne du couple (groupe, permission), retirée ou non, verrouillée le temps
-// de l'écriture : deux administrateurs sur la même case s'exécutent l'un après
-// l'autre, le second décide sur l'état laissé par le premier.
-async function lireLigne(client, idProfil, idPermission) {
-  const { rows } = await client.query(
-    `SELECT id, id_profil, id_permission, date_suppression
-       FROM profil_permission
-      WHERE id_profil = $1 AND id_permission = $2
-        FOR UPDATE`,
-    [idProfil, idPermission]
-  );
-  return rows[0];
+// Refus commun des deux ecritures case a case : 404 si le profil n'existe
+// pas (coherence avec le reste du module), 409 sinon. Le message route vers
+// le geste qui remplace l'edition unitaire.
+async function refuserEditionUnitaire(req, res) {
+  const { id } = req.params;
+  if (!estUuid(id)) return res.status(404).json({ error: "Profil introuvable" });
+  try {
+    const { rows: prof } = await tenantPool.query(
+      `SELECT label FROM profil WHERE id = $1 AND date_suppression IS NULL`, [id]
+    );
+    if (!prof.length) return res.status(404).json({ error: "Profil introuvable" });
+    // code_retour: 2078
+    return res.status(409).json({
+      error: `La matrice du profil "${prof[0].label}" se gère par remplacement complet depuis l'onglet Profils.`,
+    });
+  } catch (err) {
+    console.error(`${req.method} ${req.path} error`, err);
+    return res.status(500).json({ error: "Erreur serveur" });
+  }
 }
 
-router.post("/profils/:id/permissions", async (req, res) => {
-  const { id } = req.params;
-  const { id_permission } = req.body || {};
-  if (!id_permission) return res.status(400).json({ error: "id_permission requis" });
-  if (!estUuid(id)) return res.status(404).json({ error: "Groupe introuvable." });
-  if (!estUuid(id_permission)) return res.status(400).json({ error: "Cette permission n'existe pas au catalogue." });
-  const client = await tenantPool.connect();
-  try {
-    await client.query("BEGIN");
-    // Références validées avant écriture : un 404 ou un 400 lisible plutôt que
-    // la violation de clé étrangère (23503) rendue en 500.
-    const { rows: prof } = await client.query(
-      `SELECT label, type FROM profil WHERE id = $1 AND date_suppression IS NULL`, [id]
-    );
-    if (!prof.length) { await client.query("ROLLBACK"); return res.status(404).json({ error: "Groupe introuvable." }); }
-    if (prof[0].type !== "groupe") {
-      await client.query("ROLLBACK");
-      // code_retour: 2078
-      return res.status(409).json({
-        error: `La matrice du profil "${prof[0].label}" se gère par remplacement complet depuis l'onglet Profils.`,
-      });
-    }
-    const { rows: perm } = await client.query(`SELECT label, code FROM permission WHERE id = $1`, [id_permission]);
-    if (!perm.length) { await client.query("ROLLBACK"); return res.status(400).json({ error: "Cette permission n'existe pas au catalogue." }); }
-
-    const ligne = await lireLigne(client, id, id_permission);
-    const decision = deciderAjout(ligne);
-    if (decision.ecriture === "aucune") {
-      await client.query("ROLLBACK");
-      return res.status(decision.status).json({ id: ligne.id, id_profil: ligne.id_profil, id_permission: ligne.id_permission });
-    }
-    // #170 : DO UPDATE (et non un INSERT nu). Un droit retiré garde sa ligne
-    // (date_suppression) et occupe toujours uq_profil_permission : le rajouter
-    // levait une violation d'unicité rendue en 500, sur tout droit décoché
-    // puis recoché. L'upsert vaut pour l'insertion comme pour la réactivation
-    // et couvre aussi l'insertion concurrente d'un couple encore absent.
-    const { rows } = await client.query(
-      `INSERT INTO profil_permission (id_profil, id_permission) VALUES ($1, $2)
-       ON CONFLICT (id_profil, id_permission) DO UPDATE SET date_suppression = NULL
-       RETURNING id, id_profil, id_permission`,
-      [id, id_permission]
-    );
-    await log(client, "CREATE", "profil_permission", rows[0].id,
-      `Permission "${perm[0].label || perm[0].code}" ajoutée au groupe "${prof[0].label}"`,
-      decision.ecriture === "reactiver" ? { ...rows[0], reactivation: true } : rows[0]);
-    // code_retour: 2064
-    await auditer(client, req, {
-      action: "GROUPE_PERMISSION_AJOUTEE", entiteType: "profil", entiteId: id,
-      apres: { groupe: prof[0].label, permission: perm[0].label || perm[0].code },
-    });
-    await client.query("COMMIT");
-    res.status(decision.status).json(rows[0]);
-  } catch (err) {
-    await client.query("ROLLBACK");
-    console.error("POST /profils/:id/permissions error", err);
-    res.status(500).json({ error: "Erreur serveur" });
-  } finally {
-    client.release();
-  }
-});
-
-router.delete("/profils/:id/permissions/:idPermission", async (req, res) => {
-  const { id, idPermission } = req.params;
-  if (!estUuid(id) || !estUuid(idPermission)) {
-    return res.status(404).json({ error: "Cette permission n'est pas attribuée à ce groupe." });
-  }
-  const client = await tenantPool.connect();
-  try {
-    await client.query("BEGIN");
-    const { rows: profGarde } = await client.query(
-      `SELECT label, type FROM profil WHERE id = $1 AND date_suppression IS NULL`, [id]
-    );
-    if (profGarde.length && profGarde[0].type !== "groupe") {
-      await client.query("ROLLBACK");
-      // code_retour: 2078
-      return res.status(409).json({
-        error: `La matrice du profil "${profGarde[0].label}" se gère par remplacement complet depuis l'onglet Profils.`,
-      });
-    }
-    const ligne = await lireLigne(client, id, idPermission);
-    const decision = deciderRetrait(ligne);
-    if (decision.ecriture === "aucune") {
-      await client.query("ROLLBACK");
-      return res.status(decision.status).json({ error: "Cette permission n'est pas attribuée à ce groupe." });
-    }
-    // Le retrait passe par le client de la transaction. Il partait sur le pool
-    // (tenantPool.query) : validé hors transaction, il restait acquis quand la
-    // suite échouait et que la route répondait 500, et chaque retrait tenait
-    // deux connexions d'un pool de cinq.
-    await client.query(`UPDATE profil_permission SET date_suppression = now() WHERE id = $1`, [ligne.id]);
-    const { rows: prof } = await client.query(`SELECT label FROM profil WHERE id = $1`, [id]);
-    const { rows: perm } = await client.query(`SELECT label, code FROM permission WHERE id = $1`, [idPermission]);
-    await log(client, "DELETE", "profil_permission", ligne.id, `Permission "${perm[0]?.label || perm[0]?.code || idPermission}" retirée du groupe "${prof[0]?.label || id}"`, { id_profil: id, id_permission: idPermission });
-    // code_retour: 2065
-    await auditer(client, req, {
-      action: "GROUPE_PERMISSION_RETIREE", entiteType: "profil", entiteId: id,
-      avant: { groupe: prof[0]?.label || null, permission: perm[0]?.label || perm[0]?.code || null },
-    });
-    await client.query("COMMIT");
-    res.status(decision.status).end();
-  } catch (err) {
-    await client.query("ROLLBACK");
-    console.error("DELETE /profils/:id/permissions/:idPermission error", err);
-    res.status(500).json({ error: "Erreur serveur" });
-  } finally {
-    client.release();
-  }
-});
+router.post("/profils/:id/permissions", refuserEditionUnitaire);
+router.delete("/profils/:id/permissions/:idPermission", refuserEditionUnitaire);
 
 export default router;

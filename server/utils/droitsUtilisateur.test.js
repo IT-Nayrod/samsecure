@@ -4,7 +4,7 @@
 // Exécution : node --test server/utils/droitsUtilisateur.test.js
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { matriceProfilEffective, appliquerExceptions, unionPermissions } from "./droitsRegles.js";
+import { matriceProfilEffective, appliquerExceptions, unionPermissions, permissionsManquantes, deltaMatrice, TYPES_PROFIL_AJOUTE, PERMISSIONS_DELEGATION } from "./droitsRegles.js";
 
 const DEFAUT = ["consulter_licences", "saisir_licence"];
 
@@ -176,4 +176,56 @@ test("exception hors périmètre : ignorée", () => {
     contexte({ societeIds: ["s1"] })
   );
   assert.equal(permissions.size, 0);
+});
+
+// ---------------------------------------------------------------------------
+// Delegation (#278) : regles pures du garde-fou et du delta de matrices.
+// ---------------------------------------------------------------------------
+
+test("permissionsManquantes : vide quand l'acteur detient tout", () => {
+  assert.deepEqual(
+    permissionsManquantes(["a", "b"], new Set(["a", "b", "c"])),
+    []
+  );
+});
+
+test("permissionsManquantes : liste triee et dedoublonnee de ce qui manque", () => {
+  assert.deepEqual(
+    permissionsManquantes(["saisir_licence", "gerer_profils", "saisir_licence"], new Set(["consulter_licences"])),
+    ["gerer_profils", "saisir_licence"]
+  );
+});
+
+test("permissionsManquantes : accepte un tableau comme ensemble detenu", () => {
+  assert.deepEqual(permissionsManquantes(["a"], ["a"]), []);
+  assert.deepEqual(permissionsManquantes(["b"], ["a"]), ["b"]);
+});
+
+test("permissionsManquantes : aucune demande, aucun manque", () => {
+  assert.deepEqual(permissionsManquantes([], new Set()), []);
+});
+
+test("deltaMatrice : ajouts et retraits tries, inchanges ignores", () => {
+  const delta = deltaMatrice(["a", "b", "c"], ["b", "d", "c", "e"]);
+  assert.deepEqual(delta.ajoutes, ["d", "e"]);
+  assert.deepEqual(delta.retires, ["a"]);
+});
+
+test("deltaMatrice : matrices identiques, delta vide", () => {
+  const delta = deltaMatrice(["a", "b"], ["b", "a"]);
+  assert.deepEqual(delta.ajoutes, []);
+  assert.deepEqual(delta.retires, []);
+});
+
+test("deltaMatrice : depuis et vers une matrice vide", () => {
+  assert.deepEqual(deltaMatrice([], ["a"]), { ajoutes: ["a"], retires: [] });
+  assert.deepEqual(deltaMatrice(["a"], []), { ajoutes: [], retires: ["a"] });
+});
+
+test("constantes de la delegation : types ajoutes et permissions deleguables", () => {
+  // Contrat partage entre routeurs : 'groupe' reste un profil ajoute tant
+  // que la 097 n'est pas jouee partout, et la delegation porte exactement
+  // gerer_utilisateurs et gerer_profils.
+  assert.deepEqual([...TYPES_PROFIL_AJOUTE].sort(), ["ajoute", "groupe"]);
+  assert.deepEqual([...PERMISSIONS_DELEGATION].sort(), ["gerer_profils", "gerer_utilisateurs"]);
 });

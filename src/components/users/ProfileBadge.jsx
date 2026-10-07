@@ -1,4 +1,4 @@
-// Pastille d'un profil (groupe), colorée selon le code du catalogue.
+// Pastille d'un profil, colorée selon le code du catalogue.
 const PROFIL_CONFIG = {
   manager_dsi: { label: 'Manager DSI', cls: 'bg-blue-100 text-blue-800' },
   financier: { label: 'Financier', cls: 'bg-purple-100 text-purple-800' },
@@ -7,8 +7,8 @@ const PROFIL_CONFIG = {
   it_data_input: { label: 'IT Data input', cls: 'bg-amber-100 text-amber-800' },
 };
 
-// `profil` accepte soit un code connu du catalogue, soit un objet groupe
-// { code, label } pour les groupes créés côté client (libellé non mappé ici).
+// `profil` accepte soit un code connu du catalogue, soit un objet
+// { code, label } pour les profils ajoutés par le client (libellé non mappé ici).
 export default function ProfileBadge({ profil, label }) {
   const code = typeof profil === 'string' ? profil : profil?.code;
   const cfg = PROFIL_CONFIG[code];

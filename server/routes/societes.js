@@ -296,7 +296,7 @@ router.delete("/societes/:id", async (req, res) => {
 // « configuré », matrice en remplacement complet (Q2), retour au défaut.
 // ---------------------------------------------------------------------------
 
-// État des quatre profils par défaut pour la société : marqueur de
+// État des profils configurables (par défaut et ajoutés, #276) : marqueur de
 // configuration (Q3) et matrice effective (configurée si marqueur, sinon la
 // matrice par défaut du tenant). Le profil système admin_sam n'est pas servi :
 // sa matrice est figée et ne se configure pas par société.
@@ -319,7 +319,7 @@ router.get("/societes/:id/profils", async (req, res) => {
          LEFT JOIN profil_societe_configuration psc
                 ON psc.id_profil = p.id AND psc.id_societe = $1
          LEFT JOIN utilisateur u ON u.id = psc.id_configure_par
-        WHERE p.type = 'profil_defaut' AND p.date_suppression IS NULL
+        WHERE p.type IN ('profil_defaut', 'groupe', 'ajoute') AND p.date_suppression IS NULL
         ORDER BY p.label`,
       [id]
     );
@@ -361,10 +361,10 @@ router.put("/societes/:id/profils/:idProfil/matrice", async (req, res) => {
       `SELECT id, label, type FROM profil WHERE id = $1 AND date_suppression IS NULL FOR UPDATE`, [idProfil]
     );
     if (!prof.length) { await client.query("ROLLBACK"); return res.status(404).json({ error: "Profil introuvable" }); }
-    if (prof[0].type !== "profil_defaut") {
+    if (prof[0].type === "systeme") {
       await client.query("ROLLBACK");
       // code_retour: 2074
-      return res.status(409).json({ error: `"${prof[0].label}" n'est pas un profil par défaut : seul un profil par défaut se configure par société.` });
+      return res.status(409).json({ error: `La matrice du profil système "${prof[0].label}" est figée.` });
     }
     const matrice = await validerPermissionIds(client, req.body?.permission_ids);
     if (matrice.erreur) {

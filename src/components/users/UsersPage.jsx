@@ -18,7 +18,7 @@ import useAuth from '../../hooks/useAuth';
 import { formatDate } from '../../utils/dateUtils';
 import useDebounce from '../../hooks/useDebounce';
 import { exportToCsv } from '../../utils/exportCsv';
-import { usersService, societesService, groupsService, attributionsService } from '../../services/adminService';
+import { usersService, societesService, groupsService } from '../../services/adminService';
 import { estInactif, estEnAttenteDeMiseEnFonction, dateIso, FILTRES_STATUT, FILTRES_DATES, filtrerParStatut } from './statutCompte';
 
 // Le statut Supprime n'existe plus : depuis la migration 022, le retrait d'un
@@ -49,9 +49,7 @@ export default function UsersPage() {
   const { user: utilisateurConnecte } = useAuth();
   const [users, setUsers] = useState([]);
   const [societes, setSocietes] = useState([]);
-  const [profils, setProfils] = useState([]); // profils par défaut et système (#249)
-  const [groups, setGroups] = useState([]);   // groupes personnalisés seuls
-  const [attributions, setAttributions] = useState([]);
+  const [profils, setProfils] = useState([]); // tous les profils (#276 : par défaut, ajoutés, système)
   const [userSocietes, setUserSocietes] = useState({}); // { userId: [id_societe|null] }
   const [isLoading, setIsLoading] = useState(true);
 
@@ -70,26 +68,25 @@ export default function UsersPage() {
   const [confirmDesactivation, setConfirmDesactivation] = useState(false);
   const [desactivationEnCours, setDesactivationEnCours] = useState(false);
 
-  // silencieux (#169) : rechargement demandé par une coche de groupe dans la
-  // fiche ouverte. La liste d'arrière-plan ne repasse pas en squelette (page
-  // raccourcie, défilement ramené en haut, clignotement derrière le panneau) :
-  // les données sont remplacées sur place.
+  // silencieux (#169) : rechargement demandé depuis la fiche ouverte. La
+  // liste d'arrière-plan ne repasse pas en squelette (page raccourcie,
+  // défilement ramené en haut, clignotement derrière le panneau) : les
+  // données sont remplacées sur place.
   const load = useCallback(async ({ silencieux = false } = {}) => {
     if (!silencieux) setIsLoading(true);
     try {
-      const [u, s, g, a] = await Promise.all([
+      const [u, s, g] = await Promise.all([
         usersService.list(),
         societesService.list(),
         groupsService.list(),
-        attributionsService.listAll(),
       ]);
       setUsers(u);
       setSocietes(s);
-      // GET /profils sert les trois types (074) : le sélecteur de profil prend
-      // les profils par défaut et système, la section Groupes les groupes.
-      setProfils(g.filter((x) => x.type !== 'groupe'));
-      setGroups(g.filter((x) => x.type === 'groupe'));
-      setAttributions(a);
+      // GET /profils sert tous les types (#276, tout est profil) : la
+      // section Profils de la fiche les propose tous ; les verrous
+      // (admin_sam, délégation #278) sont portés par le serveur et leurs
+      // refus affichés tels quels.
+      setProfils(g);
       const rattachements = await Promise.all(u.map((usr) => usersService.listSocietes(usr.id)));
       const map = {};
       u.forEach((usr, i) => { map[usr.id] = rattachements[i].map((r) => r.id_societe); });
@@ -103,14 +100,6 @@ export default function UsersPage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
-
-  function groupsOf(userId) {
-    return attributions
-      .filter((a) => a.id_utilisateur === userId)
-      .map((a) => groups.find((g) => g.id === a.id_profil))
-      .filter(Boolean)
-      .filter((g, i, arr) => arr.findIndex((x) => x.id === g.id) === i);
-  }
 
   function societesLabel(userId) {
     const ids = userSocietes[userId] || [];
@@ -250,9 +239,6 @@ export default function UsersPage() {
         ? <div className="flex flex-wrap gap-1">{(r.profils || []).map((p) => <ProfileBadge key={p.id} profil={p.code} label={p.label} />)}</div>
         : <span className="text-xs text-gray-400">Aucun profil</span>
     ), csvValue: r => (r.profils || []).map((p) => p.label).join(', ') },
-    { key: 'groupes', label: 'Groupe(s)', render: r => (
-      <div className="flex flex-wrap gap-1">{groupsOf(r.id).map((g) => <ProfileBadge key={g.id} profil={g.code} label={g.label} />)}</div>
-    ) },
     { key: 'rattachement', label: 'Rattachement', render: r => <span className="text-xs text-gray-500">{societesLabel(r.id)}</span> },
     { key: 'statut', label: 'Statut', sortable: true, render: r => { const s = computeStatus(r); return <Badge variant={s.variant} label={s.label} />; } },
     { key: 'date_mise_en_fonction', label: 'Mise en fonction', sortable: true,
@@ -270,7 +256,7 @@ export default function UsersPage() {
           <button onClick={() => setDroitsModal(r)} aria-label="Voir les droits" title="Consulter les droits effectifs" className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-blue-700 transition-colors">
             <Eye size={14} />
           </button>
-          <button onClick={() => setFormModal({ open: true, user: r })} aria-label="Modifier" title="Modifier l'identité, les groupes et les rattachements" className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors">
+          <button onClick={() => setFormModal({ open: true, user: r })} aria-label="Modifier" title="Modifier l'identité, les profils et les rattachements" className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors">
             <Pencil size={14} />
           </button>
           <button onClick={() => setHistorique(r)} aria-label="Voir l'historique" title="Consulter l'historique des actions sur ce compte" className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-blue-700 transition-colors">
@@ -355,9 +341,6 @@ export default function UsersPage() {
         initialSocieteIds={formModal.user ? userSocietes[formModal.user.id] : []}
         societes={societes}
         profils={profils}
-        userAttributions={formModal.user ? attributions.filter((a) => a.id_utilisateur === formModal.user.id) : []}
-        groups={groups}
-        onGroupsChanged={() => load({ silencieux: true })}
       />
 
       {droitsModal && (

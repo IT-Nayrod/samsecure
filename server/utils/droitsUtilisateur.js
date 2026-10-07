@@ -23,13 +23,14 @@
 // 3. Exceptions individuelles, bornées au périmètre : tous les accords puis
 //    tous les retraits, le retrait restant inconditionnellement prioritaire.
 import { tenantPool } from "../db.js";
-import { matriceProfilEffective, appliquerExceptions, unionPermissions } from "./droitsRegles.js";
+import { matriceProfilEffective, appliquerExceptions, unionPermissions, permissionsManquantes } from "./droitsRegles.js";
+import { getAdminScope } from "./scope.js";
 
 // Les règles pures (matrice effective, union multi-profils, exceptions) vivent
 // dans droitsRegles.js, sans dépendance à la base : node --test les exécute
 // sans .env (même motif que notifications/regles.js). Ré-exportées ici pour
 // les consommateurs.
-export { matriceProfilEffective, appliquerExceptions, unionPermissions } from "./droitsRegles.js";
+export { matriceProfilEffective, appliquerExceptions, unionPermissions, permissionsManquantes, deltaMatrice, PERMISSIONS_DELEGATION, TYPES_PROFIL_AJOUTE } from "./droitsRegles.js";
 
 // Profils par défaut d'un compte : attributions actives non-groupe de
 // utilisateur_profil_societe, dédoublonnées par profil, id_societe ignoré
@@ -172,4 +173,80 @@ export async function permissionsEffectives(idUtilisateur) {
   appliquerExceptions(permissions, exceptions, { isTenantScope, dansPerimetre });
 
   return { permissions, isTenantScope };
+}
+
+// ---------------------------------------------------------------------------
+// Delegation des droits d'administration (#278, decisions du 06/10/2026).
+// ---------------------------------------------------------------------------
+
+// Titulaire admin_sam : une attribution active du profil systeme admin_sam.
+// C'est la cle des deux garde-fous #278 : seul un admin_sam modifie le profil
+// admin_sam et ses titulaires, et un acteur admin_sam est exempte du controle
+// de detention comme du perimetre par societes.
+export async function estAdminSam(idUtilisateur) {
+  const { rows } = await tenantPool.query(
+    `SELECT 1
+       FROM utilisateur_profil_societe ups
+       JOIN profil p ON p.id = ups.id_profil
+                    AND p.code = 'admin_sam' AND p.date_suppression IS NULL
+      WHERE ups.id_utilisateur = $1 AND ups.date_suppression IS NULL
+      LIMIT 1`,
+    [idUtilisateur]
+  );
+  return rows.length > 0;
+}
+
+// Perimetre d'administration (#278) : un admin_sam voit et gere tout le
+// tenant, quel que soit son rattachement ; un delegataire est borne a ses
+// societes de rattachement (scope.js, inchange). Se substitue a getAdminScope
+// dans les routes d'administration des comptes.
+export async function scopeAdministration(idUtilisateur) {
+  if (await estAdminSam(idUtilisateur)) {
+    return { isTenantScope: true, societeIds: [] };
+  }
+  return getAdminScope(idUtilisateur);
+}
+
+// Societes couvertes par le rattachement d'un compte : la liste de ses
+// societes, ou toutes les societes actives du tenant pour une portee tenant.
+// Meme regle que permissionsEffectives (bloc profils), exposee pour le
+// garde-fou d'attribution : les permissions conferees par un profil a la
+// CIBLE se calculent sur les societes couvertes par la cible.
+export async function societesCouvertes(idUtilisateur) {
+  const { rows: ratt } = await tenantPool.query(
+    `SELECT id_societe FROM utilisateur_societe
+      WHERE id_utilisateur = $1 AND date_suppression IS NULL`,
+    [idUtilisateur]
+  );
+  if (ratt.some((r) => r.id_societe === null)) {
+    const { rows } = await tenantPool.query(
+      `SELECT id FROM societe WHERE date_suppression IS NULL`
+    );
+    return rows.map((r) => r.id);
+  }
+  return ratt.map((r) => r.id_societe).filter(Boolean);
+}
+
+// Garde-fou #278 : on n'attribue que des permissions que l'on detient.
+// codesDemandes = permissions ajoutees (matrice) ou conferees (profil
+// attribue). Rend { ok, manquantes } ; l'acteur admin_sam est exempte.
+// Les refus (403, code 2080) sont emis par les routes, le calcul vit ici
+// pour que toutes appliquent exactement la meme regle.
+export async function verifierDelegation(idActeur, codesDemandes) {
+  const codes = [...new Set(codesDemandes)];
+  if (!codes.length) return { ok: true, manquantes: [] };
+  if (await estAdminSam(idActeur)) return { ok: true, manquantes: [] };
+  const { permissions } = await permissionsEffectives(idActeur);
+  const manquantes = permissionsManquantes(codes, permissions);
+  return { ok: manquantes.length === 0, manquantes };
+}
+
+// Verrou #278 : « personne ne modifie le profil admin_sam ni ses titulaires,
+// hormis un admin_sam ». Vrai quand la CIBLE est titulaire d'admin_sam et que
+// l'acteur ne l'est pas : la route refuse alors en 403 (code 2081), quelle
+// que soit l'ecriture (identite, statut, mot de passe, rattachement,
+// attributions). Lire un tel compte reste permis.
+export async function cibleVerrouilleeAdminSam(idActeur, idCible) {
+  if (!(await estAdminSam(idCible))) return false;
+  return !(await estAdminSam(idActeur));
 }

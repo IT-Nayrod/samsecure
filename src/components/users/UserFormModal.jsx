@@ -1,20 +1,21 @@
 // UserFormModal - création / édition d'un utilisateur réel : identité,
-// fenêtre d'activité, profils par défaut (#249), rattachement, groupes.
+// fenêtre d'activité, rattachement, profils.
 //
-// Section Profils distincte de la section Groupes (refonte #249, corrigée
-// multi-profils le 06/10/2026, stories #73/#190) : un compte porte PLUSIEURS
-// profils par défaut, cochés comme les groupes ; chacun s'applique à toutes
-// les sociétés de rattachement (chaque société configurée applique sa
-// matrice, les autres suivent le défaut du tenant) et porte son dashboard.
-// Les groupes s'ajoutent aux profils, sans notion de société (#57). Plus
-// aucune purge ni intersection d'attributions à gérer : le rattachement se
-// modifie librement, le périmètre effectif suit.
+// Une seule section Profils (#249 corrigé multi-profils, étendu « tout est
+// profil » #276) : un compte porte PLUSIEURS profils, par défaut comme
+// ajoutés, cochés dans la même liste ; chacun s'applique à toutes les
+// sociétés de rattachement (chaque société configurée applique sa matrice,
+// les autres suivent le défaut du tenant) et donne accès à son tableau de
+// bord le cas échéant. L'enregistrement remplace l'ensemble d'un appel
+// (PUT /utilisateurs/:id/profils) ; les verrous admin_sam et le garde-fou de
+// délégation (#278) sont portés par le serveur, leurs refus affichés tels
+// quels. Plus aucune purge ni intersection d'attributions à gérer : le
+// rattachement se modifie librement, le périmètre effectif suit.
 import { useState, useEffect } from 'react';
 import SlideOver from '../ui/SlideOver';
 import Button from '../ui/Button';
 import FormField from '../ui/FormField';
 import SocieteSelector from '../ui/SocieteSelector';
-import UserGroupsSection from './UserGroupsSection';
 import ProfileBadge from './ProfileBadge';
 import { validateEmail, validateRequired } from '../../utils/validation';
 
@@ -28,7 +29,7 @@ const EMPTY_FORM = {
 };
 
 
-export default function UserFormModal({ isOpen, onClose, onSubmit, user, initialSocieteIds, societes, profils, userAttributions, groups, onGroupsChanged }) {
+export default function UserFormModal({ isOpen, onClose, onSubmit, user, initialSocieteIds, societes, profils }) {
   const isEdit = !!user;
   const [form, setForm] = useState(EMPTY_FORM);
   const [idsProfils, setIdsProfils] = useState([]);
@@ -234,7 +235,7 @@ export default function UserFormModal({ isOpen, onClose, onSubmit, user, initial
             Profils
           </h3>
           <p className="text-xs text-gray-500 mb-3">
-            Un compte peut porter plusieurs profils par défaut : chacun s'applique à toutes les sociétés de rattachement (chaque société configurée applique sa propre matrice, les autres suivent la matrice par défaut du tenant) et donne accès à son tableau de bord.
+            Un compte peut porter plusieurs profils, par défaut comme ajoutés : chacun s'applique à toutes les sociétés de rattachement (chaque société configurée applique sa propre matrice, les autres suivent la matrice par défaut du tenant) et donne accès à son tableau de bord le cas échéant. Les droits se cumulent par union.
           </p>
           <div className="flex flex-col gap-1">
             {(profils || []).map((p) => {
@@ -259,14 +260,6 @@ export default function UserFormModal({ isOpen, onClose, onSubmit, user, initial
           </div>
         </section>
 
-        {isEdit && (
-          <UserGroupsSection
-            userId={user.id}
-            groups={groups || []}
-            attributions={userAttributions || []}
-            onChange={onGroupsChanged}
-          />
-        )}
       </div>
     </SlideOver>
   );

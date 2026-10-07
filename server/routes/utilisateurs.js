@@ -5,7 +5,12 @@
 import express from "express";
 import bcrypt from "bcryptjs";
 import { tenantPool } from "../db.js";
-import { getAdminScope, isUserInScope, scopeWhereClause } from "../utils/scope.js";
+import { isUserInScope, scopeWhereClause } from "../utils/scope.js";
+import {
+  scopeAdministration, cibleVerrouilleeAdminSam, estAdminSam,
+  permissionsEffectives, permissionsDuProfil, societesCouvertes,
+  permissionsManquantes,
+} from "../utils/droitsUtilisateur.js";
 import { estUuid } from "../utils/matriceGroupe.js";
 import { auditer, diff } from "../utils/audit.js";
 import { traduireEvenement } from "../utils/historiqueLibelles.js";
@@ -15,6 +20,12 @@ import { genererJeton, hacherJeton, DUREE_VALIDITE_HEURES } from "../utils/reini
 import { envoyerMail } from "../utils/mail.js";
 
 const router = express.Router();
+
+// Verrou #278 (code 2081) : personne ne modifie un compte titulaire du
+// profil admin_sam, ni ses attributions ni ses rattachements, hormis un
+// admin_sam. Le message est partage par toutes les ecritures de ce routeur.
+const MESSAGE_ADMIN_SAM =
+  "Seul un administrateur SAM peut modifier un compte titulaire du profil Admin SAM.";
 
 async function log(client, action, entite_type, entite_id, description, payload) {
   try {
@@ -34,12 +45,13 @@ async function log(client, action, entite_type, entite_id, description, payload)
 // colonne DATE en horodatage UTC (2026-09-30T00:00:00.000Z), que les filtres
 // par dates de la liste (#211) et le champ date du formulaire ne lisent pas
 // comme un jour AAAA-MM-JJ.
-// profils[] : les profils par défaut du compte (#249 corrigé multi-profils le
-// 06/10/2026) = attributions non-groupe actives de utilisateur_profil_societe,
+// profils[] : les profils du compte (#249 corrigé multi-profils, étendu
+// « tout est profil » #276) = toutes ses attributions actives de
+// utilisateur_profil_societe, tous types (par défaut, ajoutés, système),
 // dédoublonnées, id_societe ignoré (#57) ; utilisateur.id_profil n'est plus lu.
 router.get("/utilisateurs", async (req, res) => {
   try {
-    const scope = await getAdminScope(req.user.id);
+    const scope = await scopeAdministration(req.user.id);
     const { clause, params } = scopeWhereClause(scope, 1);
     const { rows } = await tenantPool.query(
       `SELECT u.id, u.nom, u.prenom, u.email, u.actif,
@@ -48,12 +60,12 @@ router.get("/utilisateurs", async (req, res) => {
               COALESCE(pr.profils, '[]'::json) AS profils
        FROM utilisateur u
        LEFT JOIN LATERAL (
-         SELECT json_agg(json_build_object('id', p.id, 'code', p.code, 'label', p.label)
+         SELECT json_agg(json_build_object('id', p.id, 'code', p.code, 'label', p.label, 'type', p.type)
                          ORDER BY p.label) AS profils
-           FROM (SELECT DISTINCT p2.id, p2.code, p2.label
+           FROM (SELECT DISTINCT p2.id, p2.code, p2.label, p2.type
                    FROM utilisateur_profil_societe ups
                    JOIN profil p2 ON p2.id = ups.id_profil
-                                 AND p2.type <> 'groupe' AND p2.date_suppression IS NULL
+                                 AND p2.date_suppression IS NULL
                   WHERE ups.id_utilisateur = u.id AND ups.date_suppression IS NULL) p
        ) pr ON true
        WHERE (${clause})
@@ -168,11 +180,19 @@ router.post("/utilisateurs/desactivation", async (req, res) => {
   // Même contrôle de périmètre que la désactivation unitaire, compte par
   // compte, et refus de toute la sélection au premier compte hors périmètre :
   // rien n'est écrit.
-  const scope = await getAdminScope(req.user.id);
+  const scope = await scopeAdministration(req.user.id);
   for (const id of ids) {
     if (!(await isUserInScope(id, scope))) {
       // code_retour: 2051
       return res.status(403).json({ error: "Un compte de la sélection n'est pas dans votre périmètre." });
+    }
+  }
+  // Verrou #278 : un titulaire admin_sam ne se désactive pas par un
+  // délégataire, même dans une sélection ; refus avant toute écriture.
+  for (const id of ids) {
+    if (await cibleVerrouilleeAdminSam(req.user.id, id)) {
+      // code_retour: 2081
+      return res.status(403).json({ error: MESSAGE_ADMIN_SAM });
     }
   }
 
@@ -240,9 +260,13 @@ router.post("/utilisateurs/desactivation", async (req, res) => {
 router.patch("/utilisateurs/:id", async (req, res) => {
   const { id } = req.params;
   const { nom, prenom, email, actif, langue, date_finale, date_mise_en_fonction } = req.body;
-  const scope = await getAdminScope(req.user.id);
+  const scope = await scopeAdministration(req.user.id);
   if (!(await isUserInScope(id, scope))) {
     return res.status(403).json({ error: "Cet utilisateur n'est pas dans votre périmètre." });
+  }
+  if (await cibleVerrouilleeAdminSam(req.user.id, id)) {
+    // code_retour: 2081
+    return res.status(403).json({ error: MESSAGE_ADMIN_SAM });
   }
   const client = await tenantPool.connect();
   try {
@@ -380,7 +404,26 @@ router.patch("/utilisateurs/:id", async (req, res) => {
 router.post("/utilisateurs/:id/societes", async (req, res) => {
   const { id } = req.params;
   const { id_societe } = req.body;
+  if (!estUuid(id)) return res.status(404).json({ error: "Utilisateur introuvable" });
+  if (id_societe != null && id_societe !== "" && !estUuid(id_societe)) {
+    return res.status(400).json({ error: "Cette société n'existe pas." });
+  }
+  const societeCible = id_societe || null;
   try {
+    // Périmètre #278 : un délégataire ne rattache qu'à ses propres sociétés,
+    // et le rattachement à l'échelle du tenant (NULL) est réservé aux
+    // acteurs à portée tenant. C'est ce qui permet au délégataire de
+    // rattacher un compte qu'il vient de créer : la cible entre dans son
+    // périmètre par ce rattachement.
+    const scope = await scopeAdministration(req.user.id);
+    if (!scope.isTenantScope && (societeCible === null || !scope.societeIds.includes(societeCible))) {
+      // code_retour: 2051
+      return res.status(403).json({ error: "Ce rattachement est hors de votre périmètre." });
+    }
+    if (await cibleVerrouilleeAdminSam(req.user.id, id)) {
+      // code_retour: 2081
+      return res.status(403).json({ error: MESSAGE_ADMIN_SAM });
+    }
     // DO UPDATE (et non DO NOTHING) : un rattachement précédemment retiré
     // (soft-delete) doit pouvoir être réactivé, y compris l'échelle tenant
     // (id_societe NULL) après un passage à des sociétés spécifiques.
@@ -389,23 +432,28 @@ router.post("/utilisateurs/:id/societes", async (req, res) => {
        ON CONFLICT ON CONSTRAINT uq_utilisateur_societe
        DO UPDATE SET date_suppression = NULL
        RETURNING *`,
-      [id, id_societe || null]
+      [id, societeCible]
     );
     res.status(201).json(rows[0]);
   } catch (err) {
     console.error(err);
+    // 23503 : utilisateur ou société inexistants, rendus lisibles plutôt
+    // qu'en erreur serveur brute.
+    if (err.code === "23503") {
+      return res.status(400).json({ error: "Utilisateur ou société introuvable." });
+    }
     res.status(500).json({ error: "Erreur serveur" });
   }
 });
 
-// Profils par défaut d'un compte, pour l'état avant et les relectures :
-// attributions non-groupe actives, dédoublonnées, id_societe ignoré (#57).
-async function lireProfilsDefaut(client, idUtilisateur) {
+// Profils d'un compte, pour l'état avant et les relectures : attributions
+// actives tous types (« tout est profil » #276), dédoublonnées, id_societe
+// ignoré (#57).
+async function lireProfils(client, idUtilisateur) {
   const { rows } = await client.query(
-    `SELECT DISTINCT p.id, p.code, p.label
+    `SELECT DISTINCT p.id, p.code, p.label, p.type
        FROM utilisateur_profil_societe ups
-       JOIN profil p ON p.id = ups.id_profil
-                    AND p.type <> 'groupe' AND p.date_suppression IS NULL
+       JOIN profil p ON p.id = ups.id_profil AND p.date_suppression IS NULL
       WHERE ups.id_utilisateur = $1 AND ups.date_suppression IS NULL
       ORDER BY p.label`,
     [idUtilisateur]
@@ -413,13 +461,16 @@ async function lireProfilsDefaut(client, idUtilisateur) {
   return rows;
 }
 
-// Profils par défaut du compte (#249 corrigé multi-profils le 06/10/2026,
-// stories #73/#190) : un compte en porte plusieurs, chacun apportant sa
-// matrice et son dashboard. Le corps { profil_ids } REMPLACE l'ensemble : les
-// attributions non-groupe actives absentes de la liste sont retirées
-// (soft-delete, les lignes restent en base), les profils retenus se posent au
-// niveau du tenant (id_societe NULL, #57) ; une liste vide retire tout. Un
-// groupe est refusé : il s'attribue par la section Groupes.
+// Profils du compte (#249 corrigé multi-profils, étendu « tout est profil »
+// #276) : un compte porte plusieurs profils, par défaut comme ajoutés,
+// chacun apportant sa matrice effective ; les dashboards suivent les
+// permissions acceder_dashboard_* (#73/#190). Le corps { profil_ids }
+// REMPLACE l'ensemble des attributions actives, tous types : celles absentes
+// de la liste sont retirées (soft-delete, les lignes restent en base), les
+// profils retenus se posent au niveau du tenant (id_societe NULL, #57) ; une
+// liste vide retire tout. Garde-fous #278 : poser ou retirer admin_sam est
+// réservé à un admin_sam, et un profil ajouté au compte doit être
+// entièrement couvert par les droits de l'acteur.
 router.put("/utilisateurs/:id/profils", async (req, res) => {
   const { id } = req.params;
   const brut = req.body?.profil_ids;
@@ -429,10 +480,16 @@ router.put("/utilisateurs/:id/profils", async (req, res) => {
   }
   const profilIds = [...new Set(brut)];
 
-  const scope = await getAdminScope(req.user.id);
+  const scope = await scopeAdministration(req.user.id);
   if (!(await isUserInScope(id, scope))) {
     // code_retour: 2051
     return res.status(403).json({ error: "Cet utilisateur n'est pas dans votre périmètre." });
+  }
+  // Verrou #278 : les profils d'un titulaire admin_sam ne se modifient pas
+  // par un délégataire, retrait du profil système compris.
+  if (await cibleVerrouilleeAdminSam(req.user.id, id)) {
+    // code_retour: 2081
+    return res.status(403).json({ error: MESSAGE_ADMIN_SAM });
   }
 
   const client = await tenantPool.connect();
@@ -444,36 +501,62 @@ router.put("/utilisateurs/:id/profils", async (req, res) => {
     // code_retour: 2050
     if (!cible.length) { await client.query("ROLLBACK"); return res.status(404).json({ error: "Utilisateur introuvable" }); }
 
+    let profs = [];
     if (profilIds.length) {
-      const { rows: profs } = await client.query(
-        `SELECT id, label, type FROM profil
+      const { rows } = await client.query(
+        `SELECT id, code, label, type FROM profil
           WHERE id = ANY($1::uuid[]) AND date_suppression IS NULL`,
         [profilIds]
       );
+      profs = rows;
       if (profs.length !== profilIds.length) {
         await client.query("ROLLBACK");
         return res.status(404).json({ error: "Profil introuvable" });
       }
-      const groupe = profs.find((p) => p.type === "groupe");
-      if (groupe) {
-        await client.query("ROLLBACK");
-        // code_retour: 2077
-        return res.status(409).json({
-          error: `Le groupe "${groupe.label}" ne s'attribue pas comme profil : utilisez la section Groupes.`,
-        });
+    }
+
+    const avant = await lireProfils(client, id);
+    const avantIds = new Set(avant.map((p) => p.id));
+    const ajoutes = profs.filter((p) => !avantIds.has(p.id));
+
+    // Verrou #278, sens de la pose : attribuer admin_sam fait un nouveau
+    // titulaire, seul un admin_sam le peut (le retrait est couvert par le
+    // verrou de la cible, plus haut).
+    if (ajoutes.some((p) => p.code === "admin_sam") && !(await estAdminSam(req.user.id))) {
+      await client.query("ROLLBACK");
+      // code_retour: 2081
+      return res.status(403).json({ error: "Seul un administrateur SAM peut attribuer le profil Admin SAM." });
+    }
+
+    // Garde-fou #278 : on n'attribue que des permissions que l'on détient.
+    // Chaque profil AJOUTÉ au compte doit être entièrement couvert par les
+    // droits de l'acteur, sa matrice effective étant évaluée sur les
+    // sociétés couvertes par la CIBLE ; retirer reste libre, et l'acteur
+    // admin_sam est exempté.
+    if (ajoutes.length && !(await estAdminSam(req.user.id))) {
+      const { permissions: droitsActeur } = await permissionsEffectives(req.user.id);
+      const couvertes = await societesCouvertes(id);
+      for (const profil of ajoutes) {
+        const conferees = await permissionsDuProfil(profil.id, couvertes);
+        const manquantes = permissionsManquantes([...conferees], droitsActeur);
+        if (manquantes.length) {
+          await client.query("ROLLBACK");
+          // code_retour: 2080
+          return res.status(403).json({
+            error: `Vous ne pouvez pas attribuer le profil "${profil.label}" : il confère des permissions que vous ne détenez pas (${manquantes.join(", ")}).`,
+            permissions_manquantes: manquantes,
+          });
+        }
       }
     }
 
-    const avant = await lireProfilsDefaut(client, id);
-
-    // Remplacement de l'ensemble : toute attribution non-groupe active qui
-    // n'est pas la ligne tenant d'un profil retenu est retirée, y compris les
-    // lignes historiques par société (#57). Soft-delete : les lignes restent.
+    // Remplacement de l'ensemble, tous types (#276) : toute attribution
+    // active qui n'est pas la ligne tenant d'un profil retenu est retirée, y
+    // compris les lignes historiques par société (#57). Soft-delete : les
+    // lignes restent.
     await client.query(
       `UPDATE utilisateur_profil_societe ups SET date_suppression = now()
-         FROM profil p
-        WHERE p.id = ups.id_profil AND p.type <> 'groupe'
-          AND ups.id_utilisateur = $1 AND ups.date_suppression IS NULL
+        WHERE ups.id_utilisateur = $1 AND ups.date_suppression IS NULL
           AND NOT (ups.id_societe IS NULL AND ups.id_profil = ANY($2::uuid[]))`,
       [id, profilIds]
     );
@@ -490,11 +573,11 @@ router.put("/utilisateurs/:id/profils", async (req, res) => {
       );
     }
 
-    const profils = await lireProfilsDefaut(client, id);
+    const profils = await lireProfils(client, id);
     const labels = (liste) => liste.map((p) => p.label);
     const libelle = profils.length
-      ? `Profils par défaut de ${cible[0].prenom} ${cible[0].nom} remplacés : ${labels(profils).map((l) => `"${l}"`).join(", ")}`
-      : `Profils par défaut retirés de ${cible[0].prenom} ${cible[0].nom}`;
+      ? `Profils de ${cible[0].prenom} ${cible[0].nom} remplacés : ${labels(profils).map((l) => `"${l}"`).join(", ")}`
+      : `Profils retirés de ${cible[0].prenom} ${cible[0].nom}`;
     await log(client, "UPDATE", "utilisateur", id, libelle, { profil_ids: profilIds });
     // code_retour: 2073
     await auditer(client, req, {
@@ -530,7 +613,7 @@ router.get("/utilisateurs/:id/historique", async (req, res) => {
   // administrateur restreint ne lit pas l'historique d'un compte hors de ses
   // sociétés. La permission gerer_utilisateurs est déjà exigée en amont par le
   // middleware, ceci en est le complément par société.
-  const scope = await getAdminScope(req.user.id);
+  const scope = await scopeAdministration(req.user.id);
   if (!(await isUserInScope(id, scope))) {
     // code_retour: 2051
     return res.status(403).json({ error: "Cet utilisateur n'est pas dans votre périmètre." });
@@ -619,7 +702,21 @@ router.get("/utilisateurs/:id/historique", async (req, res) => {
 // d'URL au sens de l'égalité SQL.
 router.delete("/utilisateurs/:id/rattachement-tenant", async (req, res) => {
   const { id } = req.params;
+  if (!estUuid(id)) return res.status(404).json({ error: "Rattachement tenant introuvable" });
   try {
+    // Un rattachement tenant n'est porté que par un compte à portée tenant :
+    // le périmètre conservateur (isUserInScope) réserve donc ce retrait aux
+    // acteurs à portée tenant, et le verrou #278 protège les titulaires
+    // admin_sam.
+    const scope = await scopeAdministration(req.user.id);
+    if (!(await isUserInScope(id, scope))) {
+      // code_retour: 2051
+      return res.status(403).json({ error: "Cet utilisateur n'est pas dans votre périmètre." });
+    }
+    if (await cibleVerrouilleeAdminSam(req.user.id, id)) {
+      // code_retour: 2081
+      return res.status(403).json({ error: MESSAGE_ADMIN_SAM });
+    }
     const { rowCount } = await tenantPool.query(
       `UPDATE utilisateur_societe SET date_suppression = now()
        WHERE id_utilisateur = $1 AND id_societe IS NULL AND date_suppression IS NULL`,
@@ -635,7 +732,15 @@ router.delete("/utilisateurs/:id/rattachement-tenant", async (req, res) => {
 
 router.get("/utilisateurs/:id/societes", async (req, res) => {
   const { id } = req.params;
+  if (!estUuid(id)) return res.status(404).json({ error: "Utilisateur introuvable" });
   try {
+    // Voir, c'est déjà gérer (#278) : la lecture du rattachement suit le
+    // même périmètre que la liste des utilisateurs.
+    const scope = await scopeAdministration(req.user.id);
+    if (!(await isUserInScope(id, scope))) {
+      // code_retour: 2051
+      return res.status(403).json({ error: "Cet utilisateur n'est pas dans votre périmètre." });
+    }
     const { rows } = await tenantPool.query(
       `SELECT id, id_utilisateur AS idutilisateur, id_societe AS idsociete
        FROM utilisateur_societe
@@ -655,7 +760,21 @@ router.get("/utilisateurs/:id/societes", async (req, res) => {
 // purger, le périmètre effectif suit le rattachement restant.
 router.delete("/utilisateurs/:id/societes/:societeId", async (req, res) => {
   const { id, societeId } = req.params;
+  if (!estUuid(id) || !estUuid(societeId)) {
+    return res.status(404).json({ error: "Rattachement introuvable" });
+  }
   try {
+    // Périmètre #278, miroir de l'ajout : un délégataire ne retire que le
+    // rattachement à l'une de SES sociétés.
+    const scope = await scopeAdministration(req.user.id);
+    if (!scope.isTenantScope && !scope.societeIds.includes(societeId)) {
+      // code_retour: 2051
+      return res.status(403).json({ error: "Ce rattachement est hors de votre périmètre." });
+    }
+    if (await cibleVerrouilleeAdminSam(req.user.id, id)) {
+      // code_retour: 2081
+      return res.status(403).json({ error: MESSAGE_ADMIN_SAM });
+    }
     const { rowCount } = await tenantPool.query(
       `UPDATE utilisateur_societe SET date_suppression = now()
        WHERE id_utilisateur = $1 AND id_societe = $2 AND date_suppression IS NULL`,
@@ -678,10 +797,17 @@ async function appliquerMotDePasse(req, res, { valeur, action }) {
   const refusOrigine = verifierOrigine(req);
   if (refusOrigine) return res.status(refusOrigine.status).json({ error: refusOrigine.error });
 
-  const scope = await getAdminScope(req.user.id);
+  const scope = await scopeAdministration(req.user.id);
   if (!(await isUserInScope(id, scope))) {
     // code_retour: 2051
     return res.status(403).json({ error: "Cet utilisateur n'est pas dans votre périmètre." });
+  }
+  // Verrou #278 : définir le mot de passe d'un titulaire admin_sam
+  // reviendrait à prendre son compte ; réservé à un admin_sam.
+  if (await cibleVerrouilleeAdminSam(req.user.id, id)) {
+    // code_retour: 2081
+    res.status(403).json({ error: MESSAGE_ADMIN_SAM });
+    return null;
   }
 
   const client = await tenantPool.connect();
@@ -792,10 +918,15 @@ router.post("/utilisateurs/:id/mot-de-passe/reinitialisation", async (req, res) 
   const refusOrigine = verifierOrigine(req);
   if (refusOrigine) return res.status(refusOrigine.status).json({ error: refusOrigine.error });
 
-  const scope = await getAdminScope(req.user.id);
+  const scope = await scopeAdministration(req.user.id);
   if (!(await isUserInScope(id, scope))) {
     // code_retour: 2051
     return res.status(403).json({ error: "Cet utilisateur n'est pas dans votre périmètre." });
+  }
+  // Verrou #278 : même règle que la définition directe du mot de passe.
+  if (await cibleVerrouilleeAdminSam(req.user.id, id)) {
+    // code_retour: 2081
+    return res.status(403).json({ error: MESSAGE_ADMIN_SAM });
   }
 
   const client = await tenantPool.connect();

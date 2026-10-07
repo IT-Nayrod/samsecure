@@ -47,7 +47,7 @@ const TEXTES = {
   activation: {
     titre: "Réactiver l'utilisateur",
     variante: 'primary',
-    introduction: (u) => `${u.prenom} ${u.nom} pourra de nouveau se connecter, avec ses groupes et rattachements actuels.`,
+    introduction: (u) => `${u.prenom} ${u.nom} pourra de nouveau se connecter, avec ses profils et rattachements actuels.`,
     labelImmediat: 'Réactivation immédiate',
     aideImmediat: 'La connexion est possible dès la validation.',
     labelProgramme: 'Activation programmée',
