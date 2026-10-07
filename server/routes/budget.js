@@ -385,7 +385,9 @@ const CLES_ENGAGE = ["montant_commande", "montant_a_renouveler", "nb_commandes",
 // Projection prévisionnelle à partir de la maintenance en cours de la
 // licence. Rien n'est écrit : la ligne renvoyée est prête à être POSTee.
 // Base = périodes de maintenance_historique en cours à la date du jour (début
-// atteint, fin nulle ou à venir), licence non arrêtée ; coût lu comme un coût
+// atteint, date de fin posée et non dépassée : décision client du 06/10/2026,
+// #280, une période historique sans date n'est plus une maintenance en
+// cours), licence non arrêtée ; coût lu comme un coût
 // annuel. Exercice cible par défaut = exercice courant de la société payeuse
 // + 1 ; facteur = (1 + 3,5 %) ^ (cible - courant), jamais moins de 1.
 router.get("/budget/preremplissage", async (req, res) => {
@@ -449,7 +451,7 @@ router.get("/budget/preremplissage", async (req, res) => {
          LEFT JOIN revendeur  r ON r.id = h.id_revendeur
         WHERE h.id_licence = $1
           AND h.date_debut <= CURRENT_DATE
-          AND (h.date_fin IS NULL OR h.date_fin >= CURRENT_DATE)
+          AND h.date_fin >= CURRENT_DATE
         ORDER BY h.date_debut, h.created_at`, [id_licence]);
 
     const baseMontant = centime(base.reduce((t, h) => t + (h.cout ?? 0), 0));

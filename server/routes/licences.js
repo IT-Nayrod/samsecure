@@ -176,6 +176,9 @@ const SELECT_LICENCE = `
 
 // Revendeur d'une période : celui de sa commande (062) ; id_revendeur, saisi
 // directement avant la 062, reste servi en repli pour les périodes anciennes.
+// Statut par période : en cours = date de fin posée et non dépassée (décision
+// client du 06/10/2026, #280, même règle que periodeCouvre) ; une période
+// historique sans date de fin (d'avant la migration 102) est servie échue.
 const SELECT_MAINTENANCE = `
   SELECT h.id, h.id_licence,
          h.id_mainteneur, m.raison_sociale AS mainteneur_label,
@@ -187,9 +190,9 @@ const SELECT_MAINTENANCE = `
          h.date_fin::text   AS date_fin,
          h.cout::float8     AS cout,
          CASE
-           WHEN h.date_fin IS NOT NULL AND h.date_fin < CURRENT_DATE THEN 'echue'
-           WHEN h.date_debut > CURRENT_DATE                          THEN 'a_venir'
-           ELSE 'en_cours'
+           WHEN h.date_debut > CURRENT_DATE                           THEN 'a_venir'
+           WHEN h.date_fin IS NOT NULL AND h.date_fin >= CURRENT_DATE THEN 'en_cours'
+           ELSE 'echue'
          END AS statut,
          h.created_at
     FROM maintenance_historique h
@@ -561,11 +564,19 @@ function normaliserMaintenance(body = {}) {
 async function validerMaintenance(client, m, licence) {
   if (!m.date_debut)
     return { status: 400, code: 4031, error: "La date de debut est obligatoire." };
-  if (!DATE_RE.test(m.date_debut) || (m.date_fin && !DATE_RE.test(m.date_fin)))
+  // Une maintenance a toujours une date de fin (décision client du 06/10/2026,
+  // #280) : refus aussi d'un PATCH qui efface la date ou qui modifie une
+  // période historique sans date (d'avant la migration 102) sans en poser une.
+  // Doublon volontaire de ck_maintenance_date_fin_obligatoire (102, NOT VALID :
+  // lignes anciennes intactes mais toute écriture contrôlée) : la contrainte
+  // produirait une 23514 en 500, on veut un 400 lisible.
+  if (!m.date_fin)
+    return { status: 400, code: 4039, error: "La date de fin de la maintenance est obligatoire." };
+  if (!DATE_RE.test(m.date_debut) || !DATE_RE.test(m.date_fin))
     return { status: 400, code: 4024, error: "Date invalide." };
   // Doublon volontaire de ck_maintenance_dates : la contrainte produirait une
   // 23514 en 500, on veut un 400 lisible.
-  if (m.date_fin && m.date_fin < m.date_debut)
+  if (m.date_fin < m.date_debut)
     return { status: 400, code: 4032, error: "La date de fin doit etre posterieure a la date de debut." };
   if (m.cout !== null && (!Number.isFinite(m.cout) || m.cout < 0))
     return { status: 400, code: 4033, error: "Le cout de maintenance doit etre un montant positif ou nul." };

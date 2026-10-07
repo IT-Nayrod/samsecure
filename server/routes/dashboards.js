@@ -18,6 +18,7 @@ import { jointureStatut, ENTITES_VALIDABLES, colonneLabel } from "../utils/valid
 import { LICENCE_EXPIREE } from "../utils/conformite.js";
 import { auditer, diff } from "../utils/audit.js";
 import { validerValeurSeuil, verifierCoherenceSeuil } from "../utils/seuilsDashboard.js";
+import { profilsParDefaut } from "../utils/droitsUtilisateur.js";
 
 const router = express.Router();
 
@@ -63,13 +64,12 @@ async function seuilsEffectifs() {
 // ---------------------------------------------------------------------------
 router.get("/dashboards/configuration", async (req, res) => {
   try {
+    // Profils de l'utilisateur : ses profils par défaut (attributions
+    // non-groupe, id_societe ignoré, #249 corrigé multi-profils le
+    // 06/10/2026) — un dashboard par profil porteur (#73/#190), via la même
+    // lecture que le calcul des droits (profilsParDefaut).
     const [profilsUtilisateur, defautsWidgets, tenantWidgets, seuils, prefs] = await Promise.all([
-      tenantPool.query(
-        `SELECT DISTINCT p.code
-           FROM utilisateur_profil_societe ups
-           JOIN profil p ON p.id = ups.id_profil
-          WHERE ups.id_utilisateur = $1 AND ups.date_suppression IS NULL`,
-        [req.user.id]),
+      profilsParDefaut(req.user.id),
       commonPool.query(
         `SELECT p.code AS profil_code, w.widget_code, w.visible_defaut, w.acces_autorise
            FROM default_profil_widget w
@@ -107,7 +107,7 @@ router.get("/dashboards/configuration", async (req, res) => {
       });
     }
 
-    const codes = profilsUtilisateur.rows.map((r) => r.code);
+    const codes = profilsUtilisateur.map((p) => p.code);
     const profilActif = PROFILS_DASHBOARD.find((c) => codes.includes(c)) ?? null;
 
     succes(res, 5450, {

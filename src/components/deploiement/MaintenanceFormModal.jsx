@@ -1,7 +1,9 @@
 // MaintenanceFormModal - ajout / modification d'une période de maintenance
 // (maintenance_historique) d'une licence. Écriture par l'API, les règles de
-// validation serveur (4031 à 4033, 4022, 4016, 4024, 4014) sont rendues telles
-// quelles. La période peut porter la version qu'elle apporte (D59, #209) : la
+// validation serveur (4031 à 4033, 4039, 4022, 4016, 4024, 4014) sont rendues
+// telles quelles. Décision client du 06/10/2026 (#280) : une maintenance a
+// toujours une date de fin, le champ est obligatoire (mention « vide = en
+// cours » retirée). La période peut porter la version qu'elle apporte (D59, #209) : la
 // version courante de la licence suit alors la période la plus récente, tant
 // que la maintenance n'est pas arrêtée. Le champ n'est proposé que sur un type
 // à version (versionGeree) et hors arrêt (versions vide sinon).
@@ -54,7 +56,8 @@ export default function MaintenanceFormModal({
   function validate() {
     const e = {};
     if (!form.date_debut) e.date_debut = 'La date de début est requise';
-    if (form.date_fin && form.date_fin < form.date_debut) e.date_fin = 'La date de fin doit être postérieure à la date de début';
+    if (!form.date_fin) e.date_fin = 'La date de fin est requise';
+    else if (form.date_fin < form.date_debut) e.date_fin = 'La date de fin doit être postérieure à la date de début';
     if (form.cout !== '' && Number(form.cout) < 0) e.cout = 'Le coût ne peut pas être négatif';
     return e;
   }
@@ -101,7 +104,7 @@ export default function MaintenanceFormModal({
           <FormField label="Date de début" required error={errors.date_debut}>
             <input type="date" className={INPUT_CLS} value={form.date_debut} onChange={e => { setForm(v => ({ ...v, date_debut: e.target.value })); setErrors(v => ({ ...v, date_debut: null })); }} />
           </FormField>
-          <FormField label="Date de fin" hint="Vide = en cours" error={errors.date_fin}>
+          <FormField label="Date de fin" required error={errors.date_fin}>
             <input type="date" className={INPUT_CLS} value={form.date_fin} onChange={e => { setForm(v => ({ ...v, date_fin: e.target.value })); setErrors(v => ({ ...v, date_fin: null })); }} />
           </FormField>
         </div>

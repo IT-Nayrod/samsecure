@@ -210,6 +210,28 @@ en base, l'écran où regarder, le résultat exact attendu.
 - **Attendu** : l'unité de mesure s'affiche sur chaque fiche licence.
   — **Vérifié.**
 
+### LOG-06 — Composition par édition (#279, cas Office Standard / Office Pro)
+- **Mise en place** (par l'écran, non couvert par 01_jeu_recette.sql v0.5 ;
+  trois logiciels chez un même éditeur) : « REC Suite Pack »,
+  « REC Pack Texte », « REC Pack Base » ; éditions « REC Standard » et
+  « REC Pro » sur REC Suite Pack ; composer REC Suite Pack de REC Pack Texte
+  et REC Pack Base ; dans « Composition par édition » de la fiche du composé,
+  décocher REC Pack Base pour REC Standard, enregistrer. Licences :
+  REC Suite Pack édition REC Standard q=5, REC Suite Pack édition REC Pro
+  q=3, REC Pack Texte q=1 (0 usage), REC Pack Base q=1 (4 usages validés).
+- **Écrans** : Référentiels > Logiciels (fiche de REC Suite Pack : grille
+  pré-cochée, seule la case Base x Standard décochée ; fiche de
+  REC Pack Base : « Fait partie de REC Suite Pack, hors édition
+  REC Standard ») ; Conformité.
+- **Attendu** : REC Pack Base : droits totaux **4** (1 propre + 3 hérités de
+  la seule édition REC Pro — les 5 droits de l'édition REC Standard ne
+  couvrent plus ce composant), 4 usages, taux 100 %, **attention** (seuil de
+  taux 85 %, SEU-01) ; REC Pack Texte : droits **9** (1 propre + 8 hérités
+  des deux éditions) ; recocher Base x Standard → REC Pack Base repasse à
+  **9** droits, recalcul immédiat. Un composé sans exception (LOG-03) se
+  comporte exactement comme avant. — **À vérifier** (migrations 100, 101 et
+  104 à jouer, API redémarrée après la 104).
+
 ## CTR — Contrats
 
 ### CTR-01 — Cadre et enfant
@@ -601,3 +623,73 @@ ce jour-là.
   pour LIC-07 (période suivante) et LIC-09 (arrêt volontaire). — **Vérifié le
   06/10/2026 après correctif BUG-1** : 10 notifications créées par la route,
   gravité jaune, aucune sur LIC-07 ni LIC-09.
+
+## CPL — Complétude : actions requises sur chaque fiche (US #324)
+
+Bloc « Actions requises » en tête des fiches contrat, commande, licence et
+affectation, servi par GET /api/completude/:type/:id (règles pures de
+`server/utils/completude.js`, mêmes définitions que la détection des manques
+et les signaux existants) ; GET /api/completude/resume alimente les compteurs.
+Rédigé le 07/10/2026 : les faits en base sont vérifiés à la source du jeu
+(01_jeu_recette.sql) et les règles au node:test (completude.test.js, scénario
+du jeu rejoué à l'identique), mais **l'API dev répondait 3499 (« calcul des
+droits impossible », migrations 092-094 du #249 à jouer) le jour de la
+rédaction : repasser les cas CPL à l'écran après le jeu des migrations et la
+mise en ligne de la branche.**
+
+### CPL-01 — Commande sans facture ni preuve : les deux actions
+- **En base** : « REC Commande prix 2 (dernière) » (45000000-…-0004) : montant
+  600 €, une licence rattachée (REC Licence prix 2), aucune preuve, aucune
+  facture.
+- **Écran** : fiche de la commande (Contrats > Commandes).
+- **Attendu** : bloc « Actions requises (2) » en tête de fiche, deux lignes
+  **Recommandé audit** : « Aucune facture rattachée à la commande » avec le
+  bouton **« Déposer une facture »**, « Aucune preuve rattachée à la
+  commande » avec le bouton **« Rattacher une preuve »**. Aucune ligne
+  bloquante (montant et licence présents). — Règles vérifiées au node:test
+  sur ces faits exacts ; écran à vérifier après mise en ligne.
+
+### CPL-02 — Les boutons ouvrent la bonne modale, pré-remplie
+- **Écran** : même fiche, clic sur chaque bouton.
+- **Attendu** : « Déposer une facture » ouvre la modale de dépôt unifiée,
+  rattachement Commande pré-rempli sur la commande et type **Facture**
+  pré-sélectionné (circuit POST /factures/depot, montant et date exigés) ;
+  « Rattacher une preuve » ouvre la même modale sur le premier type proposé
+  (Bon de commande). Après dépôt, le bloc se recharge sans rechargement de la
+  page : la ligne levée disparaît ; après la facture (qui crée aussi sa preuve
+  support), le bloc disparaît entièrement.
+
+### CPL-03 — Les alertes de la page Preuves ouvrent la fiche, action surlignée
+- **Écran** : Droits d'usage > Preuves, section « Détection des manques ».
+- **Attendu** : les compteurs (tuile « Manques détectés », « X sans facture,
+  Y sans preuve ») lisent le résumé de complétude et valent exactement les
+  totaux de la détection (mêmes règles : 8 sans facture, 6 sans preuve sur le
+  jeu au 06/10). Le clic sur un badge « Sans facture » ouvre la fiche de la
+  commande avec `?action=deposer_facture` : la ligne correspondante du bloc
+  est surlignée et défilée en vue, sans ouverture automatique de la modale.
+
+### CPL-04 — Fiches licence, contrat, affectation
+- **En base** : « REC Licence sans preuve ni affectation » si présente, sinon
+  toute licence du jeu sans affectation ; « REC Contrat à suivre (ancienne) »
+  côté commande ; une affectation en attente (AFF) et une refusée.
+- **Attendu** :
+  - licence sans affectation : ligne bloquante « Aucun usage déclaré sur cette
+    licence », bouton « Déclarer une affectation » (modale pré-remplie sur la
+    licence) ;
+  - contrat échu sans successeur : ligne bloquante « Échéance passée le … sans
+    renouvellement » (le renouvelé dans la continuité, CTR-04, n'affiche
+    rien) ;
+  - affectation en attente : ligne bloquante « En attente de validation :
+    cet usage n'est pas compté dans la balance », sans bouton (Valider et
+    Refuser sont en tête de fiche) ; affectation refusée : « Saisie refusée
+    sans correction : <motif> », bouton « Corriger la saisie » (modale
+    d'édition) ;
+  - une fiche complète n'affiche aucun bloc.
+
+### CPL-05 — Résumé pour les compteurs
+- **Appel** : GET /api/completude/resume (admin.recette).
+- **Attendu** : réponse 5551 avec `types.commande.par_regle.
+  commande_sans_facture` = total « sans facture » de GET /commandes/manques et
+  `commande_sans_preuve` = total « sans preuve » (mêmes règles partout) ;
+  compteurs licence/contrat/affectation/logiciel cohérents avec les cas LIC,
+  CTR, AFF et LOG du jeu (notamment usage sans droit D53 et le composé #216).

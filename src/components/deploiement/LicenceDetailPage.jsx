@@ -16,6 +16,7 @@ import BudgetEmbeddedSection from '../budget/BudgetEmbeddedSection';
 import { licencesService, referentielsLicencesService, formatMontant, editeurPourLogo, regleType, libelleType, EVENEMENTS_VERSION, echeanceProlongeable } from '../../services/licencesService';
 import { referentielsContratsService } from '../../services/contratsService';
 import { commandesService } from '../../services/commandesService';
+import { societesService } from '../../services/adminService';
 import { optionnel } from '../../services/http';
 import Breadcrumb from '../ui/Breadcrumb';
 import Button from '../ui/Button';
@@ -34,6 +35,8 @@ import MaintenanceTimeline from './MaintenanceTimeline';
 import MaintenanceFormModal from './MaintenanceFormModal';
 import ArretMaintenanceModal from './ArretMaintenanceModal';
 import PreuvesLicenceSection from '../contrats/PreuvesLicenceSection';
+import ActionsRequises from '../commun/ActionsRequises';
+import AffectationFormModal from './AffectationFormModal';
 import LicenceProlongationModal from './LicenceProlongationModal';
 import useRbac from '../../hooks/useRbac';
 import useAuth from '../../hooks/useAuth';
@@ -53,6 +56,11 @@ export default function LicenceDetailPage() {
   const navigate = useNavigate();
   const { addToast } = useToast();
   const { canWrite, canDelete } = useRbac({ write: 'saisir_licence' });
+  // Les actions du bloc Actions requises (#324) suivent chacune le droit de
+  // l'écran qu'elles ouvrent : dépôt de preuve et déclaration d'usage ne
+  // relèvent pas de la saisie de licence.
+  const { canWrite: canDeposer } = useRbac({ write: 'deposer_facture_preuve' });
+  const { canWrite: canSaisirAffectation } = useRbac({ write: 'saisir_affectation' });
   const { hasPermission } = useAuth();
   const montantsVisibles = hasPermission('consulter_kpi_financiers');
 
@@ -64,6 +72,7 @@ export default function LicenceDetailPage() {
   const [unites, setUnites] = useState([]);
   const [mainteneurs, setMainteneurs] = useState([]);
   const [licences, setLicences] = useState([]);
+  const [societes, setSocietes] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [errorStatus, setErrorStatus] = useState(null);
@@ -78,6 +87,12 @@ export default function LicenceDetailPage() {
   const [periodeASupprimer, setPeriodeASupprimer] = useState(null);
   const [arretOpen, setArretOpen] = useState(false);
   const [repriseOpen, setRepriseOpen] = useState(false);
+  // Bloc Actions requises (#324) : version incrémentée après chaque action
+  // (le bloc se recharge sans rechargement de page), ouverture commandée du
+  // dépôt de preuve de PreuvesLicenceSection, déclaration d'affectation.
+  const [verCompletude, setVerCompletude] = useState(0);
+  const [demandeDepot, setDemandeDepot] = useState(0);
+  const [affectationOpen, setAffectationOpen] = useState(false);
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -87,7 +102,7 @@ export default function LicenceDetailPage() {
     try {
       // Seule la fiche est indispensable. L'historique de maintenance suit le
       // même droit (consulter_licences) ; les référentiels servent aux formulaires.
-      const [l, h, p, k, r, u, m, ls] = await Promise.all([
+      const [l, h, p, k, r, u, m, ls, soc] = await Promise.all([
         licencesService.get(id),
         optionnel(licencesService.maintenance.list(id)),
         optionnel(referentielsLicencesService.produits()),
@@ -96,8 +111,10 @@ export default function LicenceDetailPage() {
         optionnel(referentielsLicencesService.unitesMesure()),
         optionnel(referentielsLicencesService.mainteneurs()),
         optionnel(licencesService.list()),
+        // Sociétés : le formulaire d'affectation du bloc Actions requises.
+        optionnel(societesService.list()),
       ]);
-      setLicence(l); setPeriodes(h); setProduits(p); setCommandes(k); setRevendeurs(r); setUnites(u); setMainteneurs(m); setLicences(ls);
+      setLicence(l); setPeriodes(h); setProduits(p); setCommandes(k); setRevendeurs(r); setUnites(u); setMainteneurs(m); setLicences(ls); setSocietes(soc);
     } catch (err) {
       if (err.status === 404) setIntrouvable(true);
       else { setError(err.message); setErrorStatus(err.status); addToast({ type: 'error', message: err.message }); }
@@ -116,15 +133,19 @@ export default function LicenceDetailPage() {
   // La fiche détail porte des compteurs (nb_affectations...) et l'historique
   // des versions que les réponses d'écriture ne renvoient pas : fusion puis
   // relecture de la fiche pour rafraîchir cet historique.
+  const rafraichirCompletude = () => setVerCompletude(v => v + 1);
+
   const appliquer = (saved) => {
     setLicence(prev => ({ ...prev, ...saved }));
     licencesService.get(id).then(setLicence).catch(() => {});
+    rafraichirCompletude();
   };
 
   async function rechargerPeriodes() {
     try {
       const [l, h] = await Promise.all([licencesService.get(id), licencesService.maintenance.list(id)]);
       setLicence(l); setPeriodes(h);
+      rafraichirCompletude();
     } catch (err) {
       addToast({ type: 'error', message: err.message });
     }
@@ -241,6 +262,27 @@ export default function LicenceDetailPage() {
         </div>
       )}
 
+      {/* Actions requises (#324) : rien ne s'affiche si la fiche est complète.
+          Les affectations en attente se traitent depuis leur liste (filtre
+          logiciel) : la validation reste le geste du circuit unique. */}
+      <ActionsRequises
+        type="licence"
+        id={licence.id}
+        version={verCompletude}
+        actions={{
+          ...(canWrite ? {
+            editer_licence: () => setFormOpen(true),
+            renouveler_licence: () => (echeance ? setProlongerOpen(true) : setFormOpen(true)),
+            saisir_maintenance: () => setPeriodeModal({ open: true, periode: null }),
+          } : {}),
+          ...(canSaisirAffectation ? { saisir_affectation: () => setAffectationOpen(true) } : {}),
+          ...(canDeposer ? { deposer_preuve: () => setDemandeDepot(v => v + 1) } : {}),
+          ...(licence.id_produit ? {
+            traiter_affectations: () => navigate(`/conformite/affectations?produit=${licence.id_produit}`),
+          } : {}),
+        }}
+      />
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
           <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Identité</h2>
@@ -306,7 +348,7 @@ export default function LicenceDetailPage() {
         {/* Preuves rattachées à la licence (#208, intégrée le 16/09) : section
             autonome, elle charge ses données et porte son bouton de dépôt. */}
         <div className="md:col-span-2">
-          <PreuvesLicenceSection licence={licence} />
+          <PreuvesLicenceSection licence={licence} demandeDepot={demandeDepot} onPreuvesChangees={rafraichirCompletude} />
         </div>
 
         <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 md:col-span-2">
@@ -411,6 +453,12 @@ export default function LicenceDetailPage() {
         isOpen={arretOpen} onClose={() => setArretOpen(false)} licence={licence} versions={versions}
         onSaved={(saved) => { appliquer(saved); rechargerPeriodes(); }}
       />
+      <AffectationFormModal
+        isOpen={affectationOpen} onClose={() => setAffectationOpen(false)}
+        onSaved={async () => { rafraichirCompletude(); await load(); }}
+        affectation={null} licences={licences.length ? licences : [licence]} societes={societes}
+        licenceParDefaut={licence.id}
+      />
       <ConfirmModal
         isOpen={repriseOpen} onClose={() => setRepriseOpen(false)} onConfirm={handleReprise}
         title="Reprendre la maintenance"
@@ -420,7 +468,7 @@ export default function LicenceDetailPage() {
       <ConfirmModal
         isOpen={!!periodeASupprimer} onClose={() => setPeriodeASupprimer(null)} onConfirm={handleDeletePeriode}
         title="Supprimer la période de maintenance"
-        message={periodeASupprimer ? `Supprimer la période du ${periodeASupprimer.date_debut} au ${periodeASupprimer.date_fin ?? 'en cours'} ?` : ''}
+        message={periodeASupprimer ? `Supprimer la période du ${periodeASupprimer.date_debut}${periodeASupprimer.date_fin ? ` au ${periodeASupprimer.date_fin}` : ', sans date de fin'} ?` : ''}
         confirmLabel="Supprimer" isDestructive
       />
       <ConfirmModal

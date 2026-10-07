@@ -1,9 +1,12 @@
 // SocieteProfilsTab - onglet Profils de la fiche société (#249, permission
-// gerer_profils). Pour chacun des quatre profils par défaut : état « Suit le
+// gerer_profils). Pour chaque profil servi par l'API : état « Suit le
 // défaut » ou « Configuré pour cette société » (badge et date, Q3), édition de
 // la matrice complète groupée par module, enregistrement en remplacement
 // complet (Q2) et « Revenir au défaut » qui retire la configuration. Chaque
 // enregistrement est audité côté serveur (audit_log, codes 2071 et 2072).
+// Tout est profil (#276, arbitrage du 07/10/2026) : GET /societes/:id/profils
+// sert les profils par défaut ET les profils ajoutés ; seul le profil
+// système admin_sam reste hors de la fiche société (matrice figée).
 import { useState, useEffect, useCallback } from 'react';
 import { ChevronDown, ChevronRight, RotateCcw } from 'lucide-react';
 import Badge from '../ui/Badge';
@@ -104,7 +107,7 @@ export default function SocieteProfilsTab({ societe }) {
   return (
     <div className="flex flex-col gap-4">
       <p className="text-sm text-gray-500">
-        Chaque profil par défaut suit la matrice par défaut du tenant, sauf s'il est configuré pour cette société : sa matrice remplace alors intégralement le défaut, même vidée. Une évolution du défaut ne touche jamais une société configurée.
+        Chaque profil suit la matrice par défaut du tenant, sauf s'il est configuré pour cette société : sa matrice remplace alors intégralement le défaut, même vidée. Une évolution du défaut ne touche jamais une société configurée.
       </p>
 
       {profils.map((profil) => {
@@ -160,7 +163,7 @@ export default function SocieteProfilsTab({ societe }) {
           </section>
         );
       })}
-      {profils.length === 0 && <p className="text-sm text-gray-400">Aucun profil par défaut.</p>}
+      {profils.length === 0 && <p className="text-sm text-gray-400">Aucun profil.</p>}
 
       <ConfirmModal
         isOpen={!!confirm}

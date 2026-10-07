@@ -28,6 +28,7 @@ import Skeleton from '../ui/Skeleton';
 import StatutEcheanceBadge from './StatutEcheanceBadge';
 import ContratFormModal from './ContratFormModal';
 import PreuveFormModal from './PreuveFormModal';
+import ActionsRequises from '../commun/ActionsRequises';
 import { libelleContrat } from './libelleContrat';
 import { fichierDepose } from './preuveAffichage';
 import useRbac from '../../hooks/useRbac';
@@ -66,6 +67,9 @@ export default function ContratDetailPage() {
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [restaureEnCours, setRestaureEnCours] = useState(false);
   const [budgetOpen, setBudgetOpen] = useState(true);
+  // Bloc Actions requises (#324) : version incrémentée après chaque action,
+  // le bloc se recharge sans rechargement de page.
+  const [verCompletude, setVerCompletude] = useState(0);
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -111,6 +115,7 @@ export default function ContratDetailPage() {
 
   const appliquer = useCallback(reponse => setContrat(c => appliquerStatut(c, reponse)), []);
   const { valider, refuser } = useValidation(appliquer);
+  const rafraichirCompletude = useCallback(() => setVerCompletude(v => v + 1), []);
 
   const sousContrats = useMemo(
     () => contrats.filter(c => c.id_contrat_parent === id),
@@ -295,6 +300,24 @@ export default function ContratDetailPage() {
           </div>
         </div>
       )}
+
+      {/* Actions requises (#324) : rien ne s'affiche si la fiche est complète.
+          Prolonger comme renouveler passent par le formulaire d'édition (date
+          de fin, champ « Renouvelle le contrat »), même geste que le bandeau
+          « le contrat doit suivre ». */}
+      <ActionsRequises
+        type="contrat"
+        id={contrat.id}
+        version={verCompletude}
+        actions={{
+          ...(canWrite && !contrat.archive ? {
+            editer_contrat: () => setFormOpen(true),
+            renouveler_contrat: () => setFormOpen(true),
+          } : {}),
+          saisir_commande: () => navigate(`/contrats/commandes?contrat=${contrat.id}`),
+          ...(canDeposer && !contrat.archive ? { deposer_preuve: () => setPreuveModal(true) } : {}),
+        }}
+      />
 
       <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
         <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Signataires</h2>
@@ -483,7 +506,7 @@ export default function ContratDetailPage() {
       <ContratFormModal
         isOpen={formOpen}
         onClose={() => setFormOpen(false)}
-        onSaved={load}
+        onSaved={() => { rafraichirCompletude(); return load(); }}
         contrat={contrat}
         contrats={contrats}
         typesContrat={typesContrat}
@@ -494,7 +517,7 @@ export default function ContratDetailPage() {
       <PreuveFormModal
         isOpen={preuveModal}
         onClose={() => setPreuveModal(false)}
-        onDone={toast => { if (toast) addToast(toast); load(); }}
+        onDone={toast => { if (toast) addToast(toast); load(); rafraichirCompletude(); }}
         typesPreuve={typesPreuve}
         contrats={[contrat]}
         contratParDefaut={contrat.id}

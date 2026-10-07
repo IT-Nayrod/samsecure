@@ -15,8 +15,10 @@
 // Codes disponibles, referentiel permission (29 codes, 7 modules) :
 //   administration : gerer_utilisateurs, gerer_exceptions_droit,
 //                    consulter_audit_log, gerer_connecteurs,
-//                    gerer_profils (#249, 30e code : parametrage des matrices
-//                    des profils par defaut, detenu par admin_sam seulement)
+//                    gerer_profils (#249, 30e code : matrices des profils et
+//                    cycle de vie des profils ajoutes #276 ; detenu par
+//                    admin_sam par defaut, delegable en cascade comme
+//                    gerer_utilisateurs, garde-fous #278 dans les routeurs)
 //   droits_usage   : consulter_contrats, consulter_factures, saisir_contrat,
 //                    saisir_commande, deposer_facture_preuve
 //   deploiement    : valider_saisie, consulter_licences, consulter_inventaire,
@@ -209,6 +211,21 @@ export const ROUTES_PERMISSIONS = [
   ["GET",    "/notifications",                         PUBLIC_AUTHENTIFIE],
   ["PATCH",  "/notifications/:id/lu",                  PUBLIC_AUTHENTIFIE],
 
+  // ---- Complétude des fiches (US #324) --------------------------------------
+  // Lecture seule : actions requises d'une fiche et résumé des compteurs.
+  // Chaque chemin de fiche suit le droit de lecture de son module (mêmes
+  // permissions que la fiche qu'il complète) ; le résumé est une vue
+  // opérationnelle transverse en comptes agrégés, sans libellé ni montant :
+  // consulter_inventaire, même doctrine que GET /qualite et
+  // /dashboards/synthese (le contrôle central n'exprime pas de OU). Le chemin
+  // littéral /completude/resume précède les chemins paramétrés.
+  ["GET",    "/completude/resume",          "consulter_inventaire"],
+  ["GET",    "/completude/contrat/:id",     "consulter_contrats"],
+  ["GET",    "/completude/commande/:id",    "consulter_contrats"],
+  ["GET",    "/completude/licence/:id",     "consulter_licences"],
+  ["GET",    "/completude/affectation/:id", "consulter_inventaire"],
+  ["GET",    "/completude/logiciel/:id",    "consulter_referentiels"],
+
   // ---- Referentiels en lecture ---------------------------------------------
   ["GET",    "/produits",                    "consulter_referentiels"],
   ["GET",    "/unites-mesure",               "consulter_referentiels"],
@@ -246,6 +263,8 @@ export const ROUTES_PERMISSIONS = [
   // referentiel, ecrit en Tenant y compris sur un logiciel du catalogue.
   ["POST",   "/logiciels/:id/composants",              "gerer_referentiels"],
   ["DELETE", "/logiciels/:id/composants/:idComposant", "gerer_referentiels"],
+  // #279 : grille de composition par edition de la fiche du compose.
+  ["PUT",    "/logiciels/:id/composition-editions",    "gerer_referentiels"],
   ["GET",    "/logiciels",                   "consulter_referentiels"],
   ["GET",    "/logiciels/:id",               "consulter_referentiels"],
   ["POST",   "/logiciels",                   "gerer_referentiels"],
@@ -281,12 +300,18 @@ export const ROUTES_PERMISSIONS = [
   ["POST",   "/societes",                    "gerer_referentiels"],
   ["PATCH",  "/societes/:id",                "gerer_referentiels"],
   ["DELETE", "/societes/:id",                "gerer_referentiels"],
+  // #281 : cycle de vie des societes (desactivation reversible, suppression
+  // douce controlee par la route DELETE), meme permission que leur CRUD.
+  ["POST",   "/societes/:id/desactiver",     "gerer_referentiels"],
+  ["POST",   "/societes/:id/reactiver",      "gerer_referentiels"],
 
   // ---- Administration : profils par defaut, matrices par societe (#249) -----
   // gerer_profils (Q5) : parametrage des matrices, par defaut et par societe.
   // Acces par profil : admin_sam seul la detient par defaut (093/094), aucun
-  // profil par defaut ne la porte. Distincte de gerer_utilisateurs, qui reste
-  // la permission des comptes, des attributions et du CRUD des groupes.
+  // profil par defaut ne la porte ; delegable a tout profil (#278). Distincte
+  // de gerer_utilisateurs, qui reste la permission des comptes et des
+  // attributions ; le cycle de vie des profils ajoutes (#276) est plus bas,
+  // sous gerer_profils.
   // Les ecrans Profils lisent aussi les catalogues (GET /profils, GET
   // /permissions, GET /societes), servis sous gerer_utilisateurs et
   // consulter_referentiels : gerer_profils est un complement du socle
@@ -312,9 +337,12 @@ export const ROUTES_PERMISSIONS = [
   ["PUT",    "/utilisateurs/:id/mot-de-passe",                  "gerer_utilisateurs"],
   ["GET",    "/utilisateurs/:id/historique",                    "gerer_utilisateurs"],
   ["GET",    "/utilisateurs/:id/droits-effectifs",              "gerer_utilisateurs"],
-  // Profil par defaut du compte (#249) : un seul, applique au rattachement.
-  ["PUT",    "/utilisateurs/:id/profil",                        "gerer_utilisateurs"],
-  // Attributions de groupes personnalises (type groupe seulement depuis #249).
+  // Profils du compte (#249 corrige multi-profils, etendu tout est profil
+  // #276) : remplacement de l'ensemble, tous types, un dashboard par profil
+  // porteur via acceder_dashboard_* (#73/#190).
+  ["PUT",    "/utilisateurs/:id/profils",                       "gerer_utilisateurs"],
+  // Attributions unitaires de profils ajoutes (compatibilite simulateur ;
+  // la fiche utilisateur passe par le PUT ci-dessus).
   ["GET",    "/utilisateurs/:id/profils",                       "gerer_utilisateurs"],
   ["POST",   "/utilisateurs/:id/profils",                       "gerer_utilisateurs"],
   ["DELETE", "/utilisateurs/:id/profils/:attribId",             "gerer_utilisateurs"],
@@ -330,21 +358,26 @@ export const ROUTES_PERMISSIONS = [
   ["PATCH",  "/utilisateurs/:id",                               "gerer_utilisateurs"],
   ["POST",   "/utilisateurs/:id/mot-de-passe/reinitialisation", "gerer_utilisateurs"],
 
-  // Corbeille des groupes (#64) : chemin littéral avant /profils/:id.
-  ["GET",    "/profils/corbeille",                        "gerer_utilisateurs"],
-  ["POST",   "/profils/:id/restaurer",                    "gerer_utilisateurs"],
-  // La lecture de la matrice sert les deux ecrans (profils et groupes) ;
-  // l'ecriture case par case est reservee aux groupes par la route (2078).
-  // Les routes de diffusion /profils/:id/societes ont disparu avec le #57.
+  // Cycle de vie des profils ajoutes (#276, delegation #278) sous
+  // gerer_profils : creation, renommage, corbeille (#64, chemin litteral
+  // avant /profils/:id), restauration, impact d'une suppression. Les
+  // lectures socle (liste, detail, matrice) restent sous gerer_utilisateurs :
+  // la fiche utilisateur (attribution) lit le catalogue ; doctrine #249, le
+  // controle central n'exprime pas de OU, deleguer gerer_profils va avec
+  // gerer_utilisateurs (journal du chantier tout-profil). L'ecriture case
+  // par case est refusee par la route (2078) : un profil se configure par
+  // remplacement complet, comme un profil par defaut.
+  ["GET",    "/profils/corbeille",                        "gerer_profils"],
+  ["POST",   "/profils/:id/restaurer",                    "gerer_profils"],
   ["GET",    "/profils/:id/permissions",                 "gerer_utilisateurs"],
-  ["POST",   "/profils/:id/permissions",                 "gerer_utilisateurs"],
-  ["DELETE", "/profils/:id/permissions/:idPermission",   "gerer_utilisateurs"],
-  ["GET",    "/profils/:id/impact",                      "gerer_utilisateurs"],
+  ["POST",   "/profils/:id/permissions",                 "gerer_profils"],
+  ["DELETE", "/profils/:id/permissions/:idPermission",   "gerer_profils"],
+  ["GET",    "/profils/:id/impact",                      "gerer_profils"],
   ["GET",    "/profils",                                 "gerer_utilisateurs"],
-  ["POST",   "/profils",                                 "gerer_utilisateurs"],
+  ["POST",   "/profils",                                 "gerer_profils"],
   ["GET",    "/profils/:id",                             "gerer_utilisateurs"],
-  ["PATCH",  "/profils/:id",                             "gerer_utilisateurs"],
-  ["DELETE", "/profils/:id",                             "gerer_utilisateurs"],
+  ["PATCH",  "/profils/:id",                             "gerer_profils"],
+  ["DELETE", "/profils/:id",                             "gerer_profils"],
   ["GET",    "/permissions",                             "gerer_utilisateurs"],
 
   // ---- Mails (#87) ---------------------------------------------------------

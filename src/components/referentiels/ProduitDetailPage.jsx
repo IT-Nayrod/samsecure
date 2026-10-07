@@ -20,6 +20,12 @@
 // dont le logiciel fait partie. Le sélecteur ne propose que ce que le serveur
 // accepterait (même éditeur, ni composé ni déjà composant) ; le serveur reste
 // seul juge, ses refus sont affichés tels quels.
+//
+// #279, composition par édition (décision client du 06/10/2026) : la grille
+// CompositionEditionsGrille ajuste la composition édition par édition quand
+// le composé porte au moins une édition. « Fait partie de » précise les
+// composés qui n'incluent ce logiciel que pour certaines éditions, ou l'en
+// excluent.
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Pencil, Trash2, X, Plus } from 'lucide-react';
@@ -37,6 +43,7 @@ import ValidationActions from './ValidationActions';
 import ProduitFormModal from './ProduitFormModal';
 import LogoEditeur from './LogoEditeur';
 import LicenceDeclinaisonAjout from '../deploiement/LicenceDeclinaisonAjout';
+import CompositionEditionsGrille from './CompositionEditionsGrille';
 import useRbac from '../../hooks/useRbac';
 import useAuth from '../../hooks/useAuth';
 import useValidation from '../../hooks/useValidation';
@@ -347,6 +354,12 @@ export default function ProduitDetailPage() {
                           {c.label
                             ? <Link to={`/referentiels/logiciels/${c.id}`} className="text-sm text-blue-800 hover:underline">{c.label}</Link>
                             : <span className="text-sm text-gray-500">Logiciel introuvable</span>}
+                          {c.par_editions?.length > 0 && (
+                            <span className="ml-1.5 text-xs text-gray-400">éditions {c.par_editions.join(', ')} uniquement</span>
+                          )}
+                          {c.hors_editions?.length > 0 && (
+                            <span className="ml-1.5 text-xs text-gray-400">hors édition{c.hors_editions.length > 1 ? 's' : ''} {c.hors_editions.join(', ')}</span>
+                          )}
                         </li>
                       ))}
                     </ul>
@@ -355,6 +368,14 @@ export default function ProduitDetailPage() {
                 )}
             </div>
           </div>
+          {composes.length === 0 && composants.length >= 2 && editions.length >= 1 && (
+            <CompositionEditionsGrille
+              produit={produit}
+              canWrite={canWrite}
+              candidats={candidatsComposant}
+              onSaved={load}
+            />
+          )}
         </section>
 
         <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">

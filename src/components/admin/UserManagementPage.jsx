@@ -1,33 +1,27 @@
 // UserManagementPage - page unique de gestion des utilisateurs, regroupant
-// Utilisateurs / Profils / Groupes personnalisés / Exceptions / Journal sous
-// forme d'onglets. Chaque onglet n'est visible que si l'utilisateur détient la
-// permission réelle correspondante.
+// Utilisateurs / Profils / Exceptions / Journal sous forme d'onglets. Chaque
+// onglet n'est visible que si l'utilisateur détient la permission réelle
+// correspondante.
 //
-// L'onglet Attributions autonome a été retiré (refonte Partie A) : c'était un
-// objet technique exposant directement la table utilisateur_profil_societe.
-// L'affectation groupe/utilisateur se pilote désormais depuis les deux fiches
-// concernées (UserGroupsSection dans la fiche utilisateur, GroupUsersSection
-// dans la fiche groupe), avec la même table et les mêmes endpoints.
+// Tout est profil (#276, 06/10/2026) : l'onglet Groupes personnalisés a
+// disparu, les groupes existants sont devenus des profils ajoutés. L'onglet
+// Profils (gerer_profils) porte désormais tout le cycle de vie : profils par
+// défaut verrouillés, profils ajoutés (création, renommage, matrices,
+// corbeille #64 et restauration). L'attribution reste dans la fiche
+// utilisateur (section Profils, gerer_utilisateurs).
 import { useState, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Users, Shield, KeyRound, ClipboardList, ScrollText } from 'lucide-react';
+import { Users, Shield, ClipboardList, ScrollText } from 'lucide-react';
 import useAuth from '../../hooks/useAuth';
 import { ADMIN_PERMISSIONS } from '../../constants/permissions';
 import UsersPage from '../users/UsersPage';
 import ProfilsPage from './ProfilsPage';
-import GroupesPage from './GroupesPage';
 import ExceptionsPage from './ExceptionsPage';
 import JournalPage from './JournalPage';
 
-// Séparation profils par défaut / groupes personnalisés (074, refonte #249) :
-// l'onglet Profils édite la matrice par défaut du tenant et son paramétrage
-// par société, sous la permission dédiée gerer_profils (Q5) ; l'onglet Groupes
-// garde le CRUD, la matrice case par case et la corbeille #64 sous
-// gerer_utilisateurs.
 const TABS = [
   { key: 'utilisateurs', label: 'Utilisateurs', icon: Users, permission: ADMIN_PERMISSIONS.UTILISATEURS, Component: UsersPage },
   { key: 'profils', label: 'Profils', icon: Shield, permission: ADMIN_PERMISSIONS.PROFILS, Component: ProfilsPage },
-  { key: 'groupes', label: 'Groupes personnalisés', icon: KeyRound, permission: ADMIN_PERMISSIONS.GROUPES, Component: GroupesPage },
   { key: 'exceptions', label: 'Exceptions', icon: ClipboardList, permission: ADMIN_PERMISSIONS.EXCEPTIONS, Component: ExceptionsPage },
   { key: 'journal', label: 'Journal', icon: ScrollText, permission: ADMIN_PERMISSIONS.JOURNAL, Component: JournalPage },
 ];

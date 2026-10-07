@@ -933,6 +933,7 @@ cout de maintenance) servis a null avec `montants_masques: true` sans
 | 4031 | erreur | La date de debut est obligatoire | POST, PATCH .../maintenance ; POST, PATCH /api/licences (message rendu : "La date de debut est obligatoire pour une licence de type <label>.", selon type_licence.regle_date_debut, #209) |
 | 4032 | erreur | La date de fin doit etre posterieure a la date de debut | POST, PATCH .../maintenance ; POST, PATCH /api/licences (date_debut et date_fin_souscription, #209) |
 | 4033 | erreur | Le cout de maintenance doit etre un montant positif ou nul | POST, PATCH .../maintenance |
+| 4039 | erreur | La date de fin de la maintenance est obligatoire | POST, PATCH .../maintenance (400, decision client du 06/10/2026 : une maintenance a toujours une date de fin ; refus aussi d'un PATCH qui efface la date ou qui modifie une periode historique sans date sans en poser une ; contrainte 102 NOT VALID en garde-fou, lignes historiques intactes, servies echues) |
 | 4040 | erreur | La maintenance de cette licence est deja arretee | POST .../arret-maintenance (409) |
 | 4041 | erreur | La date d'arret est invalide | POST .../arret-maintenance |
 | 4042 | erreur | Version à figer introuvable ou étrangère au logiciel | POST .../arret-maintenance |
@@ -1597,6 +1598,53 @@ GET /api/logiciels/:id fusionnent désormais les compléments de la 063 aux
 versions et éditions du catalogue ; chaque déclinaison porte `source`
 (`catalogue`, `complement` ou `client`).
 
+## Composition par édition (#279, décision client du 06/10/2026, migrations 100, 101 et 104)
+
+La composition d'un logiciel composé peut différer selon l'édition du composé
+(exemple du client : Office Standard et Office Pro diffèrent par la présence
+d'Access). La composition par défaut (#216) reste la base ; la composition
+effective d'une édition vaut le défaut moins ses exclusions plus ses
+inclusions (`produit_composition_exception`, migration 100). Une licence du
+composé sans édition couvre la composition par défaut ; seule l'édition
+conditionne la composition, jamais la version. Conformité (migration 101) :
+une licence du composé ne couvre un composant que si la composition effective
+de son édition contient ce composant. Un composé sans exception se comporte
+exactement comme avant.
+
+Codes 4070-4074 (plage licences, premiers libres en bloc après le bloc
+4060-4069 de la composition), seedés par la migration 104. La route vit dans
+`logiciels.js` (grille de la fiche Référentiels > Logiciels), permission
+`gerer_referentiels`. Les refus partagés avec le défaut sont réutilisés, pas
+dupliqués : 5310 (composé introuvable, 404), 4062 (composant d'une inclusion
+introuvable, 400), 4063 (réflexif, 409), 4064 (éditeur différent ou absent,
+409), 4066 (niveau unique, 409, garde SQL par trigger en 100).
+
+| Code | Type | Libellé | Émis par |
+|------|------|---------|----------|
+| 4070 | succes | Composition par édition enregistrée | PUT /api/logiciels/:id/composition-editions (corps `{ exceptions: [{ id_edition, id_produit_composant, inclus }] }`, data = `{ exceptions }` relues après écriture ; seules les différences au défaut sont conservées, une ligne qui redit le défaut est écartée sans erreur) |
+| 4071 | erreur | Ce logiciel n'est pas un logiciel composé | PUT (409, aucune composition par défaut à ajuster) |
+| 4072 | erreur | Édition inconnue pour ce logiciel composé | PUT (400, l'édition n'appartient pas au composé : edition Commune + edition_complement pour un logiciel du catalogue, edition_client pour un logiciel créé localement) |
+| 4073 | erreur | Exception de composition invalide | PUT (400 : corps mal formé, ligne incomplète ou édition qui inclut et exclut le même composant ; 409 sur écriture concurrente, unicité du triplet tenue par la 100) |
+| 4074 | trace | Composition par édition modifiée | audit_log, action PRODUIT_COMPOSITION_EDITIONS_MODIFIEE (entite_type produit_composition_exception, entite_id le composé, avant/après les différences) |
+
+Lectures et effets de bord, sans nouveau code :
+- GET /api/logiciels/:id (5301) sert `composition_exceptions`
+  (`{ id_edition, id_produit_composant, composant_label, composant_source,
+  inclus }`) et annote chaque entrée de `composes` : `par_editions` (le
+  composé n'inclut ce logiciel que pour ces éditions) ou `hors_editions`
+  (éditions du composé dont il est exclu) ;
+- DELETE /api/logiciels/:id/composants/:idComposant (4061) purge les
+  exceptions du couple (retirer un composant du défaut vaut retrait
+  complet) ; POST /api/logiciels/:id/composants (4060) purge celles d'un
+  composant promu au défaut ; DELETE /api/logiciels/:id/editions/:idDecl
+  (5308) purge les exceptions de l'édition supprimée ;
+- DELETE /api/logiciels/:id (5317) compte les exceptions parmi les
+  rattachements bloquants (`details.exceptions_edition`), `supprimable` en
+  tient compte ;
+- GET /api/conformite (4300) : forme inchangée, `droits_herites` applique la
+  règle d'édition (précalcul par la 101, chemins par société par les mêmes
+  fonctions pures, `droitsHeritesParComposantParEdition`).
+
 ## Refonte des droits : profils par société (#249, migrations 092 à 094)
 
 Les profils par défaut (IT Ops, Financier, Manager DSI, IT Data input) se
@@ -1604,9 +1652,13 @@ paramètrent désormais par société : la matrice d'un profil pour une sociét�
 configurée remplace intégralement la matrice par défaut du tenant (jamais un
 delta) ; une société jamais configurée suit le défaut, une matrice vidée
 volontairement reste configurée (marqueur `profil_societe_configuration`,
-092). Le profil par défaut d'un utilisateur est unique
-(`utilisateur.id_profil`, 094) et s'applique à toutes ses sociétés de
-rattachement. Les groupes personnalisés ne portent plus de sociétés de
+092). Les profils par défaut d'un utilisateur sont l'ensemble de ses
+attributions actives non-groupe dans `utilisateur_profil_societe`,
+`id_societe` ignoré (#57) ; un compte en porte plusieurs, chacun alimentant
+notamment son dashboard (correctif multi-profils du 06/10/2026, stories #73
+et #190 ; `utilisateur.id_profil`, posée par la 094, n'est plus lue). Chaque
+profil s'applique à toutes les sociétés de rattachement du compte. Les
+groupes personnalisés ne portent plus de sociétés de
 diffusion (#57) : leur portée suit le rattachement de l'utilisateur, les
 routes /api/profils/:id/societes sont retirées. Le paramétrage des matrices
 exige la permission `gerer_profils` (Q5, 30e code, module administration),
@@ -1619,11 +1671,11 @@ enveloppe, comme tout le module administration ; codes seedés par la 093.
 | 2070 | trace | Matrice par défaut d'un profil remplacée | audit_log, action PROFIL_MATRICE_DEFAUT_REMPLACEE (PUT /api/profils/:id/matrice, avant/après = codes des permissions) |
 | 2071 | trace | Profil configuré pour une société | audit_log, action PROFIL_SOCIETE_CONFIGURE (PUT /api/societes/:id/profils/:idProfil/matrice ; POST /api/profils/:id/matrice/appliquer, une trace par société) |
 | 2072 | trace | Profil revenu au défaut pour une société | audit_log, action PROFIL_SOCIETE_RETOUR_DEFAUT (DELETE /api/societes/:id/profils/:idProfil/matrice) |
-| 2073 | trace | Profil par défaut d'un utilisateur modifié | audit_log, action PROFIL_DEFAUT_MODIFIE (PUT /api/utilisateurs/:id/profil, avant/après = libellé du profil) |
+| 2073 | trace | Profil par défaut d'un utilisateur modifié | audit_log, action PROFILS_DEFAUT_MODIFIES (PUT /api/utilisateurs/:id/profils, remplacement de l'ensemble, avant/après = libellés des profils ; #249 corrigé multi-profils le 06/10/2026) |
 | 2074 | erreur | Ce profil n'est pas un profil par défaut | routes matrice et configuration sur un groupe ou sur le profil système (409, la route interpole : la matrice d'admin_sam est figée) |
 | 2075 | erreur | Société introuvable | GET /api/societes/:id/profils, PUT et DELETE matrice par société, POST appliquer (404 ; 400 sur une société de la sélection en masse) |
 | 2076 | erreur | Cette permission n'existe pas au catalogue | PUT /api/profils/:id/matrice, PUT matrice par société, corps `permission_ids` (400) |
-| 2077 | erreur | Ce profil ne s'attribue pas par cette route | PUT /api/utilisateurs/:id/profil avec un groupe ; POST /api/utilisateurs/:id/profils avec un profil par défaut ou système (409, la route interpole) |
+| 2077 | erreur | Ce profil ne s'attribue pas par cette route | PUT /api/utilisateurs/:id/profils avec un groupe dans la liste ; POST /api/utilisateurs/:id/profils avec un profil par défaut ou système (409, la route interpole) |
 | 2078 | erreur | La matrice d'un profil par défaut se gère par remplacement complet | POST et DELETE /api/profils/:id/permissions sur un profil non groupe (409, la route interpole : renvoie vers l'onglet Profils) |
 
 Lectures, sans nouveau code (hors enveloppe, module administration) :
@@ -1633,6 +1685,14 @@ Lectures, sans nouveau code (hors enveloppe, module administration) :
 - GET /api/profils/:id/societes-configurees : sociétés configurées d'un
   profil (`id_societe`, `raison_sociale`, `configure_le`,
   `configure_par_label`), pour l'onglet Profils de l'administration ;
+- GET /api/utilisateurs sert `profils` (`[{ id, code, label }]`, triés par
+  libellé) ; GET /api/utilisateurs/:id/profils et GET /api/attributions ne
+  servent plus que les groupes (type `groupe`) ;
+- GET /api/utilisateurs/:id/droits-effectifs?societeId=… sert `profils`
+  (`[{ id, code, label, type, configure }]`, un élément par profil regardé),
+  `profilIds` (ensemble des profils par défaut du compte, contrat du
+  simulateur de droits) et des sources `profil` / `groupe` distinctes ;
+  `profilId` reste accepté (vue par profil, simulation d'un profil).
 - GET /api/utilisateurs sert `id_profil`, `profil_code`, `profil_label` ;
   GET /api/utilisateurs/:id/profils et GET /api/attributions ne servent plus
   que les groupes (type `groupe`) ;
@@ -1640,3 +1700,124 @@ Lectures, sans nouveau code (hors enveloppe, module administration) :
   (`{ id, code, label, configure }`) et des sources `profil` / `groupe`
   distinctes ; `profilId` reste accepté (simulation d'un profil, simulateur
   de droits).
+
+## Sociétés : désactivation et suppression douce (#281, issue 60, migration 103)
+
+Règle du ticket #62, rappelée par le retour client du 06/10 : les utilisateurs
+et les sociétés ne se suppriment pas, ils se désactivent avec une date. Une
+société se désactive toujours (actif = false + date_fin_activite, réversible
+par la réactivation) ; sa suppression n'est possible que si plus aucun objet
+ne s'y raccroche — utilisateurs rattachés, filiales, contrats (société
+signataire ou prêteuse des prêts internes), commandes, licences et lignes de
+budget (chaîne licence -> commande -> société payeuse), affectations — et,
+même alors, elle est douce : date_suppression posée, société retirée des
+listes courantes mais conservée en base à des fins d'audit, opération et
+auteur tracés dans audit_log. L'ancienne suppression en cascade des filiales
+et des rattachements a disparu : les filiales bloquent.
+
+Routes hors enveloppe, comme tout le module administration ; codes seedés par
+la 103 (commune). GET /api/societes sert les compteurs de rattachements
+(`nb_utilisateurs`, `nb_filiales`, `nb_contrats`, `nb_commandes`,
+`nb_licences`, `nb_affectations`, `nb_lignes_budget`), `date_fin_activite` et
+`blocages_suppression` (libellés prêts à l'écran) : la fiche ne propose
+Supprimer que sur une société vide, le serveur restant seul juge au DELETE.
+
+| Code | Type | Libellé | Émis par |
+|------|------|---------|----------|
+| 2090 | erreur | Suppression impossible : des objets se raccrochent encore à la société | DELETE /api/societes/:id (409, la route interpole la liste des blocages : « Suppression impossible : la société "X" porte encore 2 utilisateurs rattachés et 1 filiale. La désactivation reste possible. ») |
+| 2091 | trace | Société supprimée (suppression douce) | audit_log, action SOCIETE_SUPPRIMEE (DELETE /api/societes/:id, 204) |
+| 2092 | trace | Société désactivée | audit_log, action SOCIETE_DESACTIVEE (POST /api/societes/:id/desactiver, 200, pose date_fin_activite ; idempotente) |
+| 2093 | trace | Société réactivée | audit_log, action SOCIETE_REACTIVEE (POST /api/societes/:id/reactiver, 200, efface date_fin_activite ; idempotente) |
+
+Les 404 de ces routes (identifiant non UUID, société inconnue ou déjà
+supprimée) réutilisent le 2075 « Société introuvable ».
+
+## Complétude des fiches : actions requises (US #324)
+
+Nouvelle plage **5550-5599 — complétude**, à la suite des notifications
+(5500-5549). Le module est en lecture seule : GET /api/completude/:type/:id
+sert les actions requises d'une fiche (contrat, commande, licence, logiciel,
+affectation), GET /api/completude/resume les compteurs par type pour les
+listes et le dashboard. Les règles vivent dans `server/utils/completude.js`
+(fonctions pures testées) et reprennent les définitions existantes :
+manques documentaires de GET /commandes/manques (#50/#215), justificatif de
+contrat de la détection qualité, licence échue de la balance (D44),
+maintenance échue d'`etatMaintenance` (#201), statut d'affectation du
+workflow (#53), usage sans droit du précalcul (D53, héritage #216 compris).
+Chaque manque sort avec sa règle, sa gravité (`bloquant` pour la conformité,
+`recommande` pour l'aptitude à l'audit), son libellé et l'action qui le lève
+(`action.code` est le contrat avec le bloc « Actions requises » du front).
+
+Codes seedés par la migration Commune
+`105_commune_codes_retour_completude.sql` (`ON CONFLICT (code) DO UPDATE`,
+rejouable), à jouer avant la mise en ligne du module puis redémarrer
+l'API ; tant qu'elle n'est pas passée, les réponses sortent avec `libelle`
+null sans casser l'enveloppe (reponse.js).
+
+| Code | Type | Libellé | Émis par |
+|------|------|---------|----------|
+| 5550 | succes | Complétude de la fiche servie | GET /api/completude/:type/:id (200) |
+| 5551 | succes | Résumé de complétude servi | GET /api/completude/resume (200) |
+| 5552 | erreur | Type de fiche inconnu pour la complétude | GET /api/completude/:type/:id, type hors catalogue (400, la route interpole le type demandé). En mode RBAC strict, un type absent de la table des permissions est refusé 3400 en amont (fail-closed) : la table ne déclare que les cinq types, pas de règle générique, pour que l'oubli d'un type nouveau se voie |
+| 5553 | erreur | Fiche introuvable pour la complétude | GET /api/completude/:type/:id, identifiant non UUID ou inconnu (404, message du type : « Commande introuvable. ») |
+| 5559 | erreur | Erreur serveur du module complétude | les deux routes (500) |
+
+## Tout est profil et délégation (#276, #278, #282, chantier tout-profil, migration 097)
+
+Décisions client du 06/10/2026 : il n'y a plus de groupes personnalisés, tout
+est profil. La migration 097 ajoute la valeur `ajoute` à `profil.type` et y
+bascule les lignes de type `groupe` (corbeille #64 comprise) ; le code
+serveur traite `groupe` et `ajoute` comme « profil ajouté » tant que la 097
+n'est pas jouée partout. Un profil ajouté se crée, se renomme et part en
+corbeille sous `gerer_profils` ; il se configure exactement comme un profil
+par défaut (matrice par défaut, matrices par société) ; un dashboard de
+référence optionnel à la création (Manager DSI, Financier ou IT Ops) pose la
+permission `acceder_dashboard_*` dans sa matrice initiale. Les profils par
+défaut ne se suppriment ni ne se renomment (2068, 2079). Délégation (#278) :
+`gerer_utilisateurs` et `gerer_profils` sont cochables dans toute matrice ;
+garde-fous serveur : on n'attribue que des permissions que l'on détient
+(2080), seul un admin_sam touche au profil admin_sam et à ses titulaires
+(2081), le périmètre d'un délégataire non admin_sam reste ses sociétés de
+rattachement (2051). Les anciennes actions d'audit GROUPE_* restent en base
+et sont traduites sans le mot « groupe » (historiqueLibelles.js) ; les
+nouvelles écritures portent les actions PROFIL_*. Routes hors enveloppe,
+comme tout le module administration.
+
+Codes seedés par la migration Commune 098 (arbitrage du 07/10/2026 : le
+numéro 098, initialement réservé en tenant, est réaffecté en Commune), en
+`ON CONFLICT DO NOTHING` : le 2078, déjà posé par la 093, garde son libellé
+d'origine là où il existe. Les codes 2090 à 2093 sont réservés au chantier
+sociétés. Le module administration répond hors enveloppe : le code n'est pas
+émis au client, les annotations `// code_retour:` du code font référence.
+
+| Code | Type | Libellé | Émis par |
+|------|------|---------|----------|
+| 2079 | erreur | Un profil par défaut ne se renomme pas | PATCH /api/profils/:id sur un profil par défaut ou système (409, la route interpole ; décision du 06/10/2026 : inaltérables) |
+| 2080 | erreur | Délégation refusée : permission non détenue par l'acteur | PUT /api/profils/:id/matrice (codes ajoutés), POST /api/profils/:id/matrice/appliquer (matrice entière), POST /api/profils avec dashboard de référence, PUT et POST /api/utilisateurs/:id/profils (profil ajouté au compte, matrice effective sur les sociétés de la cible) ; 403, `permissions_manquantes` en détail, l'acteur admin_sam est exempté |
+| 2081 | erreur | Réservé à un administrateur SAM | toute écriture sur un compte titulaire d'admin_sam (PATCH, désactivation, mots de passe, rattachements, attributions) et la pose ou le retrait du profil admin_sam (403) |
+| 2082 | trace | Délégation accordée à un profil | audit_log, action PROFIL_DELEGATION_ACCORDEE (gerer_utilisateurs ou gerer_profils cochée dans une matrice, en plus de la trace de remplacement) |
+| 2083 | trace | Délégation retirée d'un profil | audit_log, action PROFIL_DELEGATION_RETIREE (décochée d'une matrice) |
+| 2084 | trace | Profil ajouté créé | audit_log, action PROFIL_AJOUTE_CREE (POST /api/profils, `dashboard_reference` dans l'après) |
+| 2085 | trace | Profil ajouté modifié | audit_log, action PROFIL_MODIFIE (PATCH /api/profils/:id, diff libellé/description) |
+| 2086 | trace | Profil mis en corbeille | audit_log, action PROFIL_MIS_EN_CORBEILLE (DELETE /api/profils/:id ; remplace GROUPE_MIS_EN_CORBEILLE/2062 pour les nouvelles écritures) |
+| 2087 | trace | Profil restauré depuis la corbeille | audit_log, action PROFIL_RESTAURE (POST /api/profils/:id/restaurer ; remplace GROUPE_RESTAURE/2063) |
+| 2088 | trace | Profil attribué | audit_log, action PROFIL_ATTRIBUE (POST /api/utilisateurs/:id/profils ; remplace GROUPE_ATTRIBUE/2020) |
+| 2089 | trace | Profil retiré | audit_log, action PROFIL_RETIRE (DELETE /api/utilisateurs/:id/profils/:attribId ; remplace GROUPE_RETIRE/2021) |
+
+Changements d'usage sans nouveau code :
+- 2068 : le refus de suppression couvre les profils par défaut et système
+  (les profils ajoutés, eux, partent en corbeille) ;
+- 2069 : « Ce profil n'est pas dans la corbeille » (libellé rendu par la
+  route, sans le mot groupe) ;
+- 2074 : réservé au profil système (matrice figée) ; les profils ajoutés ont
+  accès aux routes matrice comme les profils par défaut ;
+- 2077 : POST /api/utilisateurs/:id/profils sur un profil par défaut ou
+  système renvoie vers la section Profils de la fiche utilisateur ;
+- 2078 : POST et DELETE /api/profils/:id/permissions refusent pour TOUT
+  type : l'édition case à case a disparu avec les groupes ;
+- #282 : GET /api/profils/:id/impact ne filtre plus sur
+  `utilisateur.date_suppression` (colonne supprimée par la 023, 42703 rendu
+  en 500 : c'était l'erreur qui bloquait la suppression à l'écran) ;
+- GET /api/utilisateurs sert `profils` tous types (`[{ id, code, label,
+  type }]`) ; GET /api/utilisateurs/:id/profils et GET /api/attributions
+  servent les profils ajoutés (`groupe` et `ajoute`).

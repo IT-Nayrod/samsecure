@@ -28,6 +28,11 @@ describe("detecterFinsMaintenance : contrat par la chaine licence -> commande ->
     assert.match(corps, /co\.id_contrat IS NOT NULL/);
     assert.match(corps, /cx\.id_contrat_predecesseur = co\.id_contrat/);
   });
+
+  test("une periode sans date de fin ne compte pas comme periode suivante (#280, decision du 06/10/2026)", () => {
+    assert.doesNotMatch(corps, /mx\.date_fin IS NULL/);
+    assert.match(corps, /AND mx\.date_fin > m\.date_fin/);
+  });
 });
 
 test("aucune requete du planificateur ne reference licence.id_contrat (colonne supprimee par la 014)", () => {

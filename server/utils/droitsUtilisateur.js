@@ -5,12 +5,17 @@
 // (affichage côté front). Les deux doivent répondre exactement la même chose,
 // sinon un bouton visible mène à un refus, ou l'inverse.
 //
-// Modèle refondu par le #249 (remplace le modèle du 29/07) :
-// 1. Profil par défaut du compte (utilisateur.id_profil, un seul) : pour
-//    chaque société couverte par le rattachement, la matrice configurée pour
-//    (profil, société) fait foi intégralement si elle existe (Q2/Q3), sinon la
-//    matrice par défaut du tenant. Le contrôle par route porte sur l'union de
-//    ces matrices (Q4) ; le filtrage fin par société reste une limite connue.
+// Modèle refondu par le #249 (remplace le modèle du 29/07), corrigé
+// multi-profils le 06/10/2026 (stories #73/#190) :
+// 1. Profils par défaut du compte : l'ensemble de ses attributions actives de
+//    type non-groupe dans utilisateur_profil_societe, id_societe ignoré (#57).
+//    utilisateur.id_profil (094) n'est plus lu nulle part : un compte porte
+//    plusieurs profils, chacun alimentant notamment son dashboard (#73/#190).
+//    Pour chaque profil et chaque société couverte par le rattachement, la
+//    matrice configurée pour (profil, société) fait foi intégralement si elle
+//    existe (Q2/Q3), sinon la matrice par défaut du tenant. Le contrôle par
+//    route porte sur l'union de toutes ces matrices (Q4) ; le filtrage fin par
+//    société reste une limite connue.
 // 2. Groupes personnalisés attribués (utilisateur_profil_societe, type
 //    'groupe') : union de leurs permissions. Plus aucune condition de
 //    diffusion (#57), la portée d'un groupe suit le rattachement ; la colonne
@@ -18,12 +23,31 @@
 // 3. Exceptions individuelles, bornées au périmètre : tous les accords puis
 //    tous les retraits, le retrait restant inconditionnellement prioritaire.
 import { tenantPool } from "../db.js";
-import { matriceProfilEffective, appliquerExceptions } from "./droitsRegles.js";
+import { matriceProfilEffective, appliquerExceptions, unionPermissions, permissionsManquantes } from "./droitsRegles.js";
+import { getAdminScope } from "./scope.js";
 
-// Les règles pures (matrice effective, exceptions) vivent dans droitsRegles.js,
-// sans dépendance à la base : node --test les exécute sans .env (même motif
-// que notifications/regles.js). Ré-exportées ici pour les consommateurs.
-export { matriceProfilEffective, appliquerExceptions } from "./droitsRegles.js";
+// Les règles pures (matrice effective, union multi-profils, exceptions) vivent
+// dans droitsRegles.js, sans dépendance à la base : node --test les exécute
+// sans .env (même motif que notifications/regles.js). Ré-exportées ici pour
+// les consommateurs.
+export { matriceProfilEffective, appliquerExceptions, unionPermissions, permissionsManquantes, deltaMatrice, PERMISSIONS_DELEGATION, TYPES_PROFIL_AJOUTE } from "./droitsRegles.js";
+
+// Profils par défaut d'un compte : attributions actives non-groupe de
+// utilisateur_profil_societe, dédoublonnées par profil, id_societe ignoré
+// (#57). Partagée avec droitsEffectifs.js (visionneuse, simulateur) et
+// dashboards.js (un dashboard par profil porteur, #73/#190).
+export async function profilsParDefaut(idUtilisateur) {
+  const { rows } = await tenantPool.query(
+    `SELECT DISTINCT p.id, p.code, p.label, p.type
+       FROM utilisateur_profil_societe ups
+       JOIN profil p ON p.id = ups.id_profil
+                    AND p.type <> 'groupe' AND p.date_suppression IS NULL
+      WHERE ups.id_utilisateur = $1 AND ups.date_suppression IS NULL
+      ORDER BY p.label`,
+    [idUtilisateur]
+  );
+  return rows;
+}
 
 // ---------------------------------------------------------------------------
 // Lecture en base et assemblage.
@@ -80,14 +104,13 @@ export async function permissionsEffectives(idUtilisateur) {
   // actif = false est le seul état de retrait : la colonne date_suppression a
   // été supprimée par la migration 023.
   const { rows: actif } = await tenantPool.query(
-    `SELECT id_profil FROM utilisateur
+    `SELECT 1 FROM utilisateur
       WHERE id = $1 AND actif = true
         AND (date_finale            IS NULL OR date_finale            >= CURRENT_DATE)
         AND (date_mise_en_fonction  IS NULL OR date_mise_en_fonction  <= CURRENT_DATE)`,
     [idUtilisateur]
   );
   if (!actif.length) return { permissions: new Set(), isTenantScope: false, compteInactif: true };
-  const idProfil = actif[0].id_profil;
 
   const { rows: ratt } = await tenantPool.query(
     `SELECT id_societe FROM utilisateur_societe
@@ -102,10 +125,13 @@ export async function permissionsEffectives(idUtilisateur) {
 
   const permissions = new Set();
 
-  // 1. Profil par défaut. Sociétés couvertes : le rattachement, ou toutes les
-  // sociétés actives du tenant pour une portée tenant (les sociétés
-  // configurées du profil y contribuent alors toutes, Q4).
-  if (idProfil) {
+  // 1. Profils par défaut (multi-profils #73/#190) : chaque profil contribue
+  // sa matrice effective sur les sociétés couvertes, l'union fait foi (Q4).
+  // Sociétés couvertes : le rattachement, ou toutes les sociétés actives du
+  // tenant pour une portée tenant (les sociétés configurées y contribuent
+  // alors toutes).
+  const profils = await profilsParDefaut(idUtilisateur);
+  if (profils.length) {
     let societesCouvertes = societeIds;
     if (isTenantScope) {
       const { rows } = await tenantPool.query(
@@ -113,9 +139,11 @@ export async function permissionsEffectives(idUtilisateur) {
       );
       societesCouvertes = rows.map((r) => r.id);
     }
-    for (const code of await permissionsDuProfil(idProfil, societesCouvertes)) {
-      permissions.add(code);
+    const matrices = [];
+    for (const profil of profils) {
+      matrices.push(await permissionsDuProfil(profil.id, societesCouvertes));
     }
+    for (const code of unionPermissions(matrices)) permissions.add(code);
   }
 
   // 2. Groupes personnalisés attribués (#57) : l'attribution suffit, sans
@@ -145,4 +173,80 @@ export async function permissionsEffectives(idUtilisateur) {
   appliquerExceptions(permissions, exceptions, { isTenantScope, dansPerimetre });
 
   return { permissions, isTenantScope };
+}
+
+// ---------------------------------------------------------------------------
+// Delegation des droits d'administration (#278, decisions du 06/10/2026).
+// ---------------------------------------------------------------------------
+
+// Titulaire admin_sam : une attribution active du profil systeme admin_sam.
+// C'est la cle des deux garde-fous #278 : seul un admin_sam modifie le profil
+// admin_sam et ses titulaires, et un acteur admin_sam est exempte du controle
+// de detention comme du perimetre par societes.
+export async function estAdminSam(idUtilisateur) {
+  const { rows } = await tenantPool.query(
+    `SELECT 1
+       FROM utilisateur_profil_societe ups
+       JOIN profil p ON p.id = ups.id_profil
+                    AND p.code = 'admin_sam' AND p.date_suppression IS NULL
+      WHERE ups.id_utilisateur = $1 AND ups.date_suppression IS NULL
+      LIMIT 1`,
+    [idUtilisateur]
+  );
+  return rows.length > 0;
+}
+
+// Perimetre d'administration (#278) : un admin_sam voit et gere tout le
+// tenant, quel que soit son rattachement ; un delegataire est borne a ses
+// societes de rattachement (scope.js, inchange). Se substitue a getAdminScope
+// dans les routes d'administration des comptes.
+export async function scopeAdministration(idUtilisateur) {
+  if (await estAdminSam(idUtilisateur)) {
+    return { isTenantScope: true, societeIds: [] };
+  }
+  return getAdminScope(idUtilisateur);
+}
+
+// Societes couvertes par le rattachement d'un compte : la liste de ses
+// societes, ou toutes les societes actives du tenant pour une portee tenant.
+// Meme regle que permissionsEffectives (bloc profils), exposee pour le
+// garde-fou d'attribution : les permissions conferees par un profil a la
+// CIBLE se calculent sur les societes couvertes par la cible.
+export async function societesCouvertes(idUtilisateur) {
+  const { rows: ratt } = await tenantPool.query(
+    `SELECT id_societe FROM utilisateur_societe
+      WHERE id_utilisateur = $1 AND date_suppression IS NULL`,
+    [idUtilisateur]
+  );
+  if (ratt.some((r) => r.id_societe === null)) {
+    const { rows } = await tenantPool.query(
+      `SELECT id FROM societe WHERE date_suppression IS NULL`
+    );
+    return rows.map((r) => r.id);
+  }
+  return ratt.map((r) => r.id_societe).filter(Boolean);
+}
+
+// Garde-fou #278 : on n'attribue que des permissions que l'on detient.
+// codesDemandes = permissions ajoutees (matrice) ou conferees (profil
+// attribue). Rend { ok, manquantes } ; l'acteur admin_sam est exempte.
+// Les refus (403, code 2080) sont emis par les routes, le calcul vit ici
+// pour que toutes appliquent exactement la meme regle.
+export async function verifierDelegation(idActeur, codesDemandes) {
+  const codes = [...new Set(codesDemandes)];
+  if (!codes.length) return { ok: true, manquantes: [] };
+  if (await estAdminSam(idActeur)) return { ok: true, manquantes: [] };
+  const { permissions } = await permissionsEffectives(idActeur);
+  const manquantes = permissionsManquantes(codes, permissions);
+  return { ok: manquantes.length === 0, manquantes };
+}
+
+// Verrou #278 : « personne ne modifie le profil admin_sam ni ses titulaires,
+// hormis un admin_sam ». Vrai quand la CIBLE est titulaire d'admin_sam et que
+// l'acteur ne l'est pas : la route refuse alors en 403 (code 2081), quelle
+// que soit l'ecriture (identite, statut, mot de passe, rattachement,
+// attributions). Lire un tel compte reste permis.
+export async function cibleVerrouilleeAdminSam(idActeur, idCible) {
+  if (!(await estAdminSam(idCible))) return false;
+  return !(await estAdminSam(idActeur));
 }

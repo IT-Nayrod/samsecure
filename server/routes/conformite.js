@@ -35,13 +35,20 @@
 // règle en SQL (068) ; le calcul à la volée par société l'applique par la
 // fonction pure appliquerHeritageComposes, sur le même périmètre que les
 // droits : les licences du composé payées par la société observée.
+//
+// Composition par édition (#279, décision client du 06/10/2026, migrations
+// 100 et 101) : une licence du composé ne couvre un composant que si la
+// composition effective de son édition le contient (une licence sans édition
+// couvre la composition par défaut). Le précalcul porte la règle en SQL
+// (101) ; les chemins par société la portent par les mêmes fonctions pures,
+// tranche de droits par édition (droitsActifsParEdition).
 import express from "express";
 import { tenantPool, commonPool } from "../db.js";
 import { succes, erreur } from "../utils/reponse.js";
 import { permissionsEffectives } from "../utils/droitsUtilisateur.js";
 import {
   LICENCE_EXPIREE, seuilsConformite, prixUnitaireDerniereCommande, valoriserBalance,
-  appliquerHeritageComposes,
+  appliquerHeritageComposes, droitsActifsParEdition,
 } from "../utils/conformite.js";
 
 const router = express.Router();
@@ -59,6 +66,14 @@ const AGG_LIGNES_PRIX = `
   json_agg(json_build_object(
     'id', l.id, 'cout_licence', l.cout_licence, 'quantite', l.quantite,
     'date_commande', c.date_commande, 'created_at', l.created_at)) AS lignes_prix`;
+
+// Tranches de droits actifs par édition de licence, au format de
+// droitsActifsParEdition : la composition d'un composé peut différer par
+// édition (#279), l'héritage se calcule tranche par tranche. Constante du
+// code, interpolation sûre.
+const AGG_LIGNES_EDITIONS = `
+  json_agg(json_build_object('id_edition', l.id_edition, 'quantite', l.quantite))
+    FILTER (WHERE NOT ${LICENCE_EXPIREE}) AS lignes_editions`;
 
 // Dernière entrée du workflow d'une affectation, même source de vérité que
 // les routes affectations. Constante du code, interpolation sûre.
@@ -187,11 +202,16 @@ async function lignesDepuisPrecalcul({ idProduit, idsProduits }) {
   return rows.map((r) => ({ ...r, usage_sans_droit: r.droits_total === 0 && r.usages_total > 0 }));
 }
 
-// Couples (composé, composant) du tenant (068). Une requête par réponse.
+// Couples (composé, composant) du défaut (068) et exceptions de composition
+// par édition (#279, migration 100). Une lecture par réponse.
 async function compositionsDesLogiciels() {
-  const { rows } = await tenantPool.query(
-    `SELECT id_produit_compose, id_produit_composant FROM produit_composition`);
-  return rows;
+  const [{ rows: couples }, { rows: exceptions }] = await Promise.all([
+    tenantPool.query(`SELECT id_produit_compose, id_produit_composant FROM produit_composition`),
+    tenantPool.query(
+      `SELECT id_produit_compose, id_edition, id_produit_composant, inclus
+         FROM produit_composition_exception`),
+  ]);
+  return { couples, exceptions };
 }
 
 // Calcul à la volée restreint à une société. Droits : licences payées par la
@@ -208,7 +228,8 @@ async function lignesPourSociete(idSociete, { idProduit, idsProduits }, seuils) 
        SELECT l.id_produit,
               coalesce(sum(l.quantite) FILTER (WHERE NOT ${LICENCE_EXPIREE}), 0)::int AS droits,
               coalesce(sum(l.cout_licence) FILTER (WHERE NOT ${LICENCE_EXPIREE}), 0)::float8 AS cout_actif,
-              ${AGG_LIGNES_PRIX}
+              ${AGG_LIGNES_PRIX},
+              ${AGG_LIGNES_EDITIONS}
          FROM licence l
          JOIN commande c ON c.id = l.id_commande
         WHERE l.id_produit IS NOT NULL AND c.id_societe = $1
@@ -236,7 +257,12 @@ async function lignesPourSociete(idSociete, { idProduit, idsProduits }, seuils) 
 
   const retenus = idsProduits ? new Set(idsProduits) : null;
   const maintenant = new Date().toISOString();
-  return appliquerHeritageComposes(rows, await compositionsDesLogiciels())
+  // #279 : l'héritage se calcule tranche d'édition par tranche d'édition,
+  // sur les droits que la société a payés.
+  const { couples, exceptions } = await compositionsDesLogiciels();
+  const droitsParEdition = new Map(
+    rows.map((r) => [r.id_produit, droitsActifsParEdition(r.lignes_editions ?? [])]));
+  return appliquerHeritageComposes(rows, couples, null, { exceptions, droitsParEdition })
     .filter((r) => (!idProduit || r.id_produit === idProduit) && (!retenus || retenus.has(r.id_produit)))
     .filter((r) => r.droits_total > 0 || r.usages_total > 0)
     .map((r) => valoriser(r, seuils, maintenant));
@@ -386,7 +412,8 @@ async function synthesesParSociete(seuils) {
        SELECT c.id_societe, l.id_produit,
               coalesce(sum(l.quantite) FILTER (WHERE NOT ${LICENCE_EXPIREE}), 0)::int AS droits,
               coalesce(sum(l.cout_licence) FILTER (WHERE NOT ${LICENCE_EXPIREE}), 0)::float8 AS cout_actif,
-              ${AGG_LIGNES_PRIX}
+              ${AGG_LIGNES_PRIX},
+              ${AGG_LIGNES_EDITIONS}
          FROM licence l
          JOIN commande c ON c.id = l.id_commande
         WHERE l.id_produit IS NOT NULL AND c.id_societe IS NOT NULL
@@ -413,8 +440,10 @@ async function synthesesParSociete(seuils) {
        LEFT JOIN societe s ON s.id = coalesce(d.id_societe, u.id_societe)`);
 
   // #216 : l'héritage se pose société par société, sur les droits que la
-  // société a payés, avant d'écarter les balances vides.
-  const compositions = await compositionsDesLogiciels();
+  // société a payés, avant d'écarter les balances vides. #279 : tranche
+  // d'édition par tranche d'édition, la couverture d'un composant pouvant
+  // dépendre de l'édition des licences du composé.
+  const { couples, exceptions } = await compositionsDesLogiciels();
   const maintenant = new Date().toISOString();
   const parSociete = new Map();
   for (const r of rows) {
@@ -426,7 +455,11 @@ async function synthesesParSociete(seuils) {
   return [...parSociete.values()]
     .map((g) => ({
       ...g,
-      lignes: appliquerHeritageComposes(g.brutes, compositions)
+      lignes: appliquerHeritageComposes(g.brutes, couples, null, {
+          exceptions,
+          droitsParEdition: new Map(
+            g.brutes.map((r) => [r.id_produit, droitsActifsParEdition(r.lignes_editions ?? [])])),
+        })
         .filter((r) => r.droits_total > 0 || r.usages_total > 0)
         .map((r) => valoriser(r, seuils, maintenant)),
     }))

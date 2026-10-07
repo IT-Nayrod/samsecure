@@ -155,7 +155,11 @@ export async function detecterEcheancesSouscriptions(contexte) {
 //    souscriptions, regle pure maintenanceNotifiable) : une periode de
 //    maintenance qui se poursuit au-dela, une licence renouvelee par un
 //    successeur, un contrat renouvele ou un arret volontaire de la
-//    maintenance eteignent l'alerte. Le contrat de la licence se deduit par
+//    maintenance eteignent l'alerte. Depuis la decision client du 06/10/2026
+//    (#280, une maintenance a toujours une date de fin), une periode sans
+//    date (historique d'avant la migration 102) ne compte pas comme periode
+//    suivante et n'eteint plus l'alerte : "sans date" ne vaut plus "se
+//    poursuit au-dela". Le contrat de la licence se deduit par
 //    sa commande (licence.id_commande -> commande.id_contrat), comme partout
 //    depuis la migration 014 (correctif recette du 06/10/2026). Lecture seule
 //    de maintenance_historique, contrat, commande et licence : rien n'est
@@ -169,7 +173,7 @@ export async function detecterFinsMaintenance(contexte) {
             co.id_societe, s.raison_sociale AS societe_label,
             (SELECT count(*) FROM maintenance_historique mx
               WHERE mx.id_licence = l.id AND mx.id <> m.id
-                AND (mx.date_fin IS NULL OR mx.date_fin > m.date_fin))::int AS nb_maintenances_suivantes,
+                AND mx.date_fin > m.date_fin)::int AS nb_maintenances_suivantes,
             (SELECT count(*) FROM licence sx WHERE sx.id_licence_predecesseur = l.id)::int AS nb_successeurs_licence,
             (SELECT count(*) FROM contrat cx WHERE co.id_contrat IS NOT NULL
                 AND cx.id_contrat_predecesseur = co.id_contrat)::int AS nb_successeurs_contrat

@@ -1,7 +1,10 @@
 // DroitsViewer - visionneuse des droits effectifs d'un utilisateur, par
-// société de son rattachement. Depuis le #249, la source distingue le profil
-// par défaut (matrice configurée pour la société regardée, ou défaut du
-// tenant) des groupes personnalisés, en plus des exceptions.
+// société de son rattachement et par profil (#249 corrigé multi-profils,
+// étendu « tout est profil » #276) : « Ensemble des profils » montre l'union
+// qui fait foi, chaque profil peut être regardé seul (matrice configurée
+// pour la société regardée, ou défaut du tenant). Sources : profil ou
+// exception ; la source technique 'groupe' (attributions antérieures à la
+// migration 097) s'affiche comme un profil.
 import { useState, useEffect, useMemo } from 'react';
 import SlideOver from '../ui/SlideOver';
 import { useToast } from '../../hooks/useToast';
@@ -12,7 +15,10 @@ import { MODULES } from '../../constants/permissions';
 // Libellés fidèles à renderSourceBadge (sandbox, index.html).
 const SOURCE_CONFIG = {
   profil: { label: 'Accordé · Profil', cls: 'bg-blue-100 text-blue-800' },
-  groupe: { label: 'Accordé · Groupe', cls: 'bg-purple-100 text-purple-800' },
+  // Source servie pour les attributions de type 'groupe' tant que la 097
+  // n'est pas jouée : même rendu qu'un profil, le mot groupe a disparu de
+  // l'écran (#276).
+  groupe: { label: 'Accordé · Profil', cls: 'bg-blue-100 text-blue-800' },
   exceptionaccorde: { label: 'Accordé · Exception', cls: 'bg-green-100 text-green-800' },
   exceptionretire: { label: 'Retiré · Exception', cls: 'bg-red-100 text-red-800' },
   aucun: { label: 'Non accordé', cls: 'bg-gray-100 text-gray-500' },
@@ -29,6 +35,7 @@ export default function DroitsViewer({ isOpen, onClose, user, societes, userSoci
   const selectable = isTenantScope ? societes : societes.filter((s) => userSocieteIds.includes(s.id));
 
   const [societeId, setSocieteId] = useState(selectable[0]?.id || '');
+  const [profilId, setProfilId] = useState(''); // '' = ensemble des profils
   const [mode, setMode] = useState('tous'); // 'tous' | 'attribues'
   const [catalogue, setCatalogue] = useState([]);
   const [droits, setDroits] = useState(null);
@@ -38,6 +45,7 @@ export default function DroitsViewer({ isOpen, onClose, user, societes, userSoci
   useEffect(() => {
     if (!isOpen) return;
     setSocieteId(selectable[0]?.id || '');
+    setProfilId('');
     permissionsService.list().then(setCatalogue).catch((err) => addToast({ type: 'error', message: err.message }));
     exceptionsService.listForUser(user.id).then(setExceptions).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -46,12 +54,12 @@ export default function DroitsViewer({ isOpen, onClose, user, societes, userSoci
   useEffect(() => {
     if (!isOpen || !societeId) return;
     setLoading(true);
-    droitsService.effectifs(user.id, societeId)
+    droitsService.effectifs(user.id, societeId, profilId || undefined)
       .then(setDroits)
       .catch((err) => addToast({ type: 'error', message: err.message }))
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, societeId, user?.id]);
+  }, [isOpen, societeId, profilId, user?.id]);
 
   const rows = useMemo(() => {
     const byPermId = new Map((droits?.droits || []).map((d) => [d.permission.id, d]));
@@ -95,6 +103,17 @@ export default function DroitsViewer({ isOpen, onClose, user, societes, userSoci
               {selectable.map((s) => <option key={s.id} value={s.id}>{s.raison_sociale}</option>)}
             </select>
           </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Profil</label>
+            <select
+              value={profilId}
+              onChange={(e) => setProfilId(e.target.value)}
+              className="text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white"
+            >
+              <option value="">Ensemble des profils</option>
+              {(user.profils || []).map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+            </select>
+          </div>
           <div className="flex gap-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
             <button
               onClick={() => setMode('tous')}
@@ -113,11 +132,13 @@ export default function DroitsViewer({ isOpen, onClose, user, societes, userSoci
 
         {!loading && (
           <p className="text-xs text-gray-500 bg-gray-50 dark:bg-gray-700/50 rounded-lg px-3 py-2">
-            {droits?.profil
-              ? `Profil "${droits.profil.label}" : ${droits.profil.configure
-                  ? 'matrice configurée pour cette société'
-                  : 'matrice par défaut du tenant (société non configurée)'}.`
-              : 'Aucun profil par défaut : seuls les groupes et les exceptions s\'appliquent.'}
+            {(droits?.profils || []).length
+              ? droits.profils.map((p) =>
+                  `Profil "${p.label}" : ${p.configure
+                    ? 'matrice configurée pour cette société'
+                    : 'matrice par défaut du tenant (société non configurée)'}.`
+                ).join(' ')
+              : 'Aucun profil : seules les exceptions s\'appliquent.'}
           </p>
         )}
 
@@ -133,7 +154,7 @@ export default function DroitsViewer({ isOpen, onClose, user, societes, userSoci
                     <div key={r.permission.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm bg-white dark:bg-gray-800">
                       <span className="text-gray-700 dark:text-gray-200">
                         {r.permission.label}
-                        {r.redondante && <span className="ml-2 text-xs text-gray-400">(exception redondante avec le profil ou un groupe)</span>}
+                        {r.redondante && <span className="ml-2 text-xs text-gray-400">(exception redondante avec un profil)</span>}
                       </span>
                       <SourceBadge source={r.source} />
                     </div>
