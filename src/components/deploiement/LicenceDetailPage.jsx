@@ -420,7 +420,7 @@ export default function LicenceDetailPage() {
       <ConfirmModal
         isOpen={!!periodeASupprimer} onClose={() => setPeriodeASupprimer(null)} onConfirm={handleDeletePeriode}
         title="Supprimer la période de maintenance"
-        message={periodeASupprimer ? `Supprimer la période du ${periodeASupprimer.date_debut} au ${periodeASupprimer.date_fin ?? 'en cours'} ?` : ''}
+        message={periodeASupprimer ? `Supprimer la période du ${periodeASupprimer.date_debut}${periodeASupprimer.date_fin ? ` au ${periodeASupprimer.date_fin}` : ', sans date de fin'} ?` : ''}
         confirmLabel="Supprimer" isDestructive
       />
       <ConfirmModal

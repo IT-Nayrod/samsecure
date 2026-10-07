@@ -27,12 +27,16 @@ function trier(periodes) {
     || String(a.created_at ?? "").localeCompare(String(b.created_at ?? "")));
 }
 
-// Période couvrant le jour donné : début atteint, fin nulle ou non dépassée.
+// Période couvrant le jour donné : début atteint et fin non dépassée. Une
+// maintenance a toujours une date de fin (décision client du 06/10/2026,
+// #280) : une période sans fin (ligne historique d'avant la migration 102,
+// laissée intacte en base) n'est jamais en cours, elle est servie échue tant
+// qu'une modification ne lui pose pas de date.
 export function periodeCouvre(periode, jour) {
-  if (!periode?.date_debut) return false;
+  if (!periode?.date_debut || !periode.date_fin) return false;
   const debut = jourIso(periode.date_debut);
-  const fin = periode.date_fin ? jourIso(periode.date_fin) : null;
-  return debut <= jour && (fin === null || fin >= jour);
+  const fin = jourIso(periode.date_fin);
+  return debut <= jour && fin >= jour;
 }
 
 // Période de référence d'une licence : la période en cours (la plus récente

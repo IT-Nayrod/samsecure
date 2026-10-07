@@ -933,6 +933,7 @@ cout de maintenance) servis a null avec `montants_masques: true` sans
 | 4031 | erreur | La date de debut est obligatoire | POST, PATCH .../maintenance ; POST, PATCH /api/licences (message rendu : "La date de debut est obligatoire pour une licence de type <label>.", selon type_licence.regle_date_debut, #209) |
 | 4032 | erreur | La date de fin doit etre posterieure a la date de debut | POST, PATCH .../maintenance ; POST, PATCH /api/licences (date_debut et date_fin_souscription, #209) |
 | 4033 | erreur | Le cout de maintenance doit etre un montant positif ou nul | POST, PATCH .../maintenance |
+| 4039 | erreur | La date de fin de la maintenance est obligatoire | POST, PATCH .../maintenance (400, decision client du 06/10/2026 : une maintenance a toujours une date de fin ; refus aussi d'un PATCH qui efface la date ou qui modifie une periode historique sans date sans en poser une ; contrainte 102 NOT VALID en garde-fou, lignes historiques intactes, servies echues) |
 | 4040 | erreur | La maintenance de cette licence est deja arretee | POST .../arret-maintenance (409) |
 | 4041 | erreur | La date d'arret est invalide | POST .../arret-maintenance |
 | 4042 | erreur | Version à figer introuvable ou étrangère au logiciel | POST .../arret-maintenance |

@@ -167,6 +167,6 @@ Autres tables structurantes : `workflow_validation`, `journal_ecriture`, `audit_
 
 - Contrôle des permissions par route, pas de filtrage de périmètre société hors des trois routeurs d'administration.
 - `cors()` sans configuration ; double authentification factice (code en dur) ; réinitialisation de mot de passe par lien publique branchée, anti-bruteforce en état React.
-- Rapports et recherche globale sur données mock ; notifications de fin de maintenance inexistantes ; le planificateur des échéances de souscription ne considère que le type souscription.
+- Rapports et recherche globale sur données mock ; le planificateur des échéances de souscription ne considère que le type souscription.
 - Bundle front monolithique sans `React.lazy` ; dark mode non activable (classe `dark` jamais posée).
 - ESLint quasi inopérant en l'état de sa configuration.
