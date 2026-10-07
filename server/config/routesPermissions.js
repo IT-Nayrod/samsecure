@@ -281,6 +281,10 @@ export const ROUTES_PERMISSIONS = [
   ["POST",   "/societes",                    "gerer_referentiels"],
   ["PATCH",  "/societes/:id",                "gerer_referentiels"],
   ["DELETE", "/societes/:id",                "gerer_referentiels"],
+  // #281 : cycle de vie des societes (desactivation reversible, suppression
+  // douce controlee par la route DELETE), meme permission que leur CRUD.
+  ["POST",   "/societes/:id/desactiver",     "gerer_referentiels"],
+  ["POST",   "/societes/:id/reactiver",      "gerer_referentiels"],
 
   // ---- Administration : profils par defaut, matrices par societe (#249) -----
   // gerer_profils (Q5) : parametrage des matrices, par defaut et par societe.

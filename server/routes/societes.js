@@ -1,6 +1,14 @@
-// Sociétés du tenant : création, modification, suppression, et configuration
-// des profils par défaut par société (#249, onglet Profils de la fiche
-// société, permission gerer_profils).
+// Sociétés du tenant : création, modification, désactivation, suppression
+// douce contrôlée, et configuration des profils par défaut par société (#249,
+// onglet Profils de la fiche société, permission gerer_profils).
+//
+// Cycle de vie (#281, issue 60 — règle du ticket #62) : une société ne se
+// supprime pas tant qu'un objet s'y raccroche, elle se désactive (actif =
+// false + date_fin_activite, réversible). La suppression d'une société vide
+// est douce (date_suppression) : retirée des listes courantes, conservée en
+// base à des fins d'audit, opération et auteur tracés dans audit_log.
+// L'ancienne suppression en cascade (filiales et rattachements purgés) a
+// disparu : les filiales et les rattachements bloquent.
 //
 // La détection des « profils orphelins » a disparu avec la diffusion (#57) :
 // un groupe ne meurt plus avec une société, sa portée suit le rattachement
@@ -10,6 +18,7 @@ import express from "express";
 import { tenantPool } from "../db.js";
 import { estUuid } from "../utils/matriceGroupe.js";
 import { auditer } from "../utils/audit.js";
+import { blocagesSuppression, messageSuppressionImpossible } from "../utils/societeSuppression.js";
 import { validerPermissionIds, matriceSocieteCourante, configurerMatriceSociete } from "../utils/matriceProfil.js";
 
 const router = express.Router();
@@ -26,18 +35,47 @@ async function log(client, action, entite_type, entite_id, description, payload)
 const SELECT_FIELDS = `
   id, raison_sociale AS raisonsociale, siret, email, id_societe_parent AS idsocieteparent,
   duree_amortissement AS dureeamortissement, revalorisation_annuelle AS revalorisationannuelle,
-  delai_revalidation AS delairevalidation, debut_exercice_fiscal::text AS debutexercicefiscal, actif
+  delai_revalidation AS delairevalidation, debut_exercice_fiscal::text AS debutexercicefiscal, actif,
+  date_fin_activite::text AS datefinactivite
 `;
 
+// Rattachements qui interdisent la suppression (#281, ordre du ticket) : la
+// référence (s.id corrélé en liste, $1 au DELETE) permet le même décompte aux
+// deux endroits. Les licences et les lignes de budget n'ont pas de colonne
+// id_societe : elles se raccrochent par la chaîne budget licence -> commande
+// (d'origine) -> société payeuse. Les contrats comptent aussi la société
+// prêteuse des prêts internes (070). Les contrats archivés et les
+// affectations non validées comptent : l'objet existe, il se raccroche.
+const SQL_COMPTEURS = (ref) => `
+  (SELECT count(*)::int FROM utilisateur_societe us
+    WHERE us.id_societe = ${ref} AND us.date_suppression IS NULL)        AS nb_utilisateurs,
+  (SELECT count(*)::int FROM societe f
+    WHERE f.id_societe_parent = ${ref} AND f.date_suppression IS NULL)   AS nb_filiales,
+  (SELECT count(*)::int FROM contrat c
+    WHERE c.id_societe = ${ref} OR c.id_societe_preteuse = ${ref})       AS nb_contrats,
+  (SELECT count(*)::int FROM commande co WHERE co.id_societe = ${ref})   AS nb_commandes,
+  (SELECT count(*)::int FROM licence l
+     JOIN commande cl ON cl.id = l.id_commande
+    WHERE cl.id_societe = ${ref})                                        AS nb_licences,
+  (SELECT count(*)::int FROM affectation a WHERE a.id_societe = ${ref})  AS nb_affectations,
+  (SELECT count(*)::int FROM budget b
+     JOIN licence lb ON lb.id = b.id_licence
+     JOIN commande cb ON cb.id = lb.id_commande
+    WHERE cb.id_societe = ${ref})                                        AS nb_lignes_budget
+`;
+
+// La projection de liste porte les compteurs de rattachements et les blocages
+// de suppression prêts à l'écran : la fiche ne propose Supprimer que sur une
+// société vide, le serveur restant seul juge au DELETE.
 router.get("/societes", async (req, res) => {
   try {
     const { rows } = await tenantPool.query(`
-      SELECT ${SELECT_FIELDS}
-      FROM societe
-      WHERE date_suppression IS NULL
+      SELECT ${SELECT_FIELDS}, ${SQL_COMPTEURS("s.id")}
+      FROM societe s
+      WHERE s.date_suppression IS NULL
       ORDER BY raison_sociale
     `);
-    res.json(rows);
+    res.json(rows.map((r) => ({ ...r, blocages_suppression: blocagesSuppression(r) })));
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Erreur serveur" });
@@ -62,7 +100,7 @@ router.post("/societes", async (req, res) => {
         duree_amortissement || null, revalorisation_annuelle || null, delai_revalidation || null, debut_exercice_fiscal || null,
       ]
     );
-    await log(client, "CREATE", "societe", rows[0].id, `Organisation "${raison_sociale}" créée`, rows[0]);
+    await log(client, "CREATE", "societe", rows[0].id, `Société "${raison_sociale}" créée`, rows[0]);
     await client.query("COMMIT");
     res.status(201).json(rows[0]);
   } catch (err) {
@@ -76,6 +114,8 @@ router.post("/societes", async (req, res) => {
 
 router.patch("/societes/:id", async (req, res) => {
   const { id } = req.params;
+  // code_retour: 2075
+  if (!estUuid(id)) return res.status(404).json({ error: "Société introuvable" });
   const {
     raison_sociale, siret, email, id_societe_parent,
     duree_amortissement, revalorisation_annuelle, delai_revalidation, debut_exercice_fiscal, actif,
@@ -94,15 +134,22 @@ router.patch("/societes/:id", async (req, res) => {
     if (revalorisation_annuelle !== undefined) { fields.push(`revalorisation_annuelle = $${i++}`); values.push(revalorisation_annuelle); }
     if (delai_revalidation !== undefined) { fields.push(`delai_revalidation = $${i++}`); values.push(delai_revalidation); }
     if (debut_exercice_fiscal !== undefined) { fields.push(`debut_exercice_fiscal = $${i++}`); values.push(debut_exercice_fiscal); }
-    if (actif !== undefined) { fields.push(`actif = $${i++}`); values.push(actif); }
-    if (fields.length === 0) return res.status(400).json({ error: "Aucun champ à modifier" });
+    if (actif !== undefined) {
+      fields.push(`actif = $${i++}`); values.push(actif);
+      // #281 : cohérence booléen/date, le simulateur passe encore par PATCH.
+      // Désactiver pose la date du jour (si absente), réactiver l'efface. Les
+      // routes dédiées /desactiver et /reactiver restent la porte tracée.
+      fields.push(actif ? "date_fin_activite = NULL" : "date_fin_activite = COALESCE(date_fin_activite, CURRENT_DATE)");
+    }
+    if (fields.length === 0) { await client.query("ROLLBACK"); return res.status(400).json({ error: "Aucun champ à modifier" }); }
     const { rows } = await client.query(
       `UPDATE societe SET ${fields.join(", ")} WHERE id = $1 AND date_suppression IS NULL
        RETURNING ${SELECT_FIELDS}`,
       values
     );
-    if (!rows.length) return res.status(404).json({ error: "Organisation introuvable" });
-    await log(client, "UPDATE", "societe", id, `Organisation "${rows[0].raisonsociale}" modifiée`, req.body);
+    // code_retour: 2075
+    if (!rows.length) { await client.query("ROLLBACK"); return res.status(404).json({ error: "Société introuvable" }); }
+    await log(client, "UPDATE", "societe", id, `Société "${rows[0].raisonsociale}" modifiée`, req.body);
     await client.query("COMMIT");
     res.json(rows[0]);
   } catch (err) {
@@ -114,43 +161,123 @@ router.patch("/societes/:id", async (req, res) => {
   }
 });
 
-// #249/#57 : plus aucune purge de groupes ni d'attributions. Les groupes ne
-// portent plus de diffusion (un groupe ne devient jamais orphelin d'une
-// société), les attributions de groupes ne sont plus portées par société, et
-// les configurations de profils de la société (092) deviennent inertes d'elles-
-// mêmes : le calcul des droits ne couvre que les sociétés actives.
-async function purgeSociete(client, id) {
-  await client.query(`UPDATE exception_droit SET date_suppression = now() WHERE id_societe = $1 AND date_suppression IS NULL`, [id]);
-  await client.query(`UPDATE utilisateur_societe SET date_suppression = now() WHERE id_societe = $1 AND date_suppression IS NULL`, [id]);
-  await client.query(`UPDATE societe SET date_suppression = now() WHERE id = $1`, [id]);
-}
-
-async function collecterEnfants(client, parentId) {
-  const ids = [];
-  const queue = [parentId];
-  while (queue.length > 0) {
-    const current = queue.shift();
-    const { rows } = await client.query(
-      `SELECT id FROM societe WHERE id_societe_parent = $1 AND date_suppression IS NULL`, [current]
+// Désactivation (#281, règle du ticket #62) : toujours possible, réversible.
+// actif = false et date_fin_activite posée (conservée si déjà renseignée),
+// trace probante SOCIETE_DESACTIVEE. Idempotente : une société déjà inactive
+// est renvoyée telle quelle, sans nouvelle trace.
+router.post("/societes/:id/desactiver", async (req, res) => {
+  const { id } = req.params;
+  // code_retour: 2075
+  if (!estUuid(id)) return res.status(404).json({ error: "Société introuvable" });
+  const client = await tenantPool.connect();
+  try {
+    await client.query("BEGIN");
+    const { rows: avant } = await client.query(
+      `SELECT raison_sociale, actif, date_fin_activite::text AS date_fin_activite
+       FROM societe WHERE id = $1 AND date_suppression IS NULL FOR UPDATE`, [id]
     );
-    for (const r of rows) { ids.push(r.id); queue.push(r.id); }
+    if (!avant.length) { await client.query("ROLLBACK"); return res.status(404).json({ error: "Société introuvable" }); }
+    const { rows } = await client.query(
+      `UPDATE societe SET actif = false, date_fin_activite = COALESCE(date_fin_activite, CURRENT_DATE)
+       WHERE id = $1 RETURNING ${SELECT_FIELDS}`, [id]
+    );
+    if (avant[0].actif) {
+      await log(client, "UPDATE", "societe", id, `Société "${avant[0].raison_sociale}" désactivée`, { actif: false, date_fin_activite: rows[0].datefinactivite });
+      // code_retour: 2092
+      await auditer(client, req, {
+        action: "SOCIETE_DESACTIVEE", entiteType: "societe", entiteId: id,
+        avant: { raison_sociale: avant[0].raison_sociale, actif: true, date_fin_activite: avant[0].date_fin_activite },
+        apres: { raison_sociale: avant[0].raison_sociale, actif: false, date_fin_activite: rows[0].datefinactivite },
+      });
+    }
+    await client.query("COMMIT");
+    res.json(rows[0]);
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("POST /societes/:id/desactiver error", err);
+    res.status(500).json({ error: "Erreur serveur" });
+  } finally {
+    client.release();
   }
-  return ids;
-}
+});
 
+// Réactivation : pendant de la désactivation (un compte comme une société se
+// réactive, migration 022), même permission. Efface date_fin_activite, trace
+// probante SOCIETE_REACTIVEE, idempotente.
+router.post("/societes/:id/reactiver", async (req, res) => {
+  const { id } = req.params;
+  // code_retour: 2075
+  if (!estUuid(id)) return res.status(404).json({ error: "Société introuvable" });
+  const client = await tenantPool.connect();
+  try {
+    await client.query("BEGIN");
+    const { rows: avant } = await client.query(
+      `SELECT raison_sociale, actif, date_fin_activite::text AS date_fin_activite
+       FROM societe WHERE id = $1 AND date_suppression IS NULL FOR UPDATE`, [id]
+    );
+    if (!avant.length) { await client.query("ROLLBACK"); return res.status(404).json({ error: "Société introuvable" }); }
+    const { rows } = await client.query(
+      `UPDATE societe SET actif = true, date_fin_activite = NULL
+       WHERE id = $1 RETURNING ${SELECT_FIELDS}`, [id]
+    );
+    if (!avant[0].actif) {
+      await log(client, "UPDATE", "societe", id, `Société "${avant[0].raison_sociale}" réactivée`, { actif: true });
+      // code_retour: 2093
+      await auditer(client, req, {
+        action: "SOCIETE_REACTIVEE", entiteType: "societe", entiteId: id,
+        avant: { raison_sociale: avant[0].raison_sociale, actif: false, date_fin_activite: avant[0].date_fin_activite },
+        apres: { raison_sociale: avant[0].raison_sociale, actif: true, date_fin_activite: null },
+      });
+    }
+    await client.query("COMMIT");
+    res.json(rows[0]);
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("POST /societes/:id/reactiver error", err);
+    res.status(500).json({ error: "Erreur serveur" });
+  } finally {
+    client.release();
+  }
+});
+
+// Suppression (#281, issue 60, règle du ticket #62) : refusée tant qu'un
+// objet se raccroche à la société (409, message rendu listant les blocages),
+// douce sinon. Plus aucune cascade : les filiales bloquent. La société
+// supprimée quitte les listes (WHERE date_suppression IS NULL) mais reste en
+// base à des fins d'audit ; ses configurations de profils (#249) deviennent
+// inertes d'elles-mêmes (les lectures joignent les sociétés non supprimées).
 router.delete("/societes/:id", async (req, res) => {
   const { id } = req.params;
+  // code_retour: 2075
+  if (!estUuid(id)) return res.status(404).json({ error: "Société introuvable" });
   const client = await tenantPool.connect();
   try {
     await client.query("BEGIN");
     const { rows: soc } = await client.query(
-      `SELECT raison_sociale FROM societe WHERE id = $1 AND date_suppression IS NULL`, [id]
+      `SELECT raison_sociale, actif FROM societe WHERE id = $1 AND date_suppression IS NULL FOR UPDATE`, [id]
     );
-    if (!soc.length) { await client.query("ROLLBACK"); return res.status(404).json({ error: "Organisation introuvable" }); }
-    const enfants = await collecterEnfants(client, id);
-    const tousIds = [id, ...enfants];
-    for (let i = tousIds.length - 1; i >= 0; i--) await purgeSociete(client, tousIds[i]);
-    await log(client, "SOFT_DELETE", "societe", id, `Organisation "${soc[0].raison_sociale}" et ${enfants.length} enfant(s) supprimée(s)`, { enfants });
+    if (!soc.length) { await client.query("ROLLBACK"); return res.status(404).json({ error: "Société introuvable" }); }
+    const { rows: [compteurs] } = await client.query(`SELECT ${SQL_COMPTEURS("$1::uuid")}`, [id]);
+    const blocages = blocagesSuppression(compteurs);
+    if (blocages.length > 0) {
+      await client.query("ROLLBACK");
+      // code_retour: 2090
+      return res.status(409).json({ error: messageSuppressionImpossible(soc[0].raison_sociale, blocages) });
+    }
+    // Société vide : les exceptions de droit encore posées dessus (vestiges
+    // d'anciens rattachements, bornées au rattachement donc déjà inertes)
+    // partent avec elle, comme avant.
+    await client.query(`UPDATE exception_droit SET date_suppression = now() WHERE id_societe = $1 AND date_suppression IS NULL`, [id]);
+    const { rows: [apres] } = await client.query(
+      `UPDATE societe SET date_suppression = now() WHERE id = $1 RETURNING date_suppression`, [id]
+    );
+    await log(client, "SOFT_DELETE", "societe", id, `Société "${soc[0].raison_sociale}" supprimée (suppression douce, aucun objet rattaché)`, null);
+    // code_retour: 2091
+    await auditer(client, req, {
+      action: "SOCIETE_SUPPRIMEE", entiteType: "societe", entiteId: id,
+      avant: { raison_sociale: soc[0].raison_sociale, actif: soc[0].actif, supprimee: false },
+      apres: { raison_sociale: soc[0].raison_sociale, supprimee: true, date_suppression: apres.date_suppression },
+    });
     await client.query("COMMIT");
     res.status(204).end();
   } catch (err) {

@@ -1640,3 +1640,34 @@ Lectures, sans nouveau code (hors enveloppe, module administration) :
   (`{ id, code, label, configure }`) et des sources `profil` / `groupe`
   distinctes ; `profilId` reste accepté (simulation d'un profil, simulateur
   de droits).
+
+## Sociétés : désactivation et suppression douce (#281, issue 60, migration 103)
+
+Règle du ticket #62, rappelée par le retour client du 06/10 : les utilisateurs
+et les sociétés ne se suppriment pas, ils se désactivent avec une date. Une
+société se désactive toujours (actif = false + date_fin_activite, réversible
+par la réactivation) ; sa suppression n'est possible que si plus aucun objet
+ne s'y raccroche — utilisateurs rattachés, filiales, contrats (société
+signataire ou prêteuse des prêts internes), commandes, licences et lignes de
+budget (chaîne licence -> commande -> société payeuse), affectations — et,
+même alors, elle est douce : date_suppression posée, société retirée des
+listes courantes mais conservée en base à des fins d'audit, opération et
+auteur tracés dans audit_log. L'ancienne suppression en cascade des filiales
+et des rattachements a disparu : les filiales bloquent.
+
+Routes hors enveloppe, comme tout le module administration ; codes seedés par
+la 103 (commune). GET /api/societes sert les compteurs de rattachements
+(`nb_utilisateurs`, `nb_filiales`, `nb_contrats`, `nb_commandes`,
+`nb_licences`, `nb_affectations`, `nb_lignes_budget`), `date_fin_activite` et
+`blocages_suppression` (libellés prêts à l'écran) : la fiche ne propose
+Supprimer que sur une société vide, le serveur restant seul juge au DELETE.
+
+| Code | Type | Libellé | Émis par |
+|------|------|---------|----------|
+| 2090 | erreur | Suppression impossible : des objets se raccrochent encore à la société | DELETE /api/societes/:id (409, la route interpole la liste des blocages : « Suppression impossible : la société "X" porte encore 2 utilisateurs rattachés et 1 filiale. La désactivation reste possible. ») |
+| 2091 | trace | Société supprimée (suppression douce) | audit_log, action SOCIETE_SUPPRIMEE (DELETE /api/societes/:id, 204) |
+| 2092 | trace | Société désactivée | audit_log, action SOCIETE_DESACTIVEE (POST /api/societes/:id/desactiver, 200, pose date_fin_activite ; idempotente) |
+| 2093 | trace | Société réactivée | audit_log, action SOCIETE_REACTIVEE (POST /api/societes/:id/reactiver, 200, efface date_fin_activite ; idempotente) |
+
+Les 404 de ces routes (identifiant non UUID, société inconnue ou déjà
+supprimée) réutilisent le 2075 « Société introuvable ».
