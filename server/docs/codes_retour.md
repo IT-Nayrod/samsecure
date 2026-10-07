@@ -1597,6 +1597,53 @@ GET /api/logiciels/:id fusionnent désormais les compléments de la 063 aux
 versions et éditions du catalogue ; chaque déclinaison porte `source`
 (`catalogue`, `complement` ou `client`).
 
+## Composition par édition (#279, décision client du 06/10/2026, migrations 100, 101 et 104)
+
+La composition d'un logiciel composé peut différer selon l'édition du composé
+(exemple du client : Office Standard et Office Pro diffèrent par la présence
+d'Access). La composition par défaut (#216) reste la base ; la composition
+effective d'une édition vaut le défaut moins ses exclusions plus ses
+inclusions (`produit_composition_exception`, migration 100). Une licence du
+composé sans édition couvre la composition par défaut ; seule l'édition
+conditionne la composition, jamais la version. Conformité (migration 101) :
+une licence du composé ne couvre un composant que si la composition effective
+de son édition contient ce composant. Un composé sans exception se comporte
+exactement comme avant.
+
+Codes 4070-4074 (plage licences, premiers libres en bloc après le bloc
+4060-4069 de la composition), seedés par la migration 104. La route vit dans
+`logiciels.js` (grille de la fiche Référentiels > Logiciels), permission
+`gerer_referentiels`. Les refus partagés avec le défaut sont réutilisés, pas
+dupliqués : 5310 (composé introuvable, 404), 4062 (composant d'une inclusion
+introuvable, 400), 4063 (réflexif, 409), 4064 (éditeur différent ou absent,
+409), 4066 (niveau unique, 409, garde SQL par trigger en 100).
+
+| Code | Type | Libellé | Émis par |
+|------|------|---------|----------|
+| 4070 | succes | Composition par édition enregistrée | PUT /api/logiciels/:id/composition-editions (corps `{ exceptions: [{ id_edition, id_produit_composant, inclus }] }`, data = `{ exceptions }` relues après écriture ; seules les différences au défaut sont conservées, une ligne qui redit le défaut est écartée sans erreur) |
+| 4071 | erreur | Ce logiciel n'est pas un logiciel composé | PUT (409, aucune composition par défaut à ajuster) |
+| 4072 | erreur | Édition inconnue pour ce logiciel composé | PUT (400, l'édition n'appartient pas au composé : edition Commune + edition_complement pour un logiciel du catalogue, edition_client pour un logiciel créé localement) |
+| 4073 | erreur | Exception de composition invalide | PUT (400 : corps mal formé, ligne incomplète ou édition qui inclut et exclut le même composant ; 409 sur écriture concurrente, unicité du triplet tenue par la 100) |
+| 4074 | trace | Composition par édition modifiée | audit_log, action PRODUIT_COMPOSITION_EDITIONS_MODIFIEE (entite_type produit_composition_exception, entite_id le composé, avant/après les différences) |
+
+Lectures et effets de bord, sans nouveau code :
+- GET /api/logiciels/:id (5301) sert `composition_exceptions`
+  (`{ id_edition, id_produit_composant, composant_label, composant_source,
+  inclus }`) et annote chaque entrée de `composes` : `par_editions` (le
+  composé n'inclut ce logiciel que pour ces éditions) ou `hors_editions`
+  (éditions du composé dont il est exclu) ;
+- DELETE /api/logiciels/:id/composants/:idComposant (4061) purge les
+  exceptions du couple (retirer un composant du défaut vaut retrait
+  complet) ; POST /api/logiciels/:id/composants (4060) purge celles d'un
+  composant promu au défaut ; DELETE /api/logiciels/:id/editions/:idDecl
+  (5308) purge les exceptions de l'édition supprimée ;
+- DELETE /api/logiciels/:id (5317) compte les exceptions parmi les
+  rattachements bloquants (`details.exceptions_edition`), `supprimable` en
+  tient compte ;
+- GET /api/conformite (4300) : forme inchangée, `droits_herites` applique la
+  règle d'édition (précalcul par la 101, chemins par société par les mêmes
+  fonctions pures, `droitsHeritesParComposantParEdition`).
+
 ## Refonte des droits : profils par société (#249, migrations 092 à 094)
 
 Les profils par défaut (IT Ops, Financier, Manager DSI, IT Data input) se

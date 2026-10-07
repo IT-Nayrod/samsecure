@@ -27,6 +27,16 @@
 //       pas (une licence de composant ne couvre jamais le composé) et les
 //       usages de chacun restent les siens.
 //
+// Décision client du 06/10/2026 (#279), appliquée ici et par les migrations
+// 100 et 101 :
+//   composition par édition : la composition d'un composé peut différer par
+//       édition (exceptions inclus/exclu posées sur la composition par
+//       défaut, produit_composition_exception). Une licence du composé ne
+//       couvre un composant que si la composition effective de son édition
+//       le contient ; une licence sans édition couvre la composition par
+//       défaut. Un composé sans exception se comporte exactement comme
+//       avant.
+//
 // Les fragments SQL attendent l'alias l sur licence. Ce sont des constantes du
 // code, jamais des valeurs de requête : leur interpolation est sûre.
 //
@@ -293,13 +303,133 @@ export function droitsHeritesParComposant(droitsPropres, compositions = []) {
 // pas : un composant sans licence propre n'a aucun usage déclarable (une
 // affectation passe par une licence), une ligne faite de seuls droits hérités
 // compterait deux fois les mêmes droits comme excédent.
-export function appliquerHeritageComposes(lignes = [], compositions = [], droitsPropres = null) {
-  const propres = droitsPropres
-    ?? new Map(lignes.map((l) => [l.id_produit, Number(l.droits_total) || 0]));
-  const herites = droitsHeritesParComposant(propres, compositions);
+//
+// #279 : quand la composition diffère par édition, l'appelant fournit
+// edition = { exceptions, droitsParEdition } (lignes de
+// produit_composition_exception, et droits propres actifs du composé
+// ventilés par édition de licence, voir droitsActifsParEdition) : l'héritage
+// passe alors par droitsHeritesParComposantParEdition. Sans ce paramètre,
+// comportement inchangé (la composition par défaut vaut pour toutes les
+// licences), et les appels antérieurs à ce chantier restent valides.
+export function appliquerHeritageComposes(lignes = [], compositions = [], droitsPropres = null, edition = null) {
+  const herites = edition?.droitsParEdition
+    ? droitsHeritesParComposantParEdition(edition.droitsParEdition, compositions, edition.exceptions)
+    : droitsHeritesParComposant(
+        droitsPropres ?? new Map(lignes.map((l) => [l.id_produit, Number(l.droits_total) || 0])),
+        compositions);
   return lignes.map((l) => {
     const p = Number(l.droits_total) || 0;
     const h = herites.get(l.id_produit) ?? 0;
     return { ...l, droits_propres: p, droits_herites: h, droits_total: p + h };
   });
+}
+
+// ---------------------------------------------------------------------------
+// Composition par édition (#279, décision client du 06/10/2026)
+// ---------------------------------------------------------------------------
+
+// Composition effective d'une édition d'un logiciel composé : le défaut moins
+// ses exclusions, plus ses inclusions (migration 100). idEdition null désigne
+// une licence sans édition : elle couvre la composition par défaut, aucune
+// exception ne s'applique. Les lignes redondantes (inclus sur un composant du
+// défaut, exclu hors défaut) sont sans effet par construction de la formule,
+// et le triplet (composé, édition, composant) étant unique en base, aucune
+// contradiction n'est possible ; sur une donnée fautive, l'inclusion
+// l'emporte. Seule l'édition conditionne la composition, jamais la version
+// (hypothèse à faire valider, journal du chantier).
+export function compositionEffective(composantsDefaut = [], exceptions = [], idEdition = null) {
+  const effective = new Set((composantsDefaut ?? []).filter(Boolean));
+  if (idEdition == null) return effective;
+  const visees = (exceptions ?? []).filter(
+    (x) => x && x.id_edition === idEdition && x.id_produit_composant);
+  for (const x of visees) if (!x.inclus) effective.delete(x.id_produit_composant);
+  for (const x of visees) if (x.inclus) effective.add(x.id_produit_composant);
+  return effective;
+}
+
+// Pendant JS du prédicat SQL de la migration 101 : l'édition d'une licence du
+// composé contient-elle ce composant ?
+export function editionContientComposant(composantsDefaut, exceptions, idEdition, idComposant) {
+  return compositionEffective(composantsDefaut, exceptions, idEdition).has(idComposant);
+}
+
+// Agrège des lignes de licence ACTIVES ({ id_edition, quantite }) en droits
+// par édition : [{ id_edition, droits }], id_edition null portant les
+// licences sans édition. Nourrit droitsHeritesParComposantParEdition depuis
+// les requêtes par société de conformite.js (json_agg filtré par
+// LICENCE_EXPIREE) : l'agrégat reste la somme des droits propres actifs.
+export function droitsActifsParEdition(lignes = []) {
+  const parEdition = new Map();
+  for (const l of lignes ?? []) {
+    if (!l) continue;
+    const cle = l.id_edition ?? null;
+    parEdition.set(cle, (parEdition.get(cle) ?? 0) + (Number(l.quantite) || 0));
+  }
+  return [...parEdition].map(([id_edition, droits]) => ({ id_edition, droits }));
+}
+
+// Droits hérités par composant quand la composition peut différer par
+// édition (#279). droitsParEdition : Map ou objet id_produit ->
+// [{ id_edition, droits }], droits PROPRES actifs du produit ventilés par
+// édition de licence sur le périmètre observé. compositions : couples du
+// défaut (produit_composition). exceptions : lignes de
+// produit_composition_exception, tous composés confondus.
+//
+// Mêmes garde-fous que droitsHeritesParComposant (sens unique, un seul
+// niveau : seules les tranches propres fournies se transmettent, couples
+// répétés ou réflexifs sans effet), plus la règle d'édition : chaque tranche
+// de droits du composé ne se transmet qu'aux composants que la composition
+// effective de son édition contient. Un composé sans exception transmet
+// exactement ses droits propres, comme avant ce chantier ; un composant
+// ajouté par édition (inclus, hors défaut) n'est couvert que par les
+// tranches portant cette édition, jamais par une licence sans édition.
+export function droitsHeritesParComposantParEdition(droitsParEdition, compositions = [], exceptions = []) {
+  const lire = droitsParEdition instanceof Map
+    ? (id) => droitsParEdition.get(id)
+    : (id) => (droitsParEdition ?? {})[id];
+
+  const exceptionsParCompose = new Map();
+  for (const x of exceptions ?? []) {
+    if (!x?.id_produit_compose || !x.id_produit_composant || !x.id_edition) continue;
+    const liste = exceptionsParCompose.get(x.id_produit_compose) ?? [];
+    liste.push(x);
+    exceptionsParCompose.set(x.id_produit_compose, liste);
+  }
+
+  // Couples transmetteurs : le défaut, plus les inclusions par édition (un
+  // composant peut n'exister que par exception). Une Map par clé déduplique
+  // les couples répétés.
+  const defautParCompose = new Map();
+  const couples = new Map();
+  for (const c of compositions ?? []) {
+    const compose = c?.id_produit_compose, composant = c?.id_produit_composant;
+    if (!compose || !composant || compose === composant) continue;
+    const defaut = defautParCompose.get(compose) ?? new Set();
+    defaut.add(composant);
+    defautParCompose.set(compose, defaut);
+    couples.set(`${compose}>${composant}`, { compose, composant });
+  }
+  for (const [compose, liste] of exceptionsParCompose) {
+    for (const x of liste) {
+      if (x.inclus && x.id_produit_composant !== compose) {
+        couples.set(`${compose}>${x.id_produit_composant}`, { compose, composant: x.id_produit_composant });
+      }
+    }
+  }
+
+  const herites = new Map();
+  for (const { compose, composant } of couples.values()) {
+    const defaut = [...(defautParCompose.get(compose) ?? [])];
+    const exceptionsDuCompose = exceptionsParCompose.get(compose) ?? [];
+    let somme = 0;
+    for (const tranche of lire(compose) ?? []) {
+      const droits = Number(tranche?.droits) || 0;
+      if (droits <= 0) continue;
+      if (editionContientComposant(defaut, exceptionsDuCompose, tranche.id_edition ?? null, composant)) {
+        somme += droits;
+      }
+    }
+    if (somme > 0) herites.set(composant, (herites.get(composant) ?? 0) + somme);
+  }
+  return herites;
 }

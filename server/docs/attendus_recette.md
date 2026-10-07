@@ -210,6 +210,28 @@ en base, l'écran où regarder, le résultat exact attendu.
 - **Attendu** : l'unité de mesure s'affiche sur chaque fiche licence.
   — **Vérifié.**
 
+### LOG-06 — Composition par édition (#279, cas Office Standard / Office Pro)
+- **Mise en place** (par l'écran, non couvert par 01_jeu_recette.sql v0.5 ;
+  trois logiciels chez un même éditeur) : « REC Suite Pack »,
+  « REC Pack Texte », « REC Pack Base » ; éditions « REC Standard » et
+  « REC Pro » sur REC Suite Pack ; composer REC Suite Pack de REC Pack Texte
+  et REC Pack Base ; dans « Composition par édition » de la fiche du composé,
+  décocher REC Pack Base pour REC Standard, enregistrer. Licences :
+  REC Suite Pack édition REC Standard q=5, REC Suite Pack édition REC Pro
+  q=3, REC Pack Texte q=1 (0 usage), REC Pack Base q=1 (4 usages validés).
+- **Écrans** : Référentiels > Logiciels (fiche de REC Suite Pack : grille
+  pré-cochée, seule la case Base x Standard décochée ; fiche de
+  REC Pack Base : « Fait partie de REC Suite Pack, hors édition
+  REC Standard ») ; Conformité.
+- **Attendu** : REC Pack Base : droits totaux **4** (1 propre + 3 hérités de
+  la seule édition REC Pro — les 5 droits de l'édition REC Standard ne
+  couvrent plus ce composant), 4 usages, taux 100 %, **attention** (seuil de
+  taux 85 %, SEU-01) ; REC Pack Texte : droits **9** (1 propre + 8 hérités
+  des deux éditions) ; recocher Base x Standard → REC Pack Base repasse à
+  **9** droits, recalcul immédiat. Un composé sans exception (LOG-03) se
+  comporte exactement comme avant. — **À vérifier** (migrations 100, 101 et
+  104 à jouer, API redémarrée après la 104).
+
 ## CTR — Contrats
 
 ### CTR-01 — Cadre et enfant
