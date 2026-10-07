@@ -39,6 +39,7 @@ import qualiteRouter from "./routes/qualite.js";
 import dashboardsRouter from "./routes/dashboards.js";
 import contactsRouter from "./routes/contacts.js";
 import notificationsRouter from "./routes/notifications.js";
+import completudeRouter from "./routes/completude.js";
 import { demarrerPlanificateur } from "./utils/notifications/planificateur.js";
 
 const app = express();
@@ -92,6 +93,9 @@ app.use("/api", contactsRouter);
 // Notifications (#121) : routes personnelles de l'utilisateur connecte et
 // declenchement manuel du traitement planifie (administrateur).
 app.use("/api", notificationsRouter);
+// Complétude des fiches (US #324) : actions requises et résumé, lecture
+// seule sur les données des modules montés ci-dessus.
+app.use("/api", completudeRouter);
 
 app.use("/api", (req, res) => {
   res.status(404).json({ error: "Ressource introuvable." });

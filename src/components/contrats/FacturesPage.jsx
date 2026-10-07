@@ -28,6 +28,7 @@ import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, FileCheck, AlertTriangle, X } from 'lucide-react';
 import { preuvesService, typesPreuveService, manquesService } from '../../services/documentsService';
+import { completudeService } from '../../services/completudeService';
 import { contratsService } from '../../services/contratsService';
 import { optionnel } from '../../services/http';
 import { commandesService } from '../../services/commandesService';
@@ -60,6 +61,7 @@ export default function FacturesPage() {
 
   const [preuves, setPreuves] = useState([]);
   const [manques, setManques] = useState(null);
+  const [resumeCompletude, setResumeCompletude] = useState(null);
   const [typesPreuve, setTypesPreuve] = useState([]);
   const [contrats, setContrats] = useState([]);
   const [commandes, setCommandes] = useState([]);
@@ -102,15 +104,18 @@ export default function FacturesPage() {
       // leur refus retire une section ou un filtre, pas la page.
       // Les licences (#208) ne servent qu'au rattachement dans la modale de
       // dépôt : un refus de droit sur le module 3 laisse l'écran complet.
-      const [p, m, t, c, k, l] = await Promise.all([
+      const [p, m, r, t, c, k, l] = await Promise.all([
         preuvesService.list(filtres),
         optionnel(manquesService.list({ idContrat: contratActif || undefined }), null),
+        // Résumé de complétude (#324) : les compteurs affichés lisent les
+        // mêmes règles que le bloc Actions requises des fiches.
+        optionnel(completudeService.resume(), null),
         optionnel(typesPreuveService.list()),
         optionnel(contratsService.list()),
         optionnel(commandesService.list()),
         optionnel(licencesService.list()),
       ]);
-      setPreuves(p); setManques(m);
+      setPreuves(p); setManques(m); setResumeCompletude(r);
       setTypesPreuve(t); setContrats(c); setCommandes(k); setLicences(l);
     } catch (err) {
       setError(err.message);
@@ -143,6 +148,22 @@ export default function FacturesPage() {
   }
 
   const hasActiveFiltres = !!(filterTypePreuve || filterContrat || filterCommande || filterDateMin || filterDateMax);
+
+  // Compteurs de manques : le résumé de complétude fait foi (#324, mêmes
+  // règles que les fiches : commande_sans_facture et commande_sans_preuve
+  // sont exactement facture_manquante et preuve_manquante de la détection).
+  // Avec un filtre contrat actif, la détection filtrée reprend la main : le
+  // résumé est global au tenant. Sans résumé (droit refusé), la détection
+  // sert de repli : les deux lectures rendent les mêmes chiffres.
+  const cptCommande = !contratActif ? resumeCompletude?.types?.commande : null;
+  const totalManques = cptCommande?.avec_manque ?? manques?.total ?? 0;
+  const totalSansFacture = cptCommande?.par_regle?.commande_sans_facture ?? manques?.total_sans_facture ?? 0;
+  const totalSansPreuve = cptCommande?.par_regle?.commande_sans_preuve ?? manques?.total_sans_preuve ?? 0;
+
+  // Les alertes ouvrent la fiche avec l'action surlignée (#324) : le bloc
+  // Actions requises de la fiche commande lit le paramètre ?action=<code>.
+  const ouvrirFicheCommande = (c, action) =>
+    navigate(`/contrats/commandes/${c.id}${action ? `?action=${action}` : ''}`);
 
   // Lignes de l'écran : une par preuve, telle que servie par l'API. Le contrat
   // affiché est le rattachement direct, sinon celui de la commande rattachée.
@@ -261,7 +282,7 @@ export default function FacturesPage() {
             <AlertTriangle size={17} style={{ color: '#EF4444' }} />
           </span>
           <div>
-            <p className="text-xl font-semibold" style={{ color: '#EF4444' }}>{manques?.total ?? 0}</p>
+            <p className="text-xl font-semibold" style={{ color: '#EF4444' }}>{totalManques}</p>
             <p className="text-xs text-gray-500 mt-0.5">Manques détectés</p>
           </div>
         </button>
@@ -270,9 +291,9 @@ export default function FacturesPage() {
       <section ref={manquesRef} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
         <div className="flex items-baseline justify-between gap-3 mb-3">
           <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Détection des manques (risque audit)</h2>
-          {manques?.total > 0 && (
+          {totalManques > 0 && (
             <p className="text-xs text-gray-500">
-              {manques.total_sans_facture} sans facture, {manques.total_sans_preuve} sans preuve
+              {totalSansFacture} sans facture, {totalSansPreuve} sans preuve
             </p>
           )}
         </div>
@@ -282,13 +303,21 @@ export default function FacturesPage() {
           <div className="flex flex-col gap-2">
             {manques.commandes.map(c => (
               <div key={c.id} className="flex items-center justify-between gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-900/40" style={{ borderLeft: '3px solid #EF4444' }}>
-                <button onClick={() => navigate(`/contrats/commandes/${c.id}`)} className="text-sm font-medium text-gray-900 dark:text-white hover:underline text-left">
+                <button onClick={() => ouvrirFicheCommande(c, c.facture_manquante ? 'deposer_facture' : 'deposer_preuve')} className="text-sm font-medium text-gray-900 dark:text-white hover:underline text-left">
                   {c.label}
                   <span className="ml-2 text-xs font-normal text-gray-500">{[libelleContrat(c.contrat_label, c.contrat_societe_label), c.societe_label].filter(Boolean).join(' - ')}</span>
                 </button>
                 <div className="flex items-center gap-2 flex-shrink-0">
-                  {c.facture_manquante && <ManqueBadge label="Sans facture" />}
-                  {c.preuve_manquante && <ManqueBadge label="Sans preuve" />}
+                  {c.facture_manquante && (
+                    <button onClick={() => ouvrirFicheCommande(c, 'deposer_facture')} title="Ouvrir la fiche, action « Déposer une facture » surlignée">
+                      <ManqueBadge label="Sans facture" />
+                    </button>
+                  )}
+                  {c.preuve_manquante && (
+                    <button onClick={() => ouvrirFicheCommande(c, 'deposer_preuve')} title="Ouvrir la fiche, action « Rattacher une preuve » surlignée">
+                      <ManqueBadge label="Sans preuve" />
+                    </button>
+                  )}
                 </div>
               </div>
             ))}

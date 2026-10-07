@@ -20,6 +20,7 @@ import ValidationActions from '../referentiels/ValidationActions';
 import ConformiteGaugeBar from './ConformiteGaugeBar';
 import StatutRevalidationBadge from './StatutRevalidationBadge';
 import AffectationFormModal from './AffectationFormModal';
+import ActionsRequises from '../commun/ActionsRequises';
 import HistoriqueDeclarations from './HistoriqueDeclarations';
 import useRbac from '../../hooks/useRbac';
 import { useToast } from '../../hooks/useToast';
@@ -46,6 +47,9 @@ export default function AffectationDetailPage() {
   const [errorStatus, setErrorStatus] = useState(null);
   const [formOpen, setFormOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  // Bloc Actions requises (#324) : version incrémentée après chaque action,
+  // le bloc se recharge sans rechargement de page.
+  const [verCompletude, setVerCompletude] = useState(0);
   const [revalidationEnCours, setRevalidationEnCours] = useState(false);
 
   const load = useCallback(async () => {
@@ -73,6 +77,7 @@ export default function AffectationDetailPage() {
 
   const appliquer = useCallback(async (reponse) => {
     setAffectation(prev => prev ? appliquerStatut(prev, reponse) : prev);
+    setVerCompletude(v => v + 1);
     await load();
   }, [load]);
   const { valider, refuser } = useValidation(appliquer);
@@ -158,6 +163,18 @@ export default function AffectationDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Actions requises (#324) : rien ne s'affiche si la fiche est complète.
+          « Traiter la validation » n'a pas de bouton ici : Valider et Refuser
+          sont déjà en tête de fiche (circuit unique, valider_saisie). */}
+      <ActionsRequises
+        type="affectation"
+        id={a.id}
+        version={verCompletude}
+        actions={{
+          ...(canWrite ? { corriger_affectation: () => setFormOpen(true) } : {}),
+        }}
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
@@ -257,7 +274,7 @@ export default function AffectationDetailPage() {
         </section>
       </div>
 
-      <AffectationFormModal isOpen={formOpen} onClose={() => setFormOpen(false)} onSaved={load} affectation={a} licences={licences} societes={societes} />
+      <AffectationFormModal isOpen={formOpen} onClose={() => setFormOpen(false)} onSaved={async () => { setVerCompletude(v => v + 1); await load(); }} affectation={a} licences={licences} societes={societes} />
       <ConfirmModal
         isOpen={deleteOpen}
         onClose={() => setDeleteOpen(false)}

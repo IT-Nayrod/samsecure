@@ -26,7 +26,10 @@ function licenceLabel(l) {
   return `${produit}${l.label ?? 'Licence sans libellé'} (${l.quantite} droits)`;
 }
 
-export default function AffectationFormModal({ isOpen, onClose, onSaved, affectation, licences = [], societes = [] }) {
+// licenceParDefaut (#324) : licence pré-sélectionnée à la création, posée
+// par le bloc Actions requises de la fiche licence (« Déclarer une
+// affectation »). Ignorée en édition et par un brouillon restauré.
+export default function AffectationFormModal({ isOpen, onClose, onSaved, affectation, licences = [], societes = [], licenceParDefaut = null }) {
   const isEdit = !!affectation;
   const draftKey = `affectation:${affectation?.id ?? 'new'}`;
   const { addToast } = useToast();
@@ -49,10 +52,10 @@ export default function AffectationFormModal({ isOpen, onClose, onSaved, affecta
         type_cible: affectation.type_cible ?? 'utilisateur',
       });
     } else {
-      setForm(EMPTY_FORM);
+      setForm({ ...EMPTY_FORM, id_licence: licenceParDefaut ?? '' });
     }
     setDraftRestaure(false);
-  }, [affectation, isOpen, draftKey]);
+  }, [affectation, isOpen, draftKey, licenceParDefaut]);
 
   useEffect(() => { if (isOpen) saveDraft(draftKey, form); }, [form, isOpen, draftKey]);
 

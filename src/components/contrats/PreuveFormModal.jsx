@@ -111,6 +111,11 @@ export default function PreuveFormModal({
   isOpen, onClose, onDone, typesPreuve = [],
   contrats = [], commandes = [], licences = [],
   contratParDefaut, commandeParDefaut, licenceParDefaut,
+  // Type pré-sélectionné par l'appelant (#324, bloc Actions requises :
+  // « Déposer une facture » ouvre la modale sur le type Facture). Jamais
+  // imposé : s'il n'est pas proposable pour le rattachement initial, la
+  // règle du premier type proposé reprend la main.
+  typeCodeParDefaut = null,
 }) {
   const [form, setForm] = useState(EMPTY);
   const [file, setFile] = useState(null);
@@ -151,7 +156,9 @@ export default function PreuveFormModal({
     // impose la licence, la fiche commande la commande, sinon le contrat.
     const rattachement = licenceParDefaut ? 'licence' : commandeParDefaut ? 'commande' : 'contrat';
     const codes = TYPES_PAR_RATTACHEMENT[rattachement];
-    const premierType = codes.map(code => typesPreuve.find(t => t.code === code)).find(Boolean) ?? typesPreuve[0];
+    const prefere = typeCodeParDefaut && codes.includes(typeCodeParDefaut)
+      ? typesPreuve.find(t => t.code === typeCodeParDefaut) : null;
+    const premierType = prefere ?? codes.map(code => typesPreuve.find(t => t.code === code)).find(Boolean) ?? typesPreuve[0];
     setForm({
       ...EMPTY,
       rattachement,
@@ -163,7 +170,7 @@ export default function PreuveFormModal({
     setFile(null);
     setErreur(null);
     setPartiel(false);
-  }, [isOpen, typesPreuve, contratParDefaut, commandeParDefaut, licenceParDefaut]);
+  }, [isOpen, typesPreuve, contratParDefaut, commandeParDefaut, licenceParDefaut, typeCodeParDefaut]);
 
   const typeChoisi = typesPreuve.find(t => t.id === form.id_type_preuve) ?? null;
   const circuitFacture = typeChoisi?.code === CODE_TYPE_FACTURE;

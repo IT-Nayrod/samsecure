@@ -19,7 +19,11 @@ import { formatDate } from '../../utils/dateUtils';
 import PreuveSupportExterne from './PreuveSupportExterne';
 import { fichierDepose, preuveExterne, libelleMode } from './preuveAffichage';
 
-export default function PreuvesLicenceSection({ licence }) {
+// demandeDepot / onPreuvesChangees (#324) : la fiche licence commande
+// l'ouverture de la modale de dépôt (chaque incrément de demandeDepot) et
+// apprend qu'une preuve a changé, pour rafraîchir son bloc Actions
+// requises sans rechargement. Le bouton local reste inchangé.
+export default function PreuvesLicenceSection({ licence, demandeDepot = 0, onPreuvesChangees }) {
   const { addToast } = useToast();
   const { canWrite: canDeposer } = useRbac({ write: 'deposer_facture_preuve' });
 
@@ -46,6 +50,11 @@ export default function PreuvesLicenceSection({ licence }) {
   }, [licence.id]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (demandeDepot > 0 && canDeposer) setModal(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [demandeDepot]);
 
   // Le fichier est protégé par le jeton : on le télécharge puis on ouvre l'objet
   // URL local, comme le font la fiche document et la fiche commande.
@@ -99,7 +108,7 @@ export default function PreuvesLicenceSection({ licence }) {
       <PreuveFormModal
         isOpen={modal}
         onClose={() => setModal(false)}
-        onDone={toast => { if (toast) addToast(toast); load(); }}
+        onDone={toast => { if (toast) addToast(toast); load(); onPreuvesChangees?.(); }}
         typesPreuve={typesPreuve}
         licences={[licence]}
         licenceParDefaut={licence.id}
