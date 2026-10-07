@@ -34,6 +34,9 @@ async function log(client, action, entite_type, entite_id, description, payload)
 // colonne DATE en horodatage UTC (2026-09-30T00:00:00.000Z), que les filtres
 // par dates de la liste (#211) et le champ date du formulaire ne lisent pas
 // comme un jour AAAA-MM-JJ.
+// profils[] : les profils par défaut du compte (#249 corrigé multi-profils le
+// 06/10/2026) = attributions non-groupe actives de utilisateur_profil_societe,
+// dédoublonnées, id_societe ignoré (#57) ; utilisateur.id_profil n'est plus lu.
 router.get("/utilisateurs", async (req, res) => {
   try {
     const scope = await getAdminScope(req.user.id);
@@ -42,9 +45,17 @@ router.get("/utilisateurs", async (req, res) => {
       `SELECT u.id, u.nom, u.prenom, u.email, u.actif,
               u.date_finale::text AS date_finale,
               u.date_mise_en_fonction::text AS date_mise_en_fonction,
-              u.id_profil, p.code AS profil_code, p.label AS profil_label
+              COALESCE(pr.profils, '[]'::json) AS profils
        FROM utilisateur u
-       LEFT JOIN profil p ON p.id = u.id_profil
+       LEFT JOIN LATERAL (
+         SELECT json_agg(json_build_object('id', p.id, 'code', p.code, 'label', p.label)
+                         ORDER BY p.label) AS profils
+           FROM (SELECT DISTINCT p2.id, p2.code, p2.label
+                   FROM utilisateur_profil_societe ups
+                   JOIN profil p2 ON p2.id = ups.id_profil
+                                 AND p2.type <> 'groupe' AND p2.date_suppression IS NULL
+                  WHERE ups.id_utilisateur = u.id AND ups.date_suppression IS NULL) p
+       ) pr ON true
        WHERE (${clause})
        ORDER BY u.nom, u.prenom`,
       params
@@ -387,17 +398,36 @@ router.post("/utilisateurs/:id/societes", async (req, res) => {
   }
 });
 
-// Profil par défaut du compte (#249) : un seul, applique à toutes les
-// sociétés de rattachement (chacune avec sa matrice configurée ou le défaut).
-// id_profil null retire le profil. Un groupe est refusé : il s'attribue par
-// la section Groupes (utilisateur_profil_societe).
-router.put("/utilisateurs/:id/profil", async (req, res) => {
+// Profils par défaut d'un compte, pour l'état avant et les relectures :
+// attributions non-groupe actives, dédoublonnées, id_societe ignoré (#57).
+async function lireProfilsDefaut(client, idUtilisateur) {
+  const { rows } = await client.query(
+    `SELECT DISTINCT p.id, p.code, p.label
+       FROM utilisateur_profil_societe ups
+       JOIN profil p ON p.id = ups.id_profil
+                    AND p.type <> 'groupe' AND p.date_suppression IS NULL
+      WHERE ups.id_utilisateur = $1 AND ups.date_suppression IS NULL
+      ORDER BY p.label`,
+    [idUtilisateur]
+  );
+  return rows;
+}
+
+// Profils par défaut du compte (#249 corrigé multi-profils le 06/10/2026,
+// stories #73/#190) : un compte en porte plusieurs, chacun apportant sa
+// matrice et son dashboard. Le corps { profil_ids } REMPLACE l'ensemble : les
+// attributions non-groupe actives absentes de la liste sont retirées
+// (soft-delete, les lignes restent en base), les profils retenus se posent au
+// niveau du tenant (id_societe NULL, #57) ; une liste vide retire tout. Un
+// groupe est refusé : il s'attribue par la section Groupes.
+router.put("/utilisateurs/:id/profils", async (req, res) => {
   const { id } = req.params;
-  const { id_profil } = req.body || {};
+  const brut = req.body?.profil_ids;
   if (!estUuid(id)) return res.status(404).json({ error: "Utilisateur introuvable" });
-  if (id_profil != null && !estUuid(id_profil)) {
-    return res.status(404).json({ error: "Profil introuvable" });
+  if (!Array.isArray(brut) || !brut.every((v) => estUuid(v))) {
+    return res.status(400).json({ error: "profil_ids doit être une liste d'identifiants de profils." });
   }
+  const profilIds = [...new Set(brut)];
 
   const scope = await getAdminScope(req.user.id);
   if (!(await isUserInScope(id, scope))) {
@@ -409,59 +439,74 @@ router.put("/utilisateurs/:id/profil", async (req, res) => {
   try {
     await client.query("BEGIN");
     const { rows: cible } = await client.query(
-      `SELECT u.id, u.prenom, u.nom, u.id_profil, p.label AS profil_label
-         FROM utilisateur u
-         LEFT JOIN profil p ON p.id = u.id_profil
-        WHERE u.id = $1
-        FOR UPDATE OF u`,
-      [id]
+      `SELECT id, prenom, nom FROM utilisateur WHERE id = $1 FOR UPDATE`, [id]
     );
     // code_retour: 2050
     if (!cible.length) { await client.query("ROLLBACK"); return res.status(404).json({ error: "Utilisateur introuvable" }); }
 
-    let nouveau = null;
-    if (id_profil != null) {
-      const { rows: prof } = await client.query(
-        `SELECT id, label, type FROM profil WHERE id = $1 AND date_suppression IS NULL`, [id_profil]
+    if (profilIds.length) {
+      const { rows: profs } = await client.query(
+        `SELECT id, label, type FROM profil
+          WHERE id = ANY($1::uuid[]) AND date_suppression IS NULL`,
+        [profilIds]
       );
-      if (!prof.length) { await client.query("ROLLBACK"); return res.status(404).json({ error: "Profil introuvable" }); }
-      if (prof[0].type === "groupe") {
+      if (profs.length !== profilIds.length) {
+        await client.query("ROLLBACK");
+        return res.status(404).json({ error: "Profil introuvable" });
+      }
+      const groupe = profs.find((p) => p.type === "groupe");
+      if (groupe) {
         await client.query("ROLLBACK");
         // code_retour: 2077
         return res.status(409).json({
-          error: `Le groupe "${prof[0].label}" ne s'attribue pas comme profil : utilisez la section Groupes.`,
+          error: `Le groupe "${groupe.label}" ne s'attribue pas comme profil : utilisez la section Groupes.`,
         });
       }
-      nouveau = prof[0];
     }
 
-    const { rows } = await client.query(
-      `UPDATE utilisateur u SET id_profil = $2
-        WHERE u.id = $1
-        RETURNING u.id, u.id_profil`,
-      [id, nouveau?.id || null]
+    const avant = await lireProfilsDefaut(client, id);
+
+    // Remplacement de l'ensemble : toute attribution non-groupe active qui
+    // n'est pas la ligne tenant d'un profil retenu est retirée, y compris les
+    // lignes historiques par société (#57). Soft-delete : les lignes restent.
+    await client.query(
+      `UPDATE utilisateur_profil_societe ups SET date_suppression = now()
+         FROM profil p
+        WHERE p.id = ups.id_profil AND p.type <> 'groupe'
+          AND ups.id_utilisateur = $1 AND ups.date_suppression IS NULL
+          AND NOT (ups.id_societe IS NULL AND ups.id_profil = ANY($2::uuid[]))`,
+      [id, profilIds]
     );
-    const { rows: relecture } = await client.query(
-      `SELECT u.id, u.id_profil, p.code AS profil_code, p.label AS profil_label
-         FROM utilisateur u LEFT JOIN profil p ON p.id = u.id_profil
-        WHERE u.id = $1`,
-      [rows[0].id]
-    );
-    const libelle = nouveau
-      ? `Profil "${nouveau.label}" attribué à ${cible[0].prenom} ${cible[0].nom}`
-      : `Profil retiré de ${cible[0].prenom} ${cible[0].nom}`;
-    await log(client, "UPDATE", "utilisateur", id, libelle, { id_profil: nouveau?.id || null });
+    // Une attribution de profil se pose au niveau du tenant (id_societe NULL,
+    // #57) ; une ligne précédemment retirée se réactive (uq NULLS NOT
+    // DISTINCT, migration 006), même motif que l'attribution d'un groupe.
+    if (profilIds.length) {
+      await client.query(
+        `INSERT INTO utilisateur_profil_societe (id_utilisateur, id_profil, id_societe)
+         SELECT $1, unnest($2::uuid[]), NULL
+         ON CONFLICT ON CONSTRAINT uq_utilisateur_profil_societe
+         DO UPDATE SET date_suppression = NULL`,
+        [id, profilIds]
+      );
+    }
+
+    const profils = await lireProfilsDefaut(client, id);
+    const labels = (liste) => liste.map((p) => p.label);
+    const libelle = profils.length
+      ? `Profils par défaut de ${cible[0].prenom} ${cible[0].nom} remplacés : ${labels(profils).map((l) => `"${l}"`).join(", ")}`
+      : `Profils par défaut retirés de ${cible[0].prenom} ${cible[0].nom}`;
+    await log(client, "UPDATE", "utilisateur", id, libelle, { profil_ids: profilIds });
     // code_retour: 2073
     await auditer(client, req, {
-      action: "PROFIL_DEFAUT_MODIFIE", entiteId: id,
-      avant: { profil: cible[0].profil_label || null },
-      apres: { profil: nouveau?.label || null },
+      action: "PROFILS_DEFAUT_MODIFIES", entiteId: id,
+      avant: { profils: labels(avant) },
+      apres: { profils: labels(profils) },
     });
     await client.query("COMMIT");
-    res.json(relecture[0]);
+    res.json({ id, profils });
   } catch (err) {
     await client.query("ROLLBACK");
-    console.error("PUT /utilisateurs/:id/profil error", err);
+    console.error("PUT /utilisateurs/:id/profils error", err);
     res.status(500).json({ error: "Erreur serveur" });
   } finally {
     client.release();
@@ -605,8 +650,8 @@ router.get("/utilisateurs/:id/societes", async (req, res) => {
 });
 
 // #249 : le retrait d'une société du rattachement ne cascade plus sur les
-// attributions. Le profil par défaut est porté par utilisateur.id_profil et
-// les groupes ne sont plus portés par société (#57) : il n'y a plus rien à
+// attributions. Les profils par défaut comme les groupes sont des attributions
+// sans société (#57, id_societe NULL ou ignoré) : il n'y a plus rien à
 // purger, le périmètre effectif suit le rattachement restant.
 router.delete("/utilisateurs/:id/societes/:societeId", async (req, res) => {
   const { id, societeId } = req.params;

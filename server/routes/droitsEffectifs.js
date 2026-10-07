@@ -1,16 +1,21 @@
 // Droits effectifs d'un utilisateur sur une société, pour la visionneuse de
 // la fiche utilisateur et le simulateur de droits.
 //
-// Modèle #249 : le profil par défaut du compte (utilisateur.id_profil)
-// apporte, pour la société regardée, sa matrice configurée si (profil,
-// société) est configuré (Q2/Q3), sinon la matrice par défaut du tenant. Les
-// groupes attribués s'ajoutent sans condition de diffusion (#57). Les
-// exceptions s'appliquent en dernier, le retrait primant sur l'accord
-// (inchangé). profilId reste accepté pour simuler un autre profil (simulateur
-// de droits) : il remplace alors utilisateur.id_profil dans le calcul.
+// Modèle #249 corrigé multi-profils (06/10/2026, stories #73/#190) : les
+// profils par défaut du compte sont l'ensemble de ses attributions non-groupe
+// actives (utilisateur_profil_societe, id_societe ignoré, #57) ;
+// utilisateur.id_profil n'est plus lu. Chaque profil apporte, pour la société
+// regardée, sa matrice configurée si (profil, société) est configuré (Q2/Q3),
+// sinon la matrice par défaut du tenant ; l'union des profils fait foi, un
+// profil configuré ne masquant jamais ce qu'un autre apporte. Les groupes
+// attribués s'ajoutent sans condition de diffusion (#57). Les exceptions
+// s'appliquent en dernier, le retrait primant sur l'accord (inchangé).
+// profilId reste accepté pour regarder ou simuler UN profil (visionneuse par
+// profil, simulateur de droits) : il remplace alors l'ensemble dans le calcul.
 
 import express from "express";
 import { tenantPool } from "../db.js";
+import { profilsParDefaut } from "../utils/droitsUtilisateur.js";
 
 const router = express.Router();
 
@@ -24,45 +29,55 @@ router.get("/utilisateurs/:id/droits-effectifs", async (req, res) => {
 
   try {
     const { rows: userCheck } = await tenantPool.query(
-      `SELECT id_profil FROM utilisateur WHERE id = $1 AND actif = true
+      `SELECT 1 FROM utilisateur WHERE id = $1 AND actif = true
        AND (date_finale IS NULL OR date_finale >= CURRENT_DATE)
        AND (date_mise_en_fonction IS NULL OR date_mise_en_fonction <= CURRENT_DATE)`,
       [id]
     );
     if (!userCheck.length) return res.status(404).json({ error: "Utilisateur introuvable ou inactif" });
 
-    const idProfil = profilId || userCheck[0].id_profil;
+    const profilsReels = await profilsParDefaut(id);
 
-    // Matrice du profil pour CETTE société : configurée si marqueur, sinon
-    // défaut. Même règle que droitsUtilisateur.js, bornée à une société.
-    let profil = null;
-    let matriceProfil = [];
-    if (idProfil) {
+    // Profils dont la matrice est regardée : celui demandé (vue par profil ou
+    // simulation d'un autre profil), sinon l'ensemble des profils du compte.
+    let vises = profilsReels;
+    if (profilId) {
       const { rows: prof } = await tenantPool.query(
-        `SELECT p.id, p.code, p.label, p.type,
-                (psc.id IS NOT NULL) AS configure
-           FROM profil p
-           LEFT JOIN profil_societe_configuration psc
-                  ON psc.id_profil = p.id AND psc.id_societe = $2
-          WHERE p.id = $1 AND p.date_suppression IS NULL`,
-        [idProfil, societeId]
+        `SELECT id, code, label, type FROM profil
+          WHERE id = $1 AND date_suppression IS NULL`,
+        [profilId]
       );
-      if (prof.length) {
-        profil = prof[0];
-        const { rows } = profil.configure
-          ? await tenantPool.query(
-              `SELECT DISTINCT p.id, p.code, p.label, p.module
-                 FROM profil_societe_permission psp
-                 JOIN permission p ON p.id = psp.id_permission
-                WHERE psp.id_profil = $1 AND psp.id_societe = $2`,
-              [idProfil, societeId])
-          : await tenantPool.query(
-              `SELECT DISTINCT p.id, p.code, p.label, p.module
-                 FROM profil_permission pp
-                 JOIN permission p ON p.id = pp.id_permission
-                WHERE pp.id_profil = $1 AND pp.date_suppression IS NULL`,
-              [idProfil]);
-        matriceProfil = rows;
+      vises = prof;
+    }
+
+    // Matrice de chaque profil visé pour CETTE société : configurée si
+    // marqueur, sinon défaut. Même règle que droitsUtilisateur.js, bornée à
+    // une société ; la première source rencontrée fait foi dans l'union.
+    const profils = [];
+    const matriceProfils = new Map();
+    for (const vise of vises) {
+      const { rows: conf } = await tenantPool.query(
+        `SELECT 1 FROM profil_societe_configuration
+          WHERE id_profil = $1 AND id_societe = $2`,
+        [vise.id, societeId]
+      );
+      const configure = conf.length > 0;
+      const { rows } = configure
+        ? await tenantPool.query(
+            `SELECT DISTINCT p.id, p.code, p.label, p.module
+               FROM profil_societe_permission psp
+               JOIN permission p ON p.id = psp.id_permission
+              WHERE psp.id_profil = $1 AND psp.id_societe = $2`,
+            [vise.id, societeId])
+        : await tenantPool.query(
+            `SELECT DISTINCT p.id, p.code, p.label, p.module
+               FROM profil_permission pp
+               JOIN permission p ON p.id = pp.id_permission
+              WHERE pp.id_profil = $1 AND pp.date_suppression IS NULL`,
+            [vise.id]);
+      profils.push({ id: vise.id, code: vise.code, label: vise.label, type: vise.type, configure });
+      for (const perm of rows) {
+        if (!matriceProfils.has(perm.id)) matriceProfils.set(perm.id, perm);
       }
     }
 
@@ -89,7 +104,7 @@ router.get("/utilisateurs/:id/droits-effectifs", async (req, res) => {
     );
 
     const map = new Map();
-    for (const perm of matriceProfil) {
+    for (const perm of matriceProfils.values()) {
       map.set(perm.id, { permission: perm, source: "profil", effectif: true, exception: null, redondante: false });
     }
     for (const perm of matriceGroupes) {
@@ -119,11 +134,13 @@ router.get("/utilisateurs/:id/droits-effectifs", async (req, res) => {
     }
 
     res.json({
-      // profilId conservé pour le simulateur de droits (resolveDroits).
-      profilId: idProfil || null,
-      profil: profil
-        ? { id: profil.id, code: profil.code, label: profil.label, type: profil.type, configure: profil.configure }
-        : null,
+      // profilId et profilIds : contrat historique du simulateur de droits
+      // (resolveDroits), restauré multi-profils par le correctif du 06/10.
+      profilId: profilId || profilsReels[0]?.id || null,
+      profilIds: profilsReels.map((p) => p.id),
+      // Les profils regardés, chacun avec son état de configuration pour la
+      // société (visionneuse par profil).
+      profils,
       droits: Array.from(map.values()),
     });
   } catch (err) {

@@ -58,8 +58,9 @@ export const usersService = {
     http.put(`/utilisateurs/${id}/mot-de-passe`, { mot_de_passe: motDePasse }),
   genererMotDePasse: (id) => http.post(`/utilisateurs/${id}/mot-de-passe/generer`),
   envoyerLienReinitialisation: (id) => http.post(`/utilisateurs/${id}/mot-de-passe/reinitialisation`),
-  // Profil par défaut du compte (#249) : un seul, null le retire.
-  setProfil: (id, id_profil) => http.put(`/utilisateurs/${id}/profil`, { id_profil }),
+  // Profils par défaut du compte (#249 corrigé multi-profils) : remplacement
+  // de l'ensemble, liste vide pour tout retirer.
+  setProfils: (id, profil_ids) => http.put(`/utilisateurs/${id}/profils`, { profil_ids }),
   listSocietes: (id) =>
     http.get(`/utilisateurs/${id}/societes`).then((rows) =>
       rows.map((r) => ({ id: r.id, id_utilisateur: r.idutilisateur, id_societe: r.idsociete }))

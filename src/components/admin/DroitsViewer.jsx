@@ -1,7 +1,9 @@
 // DroitsViewer - visionneuse des droits effectifs d'un utilisateur, par
-// société de son rattachement. Depuis le #249, la source distingue le profil
-// par défaut (matrice configurée pour la société regardée, ou défaut du
-// tenant) des groupes personnalisés, en plus des exceptions.
+// société de son rattachement et par profil (#249 corrigé multi-profils le
+// 06/10/2026) : « Ensemble des profils » montre l'union qui fait foi, chaque
+// profil peut être regardé seul (matrice configurée pour la société regardée,
+// ou défaut du tenant). La source distingue les profils par défaut des
+// groupes personnalisés, en plus des exceptions.
 import { useState, useEffect, useMemo } from 'react';
 import SlideOver from '../ui/SlideOver';
 import { useToast } from '../../hooks/useToast';
@@ -29,6 +31,7 @@ export default function DroitsViewer({ isOpen, onClose, user, societes, userSoci
   const selectable = isTenantScope ? societes : societes.filter((s) => userSocieteIds.includes(s.id));
 
   const [societeId, setSocieteId] = useState(selectable[0]?.id || '');
+  const [profilId, setProfilId] = useState(''); // '' = ensemble des profils
   const [mode, setMode] = useState('tous'); // 'tous' | 'attribues'
   const [catalogue, setCatalogue] = useState([]);
   const [droits, setDroits] = useState(null);
@@ -38,6 +41,7 @@ export default function DroitsViewer({ isOpen, onClose, user, societes, userSoci
   useEffect(() => {
     if (!isOpen) return;
     setSocieteId(selectable[0]?.id || '');
+    setProfilId('');
     permissionsService.list().then(setCatalogue).catch((err) => addToast({ type: 'error', message: err.message }));
     exceptionsService.listForUser(user.id).then(setExceptions).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -46,12 +50,12 @@ export default function DroitsViewer({ isOpen, onClose, user, societes, userSoci
   useEffect(() => {
     if (!isOpen || !societeId) return;
     setLoading(true);
-    droitsService.effectifs(user.id, societeId)
+    droitsService.effectifs(user.id, societeId, profilId || undefined)
       .then(setDroits)
       .catch((err) => addToast({ type: 'error', message: err.message }))
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, societeId, user?.id]);
+  }, [isOpen, societeId, profilId, user?.id]);
 
   const rows = useMemo(() => {
     const byPermId = new Map((droits?.droits || []).map((d) => [d.permission.id, d]));
@@ -95,6 +99,17 @@ export default function DroitsViewer({ isOpen, onClose, user, societes, userSoci
               {selectable.map((s) => <option key={s.id} value={s.id}>{s.raison_sociale}</option>)}
             </select>
           </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Profil</label>
+            <select
+              value={profilId}
+              onChange={(e) => setProfilId(e.target.value)}
+              className="text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white"
+            >
+              <option value="">Ensemble des profils</option>
+              {(user.profils || []).map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+            </select>
+          </div>
           <div className="flex gap-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
             <button
               onClick={() => setMode('tous')}
@@ -113,10 +128,12 @@ export default function DroitsViewer({ isOpen, onClose, user, societes, userSoci
 
         {!loading && (
           <p className="text-xs text-gray-500 bg-gray-50 dark:bg-gray-700/50 rounded-lg px-3 py-2">
-            {droits?.profil
-              ? `Profil "${droits.profil.label}" : ${droits.profil.configure
-                  ? 'matrice configurée pour cette société'
-                  : 'matrice par défaut du tenant (société non configurée)'}.`
+            {(droits?.profils || []).length
+              ? droits.profils.map((p) =>
+                  `Profil "${p.label}" : ${p.configure
+                    ? 'matrice configurée pour cette société'
+                    : 'matrice par défaut du tenant (société non configurée)'}.`
+                ).join(' ')
               : 'Aucun profil par défaut : seuls les groupes et les exceptions s\'appliquent.'}
           </p>
         )}

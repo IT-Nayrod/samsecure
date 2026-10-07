@@ -312,8 +312,9 @@ export const ROUTES_PERMISSIONS = [
   ["PUT",    "/utilisateurs/:id/mot-de-passe",                  "gerer_utilisateurs"],
   ["GET",    "/utilisateurs/:id/historique",                    "gerer_utilisateurs"],
   ["GET",    "/utilisateurs/:id/droits-effectifs",              "gerer_utilisateurs"],
-  // Profil par defaut du compte (#249) : un seul, applique au rattachement.
-  ["PUT",    "/utilisateurs/:id/profil",                        "gerer_utilisateurs"],
+  // Profils par defaut du compte (#249 corrige multi-profils le 06/10/2026) :
+  // remplacement de l'ensemble, un dashboard par profil porteur (#73/#190).
+  ["PUT",    "/utilisateurs/:id/profils",                       "gerer_utilisateurs"],
   // Attributions de groupes personnalises (type groupe seulement depuis #249).
   ["GET",    "/utilisateurs/:id/profils",                       "gerer_utilisateurs"],
   ["POST",   "/utilisateurs/:id/profils",                       "gerer_utilisateurs"],

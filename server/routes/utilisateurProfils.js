@@ -3,11 +3,12 @@
 // laissant une trace probante.
 //
 // Refonte #249 : ces routes ne servent plus que les groupes (profil.type =
-// 'groupe'). Le profil par défaut d'un compte est porté par
-// utilisateur.id_profil (PUT /utilisateurs/:id/profil). Une attribution de
-// groupe ne porte plus de société (#57) : id_societe est écrit NULL, la portée
-// suit le rattachement de l'utilisateur ; les lignes historiques par société
-// restent en base et leur colonne id_societe n'est plus lue.
+// 'groupe'). Les profils par défaut d'un compte sont ses attributions
+// non-groupe de la même table, remplacées en bloc par
+// PUT /utilisateurs/:id/profils (multi-profils, correctif du 06/10/2026). Une
+// attribution, groupe ou profil, ne porte plus de société (#57) : id_societe
+// est écrit NULL, la portée suit le rattachement de l'utilisateur ; les
+// lignes historiques par société restent en base, id_societe n'est plus lu.
 
 import express from "express";
 import { tenantPool } from "../db.js";
@@ -70,8 +71,8 @@ router.post("/utilisateurs/:id/profils", async (req, res) => {
   const client = await tenantPool.connect();
   try {
     await client.query("BEGIN");
-    // Seul un groupe s'attribue ici : le profil par défaut passe par
-    // PUT /utilisateurs/:id/profil (#249).
+    // Seul un groupe s'attribue ici : les profils par défaut passent par
+    // PUT /utilisateurs/:id/profils (#249, multi-profils).
     const { rows: p } = await client.query(
       `SELECT label, type FROM profil WHERE id = $1 AND date_suppression IS NULL`, [id_profil]
     );

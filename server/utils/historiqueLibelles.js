@@ -142,14 +142,24 @@ export function traduireEvenement(ligne, idCompteCible) {
       details = { groupe: av.profil ?? null, ...(av.societe ? { portee: av.societe } : {}) };
       break;
 
-    case "PROFIL_DEFAUT_MODIFIE":
-      // #249 : le profil par défaut du compte, un seul, appliqué à tout le
-      // rattachement. Trois formes : attribué, remplacé, retiré.
-      if (ap.profil && av.profil) libelle = `Profil "${av.profil}" remplacé par "${ap.profil}"${parActeur}`;
-      else if (ap.profil) libelle = `Profil "${ap.profil}" attribué${parActeur}`;
-      else libelle = `Profil${av.profil ? ` "${av.profil}"` : ""} retiré${parActeur}`;
-      details = { profil_avant: av.profil ?? null, profil_apres: ap.profil ?? null };
+    case "PROFILS_DEFAUT_MODIFIES": {
+      // #249 corrigé multi-profils (06/10/2026) : l'ensemble des profils par
+      // défaut du compte est remplacé d'un bloc, l'avant/après porte les
+      // libellés. Trois formes : attribués (depuis rien), remplacés, retirés.
+      const avantProfils = Array.isArray(av.profils) ? av.profils : [];
+      const apresProfils = Array.isArray(ap.profils) ? ap.profils : [];
+      const citer = (liste) => liste.map((p) => `"${p}"`).join(", ");
+      const s = (liste) => (liste.length > 1 ? "s" : "");
+      if (apresProfils.length && avantProfils.length) {
+        libelle = `Profil${s(apresProfils)} par défaut remplacé${s(apresProfils)} par ${citer(apresProfils)}${parActeur}`;
+      } else if (apresProfils.length) {
+        libelle = `Profil${s(apresProfils)} par défaut ${citer(apresProfils)} attribué${s(apresProfils)}${parActeur}`;
+      } else {
+        libelle = `Profil${s(avantProfils)} par défaut retiré${s(avantProfils)}${parActeur}`;
+      }
+      details = { profils_avant: avantProfils, profils_apres: apresProfils };
       break;
+    }
 
     case "EXCEPTION_AJOUTEE": {
       // Le type de l'exception est nommé en clair : "accorde" et "retire" sont

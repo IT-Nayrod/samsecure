@@ -52,13 +52,18 @@ try {
     [idUtilisateur]
   );
 
-  // #249 : le profil par defaut du compte est porte par utilisateur.id_profil
-  // (migration 094). C'est lui que lit le calcul des droits ; sans lui, un
-  // administrateur provisionne apres la 094 n'aurait aucune permission.
+  // #249 corrige multi-profils (06/10/2026) : un profil par defaut est une
+  // attribution non-groupe de utilisateur_profil_societe, posee au niveau du
+  // tenant (id_societe NULL, #57) ; utilisateur.id_profil n'est plus lu.
+  // Sans cette ligne, un administrateur provisionne n'aurait aucune
+  // permission. DO UPDATE : un provisionnement rejoue reactive une
+  // attribution retiree (uq NULLS NOT DISTINCT, migration 006).
   const { rowCount } = await client.query(
-    `UPDATE utilisateur u SET id_profil = p.id
-       FROM profil p
-      WHERE u.id = $1 AND p.code = 'admin_sam'`,
+    `INSERT INTO utilisateur_profil_societe (id_utilisateur, id_profil, id_societe)
+     SELECT $1, p.id, NULL FROM profil p
+      WHERE p.code = 'admin_sam' AND p.date_suppression IS NULL
+     ON CONFLICT ON CONSTRAINT uq_utilisateur_profil_societe
+     DO UPDATE SET date_suppression = NULL`,
     [idUtilisateur]
   );
   if (rowCount === 0) throw new Error("Profil 'admin_sam' introuvable : migration 011 non appliquee ?");
