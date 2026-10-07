@@ -6,9 +6,13 @@
 // Refonte #249 : plus de détection de « groupes orphelins » à la suppression
 // ni de purge d'attributions au retrait d'un rattachement (#57) : un groupe ne
 // porte plus de diffusion, le périmètre effectif suit le rattachement restant.
+//
+// Cycle de vie (#281, issue 60 — règle du ticket #62) : Désactiver/Réactiver
+// toujours proposés ; Supprimer réservé à une société vide (blocages servis
+// par l'API dans la liste), le serveur restant seul juge au DELETE.
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
-import { Pencil, Trash2, UserX, Building2, Shield } from 'lucide-react';
+import { Pencil, Trash2, UserX, Building2, Shield, Power, PowerOff } from 'lucide-react';
 import Breadcrumb from '../ui/Breadcrumb';
 import Button from '../ui/Button';
 import Badge from '../ui/Badge';
@@ -20,6 +24,7 @@ import { useToast } from '../../hooks/useToast';
 import useAuth from '../../hooks/useAuth';
 import { ADMIN_PERMISSIONS } from '../../constants/permissions';
 import { societesService, usersService } from '../../services/adminService';
+import { formatDate } from '../../utils/dateUtils';
 
 export default function OrganisationDetailPage() {
   const { id } = useParams();
@@ -34,6 +39,7 @@ export default function OrganisationDetailPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [deleteInfo, setDeleteInfo] = useState(null);
   const [retraitInfo, setRetraitInfo] = useState(null);
+  const [cycleInfo, setCycleInfo] = useState(null);
 
   // Onglets : Profils n'existe qu'avec la permission dédiée (Q5). L'onglet
   // actif vit dans l'URL (?tab=profils), ce qui permet le lien direct depuis
@@ -92,30 +98,49 @@ export default function OrganisationDetailPage() {
   // à retirer via DELETE /utilisateurs/{id}/societes/{societeId}).
   const rattaches = users.filter((u) => u.actif && (userSocietesMap[u.id] || []).includes(organisation.id));
 
+  // #281 : blocages servis prêts à l'écran par GET /societes. Tant que des
+  // objets se raccrochent, pas de bouton Supprimer ; le DELETE serveur reste
+  // le juge en dernier ressort (409 avec le même détail).
+  const blocages = organisation.blocages_suppression ?? [];
+  const peutSupprimer = blocages.length === 0;
+
   async function handleSubmit(data, existing) {
     await societesService.update(existing.id, data);
     addToast({ type: 'success', message: 'Société mise à jour.' });
     await load();
   }
 
-  function collectDescendants(rootId) {
-    const ids = [];
-    let frontier = [rootId];
-    while (frontier.length) {
-      const next = organisations.filter(o => frontier.includes(o.id_societe_parent)).map(o => o.id);
-      ids.push(...next);
-      frontier = next;
-    }
-    return ids;
+  // #281 : plus de suppression en cascade, une société à filiales ne se
+  // supprime pas. La confirmation rappelle la conservation en base (#62).
+  function askDelete() {
+    setDeleteInfo({
+      message: `Supprimer définitivement "${organisation.raison_sociale}" ? Elle sera retirée des listes mais conservée en base à des fins d'audit.`,
+    });
   }
 
-  function askDelete() {
-    const descendants = collectDescendants(organisation.id);
-    setDeleteInfo({
-      message: descendants.length
-        ? `Supprimer "${organisation.raison_sociale}" et ses ${descendants.length} filiale(s) ?`
-        : `Supprimer définitivement "${organisation.raison_sociale}" ?`,
+  function askDesactiver() {
+    setCycleInfo({
+      action: 'desactiver', title: 'Désactiver la société', confirmLabel: 'Désactiver', destructive: true,
+      message: `Désactiver "${organisation.raison_sociale}" ? Elle sera marquée inactive à compter d'aujourd'hui et pourra être réactivée.`,
     });
+  }
+
+  function askReactiver() {
+    setCycleInfo({
+      action: 'reactiver', title: 'Réactiver la société', confirmLabel: 'Réactiver', destructive: false,
+      message: `Réactiver "${organisation.raison_sociale}" ? Elle redeviendra active immédiatement.`,
+    });
+  }
+
+  async function handleCycle() {
+    if (!cycleInfo) return;
+    try {
+      await societesService[cycleInfo.action](organisation.id);
+      addToast({ type: 'success', message: cycleInfo.action === 'desactiver' ? 'Société désactivée.' : 'Société réactivée.' });
+      await load();
+    } catch (err) {
+      addToast({ type: 'error', message: err.message });
+    }
   }
 
   // Retrait d'un utilisateur de cette société : le rattachement seul est
@@ -168,14 +193,33 @@ export default function OrganisationDetailPage() {
             <h1 className="text-xl font-semibold text-gray-900 dark:text-white">{organisation.raison_sociale}</h1>
             <Badge variant={organisation.actif ? 'success' : 'neutral'} label={organisation.actif ? 'Active' : 'Inactive'} />
           </div>
+          {!organisation.actif && organisation.date_fin_activite && (
+            <p className="text-xs text-gray-500 mt-1">Désactivée depuis le {formatDate(organisation.date_fin_activite)}</p>
+          )}
+          {blocages.length > 0 && (
+            <p className="text-xs text-gray-500 mt-1">
+              Suppression impossible : {blocages.join(', ')}.{organisation.actif ? ' La société peut être désactivée.' : ''}
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <Button variant="secondary" size="sm" onClick={() => setFormOpen(true)}>
             <Pencil size={14} /> Éditer
           </Button>
-          <Button variant="destructive" size="sm" onClick={askDelete}>
-            <Trash2 size={14} /> Supprimer
-          </Button>
+          {organisation.actif ? (
+            <Button variant="secondary" size="sm" onClick={askDesactiver}>
+              <PowerOff size={14} /> Désactiver
+            </Button>
+          ) : (
+            <Button variant="secondary" size="sm" onClick={askReactiver}>
+              <Power size={14} /> Réactiver
+            </Button>
+          )}
+          {peutSupprimer && (
+            <Button variant="destructive" size="sm" onClick={askDelete}>
+              <Trash2 size={14} /> Supprimer
+            </Button>
+          )}
         </div>
       </div>
 
@@ -287,6 +331,16 @@ export default function OrganisationDetailPage() {
         isDestructive
         confirmLabel="Supprimer"
         message={deleteInfo?.message}
+      />
+
+      <ConfirmModal
+        isOpen={!!cycleInfo}
+        onClose={() => setCycleInfo(null)}
+        onConfirm={handleCycle}
+        title={cycleInfo?.title}
+        isDestructive={cycleInfo?.destructive}
+        confirmLabel={cycleInfo?.confirmLabel}
+        message={cycleInfo?.message}
       />
 
       <ConfirmModal

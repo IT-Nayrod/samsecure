@@ -16,6 +16,11 @@ function normalizeSociete(s) {
     delai_revalidation: s.delairevalidation,
     debut_exercice_fiscal: s.debutexercicefiscal,
     actif: s.actif,
+    // #281 : cycle de vie et blocages de suppression. blocages_suppression
+    // n'est servi que par la liste (les écritures renvoient la projection
+    // sans compteurs) : la fiche recharge la liste après chaque action.
+    date_fin_activite: s.datefinactivite,
+    blocages_suppression: s.blocages_suppression,
   };
 }
 
@@ -137,6 +142,10 @@ export const societesService = {
   create: (payload) => http.post('/societes', payload).then(normalizeSociete),
   update: (id, payload) => http.patch(`/societes/${id}`, payload).then(normalizeSociete),
   remove: (id) => http.delete(`/societes/${id}`),
+  // #281 : désactivation réversible. La suppression reste remove(), refusée
+  // (409) par l'API tant que des objets se raccrochent à la société.
+  desactiver: (id) => http.post(`/societes/${id}/desactiver`).then(normalizeSociete),
+  reactiver: (id) => http.post(`/societes/${id}/reactiver`).then(normalizeSociete),
   // Onglet Profils de la fiche société (#249, permission gerer_profils).
   profils: (id) => http.get(`/societes/${id}/profils`),
   configurerMatrice: (id, idProfil, permission_ids) =>
