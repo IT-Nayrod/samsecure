@@ -1,6 +1,8 @@
 // Tests de la dérivation de l'état de maintenance depuis les périodes (#201,
 // retour client du 16/09/2026 : « sous maintenance » n'est jamais un attribut
-// direct de la licence).
+// direct de la licence). Depuis la décision client du 06/10/2026 (#280), une
+// maintenance a toujours une date de fin : une période sans fin (historique
+// d'avant la migration 102) n'est jamais en cours.
 // Execution : node --test server/utils/maintenanceLicence.test.js
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
@@ -18,11 +20,16 @@ const periode = (surcharges = {}) => ({
 const licence = (surcharges = {}) => ({ id: "l1", date_arret_maintenance: null, ...surcharges });
 
 describe("periodeCouvre", () => {
-  test("bornes incluses, fin nulle ouverte", () => {
+  test("bornes incluses", () => {
     assert.equal(periodeCouvre(periode({ date_debut: "2026-09-16", date_fin: "2026-09-16" }), AUJOURDHUI), true);
-    assert.equal(periodeCouvre(periode({ date_fin: null }), AUJOURDHUI), true);
+    assert.equal(periodeCouvre(periode(), AUJOURDHUI), true);
     assert.equal(periodeCouvre(periode({ date_debut: "2026-09-17" }), AUJOURDHUI), false);
     assert.equal(periodeCouvre(periode({ date_fin: "2026-09-15" }), AUJOURDHUI), false);
+  });
+  test("une periode sans date de fin n'est jamais en cours (decision client du 06/10/2026)", () => {
+    assert.equal(periodeCouvre(periode({ date_fin: null }), AUJOURDHUI), false);
+    assert.equal(periodeCouvre(periode({ date_fin: undefined }), AUJOURDHUI), false);
+    assert.equal(periodeCouvre(periode({ date_fin: "" }), AUJOURDHUI), false);
   });
   test("dates servies en Date par pg tolerees", () => {
     assert.equal(periodeCouvre(periode({ date_debut: new Date("2026-01-01T00:00:00Z"), date_fin: new Date("2026-12-31T00:00:00Z") }), AUJOURDHUI), true);
@@ -40,7 +47,7 @@ describe("periodeReference", () => {
   });
   test("chevauchement : la plus recente des periodes en cours", () => {
     const r = periodeReference([
-      periode({ id: "ancienne", date_debut: "2025-06-01", date_fin: null }),
+      periode({ id: "ancienne", date_debut: "2025-06-01", date_fin: "2026-12-31" }),
       periode({ id: "recente", date_debut: "2026-03-01", date_fin: "2027-02-28" }),
     ], opts);
     assert.equal(r.statut, "active");
@@ -70,6 +77,19 @@ describe("periodeReference", () => {
     assert.equal(r.statut, "a_venir");
     assert.equal(r.periode.id, "future");
   });
+  test("periode historique sans fin : jamais en cours (decision client du 06/10/2026)", () => {
+    const seule = periodeReference([periode({ id: "legacy", date_fin: null })], opts);
+    assert.equal(seule.statut, "echue");
+    assert.equal(seule.periode.id, "legacy");
+    const future = periodeReference([periode({ date_debut: "2026-10-01", date_fin: null })], opts);
+    assert.equal(future.statut, "a_venir");
+    const avecCourante = periodeReference([
+      periode({ id: "legacy", date_debut: "2024-01-01", date_fin: null }),
+      periode({ id: "courante", date_debut: "2026-01-01", date_fin: "2026-12-31" }),
+    ], opts);
+    assert.equal(avecCourante.statut, "active");
+    assert.equal(avecCourante.periode.id, "courante");
+  });
 });
 
 describe("etatMaintenance", () => {
@@ -88,9 +108,9 @@ describe("etatMaintenance", () => {
     assert.equal(e.date_fin_maintenance, "2026-12-31");
     assert.equal(e.nb_periodes_maintenance, 1);
   });
-  test("periode ouverte : active sans fin", () => {
+  test("periode historique sans fin : echue, aucune date servie (decision client du 06/10/2026)", () => {
     const e = etatMaintenance(licence(), [periode({ date_fin: null })], opts);
-    assert.equal(e.statut_maintenance, "active");
+    assert.equal(e.statut_maintenance, "echue");
     assert.equal(e.date_fin_maintenance, null);
   });
   test("periode echue : echue, fin de la derniere periode", () => {
@@ -129,7 +149,7 @@ describe("etatMaintenance", () => {
     assert.equal(avec.statut_maintenance, "active");
   });
   test("statuts servis appartiennent au vocabulaire", () => {
-    for (const cas of [[], [periode()], [periode({ date_debut: "2027-01-01" })], [periode({ date_debut: "2020-01-01", date_fin: "2020-12-31" })]]) {
+    for (const cas of [[], [periode()], [periode({ date_debut: "2027-01-01" })], [periode({ date_debut: "2020-01-01", date_fin: "2020-12-31" })], [periode({ date_fin: null })]]) {
       assert.ok(STATUTS_MAINTENANCE.includes(etatMaintenance(licence(), cas, opts).statut_maintenance));
     }
     assert.ok(STATUTS_MAINTENANCE.includes(etatMaintenance(licence({ date_arret_maintenance: "2026-01-01" }), [], opts).statut_maintenance));

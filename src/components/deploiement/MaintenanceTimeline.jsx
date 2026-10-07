@@ -51,7 +51,7 @@ export default function MaintenanceTimeline({ periodes, licence, canWrite, onEdi
                 <span className="ml-2 text-xs text-gray-500">{LIBELLE[p.statut] ?? p.statut}</span>
               </p>
               <p className="text-xs text-gray-500">
-                Du {p.date_debut} au {p.date_fin ?? 'en cours'} - {formatMontant(p.cout, p.montants_masques)}
+                Du {p.date_debut}{p.date_fin ? ` au ${p.date_fin}` : ', sans date de fin'} - {formatMontant(p.cout, p.montants_masques)}
                 {p.id_commande
                   ? <> - commande <Link to={`/contrats/commandes/${p.id_commande}`} className="text-blue-800 hover:underline">{p.commande_label ?? 'sans libellé'}</Link>{p.commande_revendeur_label ? ` (via ${p.commande_revendeur_label})` : ''}</>
                   : (p.revendeur_label ? ` - via ${p.revendeur_label}` : ' - sans commande')}
