@@ -1,14 +1,20 @@
 // DroitsViewer - visionneuse des droits effectifs d'un utilisateur, par
-// société de son rattachement et par profil (#249 corrigé multi-profils,
-// étendu « tout est profil » #276) : « Ensemble des profils » montre l'union
-// qui fait foi, chaque profil peut être regardé seul (matrice configurée
-// pour la société regardée, ou défaut du tenant). Sources : profil ou
-// exception ; la source technique 'groupe' (attributions antérieures à la
-// migration 097) s'affiche comme un profil.
+// société et par profil (#249 corrigé multi-profils, étendu « tout est
+// profil » #276, puis groupes d'utilisateurs US #277/#330) : « Ensemble des
+// profils » montre l'union qui fait foi, chaque profil peut être regardé seul
+// (matrice configurée pour la société regardée, ou défaut du tenant).
+// Provenance de chaque droit : attribution directe (badge Profil) ou groupes
+// d'utilisateurs (badge Groupe et noms des groupes) ; quand les deux se
+// cumulent, le badge direct reste et les noms de groupes s'affichent en plus.
+// Les sociétés regardables couvrent le rattachement ET les sociétés apportées
+// par les groupes d'organisations des groupes du compte. La source technique
+// 'groupe' (attributions antérieures à la migration 097) s'affiche comme un
+// profil.
 import { useState, useEffect, useMemo } from 'react';
 import SlideOver from '../ui/SlideOver';
 import { useToast } from '../../hooks/useToast';
-import { droitsService, permissionsService, exceptionsService } from '../../services/adminService';
+import { droitsService, permissionsService, exceptionsService, groupesUtilisateursService } from '../../services/adminService';
+import { optionnel } from '../../services/http';
 import { formatDate } from '../../utils/dateUtils';
 import { MODULES } from '../../constants/permissions';
 
@@ -19,6 +25,9 @@ const SOURCE_CONFIG = {
   // n'est pas jouée : même rendu qu'un profil, le mot groupe a disparu de
   // l'écran (#276).
   groupe: { label: 'Accordé · Profil', cls: 'bg-blue-100 text-blue-800' },
+  // Droit apporté uniquement par des groupes d'utilisateurs (#330) : les
+  // noms des groupes sont affichés à côté de la permission.
+  groupe_utilisateur: { label: 'Accordé · Groupe', cls: 'bg-purple-100 text-purple-800' },
   exceptionaccorde: { label: 'Accordé · Exception', cls: 'bg-green-100 text-green-800' },
   exceptionretire: { label: 'Retiré · Exception', cls: 'bg-red-100 text-red-800' },
   aucun: { label: 'Non accordé', cls: 'bg-gray-100 text-gray-500' },
@@ -32,7 +41,23 @@ function SourceBadge({ source }) {
 export default function DroitsViewer({ isOpen, onClose, user, societes, userSocieteIds }) {
   const { addToast } = useToast();
   const isTenantScope = userSocieteIds.includes(null) || userSocieteIds.length === 0;
-  const selectable = isTenantScope ? societes : societes.filter((s) => userSocieteIds.includes(s.id));
+  // Appartenances aux groupes d'utilisateurs (#330) : leurs groupes
+  // d'organisations étendent les sociétés regardables au-delà du rattachement,
+  // et leurs profils s'ajoutent au sélecteur. Accessoire : un échec laisse la
+  // visionneuse sur le rattachement seul.
+  const [appartenances, setAppartenances] = useState([]);
+  const societesGroupes = useMemo(() => {
+    const ids = new Set();
+    for (const a of appartenances) {
+      for (const acces of a.acces || []) {
+        for (const s of acces.societes || []) ids.add(s.id);
+      }
+    }
+    return ids;
+  }, [appartenances]);
+  const selectable = isTenantScope
+    ? societes
+    : societes.filter((s) => userSocieteIds.includes(s.id) || societesGroupes.has(s.id));
 
   const [societeId, setSocieteId] = useState(selectable[0]?.id || '');
   const [profilId, setProfilId] = useState(''); // '' = ensemble des profils
@@ -48,8 +73,18 @@ export default function DroitsViewer({ isOpen, onClose, user, societes, userSoci
     setProfilId('');
     permissionsService.list().then(setCatalogue).catch((err) => addToast({ type: 'error', message: err.message }));
     exceptionsService.listForUser(user.id).then(setExceptions).catch(() => {});
+    optionnel(groupesUtilisateursService.appartenances(user.id)).then(setAppartenances).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, user?.id]);
+
+  // Les appartenances arrivent après l'ouverture : si aucune société n'était
+  // regardable (rattachement vide hors tenant), la première société apportée
+  // par un groupe prend la main.
+  useEffect(() => {
+    if (!isOpen || societeId || !selectable.length) return;
+    setSocieteId(selectable[0].id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, selectable.length]);
 
   useEffect(() => {
     if (!isOpen || !societeId) return;
@@ -70,6 +105,7 @@ export default function DroitsViewer({ isOpen, onClose, user, societes, userSoci
         source: entry?.source || 'aucun',
         effectif: entry?.effectif ?? false,
         redondante: entry?.redondante ?? false,
+        groupes_utilisateurs: entry?.groupes_utilisateurs || [],
       };
     });
   }, [catalogue, droits]);
@@ -111,7 +147,24 @@ export default function DroitsViewer({ isOpen, onClose, user, societes, userSoci
               className="text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white"
             >
               <option value="">Ensemble des profils</option>
-              {(user.profils || []).map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+              {(() => {
+                // Profils directs puis profils portés par les groupes (dédoublonnés) :
+                // chacun peut être regardé seul, la provenance est dite dans le libellé.
+                const directs = user.profils || [];
+                const idsDirects = new Set(directs.map((p) => p.id));
+                const parGroupe = new Map();
+                for (const a of appartenances) {
+                  for (const acces of a.acces || []) {
+                    if (!idsDirects.has(acces.id_profil) && !parGroupe.has(acces.id_profil)) {
+                      parGroupe.set(acces.id_profil, acces.profil_label);
+                    }
+                  }
+                }
+                return [
+                  ...directs.map((p) => <option key={p.id} value={p.id}>{p.label}</option>),
+                  ...[...parGroupe].map(([id, label]) => <option key={id} value={id}>{label} (via groupe)</option>),
+                ];
+              })()}
             </select>
           </div>
           <div className="flex gap-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
@@ -132,13 +185,20 @@ export default function DroitsViewer({ isOpen, onClose, user, societes, userSoci
 
         {!loading && (
           <p className="text-xs text-gray-500 bg-gray-50 dark:bg-gray-700/50 rounded-lg px-3 py-2">
-            {(droits?.profils || []).length
-              ? droits.profils.map((p) =>
-                  `Profil "${p.label}" : ${p.configure
-                    ? 'matrice configurée pour cette société'
-                    : 'matrice par défaut du tenant (société non configurée)'}.`
-                ).join(' ')
-              : 'Aucun profil : seules les exceptions s\'appliquent.'}
+            {[
+              (droits?.profils || []).length
+                ? droits.profils.map((p) =>
+                    `Profil "${p.label}" : ${p.configure
+                      ? 'matrice configurée pour cette société'
+                      : 'matrice par défaut du tenant (société non configurée)'}.`
+                  ).join(' ')
+                : 'Aucun profil direct.',
+              ...appartenances.flatMap((a) =>
+                (a.acces || [])
+                  .filter((acces) => (acces.societes || []).some((s) => s.id === societeId))
+                  .map((acces) => `Groupe "${a.nom}" : ${acces.profil_label} via "${acces.groupe_organisation_nom}".`)
+              ),
+            ].join(' ')}
           </p>
         )}
 
@@ -155,6 +215,11 @@ export default function DroitsViewer({ isOpen, onClose, user, societes, userSoci
                       <span className="text-gray-700 dark:text-gray-200">
                         {r.permission.label}
                         {r.redondante && <span className="ml-2 text-xs text-gray-400">(exception redondante avec un profil)</span>}
+                        {r.groupes_utilisateurs.length > 0 && (
+                          <span className="block text-xs text-purple-700 dark:text-purple-400 mt-0.5">
+                            via {r.groupes_utilisateurs.length > 1 ? 'les groupes' : 'le groupe'} {r.groupes_utilisateurs.map((n) => `"${n}"`).join(', ')}
+                          </span>
+                        )}
                       </span>
                       <SourceBadge source={r.source} />
                     </div>

@@ -16,6 +16,7 @@ const NOMS_CHAMPS = {
   prenom: "prénom",
   email: "email",
   langue: "langue",
+  description: "description",
   actif: "statut",
   date_finale: "date de désactivation",
   date_mise_en_fonction: "date de mise en fonction",
@@ -25,6 +26,7 @@ const NOMS_CHAMPS = {
   telephone: "téléphone",
   id_fonction: "fonction",
   id_societe: "société de rattachement",
+  societes: "sociétés du groupe",
   id_editeur: "éditeur de rattachement",
   id_revendeur: "revendeur de rattachement",
   date_debut: "date de début",
@@ -230,6 +232,63 @@ export function traduireEvenement(ligne, idCompteCible) {
       details = { permission: av.permission ?? null, portee: av.portee ?? null };
       break;
 
+    // --- Groupes d'organisations et d'utilisateurs (US #277/#330). ---
+    // Les traces des groupes portent l'entité groupe ; seules MEMBRE_AJOUTE et
+    // MEMBRE_RETIRE visent le compte, pour que l'historique administrateur
+    // d'un utilisateur raconte ses appartenances.
+
+    case "GROUPE_ORGANISATION_CREE": {
+      const nb = Array.isArray(ap.societes) ? ap.societes.length : 0;
+      libelle = `Groupe d'organisations "${ap.nom || "inconnu"}" créé (${nb} société${nb > 1 ? "s" : ""})${parActeur}`;
+      details = { nom: ap.nom ?? null, societes: ap.societes ?? null };
+      break;
+    }
+
+    case "GROUPE_ORGANISATION_MODIFIE":
+      libelle = `Groupe d'organisations modifié : ${champsLisibles}${parActeur}`;
+      details = { champs_modifies: champs.map((c) => NOMS_CHAMPS[c] || c) };
+      break;
+
+    case "GROUPE_ORGANISATION_SUPPRIME":
+      libelle = `Groupe d'organisations "${av.nom || "inconnu"}" supprimé${parActeur}`;
+      details = { nom: av.nom ?? null };
+      break;
+
+    case "GROUPE_UTILISATEUR_CREE":
+      libelle = `Groupe d'utilisateurs "${ap.nom || "inconnu"}" créé${parActeur}`;
+      details = { nom: ap.nom ?? null };
+      break;
+
+    case "GROUPE_UTILISATEUR_MODIFIE":
+      libelle = `Groupe d'utilisateurs modifié : ${champsLisibles}${parActeur}`;
+      details = { champs_modifies: champs.map((c) => NOMS_CHAMPS[c] || c) };
+      break;
+
+    case "GROUPE_UTILISATEUR_SUPPRIME":
+      libelle = `Groupe d'utilisateurs "${av.nom || "inconnu"}" supprimé${parActeur}`;
+      details = { nom: av.nom ?? null, membres: av.membres ?? null, acces: av.acces ?? null };
+      break;
+
+    case "GROUPE_UTILISATEUR_ACCES_AJOUTE":
+      libelle = `Accès "${ap.profil || "inconnu"}" × "${ap.groupe_organisation || "inconnu"}" ajouté au groupe d'utilisateurs "${ap.groupe || "inconnu"}"${parActeur}`;
+      details = { groupe: ap.groupe ?? null, profil: ap.profil ?? null, groupe_organisation: ap.groupe_organisation ?? null };
+      break;
+
+    case "GROUPE_UTILISATEUR_ACCES_RETIRE":
+      libelle = `Accès "${av.profil || "inconnu"}" × "${av.groupe_organisation || "inconnu"}" retiré du groupe d'utilisateurs "${av.groupe || "inconnu"}"${parActeur}`;
+      details = { groupe: av.groupe ?? null, profil: av.profil ?? null, groupe_organisation: av.groupe_organisation ?? null };
+      break;
+
+    case "GROUPE_UTILISATEUR_MEMBRE_AJOUTE":
+      libelle = `Ajouté au groupe d'utilisateurs "${ap.groupe || "inconnu"}"${parActeur}`;
+      details = { groupe: ap.groupe ?? null };
+      break;
+
+    case "GROUPE_UTILISATEUR_MEMBRE_RETIRE":
+      libelle = `Retiré du groupe d'utilisateurs "${av.groupe || "inconnu"}"${parActeur}`;
+      details = { groupe: av.groupe ?? null };
+      break;
+
     case "CONNEXION":
       libelle = ip ? `Connexion depuis ${ip}${parActeur}` : `Connexion${parActeur}`;
       details = ip ? { ip } : null;
@@ -263,6 +322,31 @@ export function traduireEvenement(ligne, idCompteCible) {
 
     case "CONTACT_SUPPRIME":
       libelle = `Contact supprimé${parActeur}`;
+      break;
+
+    // --- Cycle de vie des sociétés (#281). Traces portées par l'entité
+    // société : absentes de l'historique d'un compte, mais le gabarit existe
+    // pour tout écran d'audit qui les lira. Décision client du 08/10/2026 :
+    // une société ne se désactive pas, elle s'archive (vocabulaire des
+    // contrats #96) ; les traces antérieures SOCIETE_DESACTIVEE et
+    // SOCIETE_REACTIVEE restent en base et se lisent avec le même gabarit.
+
+    case "SOCIETE_DESACTIVEE":
+    case "SOCIETE_ARCHIVEE":
+      libelle = `Société "${ap.raison_sociale || av.raison_sociale || "inconnue"}" archivée${parActeur}`;
+      details = { societe: ap.raison_sociale ?? av.raison_sociale ?? null,
+                  date_fin_activite: ap.date_fin_activite ?? null };
+      break;
+
+    case "SOCIETE_REACTIVEE":
+    case "SOCIETE_RESTAUREE":
+      libelle = `Société "${ap.raison_sociale || av.raison_sociale || "inconnue"}" restaurée${parActeur}`;
+      details = { societe: ap.raison_sociale ?? av.raison_sociale ?? null };
+      break;
+
+    case "SOCIETE_SUPPRIMEE":
+      libelle = `Société "${av.raison_sociale || ap.raison_sociale || "inconnue"}" supprimée (suppression douce)${parActeur}`;
+      details = { societe: av.raison_sociale ?? ap.raison_sociale ?? null };
       break;
 
     default:

@@ -170,6 +170,92 @@ en base, l'écran où regarder, le résultat exact attendu.
   physiquement. — **Vérifié** (présent en base après le jeu, purgé à la
   première lecture de la corbeille).
 
+## GRO / GRU — Groupes d'organisations et groupes d'utilisateurs (US #277/#330)
+
+Contrairement aux autres sections, ces cas ne sont PAS seedés par
+01_jeu_recette.sql : les deux groupes se créent à la main pendant la recette,
+depuis les écrans, pour éprouver les formulaires et les garde-fous. Prérequis :
+migrations 106, 107 (tenant) et 108 (commune) jouées, API redémarrée.
+**À vérifier après mise en ligne** (le chantier n'exécute rien contre une base).
+
+### GRO-01 — Groupe « Filiales Sud », cascade mère-filles
+- **Écran** : Administration > Groupes d'organisations > Nouveau groupe.
+- **Geste** : nom « Filiales Sud » ; dans le sélecteur, cocher « REC Groupe
+  Horizon (mère) » : REC Filiale Nord et REC Filiale Sud se pré-cochent ;
+  décocher la mère puis REC Filiale Nord ; enregistrer.
+- **Attendu** : la cascade pré-coche les filiales et chacune reste décochable ;
+  la fiche affiche 1 société (REC Filiale Sud) ; la composition enregistrée
+  fait foi (aucune visibilité implicite par la hiérarchie) ; audit_log porte
+  GROUPE_ORGANISATION_CREE (code 2100) avec la société dans l'après.
+
+### GRO-02 — Suppression bloquée par un accès
+- **Prérequis** : GRU-01 joué (ligne IT Ops × Filiales Sud dans
+  « Exploitation Sud »).
+- **Geste** : supprimer « Filiales Sud » depuis la liste.
+- **Attendu** : refus 409 (code 2104), message affiché tel quel : le groupe est
+  utilisé par le groupe d'utilisateurs « Exploitation Sud » (1 ligne). Après
+  retrait de la ligne d'accès dans GRU, la suppression passe (trace 2102) et
+  les sociétés elles-mêmes sont intactes.
+
+### GRU-01 — Groupe « Exploitation Sud », ligne profil × groupe d'organisations
+- **Écran** : Administration > Groupes d'utilisateurs > Nouveau groupe.
+- **Geste** : nom « Exploitation Sud » ; dans la fiche, ajouter la ligne
+  IT Ops × Filiales Sud.
+- **Attendu** : la ligne s'affiche « IT Ops × Filiales Sud (REC Filiale Sud) » ;
+  le sélecteur de profil ne propose PAS Admin SAM, et l'appel direct
+  POST /api/groupes-utilisateurs/:id/acces avec le profil admin_sam est refusé
+  409 (code 2113) — décision du 08/10 à valider par Samuel ; audit_log porte
+  GROUPE_UTILISATEUR_CREE (2105) et GROUPE_UTILISATEUR_ACCES_AJOUTE (2108).
+
+### GRU-02 — Ajout d'un membre : union des droits, dashboard, provenance
+- **Geste** : ajouter saisie.recette (IT Data input, aucun droit de lecture des
+  licences — DRT-02) comme membre d'« Exploitation Sud ».
+- **Attendu** :
+  - mes-droits de saisie.recette = union : ses droits de saisie directs ET la
+    matrice IT Ops appliquée à REC Filiale Sud (consulter_licences...) ;
+    GET /licences répond 200 là où DRT-02 constatait le 403 du compte nu ;
+  - le sélecteur de dashboards lui propose IT Ops (un dashboard par profil
+    porté, y compris par groupe) ;
+  - visionneuse des droits, société REC Filiale Sud : consulter_licences badgé
+    « Accordé · Groupe » avec la mention « via le groupe "Exploitation Sud" » ;
+    ses droits directs restent badgés Profil ; REC Filiale Sud est regardable
+    même hors de son rattachement ;
+  - fiche utilisateur, section Groupes d'utilisateurs : appartenance listée
+    avec le résumé « IT Ops × Filiales Sud (1 société) » ;
+  - historique du compte : « Ajouté au groupe d'utilisateurs "Exploitation
+    Sud" par Admin RECETTE » (code 2110).
+
+### GRU-03 — Retrait du membre : les droits retombent
+- **Geste** : retirer saisie.recette du groupe (depuis la fiche du groupe ou la
+  fiche utilisateur).
+- **Attendu** : mes-droits retombe aux seuls droits directs (GET /licences de
+  nouveau 403, comme DRT-02) ; le dashboard IT Ops disparaît du sélecteur ;
+  historique : « Retiré du groupe d'utilisateurs "Exploitation Sud" » (2111) ;
+  re-ajouter le membre réactive l'appartenance sans violation d'unicité.
+
+### GRU-04 — Garde-fous du délégataire
+- **Prérequis** : accorder à dsi.nord.recette (rattaché à la seule REC Filiale
+  Nord) les exceptions gerer_profils et gerer_utilisateurs (portée tenant),
+  le temps du cas.
+- **Attendu**, connecté dsi.nord :
+  - créer un groupe d'organisations contenant REC Filiale Sud : refus 403
+    (code 2080), « sociétés hors de votre périmètre » ;
+  - ajouter un membre de la Filiale Nord à « Exploitation Sud » : refus 403
+    (code 2080) si les accès du groupe confèrent des permissions qu'il ne
+    détient pas sur REC Filiale Sud ;
+  - ajouter admin.recette (titulaire Admin SAM, rattaché tenant) à un groupe :
+    refus 403 (code 2051, hors périmètre d'un délégataire restreint) ; le
+    verrou 2081 couvre le cas d'un titulaire admin_sam dans le périmètre.
+  - Retirer les exceptions en fin de cas.
+
+### GRU-05 — Suppression douce du groupe d'utilisateurs
+- **Geste** : supprimer « Exploitation Sud » (avec la confirmation qui annonce
+  membres et lignes).
+- **Attendu** : les membres perdent immédiatement les accès du groupe, leurs
+  attributions directes sont intactes ; audit_log porte
+  GROUPE_UTILISATEUR_SUPPRIME (2107) avec les compteurs dans l'avant ; le nom
+  « Exploitation Sud » redevient disponible pour un nouveau groupe.
+
 ## LOG — Logiciels
 
 ### LOG-01 — Logiciel du catalogue commun, versions et éditions

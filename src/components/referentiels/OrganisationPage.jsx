@@ -1,4 +1,8 @@
-// OrganisationPage - liste des organisations (données réelles), vue arborescente ou liste plate
+// OrganisationPage - liste des organisations (données réelles), vue
+// arborescente ou liste plate. Les sociétés archivées (#281, décision client
+// du 08/10/2026 : « archiver » remplace « désactiver ») sont masquées par
+// défaut : filtre « Afficher les archivées » et badge Archivée, alignés sur
+// la liste des contrats (#96).
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, List, GitBranch, ChevronRight, ChevronDown } from 'lucide-react';
@@ -30,7 +34,7 @@ function TreeNode({ organisation, depth, navigate, organisations }) {
           : <span className="w-3.5 flex-shrink-0" />
         }
         <span className="text-sm text-blue-800 hover:underline">{organisation.raison_sociale}</span>
-        <Badge variant={organisation.actif ? 'success' : 'neutral'} label={organisation.actif ? 'Active' : 'Inactive'} />
+        <Badge variant={organisation.actif ? 'success' : 'neutral'} label={organisation.actif ? 'Active' : 'Archivée'} />
       </div>
       {open && hasFiliales && filiales.map(f => (
         <TreeNode key={f.id} organisation={f} depth={depth + 1} navigate={navigate} organisations={organisations} />
@@ -45,6 +49,7 @@ export default function OrganisationPage() {
   const [organisations, setOrganisations] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [vueArbo, setVueArbo] = useState(true);
+  const [afficherArchivees, setAfficherArchivees] = useState(false);
   const [filterParent, setFilterParent] = useState('');
   const [searchParams] = useSearchParams();
   const [search, setSearch] = useState(searchParams.get('q') ?? '');
@@ -70,7 +75,15 @@ export default function OrganisationPage() {
   // l'indentation) calculé sur l'ensemble des organisations, puis filtré en
   // conservant cet ordre : les filtres/recherche ne doivent pas casser la
   // lecture de l'arborescence dans la vue liste.
-  const hierarchical = useMemo(() => sortByHierarchy(organisations), [organisations]);
+  // #281 : les sociétés archivées sont masquées par défaut, comme les
+  // contrats. Le masque s'applique avant le tri hiérarchique : une filiale
+  // active d'une mère archivée masquée remonte à la racine (societeHierarchy
+  // rattache les orphelines) plutôt que de disparaître.
+  const visibles = useMemo(
+    () => (afficherArchivees ? organisations : organisations.filter(o => o.actif)),
+    [organisations, afficherArchivees]
+  );
+  const hierarchical = useMemo(() => sortByHierarchy(visibles), [visibles]);
 
   const filtered = useMemo(() => {
     return hierarchical.filter(o => {
@@ -83,7 +96,12 @@ export default function OrganisationPage() {
     });
   }, [hierarchical, filterParent, debouncedSearch]);
 
-  const racinesArbo = useMemo(() => organisations.filter(o => !o.id_societe_parent), [organisations]);
+  // L'arbre se construit sur les visibles : si la mère est masquée, la
+  // filiale devient racine (même règle que l'arbre des contrats).
+  const racinesArbo = useMemo(() => {
+    const ids = new Set(visibles.map(o => o.id));
+    return visibles.filter(o => !o.id_societe_parent || !ids.has(o.id_societe_parent));
+  }, [visibles]);
   const organisationsMeres = useMemo(() => organisations.filter(o => !o.id_societe_parent), [organisations]);
 
   async function handleSubmit(data, existing) {
@@ -106,7 +124,7 @@ export default function OrganisationPage() {
     { key: 'siret', label: 'SIRET', sortable: true },
     { key: 'organisation_parente', label: 'Société parente', getValue: r => organisations.find(o => o.id === r.id_societe_parent)?.raison_sociale ?? '', render: r => organisations.find(o => o.id === r.id_societe_parent)?.raison_sociale ?? '-' },
     { key: 'duree_amortissement', label: 'Durée amort.', sortable: true, render: r => r.duree_amortissement ? `${r.duree_amortissement} mois` : '-' },
-    { key: 'actif', label: 'Statut', sortable: true, render: r => <Badge variant={r.actif ? 'success' : 'neutral'} label={r.actif ? 'Active' : 'Inactive'} /> },
+    { key: 'actif', label: 'Statut', sortable: true, render: r => <Badge variant={r.actif ? 'success' : 'neutral'} label={r.actif ? 'Active' : 'Archivée'} /> },
   ];
 
   return (
@@ -144,6 +162,10 @@ export default function OrganisationPage() {
           placeholder="Rechercher par raison sociale ou SIRET..."
           className="text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 flex-1 min-w-[200px]"
         />
+        <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300 px-2 cursor-pointer">
+          <input type="checkbox" checked={afficherArchivees} onChange={e => setAfficherArchivees(e.target.checked)} className="rounded" />
+          Afficher les archivées
+        </label>
       </div>
 
       {vueArbo ? (
@@ -152,7 +174,7 @@ export default function OrganisationPage() {
             ? <p className="text-sm text-gray-400">Chargement…</p>
             : racinesArbo.length === 0
             ? <EmptyState title="Aucune société" description="Aucune société dans le référentiel." ctaLabel="Nouvelle société" onCta={() => setFormModal({ open: true, organisation: null })} />
-            : racinesArbo.map(o => <TreeNode key={o.id} organisation={o} depth={0} navigate={navigate} organisations={organisations} />)
+            : racinesArbo.map(o => <TreeNode key={o.id} organisation={o} depth={0} navigate={navigate} organisations={visibles} />)
           }
         </div>
       ) : (

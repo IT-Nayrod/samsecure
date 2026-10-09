@@ -300,8 +300,13 @@ export const ROUTES_PERMISSIONS = [
   ["POST",   "/societes",                    "gerer_referentiels"],
   ["PATCH",  "/societes/:id",                "gerer_referentiels"],
   ["DELETE", "/societes/:id",                "gerer_referentiels"],
-  // #281 : cycle de vie des societes (desactivation reversible, suppression
-  // douce controlee par la route DELETE), meme permission que leur CRUD.
+  // #281 : cycle de vie des societes (archivage reversible, suppression douce
+  // controlee par la route DELETE), meme permission que leur CRUD. Decision
+  // client du 08/10/2026 : "archiver" remplace "desactiver" (vocabulaire des
+  // contrats #96) ; les anciennes routes restent en alias le temps de la
+  // transition, declarees au meme niveau de droit.
+  ["POST",   "/societes/:id/archiver",       "gerer_referentiels"],
+  ["POST",   "/societes/:id/restaurer",      "gerer_referentiels"],
   ["POST",   "/societes/:id/desactiver",     "gerer_referentiels"],
   ["POST",   "/societes/:id/reactiver",      "gerer_referentiels"],
 
@@ -323,6 +328,32 @@ export const ROUTES_PERMISSIONS = [
   ["PUT",    "/profils/:id/matrice",                    "gerer_profils"],
   ["POST",   "/profils/:id/matrice/appliquer",          "gerer_profils"],
   ["GET",    "/profils/:id/societes-configurees",       "gerer_profils"],
+
+  // ---- Administration : groupes d'organisations et d'utilisateurs ----------
+  // (US #277/#330, decisions client du 08/10/2026, issue #213.)
+  // Groupes d'organisations : tout le CRUD sous gerer_profils (ils ne servent
+  // qu'a composer des acces). Groupes d'utilisateurs : lectures socle sous
+  // gerer_utilisateurs (la fiche utilisateur lit les appartenances et la
+  // liste pour ajouter un membre ; meme doctrine que GET /profils, le
+  // controle central n'exprime pas de OU), ecritures du groupe et des lignes
+  // d'acces sous gerer_profils, membres sous gerer_utilisateurs. Les
+  // garde-fous fins (perimetre, detention #278, verrou admin_sam, refus
+  // d'admin_sam dans une ligne) sont portes par les routeurs.
+  ["GET",    "/groupes-organisations",                        "gerer_profils"],
+  ["GET",    "/groupes-organisations/:id",                    "gerer_profils"],
+  ["POST",   "/groupes-organisations",                        "gerer_profils"],
+  ["PUT",    "/groupes-organisations/:id",                    "gerer_profils"],
+  ["DELETE", "/groupes-organisations/:id",                    "gerer_profils"],
+  ["GET",    "/groupes-utilisateurs",                         "gerer_utilisateurs"],
+  ["GET",    "/groupes-utilisateurs/:id",                     "gerer_utilisateurs"],
+  ["POST",   "/groupes-utilisateurs",                         "gerer_profils"],
+  ["PATCH",  "/groupes-utilisateurs/:id",                     "gerer_profils"],
+  ["DELETE", "/groupes-utilisateurs/:id",                     "gerer_profils"],
+  ["POST",   "/groupes-utilisateurs/:id/acces",               "gerer_profils"],
+  ["DELETE", "/groupes-utilisateurs/:id/acces/:accesId",      "gerer_profils"],
+  ["POST",   "/groupes-utilisateurs/:id/membres",             "gerer_utilisateurs"],
+  ["DELETE", "/groupes-utilisateurs/:id/membres/:membreId",   "gerer_utilisateurs"],
+  ["GET",    "/utilisateurs/:id/groupes-utilisateurs",        "gerer_utilisateurs"],
 
   // ---- Administration : exceptions de droits -------------------------------
   // Declarees avant les routes /utilisateurs/:id/... generiques.

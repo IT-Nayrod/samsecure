@@ -1,10 +1,12 @@
-// Sociétés du tenant : création, modification, désactivation, suppression
-// douce contrôlée, et configuration des profils par défaut par société (#249,
+// Sociétés du tenant : création, modification, archivage, suppression douce
+// contrôlée, et configuration des profils par défaut par société (#249,
 // onglet Profils de la fiche société, permission gerer_profils).
 //
-// Cycle de vie (#281, issue 60 — règle du ticket #62) : une société ne se
-// supprime pas tant qu'un objet s'y raccroche, elle se désactive (actif =
-// false + date_fin_activite, réversible). La suppression d'une société vide
+// Cycle de vie (#281, issue 60 — règle du ticket #62 ; décision client du
+// 08/10/2026 : une société ne se désactive pas, elle s'archive, le
+// vocabulaire des contrats #96) : une société ne se supprime pas tant qu'un
+// objet s'y raccroche, elle s'archive (actif = false + date_fin_activite,
+// réversible par la restauration). La suppression d'une société vide
 // est douce (date_suppression) : retirée des listes courantes, conservée en
 // base à des fins d'audit, opération et auteur tracés dans audit_log.
 // L'ancienne suppression en cascade (filiales et rattachements purgés) a
@@ -137,8 +139,8 @@ router.patch("/societes/:id", async (req, res) => {
     if (actif !== undefined) {
       fields.push(`actif = $${i++}`); values.push(actif);
       // #281 : cohérence booléen/date, le simulateur passe encore par PATCH.
-      // Désactiver pose la date du jour (si absente), réactiver l'efface. Les
-      // routes dédiées /desactiver et /reactiver restent la porte tracée.
+      // Archiver pose la date du jour (si absente), restaurer l'efface. Les
+      // routes dédiées /archiver et /restaurer restent la porte tracée.
       fields.push(actif ? "date_fin_activite = NULL" : "date_fin_activite = COALESCE(date_fin_activite, CURRENT_DATE)");
     }
     if (fields.length === 0) { await client.query("ROLLBACK"); return res.status(400).json({ error: "Aucun champ à modifier" }); }
@@ -161,11 +163,14 @@ router.patch("/societes/:id", async (req, res) => {
   }
 });
 
-// Désactivation (#281, règle du ticket #62) : toujours possible, réversible.
-// actif = false et date_fin_activite posée (conservée si déjà renseignée),
-// trace probante SOCIETE_DESACTIVEE. Idempotente : une société déjà inactive
-// est renvoyée telle quelle, sans nouvelle trace.
-router.post("/societes/:id/desactiver", async (req, res) => {
+// Archivage (#281, règle du ticket #62 ; décision client du 08/10/2026 :
+// une société ne se désactive pas, elle s'archive, le vocabulaire des
+// contrats #96) : toujours possible, réversible. actif = false et
+// date_fin_activite posée (conservée si déjà renseignée), trace probante
+// SOCIETE_ARCHIVEE. Idempotent : une société déjà archivée est renvoyée
+// telle quelle, sans nouvelle trace. L'ancienne route /desactiver reste en
+// alias le temps de la transition : même traitement, même trace.
+async function archiverSociete(req, res) {
   const { id } = req.params;
   // code_retour: 2075
   if (!estUuid(id)) return res.status(404).json({ error: "Société introuvable" });
@@ -182,10 +187,10 @@ router.post("/societes/:id/desactiver", async (req, res) => {
        WHERE id = $1 RETURNING ${SELECT_FIELDS}`, [id]
     );
     if (avant[0].actif) {
-      await log(client, "UPDATE", "societe", id, `Société "${avant[0].raison_sociale}" désactivée`, { actif: false, date_fin_activite: rows[0].datefinactivite });
+      await log(client, "UPDATE", "societe", id, `Société "${avant[0].raison_sociale}" archivée`, { actif: false, date_fin_activite: rows[0].datefinactivite });
       // code_retour: 2092
       await auditer(client, req, {
-        action: "SOCIETE_DESACTIVEE", entiteType: "societe", entiteId: id,
+        action: "SOCIETE_ARCHIVEE", entiteType: "societe", entiteId: id,
         avant: { raison_sociale: avant[0].raison_sociale, actif: true, date_fin_activite: avant[0].date_fin_activite },
         apres: { raison_sociale: avant[0].raison_sociale, actif: false, date_fin_activite: rows[0].datefinactivite },
       });
@@ -194,17 +199,20 @@ router.post("/societes/:id/desactiver", async (req, res) => {
     res.json(rows[0]);
   } catch (err) {
     await client.query("ROLLBACK");
-    console.error("POST /societes/:id/desactiver error", err);
+    console.error("POST /societes/:id/archiver error", err);
     res.status(500).json({ error: "Erreur serveur" });
   } finally {
     client.release();
   }
-});
+}
+router.post("/societes/:id/archiver", archiverSociete);
+router.post("/societes/:id/desactiver", archiverSociete);
 
-// Réactivation : pendant de la désactivation (un compte comme une société se
-// réactive, migration 022), même permission. Efface date_fin_activite, trace
-// probante SOCIETE_REACTIVEE, idempotente.
-router.post("/societes/:id/reactiver", async (req, res) => {
+// Restauration : pendant de l'archivage (un contrat s'archive et se restaure
+// de la même façon, #96), même permission. actif = true, date_fin_activite
+// effacée, trace probante SOCIETE_RESTAUREE, idempotente. Alias de transition
+// /reactiver conservé.
+async function restaurerSociete(req, res) {
   const { id } = req.params;
   // code_retour: 2075
   if (!estUuid(id)) return res.status(404).json({ error: "Société introuvable" });
@@ -221,10 +229,10 @@ router.post("/societes/:id/reactiver", async (req, res) => {
        WHERE id = $1 RETURNING ${SELECT_FIELDS}`, [id]
     );
     if (!avant[0].actif) {
-      await log(client, "UPDATE", "societe", id, `Société "${avant[0].raison_sociale}" réactivée`, { actif: true });
+      await log(client, "UPDATE", "societe", id, `Société "${avant[0].raison_sociale}" restaurée`, { actif: true });
       // code_retour: 2093
       await auditer(client, req, {
-        action: "SOCIETE_REACTIVEE", entiteType: "societe", entiteId: id,
+        action: "SOCIETE_RESTAUREE", entiteType: "societe", entiteId: id,
         avant: { raison_sociale: avant[0].raison_sociale, actif: false, date_fin_activite: avant[0].date_fin_activite },
         apres: { raison_sociale: avant[0].raison_sociale, actif: true, date_fin_activite: null },
       });
@@ -233,12 +241,14 @@ router.post("/societes/:id/reactiver", async (req, res) => {
     res.json(rows[0]);
   } catch (err) {
     await client.query("ROLLBACK");
-    console.error("POST /societes/:id/reactiver error", err);
+    console.error("POST /societes/:id/restaurer error", err);
     res.status(500).json({ error: "Erreur serveur" });
   } finally {
     client.release();
   }
-});
+}
+router.post("/societes/:id/restaurer", restaurerSociete);
+router.post("/societes/:id/reactiver", restaurerSociete);
 
 // Suppression (#281, issue 60, règle du ticket #62) : refusée tant qu'un
 // objet se raccroche à la société (409, message rendu listant les blocages),

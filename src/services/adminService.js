@@ -151,10 +151,13 @@ export const societesService = {
   create: (payload) => http.post('/societes', payload).then(normalizeSociete),
   update: (id, payload) => http.patch(`/societes/${id}`, payload).then(normalizeSociete),
   remove: (id) => http.delete(`/societes/${id}`),
-  // #281 : désactivation réversible. La suppression reste remove(), refusée
-  // (409) par l'API tant que des objets se raccrochent à la société.
-  desactiver: (id) => http.post(`/societes/${id}/desactiver`).then(normalizeSociete),
-  reactiver: (id) => http.post(`/societes/${id}/reactiver`).then(normalizeSociete),
+  // #281 : archivage réversible (décision client du 08/10/2026, « archiver »
+  // remplace « désactiver », le vocabulaire des contrats #96 ; l'API garde
+  // /desactiver et /reactiver en alias le temps de la transition). La
+  // suppression reste remove(), refusée (409) par l'API tant que des objets
+  // se raccrochent à la société.
+  archiver: (id) => http.post(`/societes/${id}/archiver`).then(normalizeSociete),
+  restaurer: (id) => http.post(`/societes/${id}/restaurer`).then(normalizeSociete),
   // Onglet Profils de la fiche société (#249, permission gerer_profils).
   profils: (id) => http.get(`/societes/${id}/profils`),
   configurerMatrice: (id, idProfil, permission_ids) =>
@@ -168,6 +171,38 @@ export const droitsService = {
     if (profilId) params.set('profilId', profilId);
     return http.get(`/utilisateurs/${userId}/droits-effectifs?${params.toString()}`);
   },
+};
+
+// Groupes d'organisations (US #277) : sommes de sociétés du tenant, CRUD
+// sous gerer_profils. La composition (societe_ids) est remplacée
+// intégralement à chaque enregistrement ; la suppression est douce, refusée
+// par l'API tant qu'une ligne d'accès s'en sert (409, message tel quel).
+export const groupesOrganisationsService = {
+  list: () => http.get('/groupes-organisations'),
+  get: (id) => http.get(`/groupes-organisations/${id}`),
+  create: (payload) => http.post('/groupes-organisations', payload),
+  update: (id, payload) => http.put(`/groupes-organisations/${id}`, payload),
+  remove: (id) => http.delete(`/groupes-organisations/${id}`),
+};
+
+// Groupes d'utilisateurs (US #330) : lectures sous gerer_utilisateurs,
+// écritures du groupe et des lignes d'accès (profil × groupe d'organisations)
+// sous gerer_profils, membres sous gerer_utilisateurs. Les garde-fous
+// (périmètre, délégation #278, admin_sam) sont portés par le serveur, leurs
+// refus affichés tels quels.
+export const groupesUtilisateursService = {
+  list: () => http.get('/groupes-utilisateurs'),
+  get: (id) => http.get(`/groupes-utilisateurs/${id}`),
+  create: (payload) => http.post('/groupes-utilisateurs', payload),
+  update: (id, payload) => http.patch(`/groupes-utilisateurs/${id}`, payload),
+  remove: (id) => http.delete(`/groupes-utilisateurs/${id}`),
+  addAcces: (id, payload) => http.post(`/groupes-utilisateurs/${id}/acces`, payload),
+  removeAcces: (id, accesId) => http.delete(`/groupes-utilisateurs/${id}/acces/${accesId}`),
+  addMembre: (id, id_utilisateur) => http.post(`/groupes-utilisateurs/${id}/membres`, { id_utilisateur }),
+  removeMembre: (id, membreId) => http.delete(`/groupes-utilisateurs/${id}/membres/${membreId}`),
+  // Appartenances d'un compte avec le détail des accès : fiche utilisateur
+  // (section Groupes d'utilisateurs) et visionneuse des droits (provenance).
+  appartenances: (userId) => http.get(`/utilisateurs/${userId}/groupes-utilisateurs`),
 };
 
 export const journalService = {

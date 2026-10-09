@@ -17,6 +17,8 @@ import utilisateursRouter from "./routes/utilisateurs.js";
 import utilisateurProfilsRouter from "./routes/utilisateurProfils.js";
 import utilisateurExceptionsRouter from "./routes/utilisateurExceptions.js";
 import droitsEffectifsRouter from "./routes/droitsEffectifs.js";
+import groupesOrganisationsRouter from "./routes/groupesOrganisations.js";
+import groupesUtilisateursRouter from "./routes/groupesUtilisateurs.js";
 import journalRouter from "./routes/journal.js";
 import contratsRouter from "./routes/contrats.js";
 import commandesRouter from "./routes/commandes.js";
@@ -65,6 +67,11 @@ app.use("/api", utilisateursRouter);
 app.use("/api", utilisateurProfilsRouter);
 app.use("/api", utilisateurExceptionsRouter);
 app.use("/api", droitsEffectifsRouter);
+// Groupes d'organisations et d'utilisateurs (US #277/#330) : apres le
+// routeur utilisateurs, dont les chemins /utilisateurs/:id/... restent
+// distincts de /utilisateurs/:id/groupes-utilisateurs.
+app.use("/api", groupesOrganisationsRouter);
+app.use("/api", groupesUtilisateursRouter);
 app.use("/api", journalRouter);
 app.use("/api", contratsRouter);
 app.use("/api", referentielsRouter);

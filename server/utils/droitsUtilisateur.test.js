@@ -4,7 +4,7 @@
 // Exécution : node --test server/utils/droitsUtilisateur.test.js
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { matriceProfilEffective, appliquerExceptions, unionPermissions, permissionsManquantes, deltaMatrice, TYPES_PROFIL_AJOUTE, PERMISSIONS_DELEGATION } from "./droitsRegles.js";
+import { matriceProfilEffective, appliquerExceptions, unionPermissions, permissionsManquantes, deltaMatrice, TYPES_PROFIL_AJOUTE, PERMISSIONS_DELEGATION, societesNonDetenues, societesParProfilDesGroupes } from "./droitsRegles.js";
 
 const DEFAUT = ["consulter_licences", "saisir_licence"];
 
@@ -228,4 +228,122 @@ test("constantes de la delegation : types ajoutes et permissions deleguables", (
   // gerer_utilisateurs et gerer_profils.
   assert.deepEqual([...TYPES_PROFIL_AJOUTE].sort(), ["ajoute", "groupe"]);
   assert.deepEqual([...PERMISSIONS_DELEGATION].sort(), ["gerer_profils", "gerer_utilisateurs"]);
+});
+
+// ---------------------------------------------------------------------------
+// Groupes d'utilisateurs (#277/#330) : union des droits, lignes de groupes,
+// garde-fous de composition.
+// ---------------------------------------------------------------------------
+
+// La matrice effective d'une ligne profil × groupe d'organisations se calcule
+// avec les memes regles que le direct : ces tests composent
+// societesParProfilDesGroupes + matriceProfilEffective + unionPermissions,
+// exactement comme permissionsEffectives (bloc 1bis).
+function droitsDesLignes(lignes, matricesParProfil) {
+  const matrices = [];
+  for (const [idProfil, couvertes] of societesParProfilDesGroupes(lignes)) {
+    const m = matricesParProfil[idProfil];
+    matrices.push(matriceProfilEffective({
+      societesCouvertes: [...couvertes],
+      matriceDefaut: m.defaut,
+      matricesParSociete: m.parSociete || new Map(),
+    }));
+  }
+  return unionPermissions(matrices);
+}
+
+test("groupes : union des sociétés par profil, lignes de plusieurs groupes cumulées", () => {
+  const parProfil = societesParProfilDesGroupes([
+    { id_profil: "it_ops", societes: ["sA", "sB"] },     // IT Ops sur groupe A-B
+    { id_profil: "it_ops", societes: ["sC"] },           // IT Ops sur groupe C (autre groupe)
+    { id_profil: "manager_dsi", societes: ["sE", "sF"] },
+  ]);
+  assert.deepEqual([...parProfil.get("it_ops")].sort(), ["sA", "sB", "sC"]);
+  assert.deepEqual([...parProfil.get("manager_dsi")].sort(), ["sE", "sF"]);
+});
+
+test("groupes : une ligne dont le groupe d'organisations est vide ne confère RIEN", () => {
+  // Pas de repli sur la matrice par defaut, contrairement a un rattachement
+  // vide : la portee d'une ligne est exactement celle de son groupe.
+  const parProfil = societesParProfilDesGroupes([
+    { id_profil: "it_ops", societes: [] },
+    { id_profil: "financier", societes: [null] },
+  ]);
+  assert.equal(parProfil.size, 0);
+});
+
+test("groupes : cumul attribution directe + ligne de groupe (« et/ou », union)", () => {
+  // Direct : IT Data input sur le rattachement (saisir_affectation).
+  const direct = matriceProfilEffective({
+    societesCouvertes: ["sNord"],
+    matriceDefaut: ["saisir_affectation"],
+    matricesParSociete: new Map(),
+  });
+  // Groupe « Exploitation Sud » : IT Ops sur le groupe « Filiales Sud ».
+  const groupes = droitsDesLignes(
+    [{ id_profil: "it_ops", societes: ["sSud"] }],
+    { it_ops: { defaut: ["consulter_licences", "saisir_affectation"] } }
+  );
+  const union = unionPermissions([direct, groupes]);
+  assert.deepEqual([...union].sort(), ["consulter_licences", "saisir_affectation"]);
+});
+
+test("groupes : le retrait d'un membre retire la contribution du groupe", () => {
+  const matrices = { it_ops: { defaut: ["consulter_licences"] } };
+  const avant = droitsDesLignes([{ id_profil: "it_ops", societes: ["sSud"] }], matrices);
+  assert.ok(avant.has("consulter_licences"));
+  // Plus membre d'aucun groupe : plus aucune ligne, la contribution tombe.
+  const apres = droitsDesLignes([], matrices);
+  assert.equal(apres.size, 0);
+});
+
+test("groupes : une société configurée s'applique aussi via une ligne de groupe (Q2/Q3)", () => {
+  // La matrice configuree (profil, societe) fait foi pour la societe du
+  // groupe, exactement comme pour une attribution directe.
+  const droits = droitsDesLignes(
+    [{ id_profil: "it_ops", societes: ["sSud"] }],
+    { it_ops: { defaut: ["consulter_licences", "saisir_licence"],
+                parSociete: new Map([["sSud", ["consulter_licences"]]]) } }
+  );
+  assert.deepEqual([...droits], ["consulter_licences"]);
+});
+
+test("groupes : l'exception « retire » prime aussi sur un droit venu d'un groupe", () => {
+  const permissions = droitsDesLignes(
+    [{ id_profil: "it_ops", societes: ["sSud"] }],
+    { it_ops: { defaut: ["consulter_licences", "saisir_affectation"] } }
+  );
+  appliquerExceptions(permissions,
+    [{ type: "retire", id_societe: null, code: "saisir_affectation" }],
+    { isTenantScope: false, dansPerimetre: () => true });
+  assert.deepEqual([...permissions], ["consulter_licences"]);
+});
+
+test("societesNonDetenues : un délégataire ne compose qu'avec ses sociétés", () => {
+  const scope = { isTenantScope: false, societeIds: ["sA", "sB"] };
+  assert.deepEqual(societesNonDetenues(["sA", "sB"], scope), []);
+  assert.deepEqual(societesNonDetenues(["sA", "sC", "sD", "sC"], scope), ["sC", "sD"]);
+});
+
+test("societesNonDetenues : admin_sam et rattachement tenant voient tout", () => {
+  assert.deepEqual(societesNonDetenues(["sX", "sY"], { isTenantScope: true, societeIds: [] }), []);
+});
+
+test("groupes : délégataire, détention de l'union des permissions conférées par les lignes", () => {
+  // Ajouter un membre attribue toutes les lignes du groupe : le garde-fou
+  // verifie l'union des codes conferes contre les droits de l'acteur.
+  const conferees = droitsDesLignes(
+    [
+      { id_profil: "it_ops", societes: ["sSud"] },
+      { id_profil: "financier", societes: ["sSud"] },
+    ],
+    {
+      it_ops: { defaut: ["consulter_licences"] },
+      financier: { defaut: ["consulter_budget", "consulter_kpi_financiers"] },
+    }
+  );
+  const acteurIncomplet = new Set(["consulter_licences", "consulter_budget"]);
+  assert.deepEqual(permissionsManquantes([...conferees], acteurIncomplet), ["consulter_kpi_financiers"]);
+  const acteurComplet = new Set([...acteurIncomplet, "consulter_kpi_financiers"]);
+  assert.deepEqual(permissionsManquantes([...conferees], acteurComplet), []);
 });

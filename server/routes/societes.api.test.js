@@ -1,6 +1,8 @@
-// Test API de bout en bout de la suppression contrôlée et de la désactivation
-// des sociétés (#281, issue 60). Il parle HTTP à une API déployée portant ce
-// chantier (aucun accès base) et s'ignore sans configuration :
+// Test API de bout en bout de la suppression contrôlée et de l'archivage des
+// sociétés (#281, issue 60 ; décision client du 08/10/2026 : « archiver »
+// remplace « désactiver », les anciennes routes restent en alias le temps de
+// la transition). Il parle HTTP à une API déployée portant ce chantier
+// (aucun accès base) et s'ignore sans configuration :
 //   SS_API_URL=http://127.0.0.1:3002 \
 //   SS_API_EMAIL=admin.recette@samsecure.test \
 //   SS_API_PASSWORD='Recette#2026' \
@@ -16,7 +18,7 @@ const PASSWORD = process.env.SS_API_PASSWORD;
 const configure = Boolean(BASE && EMAIL && PASSWORD);
 
 test(
-  "sociétés : suppression douce contrôlée et désactivation (#281)",
+  "sociétés : suppression douce contrôlée et archivage (#281)",
   { skip: configure ? false : "SS_API_URL, SS_API_EMAIL et SS_API_PASSWORD non fournis" },
   async (t) => {
     let jeton;
@@ -52,7 +54,7 @@ test(
         assert.equal(refus.statut, 409);
         assert.match(refus.corps.error, /^Suppression impossible/);
         assert.match(refus.corps.error, /1 filiale/);
-        assert.match(refus.corps.error, /désactivation reste possible/);
+        assert.match(refus.corps.error, /archivage reste possible/);
       });
 
       await t.test("la liste sert les blocages prêts à l'écran", async () => {
@@ -64,17 +66,28 @@ test(
         assert.deepEqual(ligneFille.blocages_suppression, []);
       });
 
-      await t.test("désactiver pose la date, réactiver l'efface", async () => {
-        const desactivee = await api("POST", `/societes/${fille.corps.id}/desactiver`);
-        assert.equal(desactivee.statut, 200);
-        assert.equal(desactivee.corps.actif, false);
-        assert.ok(desactivee.corps.datefinactivite, "date_fin_activite posée");
-        const rejouee = await api("POST", `/societes/${fille.corps.id}/desactiver`);
-        assert.equal(rejouee.statut, 200, "désactivation idempotente");
-        const reactivee = await api("POST", `/societes/${fille.corps.id}/reactiver`);
-        assert.equal(reactivee.statut, 200);
-        assert.equal(reactivee.corps.actif, true);
-        assert.equal(reactivee.corps.datefinactivite, null);
+      await t.test("archiver pose la date, restaurer l'efface", async () => {
+        const archivee = await api("POST", `/societes/${fille.corps.id}/archiver`);
+        assert.equal(archivee.statut, 200);
+        assert.equal(archivee.corps.actif, false);
+        assert.ok(archivee.corps.datefinactivite, "date_fin_activite posée");
+        const rejouee = await api("POST", `/societes/${fille.corps.id}/archiver`);
+        assert.equal(rejouee.statut, 200, "archivage idempotent");
+        const restauree = await api("POST", `/societes/${fille.corps.id}/restaurer`);
+        assert.equal(restauree.statut, 200);
+        assert.equal(restauree.corps.actif, true);
+        assert.equal(restauree.corps.datefinactivite, null);
+      });
+
+      await t.test("les alias de transition désactiver et réactiver répondent comme archiver et restaurer", async () => {
+        const archivee = await api("POST", `/societes/${fille.corps.id}/desactiver`);
+        assert.equal(archivee.statut, 200);
+        assert.equal(archivee.corps.actif, false);
+        assert.ok(archivee.corps.datefinactivite, "l'alias pose la date");
+        const restauree = await api("POST", `/societes/${fille.corps.id}/reactiver`);
+        assert.equal(restauree.statut, 200);
+        assert.equal(restauree.corps.actif, true);
+        assert.equal(restauree.corps.datefinactivite, null);
       });
 
       await t.test("une société vide se supprime en douceur et quitte les listes", async () => {
