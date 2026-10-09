@@ -173,6 +173,38 @@ export const droitsService = {
   },
 };
 
+// Groupes d'organisations (US #277) : sommes de sociétés du tenant, CRUD
+// sous gerer_profils. La composition (societe_ids) est remplacée
+// intégralement à chaque enregistrement ; la suppression est douce, refusée
+// par l'API tant qu'une ligne d'accès s'en sert (409, message tel quel).
+export const groupesOrganisationsService = {
+  list: () => http.get('/groupes-organisations'),
+  get: (id) => http.get(`/groupes-organisations/${id}`),
+  create: (payload) => http.post('/groupes-organisations', payload),
+  update: (id, payload) => http.put(`/groupes-organisations/${id}`, payload),
+  remove: (id) => http.delete(`/groupes-organisations/${id}`),
+};
+
+// Groupes d'utilisateurs (US #330) : lectures sous gerer_utilisateurs,
+// écritures du groupe et des lignes d'accès (profil × groupe d'organisations)
+// sous gerer_profils, membres sous gerer_utilisateurs. Les garde-fous
+// (périmètre, délégation #278, admin_sam) sont portés par le serveur, leurs
+// refus affichés tels quels.
+export const groupesUtilisateursService = {
+  list: () => http.get('/groupes-utilisateurs'),
+  get: (id) => http.get(`/groupes-utilisateurs/${id}`),
+  create: (payload) => http.post('/groupes-utilisateurs', payload),
+  update: (id, payload) => http.patch(`/groupes-utilisateurs/${id}`, payload),
+  remove: (id) => http.delete(`/groupes-utilisateurs/${id}`),
+  addAcces: (id, payload) => http.post(`/groupes-utilisateurs/${id}/acces`, payload),
+  removeAcces: (id, accesId) => http.delete(`/groupes-utilisateurs/${id}/acces/${accesId}`),
+  addMembre: (id, id_utilisateur) => http.post(`/groupes-utilisateurs/${id}/membres`, { id_utilisateur }),
+  removeMembre: (id, membreId) => http.delete(`/groupes-utilisateurs/${id}/membres/${membreId}`),
+  // Appartenances d'un compte avec le détail des accès : fiche utilisateur
+  // (section Groupes d'utilisateurs) et visionneuse des droits (provenance).
+  appartenances: (userId) => http.get(`/utilisateurs/${userId}/groupes-utilisateurs`),
+};
+
 export const journalService = {
   list: ({ search, limit = 200, offset = 0 } = {}) => {
     const params = new URLSearchParams({ limit, offset });

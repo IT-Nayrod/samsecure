@@ -16,6 +16,10 @@
 //    existe (Q2/Q3), sinon la matrice par défaut du tenant. Le contrôle par
 //    route porte sur l'union de toutes ces matrices (Q4) ; le filtrage fin par
 //    société reste une limite connue.
+// 1bis. Groupes d'utilisateurs (#277/#330, décisions du 08/10/2026) : pour
+//    chaque appartenance active, chaque ligne profil × groupe d'organisations
+//    apporte la matrice effective du profil sur les sociétés du groupe
+//    d'organisations (« et/ou » avec les attributions directes, union).
 // 2. Groupes personnalisés attribués (utilisateur_profil_societe, type
 //    'groupe') : union de leurs permissions. Plus aucune condition de
 //    diffusion (#57), la portée d'un groupe suit le rattachement ; la colonne
@@ -23,20 +27,20 @@
 // 3. Exceptions individuelles, bornées au périmètre : tous les accords puis
 //    tous les retraits, le retrait restant inconditionnellement prioritaire.
 import { tenantPool } from "../db.js";
-import { matriceProfilEffective, appliquerExceptions, unionPermissions, permissionsManquantes } from "./droitsRegles.js";
+import { matriceProfilEffective, appliquerExceptions, unionPermissions, permissionsManquantes, societesParProfilDesGroupes } from "./droitsRegles.js";
 import { getAdminScope } from "./scope.js";
 
 // Les règles pures (matrice effective, union multi-profils, exceptions) vivent
 // dans droitsRegles.js, sans dépendance à la base : node --test les exécute
 // sans .env (même motif que notifications/regles.js). Ré-exportées ici pour
 // les consommateurs.
-export { matriceProfilEffective, appliquerExceptions, unionPermissions, permissionsManquantes, deltaMatrice, PERMISSIONS_DELEGATION, TYPES_PROFIL_AJOUTE } from "./droitsRegles.js";
+export { matriceProfilEffective, appliquerExceptions, unionPermissions, permissionsManquantes, deltaMatrice, PERMISSIONS_DELEGATION, TYPES_PROFIL_AJOUTE, societesNonDetenues, societesParProfilDesGroupes } from "./droitsRegles.js";
 
-// Profils par défaut d'un compte : attributions actives non-groupe de
+// Profils directs d'un compte : attributions actives non-groupe de
 // utilisateur_profil_societe, dédoublonnées par profil, id_societe ignoré
-// (#57). Partagée avec droitsEffectifs.js (visionneuse, simulateur) et
-// dashboards.js (un dashboard par profil porteur, #73/#190).
-export async function profilsParDefaut(idUtilisateur) {
+// (#57). Consommée par le calcul effectif et par droitsEffectifs.js
+// (visionneuse, simulateur), qui distinguent le direct du porté par groupe.
+export async function profilsDirects(idUtilisateur) {
   const { rows } = await tenantPool.query(
     `SELECT DISTINCT p.id, p.code, p.label, p.type
        FROM utilisateur_profil_societe ups
@@ -47,6 +51,77 @@ export async function profilsParDefaut(idUtilisateur) {
     [idUtilisateur]
   );
   return rows;
+}
+
+// Lignes d'accès conférées par les groupes d'utilisateurs du compte
+// (#277/#330) : pour chaque appartenance active à un groupe actif, chaque
+// ligne profil × groupe d'organisations active, avec les sociétés actives du
+// groupe d'organisations. La portée d'une ligne est celle de son groupe
+// d'organisations, indépendamment du rattachement du compte.
+// Tant que les migrations 106/107 ne sont pas jouées, les tables n'existent
+// pas : la contribution des groupes est alors vide (42P01 avalé, signalé en
+// console) pour ne pas faire tomber tout le contrôle des permissions - même
+// motif que la robustesse de profils.js à la 097.
+let tablesGroupesAbsentesSignalees = false;
+export async function lignesAccesGroupes(idUtilisateur) {
+  try {
+    const { rows } = await tenantPool.query(
+      `SELECT gua.id, gua.id_profil,
+              p.code AS profil_code, p.label AS profil_label, p.type AS profil_type,
+              gu.id AS id_groupe_utilisateur, gu.nom AS groupe_nom,
+              go.id AS id_groupe_organisation, go.nom AS groupe_organisation_nom,
+              COALESCE(soc.societes, '{}') AS societes
+         FROM groupe_utilisateur_membre gum
+         JOIN groupe_utilisateur gu ON gu.id = gum.id_groupe_utilisateur
+                                   AND gu.date_suppression IS NULL
+         JOIN groupe_utilisateur_acces gua ON gua.id_groupe_utilisateur = gu.id
+                                          AND gua.date_suppression IS NULL
+         JOIN profil p ON p.id = gua.id_profil AND p.date_suppression IS NULL
+         JOIN groupe_organisation go ON go.id = gua.id_groupe_organisation
+                                    AND go.date_suppression IS NULL
+         LEFT JOIN LATERAL (
+           SELECT array_agg(gos.id_societe) AS societes
+             FROM groupe_organisation_societe gos
+             JOIN societe s ON s.id = gos.id_societe AND s.date_suppression IS NULL
+            WHERE gos.id_groupe_organisation = go.id
+         ) soc ON true
+        WHERE gum.id_utilisateur = $1 AND gum.date_suppression IS NULL
+        ORDER BY gu.nom, p.label`,
+      [idUtilisateur]
+    );
+    return rows;
+  } catch (err) {
+    if (err.code === "42P01") {
+      if (!tablesGroupesAbsentesSignalees) {
+        tablesGroupesAbsentesSignalees = true;
+        console.error("[droits] tables des groupes absentes (migrations 106/107 a jouer) : contribution des groupes ignoree.");
+      }
+      return [];
+    }
+    throw err;
+  }
+}
+
+// Profils PORTÉS par un compte : attributions directes et profils apportés par
+// ses groupes d'utilisateurs, dédoublonnés. C'est la lecture de dashboards.js
+// (un dashboard par profil porté, #73/#190 étendu #330) ; une ligne de groupe
+// sans société active ne porte rien, dashboard compris. Le nom historique
+// profilsParDefaut est conservé pour ses consommateurs.
+export async function profilsParDefaut(idUtilisateur) {
+  const directs = await profilsDirects(idUtilisateur);
+  const lignes = await lignesAccesGroupes(idUtilisateur);
+  const parId = new Map(directs.map((p) => [p.id, p]));
+  for (const ligne of lignes) {
+    if (ligne.profil_type === "groupe") continue;
+    if (!(ligne.societes || []).filter(Boolean).length) continue;
+    if (!parId.has(ligne.id_profil)) {
+      parId.set(ligne.id_profil, {
+        id: ligne.id_profil, code: ligne.profil_code,
+        label: ligne.profil_label, type: ligne.profil_type,
+      });
+    }
+  }
+  return [...parId.values()].sort((a, b) => (a.label || "").localeCompare(b.label || "", "fr"));
 }
 
 // ---------------------------------------------------------------------------
@@ -130,7 +205,7 @@ export async function permissionsEffectives(idUtilisateur) {
   // Sociétés couvertes : le rattachement, ou toutes les sociétés actives du
   // tenant pour une portée tenant (les sociétés configurées y contribuent
   // alors toutes).
-  const profils = await profilsParDefaut(idUtilisateur);
+  const profils = await profilsDirects(idUtilisateur);
   if (profils.length) {
     let societesCouvertes = societeIds;
     if (isTenantScope) {
@@ -144,6 +219,18 @@ export async function permissionsEffectives(idUtilisateur) {
       matrices.push(await permissionsDuProfil(profil.id, societesCouvertes));
     }
     for (const code of unionPermissions(matrices)) permissions.add(code);
+  }
+
+  // 1bis. Groupes d'utilisateurs (#277/#330) : chaque ligne profil × groupe
+  // d'organisations apporte la matrice effective du profil sur les sociétés
+  // ACTIVES du groupe d'organisations, indépendamment du rattachement (la
+  // portée d'une ligne est celle de son groupe). Union des sociétés par
+  // profil (exacte, cf. societesParProfilDesGroupes) pour ne résoudre chaque
+  // matrice qu'une fois ; une ligne sans société active ne confère rien.
+  const lignesGroupes = await lignesAccesGroupes(idUtilisateur);
+  for (const [idProfil, couvertes] of societesParProfilDesGroupes(lignesGroupes)) {
+    const matrice = await permissionsDuProfil(idProfil, [...couvertes]);
+    for (const code of matrice) permissions.add(code);
   }
 
   // 2. Groupes personnalisés attribués (#57) : l'attribution suffit, sans

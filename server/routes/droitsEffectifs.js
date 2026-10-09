@@ -12,12 +12,46 @@
 // s'appliquent en dernier, le retrait primant sur l'accord (inchangé).
 // profilId reste accepté pour regarder ou simuler UN profil (visionneuse par
 // profil, simulateur de droits) : il remplace alors l'ensemble dans le calcul.
+//
+// Groupes d'utilisateurs (#277/#330, décisions du 08/10/2026) : chaque ligne
+// profil × groupe d'organisations dont le groupe contient la société regardée
+// apporte, pour CETTE société, la matrice du profil (configurée ou défaut).
+// Chaque droit porte sa provenance : source 'profil' (attribution directe),
+// 'groupe_utilisateur' (uniquement par groupes, leurs noms dans
+// groupes_utilisateurs), les deux à la fois quand elles se cumulent (source
+// reste 'profil', les noms de groupes sont servis en plus).
 
 import express from "express";
 import { tenantPool } from "../db.js";
-import { profilsParDefaut } from "../utils/droitsUtilisateur.js";
+import { profilsDirects, lignesAccesGroupes } from "../utils/droitsUtilisateur.js";
 
 const router = express.Router();
+
+// Matrice d'un profil pour UNE société : configurée si marqueur (Q2/Q3),
+// sinon matrice par défaut du tenant. Même règle que droitsUtilisateur.js,
+// partagée entre les profils directs et les lignes de groupes.
+async function matriceProfilPourSociete(idProfil, societeId) {
+  const { rows: conf } = await tenantPool.query(
+    `SELECT 1 FROM profil_societe_configuration
+      WHERE id_profil = $1 AND id_societe = $2`,
+    [idProfil, societeId]
+  );
+  const configure = conf.length > 0;
+  const { rows } = configure
+    ? await tenantPool.query(
+        `SELECT DISTINCT p.id, p.code, p.label, p.module
+           FROM profil_societe_permission psp
+           JOIN permission p ON p.id = psp.id_permission
+          WHERE psp.id_profil = $1 AND psp.id_societe = $2`,
+        [idProfil, societeId])
+    : await tenantPool.query(
+        `SELECT DISTINCT p.id, p.code, p.label, p.module
+           FROM profil_permission pp
+           JOIN permission p ON p.id = pp.id_permission
+          WHERE pp.id_profil = $1 AND pp.date_suppression IS NULL`,
+        [idProfil]);
+  return { configure, permissions: rows };
+}
 
 router.get("/utilisateurs/:id/droits-effectifs", async (req, res) => {
   const { id } = req.params;
@@ -36,10 +70,12 @@ router.get("/utilisateurs/:id/droits-effectifs", async (req, res) => {
     );
     if (!userCheck.length) return res.status(404).json({ error: "Utilisateur introuvable ou inactif" });
 
-    const profilsReels = await profilsParDefaut(id);
+    const profilsReels = await profilsDirects(id);
 
     // Profils dont la matrice est regardée : celui demandé (vue par profil ou
-    // simulation d'un autre profil), sinon l'ensemble des profils du compte.
+    // simulation d'un autre profil), sinon l'ensemble des profils DIRECTS du
+    // compte. profilId peut être un profil porté par groupe : la vue par
+    // profil le regarde alors seul, comme n'importe quel profil.
     let vises = profilsReels;
     if (profilId) {
       const { rows: prof } = await tenantPool.query(
@@ -51,33 +87,40 @@ router.get("/utilisateurs/:id/droits-effectifs", async (req, res) => {
     }
 
     // Matrice de chaque profil visé pour CETTE société : configurée si
-    // marqueur, sinon défaut. Même règle que droitsUtilisateur.js, bornée à
-    // une société ; la première source rencontrée fait foi dans l'union.
+    // marqueur, sinon défaut. La première source rencontrée fait foi dans
+    // l'union.
     const profils = [];
     const matriceProfils = new Map();
     for (const vise of vises) {
-      const { rows: conf } = await tenantPool.query(
-        `SELECT 1 FROM profil_societe_configuration
-          WHERE id_profil = $1 AND id_societe = $2`,
-        [vise.id, societeId]
-      );
-      const configure = conf.length > 0;
-      const { rows } = configure
-        ? await tenantPool.query(
-            `SELECT DISTINCT p.id, p.code, p.label, p.module
-               FROM profil_societe_permission psp
-               JOIN permission p ON p.id = psp.id_permission
-              WHERE psp.id_profil = $1 AND psp.id_societe = $2`,
-            [vise.id, societeId])
-        : await tenantPool.query(
-            `SELECT DISTINCT p.id, p.code, p.label, p.module
-               FROM profil_permission pp
-               JOIN permission p ON p.id = pp.id_permission
-              WHERE pp.id_profil = $1 AND pp.date_suppression IS NULL`,
-            [vise.id]);
+      const { configure, permissions } = await matriceProfilPourSociete(vise.id, societeId);
       profils.push({ id: vise.id, code: vise.code, label: vise.label, type: vise.type, configure });
-      for (const perm of rows) {
+      for (const perm of permissions) {
         if (!matriceProfils.has(perm.id)) matriceProfils.set(perm.id, perm);
+      }
+    }
+
+    // Lignes des groupes d'utilisateurs du compte (#277/#330) dont le groupe
+    // d'organisations contient la société regardée ; le filtre profilId
+    // s'applique aussi aux lignes (vue par profil). Les matrices sont
+    // résolues une fois par profil, les noms de groupes collectés par
+    // permission pour la provenance.
+    const lignesGroupes = (await lignesAccesGroupes(id)).filter((ligne) =>
+      (ligne.societes || []).includes(societeId)
+      && (!profilId || ligne.id_profil === profilId)
+    );
+    const matriceGroupesUtilisateurs = new Map(); // id permission -> permission
+    const groupesParPermission = new Map();       // id permission -> Set(nom du groupe)
+    const matriceParProfilLigne = new Map();      // id_profil -> permissions
+    for (const ligne of lignesGroupes) {
+      let permissions = matriceParProfilLigne.get(ligne.id_profil);
+      if (!permissions) {
+        ({ permissions } = await matriceProfilPourSociete(ligne.id_profil, societeId));
+        matriceParProfilLigne.set(ligne.id_profil, permissions);
+      }
+      for (const perm of permissions) {
+        if (!matriceGroupesUtilisateurs.has(perm.id)) matriceGroupesUtilisateurs.set(perm.id, perm);
+        if (!groupesParPermission.has(perm.id)) groupesParPermission.set(perm.id, new Set());
+        groupesParPermission.get(perm.id).add(ligne.groupe_nom);
       }
     }
 
@@ -107,6 +150,18 @@ router.get("/utilisateurs/:id/droits-effectifs", async (req, res) => {
     for (const perm of matriceProfils.values()) {
       map.set(perm.id, { permission: perm, source: "profil", effectif: true, exception: null, redondante: false });
     }
+    // Lignes de groupes d'utilisateurs : source dédiée quand le droit ne
+    // vient QUE des groupes ; sinon la source directe reste affichée et les
+    // noms de groupes s'ajoutent (provenance cumulée).
+    for (const perm of matriceGroupesUtilisateurs.values()) {
+      if (!map.has(perm.id)) {
+        map.set(perm.id, { permission: perm, source: "groupe_utilisateur", effectif: true, exception: null, redondante: false });
+      }
+    }
+    for (const [permId, noms] of groupesParPermission) {
+      const entry = map.get(permId);
+      if (entry) entry.groupes_utilisateurs = [...noms].sort((a, b) => a.localeCompare(b, "fr"));
+    }
     for (const perm of matriceGroupes) {
       if (map.has(perm.id)) continue;
       map.set(perm.id, { permission: perm, source: "groupe", effectif: true, exception: null, redondante: false });
@@ -129,6 +184,9 @@ router.get("/utilisateurs/:id/droits-effectifs", async (req, res) => {
       const entry = map.get(exc.idpermission);
       map.set(exc.idpermission, {
         permission: entry?.permission || await loadPermission(exc.idpermission),
+        // La provenance retirée reste visible : l'écran dit d'où venait le
+        // droit que l'exception retire.
+        ...(entry?.groupes_utilisateurs ? { groupes_utilisateurs: entry.groupes_utilisateurs } : {}),
         source: "exceptionretire", effectif: false, exception: exc, redondante: false,
       });
     }

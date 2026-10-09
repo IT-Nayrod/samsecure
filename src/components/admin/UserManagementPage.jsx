@@ -1,7 +1,7 @@
 // UserManagementPage - page unique de gestion des utilisateurs, regroupant
-// Utilisateurs / Profils / Exceptions / Journal sous forme d'onglets. Chaque
-// onglet n'est visible que si l'utilisateur détient la permission réelle
-// correspondante.
+// Utilisateurs / Profils / Groupes d'organisations / Groupes d'utilisateurs /
+// Exceptions / Journal sous forme d'onglets. Chaque onglet n'est visible que
+// si l'utilisateur détient la permission réelle correspondante.
 //
 // Tout est profil (#276, 06/10/2026) : l'onglet Groupes personnalisés a
 // disparu, les groupes existants sont devenus des profils ajoutés. L'onglet
@@ -11,17 +11,25 @@
 // utilisateur (section Profils, gerer_utilisateurs).
 import { useState, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Users, Shield, ClipboardList, ScrollText } from 'lucide-react';
+import { Users, Shield, Building2, Group, ClipboardList, ScrollText } from 'lucide-react';
 import useAuth from '../../hooks/useAuth';
 import { ADMIN_PERMISSIONS } from '../../constants/permissions';
 import UsersPage from '../users/UsersPage';
 import ProfilsPage from './ProfilsPage';
+import GroupesOrganisationsPage from './GroupesOrganisationsPage';
+import GroupesUtilisateursPage from './GroupesUtilisateursPage';
 import ExceptionsPage from './ExceptionsPage';
 import JournalPage from './JournalPage';
 
 const TABS = [
   { key: 'utilisateurs', label: 'Utilisateurs', icon: Users, permission: ADMIN_PERMISSIONS.UTILISATEURS, Component: UsersPage },
   { key: 'profils', label: 'Profils', icon: Shield, permission: ADMIN_PERMISSIONS.PROFILS, Component: ProfilsPage },
+  // Groupes (US #277/#330, 08/10/2026) : les groupes d'organisations ne
+  // servent qu'a composer des acces (gerer_profils) ; les groupes
+  // d'utilisateurs se lisent et se peuplent avec gerer_utilisateurs, leur
+  // composition fine suit gerer_profils dans l'ecran.
+  { key: 'groupes-organisations', label: "Groupes d'organisations", icon: Building2, permission: ADMIN_PERMISSIONS.PROFILS, Component: GroupesOrganisationsPage },
+  { key: 'groupes-utilisateurs', label: "Groupes d'utilisateurs", icon: Group, permission: ADMIN_PERMISSIONS.UTILISATEURS, Component: GroupesUtilisateursPage },
   { key: 'exceptions', label: 'Exceptions', icon: ClipboardList, permission: ADMIN_PERMISSIONS.EXCEPTIONS, Component: ExceptionsPage },
   { key: 'journal', label: 'Journal', icon: ScrollText, permission: ADMIN_PERMISSIONS.JOURNAL, Component: JournalPage },
 ];
