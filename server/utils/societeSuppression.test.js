@@ -42,13 +42,13 @@ test("compteurs rendus en chaînes par pg : convertis, zéro ignoré", () => {
 test("message de refus : un seul blocage", () => {
   assert.equal(
     messageSuppressionImpossible("REC Filiale Nord", ["1 filiale"]),
-    'Suppression impossible : la société "REC Filiale Nord" porte encore 1 filiale. La désactivation reste possible.'
+    'Suppression impossible : la société "REC Filiale Nord" porte encore 1 filiale. L\'archivage reste possible.'
   );
 });
 
 test("message de refus : énumération avec virgules et « et »", () => {
   assert.equal(
     messageSuppressionImpossible("REC Groupe Horizon (mère)", ["2 utilisateurs rattachés", "1 filiale", "3 contrats"]),
-    'Suppression impossible : la société "REC Groupe Horizon (mère)" porte encore 2 utilisateurs rattachés, 1 filiale et 3 contrats. La désactivation reste possible.'
+    'Suppression impossible : la société "REC Groupe Horizon (mère)" porte encore 2 utilisateurs rattachés, 1 filiale et 3 contrats. L\'archivage reste possible.'
   );
 });

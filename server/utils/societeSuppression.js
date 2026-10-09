@@ -1,8 +1,10 @@
-// Règle de suppression d'une société (#281, issue 60 — règle du ticket #62) :
-// les utilisateurs et les sociétés ne se suppriment pas, ils se désactivent
-// avec une date ; la suppression n'est possible que si aucun objet ne se
-// raccroche à la société, et même alors l'objet reste conservé en base à des
-// fins d'audit (suppression douce).
+// Règle de suppression d'une société (#281, issue 60 — règle du ticket #62 ;
+// décision client du 08/10/2026 : une société ne se désactive pas, elle
+// s'archive, le vocabulaire des contrats #96) : les utilisateurs et les
+// sociétés ne se suppriment pas, une société s'archive avec une date ; la
+// suppression n'est possible que si aucun objet ne se raccroche à la société
+// (société créée par erreur), et même alors l'objet reste conservé en base à
+// des fins d'audit (suppression douce).
 //
 // Module pur, sans accès base : la route DELETE /societes/:id et la projection
 // de GET /societes fournissent les compteurs, la règle rend les libellés. Les
@@ -38,5 +40,5 @@ export function messageSuppressionImpossible(raisonSociale, blocages) {
   const liste = blocages.length > 1
     ? `${blocages.slice(0, -1).join(", ")} et ${blocages[blocages.length - 1]}`
     : blocages[0];
-  return `Suppression impossible : la société "${raisonSociale}" porte encore ${liste}. La désactivation reste possible.`;
+  return `Suppression impossible : la société "${raisonSociale}" porte encore ${liste}. L'archivage reste possible.`;
 }

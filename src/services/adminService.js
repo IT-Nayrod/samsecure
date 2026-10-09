@@ -151,10 +151,13 @@ export const societesService = {
   create: (payload) => http.post('/societes', payload).then(normalizeSociete),
   update: (id, payload) => http.patch(`/societes/${id}`, payload).then(normalizeSociete),
   remove: (id) => http.delete(`/societes/${id}`),
-  // #281 : désactivation réversible. La suppression reste remove(), refusée
-  // (409) par l'API tant que des objets se raccrochent à la société.
-  desactiver: (id) => http.post(`/societes/${id}/desactiver`).then(normalizeSociete),
-  reactiver: (id) => http.post(`/societes/${id}/reactiver`).then(normalizeSociete),
+  // #281 : archivage réversible (décision client du 08/10/2026, « archiver »
+  // remplace « désactiver », le vocabulaire des contrats #96 ; l'API garde
+  // /desactiver et /reactiver en alias le temps de la transition). La
+  // suppression reste remove(), refusée (409) par l'API tant que des objets
+  // se raccrochent à la société.
+  archiver: (id) => http.post(`/societes/${id}/archiver`).then(normalizeSociete),
+  restaurer: (id) => http.post(`/societes/${id}/restaurer`).then(normalizeSociete),
   // Onglet Profils de la fiche société (#249, permission gerer_profils).
   profils: (id) => http.get(`/societes/${id}/profils`),
   configurerMatrice: (id, idProfil, permission_ids) =>

@@ -265,6 +265,31 @@ export function traduireEvenement(ligne, idCompteCible) {
       libelle = `Contact supprimé${parActeur}`;
       break;
 
+    // --- Cycle de vie des sociétés (#281). Traces portées par l'entité
+    // société : absentes de l'historique d'un compte, mais le gabarit existe
+    // pour tout écran d'audit qui les lira. Décision client du 08/10/2026 :
+    // une société ne se désactive pas, elle s'archive (vocabulaire des
+    // contrats #96) ; les traces antérieures SOCIETE_DESACTIVEE et
+    // SOCIETE_REACTIVEE restent en base et se lisent avec le même gabarit.
+
+    case "SOCIETE_DESACTIVEE":
+    case "SOCIETE_ARCHIVEE":
+      libelle = `Société "${ap.raison_sociale || av.raison_sociale || "inconnue"}" archivée${parActeur}`;
+      details = { societe: ap.raison_sociale ?? av.raison_sociale ?? null,
+                  date_fin_activite: ap.date_fin_activite ?? null };
+      break;
+
+    case "SOCIETE_REACTIVEE":
+    case "SOCIETE_RESTAUREE":
+      libelle = `Société "${ap.raison_sociale || av.raison_sociale || "inconnue"}" restaurée${parActeur}`;
+      details = { societe: ap.raison_sociale ?? av.raison_sociale ?? null };
+      break;
+
+    case "SOCIETE_SUPPRIMEE":
+      libelle = `Société "${av.raison_sociale || ap.raison_sociale || "inconnue"}" supprimée (suppression douce)${parActeur}`;
+      details = { societe: av.raison_sociale ?? ap.raison_sociale ?? null };
+      break;
+
     default:
       // Une action inconnue reste lisible plutôt que d'être masquée : une
       // trace probante ne doit jamais disparaître d'un historique parce que

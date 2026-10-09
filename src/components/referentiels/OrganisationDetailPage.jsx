@@ -7,12 +7,14 @@
 // ni de purge d'attributions au retrait d'un rattachement (#57) : un groupe ne
 // porte plus de diffusion, le périmètre effectif suit le rattachement restant.
 //
-// Cycle de vie (#281, issue 60 — règle du ticket #62) : Désactiver/Réactiver
-// toujours proposés ; Supprimer réservé à une société vide (blocages servis
-// par l'API dans la liste), le serveur restant seul juge au DELETE.
+// Cycle de vie (#281, issue 60 — règle du ticket #62 ; décision client du
+// 08/10/2026 : une société ne se désactive pas, elle s'archive, le
+// vocabulaire des contrats #96) : Archiver/Restaurer toujours proposés ;
+// Supprimer réservé à une société vide (blocages servis par l'API dans la
+// liste), le serveur restant seul juge au DELETE.
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
-import { Pencil, Trash2, UserX, Building2, Shield, Power, PowerOff } from 'lucide-react';
+import { Pencil, Trash2, UserX, Building2, Shield, Archive, ArchiveRestore } from 'lucide-react';
 import Breadcrumb from '../ui/Breadcrumb';
 import Button from '../ui/Button';
 import Badge from '../ui/Badge';
@@ -118,17 +120,17 @@ export default function OrganisationDetailPage() {
     });
   }
 
-  function askDesactiver() {
+  function askArchiver() {
     setCycleInfo({
-      action: 'desactiver', title: 'Désactiver la société', confirmLabel: 'Désactiver', destructive: true,
-      message: `Désactiver "${organisation.raison_sociale}" ? Elle sera marquée inactive à compter d'aujourd'hui et pourra être réactivée.`,
+      action: 'archiver', title: 'Archiver la société', confirmLabel: 'Archiver', destructive: true,
+      message: `Archiver "${organisation.raison_sociale}" ? Elle sera marquée archivée à compter d'aujourd'hui et pourra être restaurée.`,
     });
   }
 
-  function askReactiver() {
+  function askRestaurer() {
     setCycleInfo({
-      action: 'reactiver', title: 'Réactiver la société', confirmLabel: 'Réactiver', destructive: false,
-      message: `Réactiver "${organisation.raison_sociale}" ? Elle redeviendra active immédiatement.`,
+      action: 'restaurer', title: 'Restaurer la société', confirmLabel: 'Restaurer', destructive: false,
+      message: `Restaurer "${organisation.raison_sociale}" ? Elle redeviendra active immédiatement.`,
     });
   }
 
@@ -136,7 +138,7 @@ export default function OrganisationDetailPage() {
     if (!cycleInfo) return;
     try {
       await societesService[cycleInfo.action](organisation.id);
-      addToast({ type: 'success', message: cycleInfo.action === 'desactiver' ? 'Société désactivée.' : 'Société réactivée.' });
+      addToast({ type: 'success', message: cycleInfo.action === 'archiver' ? 'Société archivée.' : 'Société restaurée.' });
       await load();
     } catch (err) {
       addToast({ type: 'error', message: err.message });
@@ -191,14 +193,14 @@ export default function OrganisationDetailPage() {
         <div>
           <div className="flex items-center gap-2 flex-wrap">
             <h1 className="text-xl font-semibold text-gray-900 dark:text-white">{organisation.raison_sociale}</h1>
-            <Badge variant={organisation.actif ? 'success' : 'neutral'} label={organisation.actif ? 'Active' : 'Inactive'} />
+            <Badge variant={organisation.actif ? 'success' : 'neutral'} label={organisation.actif ? 'Active' : 'Archivée'} />
           </div>
           {!organisation.actif && organisation.date_fin_activite && (
-            <p className="text-xs text-gray-500 mt-1">Désactivée depuis le {formatDate(organisation.date_fin_activite)}</p>
+            <p className="text-xs text-gray-500 mt-1">Archivée depuis le {formatDate(organisation.date_fin_activite)}</p>
           )}
           {blocages.length > 0 && (
             <p className="text-xs text-gray-500 mt-1">
-              Suppression impossible : {blocages.join(', ')}.{organisation.actif ? ' La société peut être désactivée.' : ''}
+              Suppression impossible : {blocages.join(', ')}.{organisation.actif ? ' La société peut être archivée.' : ''}
             </p>
           )}
         </div>
@@ -207,12 +209,12 @@ export default function OrganisationDetailPage() {
             <Pencil size={14} /> Éditer
           </Button>
           {organisation.actif ? (
-            <Button variant="secondary" size="sm" onClick={askDesactiver}>
-              <PowerOff size={14} /> Désactiver
+            <Button variant="secondary" size="sm" onClick={askArchiver}>
+              <Archive size={14} /> Archiver
             </Button>
           ) : (
-            <Button variant="secondary" size="sm" onClick={askReactiver}>
-              <Power size={14} /> Réactiver
+            <Button variant="secondary" size="sm" onClick={askRestaurer}>
+              <ArchiveRestore size={14} /> Restaurer
             </Button>
           )}
           {peutSupprimer && (
