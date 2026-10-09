@@ -92,3 +92,39 @@ export function deltaMatrice(avant, apres) {
     retires: [...a].filter((code) => !b.has(code)).sort(),
   };
 }
+
+// ---------------------------------------------------------------------------
+// Groupes d'utilisateurs (#277/#330, decisions client du 08/10/2026, issue #213).
+// ---------------------------------------------------------------------------
+
+// Garde-fou de composition : « on ne compose un groupe qu'avec des profils et
+// des societes que l'on detient ». Rend les societes demandees hors du
+// perimetre de l'acteur (scope au sens de scopeAdministration : admin_sam et
+// rattachement tenant voient tout), triees pour des messages et traces
+// stables. La detention des profils passe, elle, par permissionsManquantes.
+export function societesNonDetenues(societeIds, scope) {
+  if (scope.isTenantScope) return [];
+  const detenues = new Set(scope.societeIds || []);
+  return [...new Set(societeIds)].filter((id) => !detenues.has(id)).sort();
+}
+
+// Societes couvertes par profil depuis les lignes d'acces des groupes d'un
+// compte ([{ id_profil, societes }]) : union des societes par profil. Une
+// ligne dont le groupe d'organisations n'a aucune societe active ne confere
+// RIEN - pas de repli sur la matrice par defaut, contrairement a un
+// rattachement vide : la portee d'une ligne est exactement celle de son
+// groupe. L'union par profil est exacte : la matrice effective d'un profil
+// sur S1 u S2 (matriceProfilEffective) est l'union de ses matrices effectives
+// sur S1 et sur S2, le defaut n'entrant que s'il reste une societe non
+// configuree de part et d'autre.
+export function societesParProfilDesGroupes(lignes) {
+  const parProfil = new Map();
+  for (const ligne of lignes) {
+    const societes = (ligne.societes || []).filter(Boolean);
+    if (!societes.length) continue;
+    let ensemble = parProfil.get(ligne.id_profil);
+    if (!ensemble) { ensemble = new Set(); parProfil.set(ligne.id_profil, ensemble); }
+    for (const id of societes) ensemble.add(id);
+  }
+  return parProfil;
+}

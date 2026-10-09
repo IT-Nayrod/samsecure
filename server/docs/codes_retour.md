@@ -1821,3 +1821,54 @@ Changements d'usage sans nouveau code :
 - GET /api/utilisateurs sert `profils` tous types (`[{ id, code, label,
   type }]`) ; GET /api/utilisateurs/:id/profils et GET /api/attributions
   servent les profils ajoutés (`groupe` et `ajoute`).
+
+## Groupes d'organisations et groupes d'utilisateurs (US #277/#330, 09/10/2026)
+
+Décisions client du 08/10/2026 (schéma de Samuel, issue #213) : trois notions
+découplées. Un profil est une somme de droits ; un groupe d'organisations une
+somme de sociétés du tenant ; un groupe d'utilisateurs une somme de comptes
+dont les accès sont des lignes profil × groupe d'organisations. Les droits
+effectifs d'un compte sont l'union de ses attributions directes et des lignes
+de ses groupes (« et/ou »), un dashboard par profil porté. Tables Tenant des
+migrations 106 et 107, codes seedés par la migration Commune 108
+(`ON CONFLICT DO NOTHING`), tranche 2100-2119 réservée au chantier
+groupes-acces (2114-2119 encore libres). Le module administration répond hors
+enveloppe : le code n'est pas émis au client, les annotations
+`// code_retour:` des routeurs groupesOrganisations.js et
+groupesUtilisateurs.js font référence.
+
+| Code | Type | Libellé | Émis par |
+|------|------|---------|----------|
+| 2100 | trace | Groupe d'organisations créé | audit_log, action GROUPE_ORGANISATION_CREE (POST /api/groupes-organisations, sociétés dans l'après) |
+| 2101 | trace | Groupe d'organisations modifié | audit_log, action GROUPE_ORGANISATION_MODIFIE (PUT /api/groupes-organisations/:id, diff nom/description/sociétés) |
+| 2102 | trace | Groupe d'organisations supprimé (suppression douce) | audit_log, action GROUPE_ORGANISATION_SUPPRIME (DELETE /api/groupes-organisations/:id, 204) |
+| 2103 | erreur | Données du groupe d'organisations invalides | POST et PUT /api/groupes-organisations (400 : nom requis, societe_ids invalides, société introuvable ; 409 : nom déjà pris — la route interpole) |
+| 2104 | erreur | Suppression impossible : le groupe d'organisations est utilisé par des accès | DELETE /api/groupes-organisations/:id (409, la route interpole la liste : « Suppression impossible : le groupe d'organisations "X" est utilisé par le groupe d'utilisateurs "Y" (2 lignes). Retirez d'abord ces lignes d'accès. », `utilises_par` en détail) |
+| 2105 | trace | Groupe d'utilisateurs créé | audit_log, action GROUPE_UTILISATEUR_CREE (POST /api/groupes-utilisateurs) |
+| 2106 | trace | Groupe d'utilisateurs modifié | audit_log, action GROUPE_UTILISATEUR_MODIFIE (PATCH /api/groupes-utilisateurs/:id, diff nom/description) |
+| 2107 | trace | Groupe d'utilisateurs supprimé (suppression douce) | audit_log, action GROUPE_UTILISATEUR_SUPPRIME (DELETE /api/groupes-utilisateurs/:id, 204 ; compteurs membres/accès dans l'avant, ses lignes cessent de compter dans les droits) |
+| 2108 | trace | Accès profil × groupe d'organisations ajouté à un groupe d'utilisateurs | audit_log, action GROUPE_UTILISATEUR_ACCES_AJOUTE (POST /api/groupes-utilisateurs/:id/acces) |
+| 2109 | trace | Accès retiré d'un groupe d'utilisateurs | audit_log, action GROUPE_UTILISATEUR_ACCES_RETIRE (DELETE /api/groupes-utilisateurs/:id/acces/:accesId) |
+| 2110 | trace | Membre ajouté à un groupe d'utilisateurs | audit_log, action GROUPE_UTILISATEUR_MEMBRE_AJOUTE (POST /api/groupes-utilisateurs/:id/membres ; entite_id = le COMPTE, pour l'historique administrateur) |
+| 2111 | trace | Membre retiré d'un groupe d'utilisateurs | audit_log, action GROUPE_UTILISATEUR_MEMBRE_RETIRE (DELETE /api/groupes-utilisateurs/:id/membres/:membreId ; entite_id = le compte) |
+| 2112 | erreur | Données du groupe d'utilisateurs invalides | POST et PATCH /api/groupes-utilisateurs, POST acces, POST membres (400 : nom requis, id_profil/id_groupe_organisation/id_utilisateur invalides ou introuvables ; 409 : nom déjà pris — la route interpole) |
+| 2113 | erreur | Le profil Admin SAM ne se donne pas par un groupe d'utilisateurs | POST /api/groupes-utilisateurs/:id/acces avec le profil admin_sam (409 ; décision du 08/10 à valider par Samuel, réserve au journal du chantier) |
+
+Changements d'usage sans nouveau code :
+- 2080 : couvre aussi les garde-fous de délégation étendus aux groupes (#277/
+  #330) : composition d'un groupe d'organisations avec des sociétés hors du
+  périmètre de l'acteur (POST et PUT /api/groupes-organisations, sociétés
+  ajoutées seulement), composition d'une ligne d'accès (sociétés du groupe
+  d'organisations dans le périmètre ET matrice effective du profil sur ces
+  sociétés entièrement détenue), ajout d'un membre (l'acteur détient l'union
+  des permissions conférées par les lignes actives du groupe) ; retirer reste
+  libre, l'acteur admin_sam est exempté ;
+- 2081 : couvre l'ajout et le retrait d'un titulaire admin_sam dans un groupe
+  d'utilisateurs (toute écriture sur un tel compte reste réservée à un
+  admin_sam) ;
+- 2051 : couvre le périmètre de l'ajout et du retrait de membres (la cible
+  doit être dans les sociétés de l'acteur, admin_sam voit tout) ;
+- GET /api/utilisateurs/:id/droits-effectifs sert la provenance : source
+  `groupe_utilisateur` quand le droit ne vient que des groupes, et
+  `groupes_utilisateurs` (noms triés) sur tout droit qu'au moins un groupe
+  apporte, cumul avec une attribution directe compris.

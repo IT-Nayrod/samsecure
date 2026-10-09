@@ -11,13 +11,16 @@
 // délégation (#278) sont portés par le serveur, leurs refus affichés tels
 // quels. Plus aucune purge ni intersection d'attributions à gérer : le
 // rattachement se modifie librement, le périmètre effectif suit.
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import SlideOver from '../ui/SlideOver';
 import Button from '../ui/Button';
 import FormField from '../ui/FormField';
 import SocieteSelector from '../ui/SocieteSelector';
 import ProfileBadge from './ProfileBadge';
 import { validateEmail, validateRequired } from '../../utils/validation';
+import { useToast } from '../../hooks/useToast';
+import { optionnel } from '../../services/http';
+import { groupesUtilisateursService } from '../../services/adminService';
 
 const LANGUES = [{ value: 'fr', label: 'Français' }, { value: 'en', label: 'English' }];
 
@@ -31,8 +34,17 @@ const EMPTY_FORM = {
 
 export default function UserFormModal({ isOpen, onClose, onSubmit, user, initialSocieteIds, societes, profils }) {
   const isEdit = !!user;
+  const { addToast } = useToast();
   const [form, setForm] = useState(EMPTY_FORM);
   const [idsProfils, setIdsProfils] = useState([]);
+  // Groupes d'utilisateurs (US #330) : appartenances du compte et catalogue
+  // des groupes. Contrairement au reste de la fiche (enregistrée d'un bloc),
+  // l'ajout et le retrait sont des écritures immédiates de l'API, comme sur
+  // la fiche du groupe : chaque action laisse sa trace probante propre.
+  const [appartenances, setAppartenances] = useState([]);
+  const [groupesDisponibles, setGroupesDisponibles] = useState([]);
+  const [groupeAAjouter, setGroupeAAjouter] = useState('');
+  const [groupeEnCours, setGroupeEnCours] = useState(false);
   const [scope, setScope] = useState('tenant'); // 'tenant' | 'specifique'
   const [selectedSocietes, setSelectedSocietes] = useState([]);
   const [errors, setErrors] = useState({});
@@ -45,6 +57,24 @@ export default function UserFormModal({ isOpen, onClose, onSubmit, user, initial
   // perdues, sélecteur de sociétés replié, d'où un saut du panneau sous le
   // curseur).
   const cleRattachement = (initialSocieteIds || []).map((id) => id ?? 'tenant').join(',');
+
+  const chargerGroupes = useCallback(async () => {
+    if (!user?.id) { setAppartenances([]); setGroupesDisponibles([]); return; }
+    // Accessoire : un échec (403 ou tables des groupes non migrées, 500)
+    // laisse la section vide sans bloquer la fiche ; optionnel ne couvre que
+    // le 403, le catch couvre le reste.
+    try {
+      const [app, dispo] = await Promise.all([
+        optionnel(groupesUtilisateursService.appartenances(user.id)),
+        optionnel(groupesUtilisateursService.list()),
+      ]);
+      setAppartenances(app);
+      setGroupesDisponibles(dispo);
+    } catch {
+      setAppartenances([]);
+      setGroupesDisponibles([]);
+    }
+  }, [user?.id]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -67,8 +97,39 @@ export default function UserFormModal({ isOpen, onClose, onSubmit, user, initial
       setSelectedSocietes([]);
     }
     setErrors({});
+    setGroupeAAjouter('');
+    if (isOpen) chargerGroupes();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, isOpen, cleRattachement]);
+
+  async function ajouterAuGroupe() {
+    if (!groupeAAjouter || !user?.id) return;
+    setGroupeEnCours(true);
+    try {
+      await groupesUtilisateursService.addMembre(groupeAAjouter, user.id);
+      addToast({ type: 'success', message: 'Compte ajouté au groupe : il porte désormais ses accès.' });
+      setGroupeAAjouter('');
+      await chargerGroupes();
+    } catch (err) {
+      // Message de l'API tel quel (périmètre, délégation, verrou admin_sam).
+      addToast({ type: 'error', message: err.message });
+    } finally {
+      setGroupeEnCours(false);
+    }
+  }
+
+  async function retirerDuGroupe(appartenance) {
+    setGroupeEnCours(true);
+    try {
+      await groupesUtilisateursService.removeMembre(appartenance.id, appartenance.id_appartenance);
+      addToast({ type: 'success', message: `Compte retiré du groupe "${appartenance.nom}".` });
+      await chargerGroupes();
+    } catch (err) {
+      addToast({ type: 'error', message: err.message });
+    } finally {
+      setGroupeEnCours(false);
+    }
+  }
 
   function validate() {
     const e = {};
@@ -258,6 +319,70 @@ export default function UserFormModal({ isOpen, onClose, onSubmit, user, initial
             })}
             {(profils || []).length === 0 && <p className="text-sm text-gray-400">Aucun profil.</p>}
           </div>
+        </section>
+
+        <section>
+          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 pb-2 border-b border-gray-100 dark:border-gray-700">
+            Groupes d'utilisateurs
+          </h3>
+          <p className="text-xs text-gray-500 mb-3">
+            Chaque groupe apporte ses accès profil × groupe d'organisations, en plus des profils ci-dessus (« et/ou », union des droits). L'ajout et le retrait sont immédiats.
+          </p>
+          {!isEdit ? (
+            <p className="text-sm text-gray-400">Enregistrez d'abord l'utilisateur, puis rouvrez sa fiche pour l'ajouter à des groupes.</p>
+          ) : (
+            <>
+              <div className="flex flex-col gap-1.5">
+                {appartenances.map((a) => (
+                  <div key={a.id_appartenance} className="border border-gray-100 dark:border-gray-700 rounded-lg px-3 py-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{a.nom}</p>
+                      <button
+                        type="button"
+                        onClick={() => retirerDuGroupe(a)}
+                        disabled={groupeEnCours}
+                        className="text-xs text-gray-400 hover:text-red-600 flex-shrink-0"
+                      >
+                        Retirer
+                      </button>
+                    </div>
+                    {(a.acces || []).length > 0 && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        {a.acces.map((ac) => `${ac.profil_label} × ${ac.groupe_organisation_nom} (${(ac.societes || []).length} société${(ac.societes || []).length > 1 ? 's' : ''})`).join(' ; ')}
+                      </p>
+                    )}
+                    {(a.acces || []).length === 0 && (
+                      <p className="text-xs text-gray-400 mt-1">Aucune ligne d'accès : ce groupe ne confère encore aucun droit.</p>
+                    )}
+                  </div>
+                ))}
+                {appartenances.length === 0 && <p className="text-sm text-gray-400">Aucune appartenance.</p>}
+              </div>
+              {(() => {
+                const dejaMembre = new Set(appartenances.map((a) => a.id));
+                const candidats = groupesDisponibles.filter((g) => !dejaMembre.has(g.id));
+                if (!candidats.length) return null;
+                return (
+                  <div className="mt-3 flex items-end gap-2">
+                    <div className="flex-1">
+                      <select
+                        className={INPUT_CLS}
+                        value={groupeAAjouter}
+                        onChange={(e) => setGroupeAAjouter(e.target.value)}
+                        aria-label="Ajouter à un groupe d'utilisateurs"
+                      >
+                        <option value="">Ajouter à un groupe…</option>
+                        {candidats.map((g) => <option key={g.id} value={g.id}>{g.nom} ({g.nb_acces} accès)</option>)}
+                      </select>
+                    </div>
+                    <Button variant="secondary" size="sm" onClick={ajouterAuGroupe} isLoading={groupeEnCours} disabled={!groupeAAjouter}>
+                      Ajouter
+                    </Button>
+                  </div>
+                );
+              })()}
+            </>
+          )}
         </section>
 
       </div>

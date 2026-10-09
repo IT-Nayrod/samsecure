@@ -16,6 +16,7 @@ const NOMS_CHAMPS = {
   prenom: "prénom",
   email: "email",
   langue: "langue",
+  description: "description",
   actif: "statut",
   date_finale: "date de désactivation",
   date_mise_en_fonction: "date de mise en fonction",
@@ -25,6 +26,7 @@ const NOMS_CHAMPS = {
   telephone: "téléphone",
   id_fonction: "fonction",
   id_societe: "société de rattachement",
+  societes: "sociétés du groupe",
   id_editeur: "éditeur de rattachement",
   id_revendeur: "revendeur de rattachement",
   date_debut: "date de début",
@@ -228,6 +230,63 @@ export function traduireEvenement(ligne, idCompteCible) {
     case "EXCEPTION_SUPPRIMEE":
       libelle = `Exception sur "${av.permission || "inconnue"}" supprimée sur ${av.portee || "toutes sociétés"}${parActeur}`;
       details = { permission: av.permission ?? null, portee: av.portee ?? null };
+      break;
+
+    // --- Groupes d'organisations et d'utilisateurs (US #277/#330). ---
+    // Les traces des groupes portent l'entité groupe ; seules MEMBRE_AJOUTE et
+    // MEMBRE_RETIRE visent le compte, pour que l'historique administrateur
+    // d'un utilisateur raconte ses appartenances.
+
+    case "GROUPE_ORGANISATION_CREE": {
+      const nb = Array.isArray(ap.societes) ? ap.societes.length : 0;
+      libelle = `Groupe d'organisations "${ap.nom || "inconnu"}" créé (${nb} société${nb > 1 ? "s" : ""})${parActeur}`;
+      details = { nom: ap.nom ?? null, societes: ap.societes ?? null };
+      break;
+    }
+
+    case "GROUPE_ORGANISATION_MODIFIE":
+      libelle = `Groupe d'organisations modifié : ${champsLisibles}${parActeur}`;
+      details = { champs_modifies: champs.map((c) => NOMS_CHAMPS[c] || c) };
+      break;
+
+    case "GROUPE_ORGANISATION_SUPPRIME":
+      libelle = `Groupe d'organisations "${av.nom || "inconnu"}" supprimé${parActeur}`;
+      details = { nom: av.nom ?? null };
+      break;
+
+    case "GROUPE_UTILISATEUR_CREE":
+      libelle = `Groupe d'utilisateurs "${ap.nom || "inconnu"}" créé${parActeur}`;
+      details = { nom: ap.nom ?? null };
+      break;
+
+    case "GROUPE_UTILISATEUR_MODIFIE":
+      libelle = `Groupe d'utilisateurs modifié : ${champsLisibles}${parActeur}`;
+      details = { champs_modifies: champs.map((c) => NOMS_CHAMPS[c] || c) };
+      break;
+
+    case "GROUPE_UTILISATEUR_SUPPRIME":
+      libelle = `Groupe d'utilisateurs "${av.nom || "inconnu"}" supprimé${parActeur}`;
+      details = { nom: av.nom ?? null, membres: av.membres ?? null, acces: av.acces ?? null };
+      break;
+
+    case "GROUPE_UTILISATEUR_ACCES_AJOUTE":
+      libelle = `Accès "${ap.profil || "inconnu"}" × "${ap.groupe_organisation || "inconnu"}" ajouté au groupe d'utilisateurs "${ap.groupe || "inconnu"}"${parActeur}`;
+      details = { groupe: ap.groupe ?? null, profil: ap.profil ?? null, groupe_organisation: ap.groupe_organisation ?? null };
+      break;
+
+    case "GROUPE_UTILISATEUR_ACCES_RETIRE":
+      libelle = `Accès "${av.profil || "inconnu"}" × "${av.groupe_organisation || "inconnu"}" retiré du groupe d'utilisateurs "${av.groupe || "inconnu"}"${parActeur}`;
+      details = { groupe: av.groupe ?? null, profil: av.profil ?? null, groupe_organisation: av.groupe_organisation ?? null };
+      break;
+
+    case "GROUPE_UTILISATEUR_MEMBRE_AJOUTE":
+      libelle = `Ajouté au groupe d'utilisateurs "${ap.groupe || "inconnu"}"${parActeur}`;
+      details = { groupe: ap.groupe ?? null };
+      break;
+
+    case "GROUPE_UTILISATEUR_MEMBRE_RETIRE":
+      libelle = `Retiré du groupe d'utilisateurs "${av.groupe || "inconnu"}"${parActeur}`;
+      details = { groupe: av.groupe ?? null };
       break;
 
     case "CONNEXION":
